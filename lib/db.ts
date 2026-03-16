@@ -265,10 +265,11 @@ export async function getPlayerCheckinConflict(
     .eq('player_id', playerId)
     .neq('game_id', gameId)
   if (!data) return null
-  const conflict = data.find((row: any) =>
+  const conflict = (data as any[]).find((row: any) =>
     row.game?.scheduled_time === time && row.game?.event_date_id === eventDateId
   )
-  return conflict?.game ?? null
+  if (!conflict) return null
+  return (conflict.game as Game) ?? null
 }
 
 // ---- Incidents ----
