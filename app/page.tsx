@@ -5,6 +5,7 @@ import { AppShell } from '@/components/AppShell'
 import { LoginPage } from '@/components/auth/LoginPage'
 import { RefereePortal } from '@/components/auth/RefereePortal'
 import { VolunteerPortal } from '@/components/auth/VolunteerPortal'
+import { ProgramDashboard } from '@/components/programs/ProgramDashboard'
 
 export default function Home() {
   const { user, userRole, loading } = useAuth()
@@ -26,15 +27,13 @@ export default function Home() {
     )
   }
 
-  // Not logged in — show login
   if (!user) return <LoginPage />
 
-  // Referee — show their portal
-  if (userRole?.role === 'referee') return <RefereePortal />
+  // Role-based routing
+  if (userRole?.role === 'referee')        return <RefereePortal />
+  if (userRole?.role === 'volunteer')      return <VolunteerPortal />
+  if (userRole?.role === 'program_leader') return <ProgramDashboard />
 
-  // Volunteer — show their portal
-  if (userRole?.role === 'volunteer') return <VolunteerPortal />
-
-  // Admin or League Admin — show full app
+  // Admin, League Admin, or authenticated without role → full app
   return <AppShell />
 }

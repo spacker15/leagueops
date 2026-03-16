@@ -32,7 +32,7 @@ export function QRCodesPanel() {
     loadTokens()
   }, [])
 
-async function loadTokens() {
+  async function loadTokens() {
     const sb = createClient()
     setLoading(true)
     const { data } = await sb
@@ -45,13 +45,7 @@ async function loadTokens() {
       `)
       .eq('event_id', 1)
       .order('player_id')
-    const mapped: QRToken[] = (data ?? []).map((row: any) => ({
-      id:        row.id,
-      token:     row.token,
-      player_id: row.player_id,
-      player:    Array.isArray(row.player) ? row.player[0] : row.player,
-    }))
-    setTokens(mapped)
+    setTokens((data as QRToken[]) ?? [])
     setLoading(false)
   }
 

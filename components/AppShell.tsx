@@ -18,12 +18,13 @@ import { EngineTab } from '@/components/engine/EngineTab'
 import { RulesTab } from '@/components/rules/RulesTab'
 import { ConflictsTab } from '@/components/conflicts/ConflictsTab'
 import { UserManagement } from '@/components/auth/UserManagement'
+import { ProgramApprovals } from '@/components/programs/ProgramApprovals'
 import { QRCodesPanel } from '@/components/auth/QRCodesPanel'
 
 export type TabName =
   | 'dashboard' | 'schedule' | 'checkin' | 'rosters' | 'qrcodes'
   | 'refs' | 'conflicts' | 'incidents' | 'weather' | 'parkmap'
-  | 'engine' | 'rules' | 'users'
+  | 'engine' | 'rules' | 'users' | 'programs'
 
 export function AppShell() {
   const [activeTab, setActiveTab] = useState<TabName>('dashboard')
@@ -44,6 +45,7 @@ export function AppShell() {
     { id: 'engine',    label: 'Sched Engine' },
     { id: 'rules',     label: 'Rules' },
     { id: 'users',     label: 'Users', adminOnly: true },
+    { id: 'programs',  label: 'Programs', adminOnly: true },
   ]
 
   // League admins see all tabs except Users
@@ -86,6 +88,7 @@ export function AppShell() {
           {activeTab === 'engine'     && <EngineTab />}
           {activeTab === 'rules'      && <RulesTab />}
           {activeTab === 'users'      && <UserManagement />}
+          {activeTab === 'programs'   && <ProgramApprovals />}
         </main>
         <RightPanel onNavigate={setActiveTab} />
       </div>

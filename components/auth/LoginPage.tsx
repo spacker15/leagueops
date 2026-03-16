@@ -111,8 +111,16 @@ export function LoginPage() {
           </div>
         </div>
 
-        <div className="text-center mt-4 font-cond text-[10px] text-muted tracking-wide">
-          Contact your administrator to create an account
+        <div className="text-center mt-4 space-y-2">
+          <div className="font-cond text-[10px] text-muted tracking-wide">
+            Contact your administrator to create an account
+          </div>
+          <div>
+            <a href="/register"
+              className="font-cond text-[11px] font-bold text-blue-300 hover:text-white transition-colors tracking-wide">
+              Register a Program → 
+            </a>
+          </div>
         </div>
       </div>
     </div>
