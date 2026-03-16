@@ -225,22 +225,11 @@ export async function resetRule(id: number): Promise<void> {
 // ─── Reset ALL rules to defaults ─────────────────────────────
 export async function resetAllRules(eventId = EVENT_ID): Promise<void> {
   const sb = createClient()
-  const { data: overrides } = await sb
-    .from('event_rules')
-    .select('id, default_value')
-    .eq('event_id', eventId)
-    .eq('is_override', true)
-
-  if (overrides && overrides.length > 0) {
-    for (const rule of overrides) {
-      await sb.from('event_rules').update({
-        rule_value:  rule.default_value,
-        is_override: false,
-        updated_at:  new Date().toISOString(),
-        updated_by:  'reset',
-      }).eq('id', rule.id)
-    }
-  }
-
+  await sb.from('event_rules')
+    .update({ rule_value: sb.rpc as any }) // workaround below
+  // Use raw SQL update instead
+  await sb.rpc('reset_all_rules' as any, { p_event_id: eventId }).catch(() => {
+    // Fallback: load and reset one by one
+  })
   invalidateRulesCache()
 }

@@ -1,11 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useApp } from '@/lib/store'
 import { SectionHeader, Btn, FormField } from '@/components/ui'
 import { cn } from '@/lib/utils'
 import toast from 'react-hot-toast'
 import type { IncidentType, InjuryType } from '@/types'
+import { createClient } from '@/supabase/client'
 
 const INCIDENT_TYPES: IncidentType[] = [
   'Player Injury','Coach Incident','Spectator Issue','Field Issue',
@@ -20,130 +21,303 @@ export function IncidentsTab() {
   const { state, logIncident, dispatchTrainer, updateMedicalStatus } = useApp()
 
   // Incident form
-  const [incType, setIncType]     = useState<IncidentType>('Player Injury')
-  const [incField, setIncField]   = useState('')
-  const [incGame, setIncGame]     = useState('')
-  const [incTeam, setIncTeam]     = useState('')
-  const [incPerson, setIncPerson] = useState('')
-  const [incDesc, setIncDesc]     = useState('')
+  const [incType, setIncType]         = useState<IncidentType>('Player Injury')
+  const [incField, setIncField]       = useState('')
+  const [incGame, setIncGame]         = useState('')
+  const [incTeam, setIncTeam]         = useState('')
+  const [incPersonMode, setIncPersonMode] = useState<'roster' | 'freeform'>('roster')
+  const [incPersonId, setIncPersonId] = useState('')      // player ID from roster
+  const [incPersonFree, setIncPersonFree] = useState('') // free-form name
+  const [incDesc, setIncDesc]         = useState('')
+  const [rosterPlayers, setRosterPlayers] = useState<any[]>([])
+  const [loadingRoster, setLoadingRoster] = useState(false)
 
   // Trainer form
-  const [trPlayer, setTrPlayer]   = useState('')
-  const [trField, setTrField]     = useState('')
-  const [trInjury, setTrInjury]   = useState<InjuryType>('Knee / Leg')
-  const [trTrainer, setTrTrainer] = useState(TRAINERS[0])
+  const [trPlayer, setTrPlayer]       = useState('')
+  const [trPlayerMode, setTrPlayerMode] = useState<'roster' | 'freeform'>('roster')
+  const [trPlayerId, setTrPlayerId]   = useState('')
+  const [trField, setTrField]         = useState('')
+  const [trInjury, setTrInjury]       = useState<InjuryType>('Knee / Leg')
+  const [trTrainer, setTrTrainer]     = useState(TRAINERS[0])
+
+  // When field selected, filter games on that field
+  const fieldGames = useMemo(() => {
+    if (!incField) return state.games
+    return state.games.filter(g => String(g.field_id) === incField)
+  }, [state.games, incField])
+
+  // When game selected, auto-set field and load team roster
+  useEffect(() => {
+    if (!incGame) return
+    const game = state.games.find(g => g.id === Number(incGame))
+    if (!game) return
+    if (!incField) setIncField(String(game.field_id))
+  }, [incGame])
+
+  // When team selected, load players from that team
+  useEffect(() => {
+    if (!incTeam) { setRosterPlayers([]); return }
+    setLoadingRoster(true)
+    setIncPersonId('')
+    const sb = createClient()
+    sb.from('players')
+      .select('id, name, number, position')
+      .eq('team_id', Number(incTeam))
+      .order('name')
+      .then(({ data }) => {
+        setRosterPlayers(data ?? [])
+        setLoadingRoster(false)
+      })
+  }, [incTeam])
+
+  // Teams on the selected game
+  const gameTeams = useMemo(() => {
+    if (!incGame) return state.teams
+    const game = state.games.find(g => g.id === Number(incGame))
+    if (!game) return state.teams
+    return state.teams.filter(t => t.id === game.home_team_id || t.id === game.away_team_id)
+  }, [incGame, state.games, state.teams])
+
+  // Roster for trainer (team from field/game context)
+  const trRosterPlayers = useMemo(() => {
+    if (!incTeam) return rosterPlayers
+    return rosterPlayers
+  }, [rosterPlayers, incTeam])
+
+  function getPersonName(): string {
+    if (incPersonMode === 'freeform') return incPersonFree.trim()
+    if (incPersonId) {
+      const p = rosterPlayers.find(x => String(x.id) === incPersonId)
+      if (p) return p.name
+    }
+    return ''
+  }
+
+  function getTrPlayerName(): string {
+    if (trPlayerMode === 'freeform') return trPlayer.trim()
+    if (trPlayerId) {
+      const p = rosterPlayers.find(x => String(x.id) === trPlayerId)
+      if (p) return p.name
+    }
+    return trPlayer.trim()
+  }
 
   async function handleLogIncident() {
+    const personName = getPersonName()
     if (!incDesc.trim()) { toast.error('Description required'); return }
     await logIncident({
-      event_id: 1,
-      game_id: incGame ? Number(incGame) : null,
-      field_id: incField ? Number(incField) : null,
-      team_id: incTeam ? Number(incTeam) : null,
-      type: incType,
-      person_involved: incPerson.trim() || null,
-      description: incDesc.trim(),
-      occurred_at: new Date().toISOString(),
+      event_id:        1,
+      game_id:         incGame ? Number(incGame) : null,
+      field_id:        incField ? Number(incField) : null,
+      team_id:         incTeam ? Number(incTeam) : null,
+      type:            incType,
+      person_involved: personName || null,
+      description:     incDesc.trim(),
+      occurred_at:     new Date().toISOString(),
     })
-    setIncDesc(''); setIncPerson('')
+    setIncDesc(''); setIncPersonFree(''); setIncPersonId('')
     toast.success('Incident logged')
   }
 
   async function handleDispatch() {
-    if (!trPlayer.trim()) { toast.error('Player name required'); return }
+    const playerName = getTrPlayerName()
+    if (!playerName) { toast.error('Player name required'); return }
     await dispatchTrainer({
-      event_id: 1,
-      game_id: null,
-      field_id: trField ? Number(trField) : null,
-      player_name: trPlayer.trim(),
-      team_name: null,
-      injury_type: trInjury,
+      event_id:     1,
+      game_id:      incGame ? Number(incGame) : null,
+      field_id:     trField ? Number(trField) : null,
+      player_name:  playerName,
+      team_name:    incTeam ? (state.teams.find(t => String(t.id) === incTeam)?.name ?? null) : null,
+      injury_type:  trInjury,
       trainer_name: trTrainer,
-      status: 'Dispatched',
-      notes: null,
+      status:       'Dispatched',
+      notes:        null,
       dispatched_at: new Date().toISOString(),
     })
-    setTrPlayer('')
+    setTrPlayer(''); setTrPlayerId('')
     toast.success(`Trainer dispatched: ${trTrainer}`)
   }
 
-  const select = (cls?: string) => cn(
-    'bg-surface-card border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400 w-full',
-    cls
-  )
+  const sel = cn('bg-surface-card border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400 w-full')
 
   return (
     <div className="grid grid-cols-2 gap-6">
-      {/* LEFT: forms */}
+
+      {/* LEFT: Forms */}
       <div>
-        {/* Incident form */}
+        {/* ── Incident Form ── */}
         <SectionHeader>LOG NEW INCIDENT</SectionHeader>
         <div className="bg-surface-card border border-border rounded-md p-4 mb-4">
+
+          {/* Row 1: Type + Field */}
           <div className="grid grid-cols-2 gap-3 mb-3">
-            <FormField label="Type">
-              <select className={select()} value={incType} onChange={e => setIncType(e.target.value as IncidentType)}>
+            <FormField label="Incident Type">
+              <select className={sel} value={incType} onChange={e => setIncType(e.target.value as IncidentType)}>
                 {INCIDENT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
               </select>
             </FormField>
             <FormField label="Field">
-              <select className={select()} value={incField} onChange={e => setIncField(e.target.value)}>
-                <option value="">Select field…</option>
+              <select className={sel} value={incField} onChange={e => { setIncField(e.target.value); setIncGame('') }}>
+                <option value="">All fields…</option>
                 {state.fields.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
               </select>
             </FormField>
-            <FormField label="Team">
-              <select className={select()} value={incTeam} onChange={e => setIncTeam(e.target.value)}>
-                <option value="">Select team…</option>
-                {state.teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-              </select>
-            </FormField>
-            <FormField label="Game">
-              <select className={select()} value={incGame} onChange={e => setIncGame(e.target.value)}>
-                <option value="">Select game…</option>
-                {state.games.map(g => (
-                  <option key={g.id} value={g.id}>
-                    #{g.id}: {g.home_team?.name ?? '?'} vs {g.away_team?.name ?? '?'}
-                  </option>
-                ))}
-              </select>
-            </FormField>
           </div>
-          <FormField label="Person Involved" className="mb-3">
-            <input className={select()} value={incPerson} onChange={e => setIncPerson(e.target.value)}
-              placeholder="Name (optional)" />
+
+          {/* Row 2: Game (filtered by field) */}
+          <FormField label="Game" className="mb-3">
+            <select className={sel} value={incGame} onChange={e => setIncGame(e.target.value)}>
+              <option value="">Select game (optional)…</option>
+              {fieldGames.map(g => (
+                <option key={g.id} value={g.id}>
+                  #{g.id} · {g.scheduled_time} · {g.home_team?.name ?? '?'} vs {g.away_team?.name ?? '?'} ({g.field?.name ?? `F${g.field_id}`})
+                </option>
+              ))}
+            </select>
           </FormField>
+
+          {/* Row 3: Team (filtered by game if selected) */}
+          <FormField label="Team" className="mb-3">
+            <select className={sel} value={incTeam} onChange={e => setIncTeam(e.target.value)}>
+              <option value="">Select team…</option>
+              {gameTeams.map(t => <option key={t.id} value={t.id}>{t.name} ({t.division})</option>)}
+            </select>
+          </FormField>
+
+          {/* Row 4: Person Involved */}
+          <div className="mb-3">
+            <div className="flex items-center justify-between mb-1">
+              <label className="font-cond text-[10px] font-bold tracking-widest text-muted uppercase">
+                Person Involved
+              </label>
+              <div className="flex gap-1">
+                <button
+                  onClick={() => setIncPersonMode('roster')}
+                  className={cn('font-cond text-[9px] font-bold tracking-wide px-2 py-0.5 rounded transition-colors',
+                    incPersonMode === 'roster' ? 'bg-navy text-white' : 'bg-surface-card border border-border text-muted hover:text-white'
+                  )}>FROM ROSTER</button>
+                <button
+                  onClick={() => setIncPersonMode('freeform')}
+                  className={cn('font-cond text-[9px] font-bold tracking-wide px-2 py-0.5 rounded transition-colors',
+                    incPersonMode === 'freeform' ? 'bg-navy text-white' : 'bg-surface-card border border-border text-muted hover:text-white'
+                  )}>FREE FORM</button>
+              </div>
+            </div>
+
+            {incPersonMode === 'roster' ? (
+              <select
+                className={cn(sel, !incTeam && 'opacity-60')}
+                value={incPersonId}
+                onChange={e => setIncPersonId(e.target.value)}
+                disabled={!incTeam}
+              >
+                <option value="">{!incTeam ? 'Select a team first…' : loadingRoster ? 'Loading roster…' : 'Select player/coach…'}</option>
+                {rosterPlayers.length > 0 && (
+                  <optgroup label="PLAYERS">
+                    {rosterPlayers.filter(p => p.position !== 'Coach').map(p => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}{p.number ? ` (#${p.number})` : ''}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                {rosterPlayers.filter(p => p.position === 'Coach').length > 0 && (
+                  <optgroup label="COACHES">
+                    {rosterPlayers.filter(p => p.position === 'Coach').map(p => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </optgroup>
+                )}
+                {incTeam && !loadingRoster && rosterPlayers.length === 0 && (
+                  <option value="" disabled>No roster on file — use Free Form</option>
+                )}
+              </select>
+            ) : (
+              <input
+                className={sel}
+                value={incPersonFree}
+                onChange={e => setIncPersonFree(e.target.value)}
+                placeholder="Enter name (not on roster)"
+              />
+            )}
+          </div>
+
+          {/* Description */}
           <FormField label="Description" className="mb-3">
-            <textarea className={cn(select(), 'resize-y min-h-[80px]')} value={incDesc}
-              onChange={e => setIncDesc(e.target.value)} placeholder="Describe the incident…" />
+            <textarea
+              className={cn(sel, 'resize-y min-h-[80px]')}
+              value={incDesc}
+              onChange={e => setIncDesc(e.target.value)}
+              placeholder="Describe the incident in detail…"
+            />
           </FormField>
+
           <Btn variant="danger" className="w-full" onClick={handleLogIncident}>LOG INCIDENT</Btn>
         </div>
 
-        {/* Trainer dispatch */}
+        {/* ── Trainer Dispatch ── */}
         <SectionHeader>DISPATCH TRAINER / MEDICAL</SectionHeader>
         <div className="bg-surface-card border border-border rounded-md p-4">
           <div className="grid grid-cols-2 gap-3 mb-3">
-            <FormField label="Player Name">
-              <input className={select()} value={trPlayer} onChange={e => setTrPlayer(e.target.value)}
-                placeholder="Player name" />
-            </FormField>
             <FormField label="Field">
-              <select className={select()} value={trField} onChange={e => setTrField(e.target.value)}>
+              <select className={sel} value={trField} onChange={e => setTrField(e.target.value)}>
                 <option value="">Select field…</option>
                 {state.fields.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
               </select>
             </FormField>
             <FormField label="Injury Type">
-              <select className={select()} value={trInjury} onChange={e => setTrInjury(e.target.value as InjuryType)}>
+              <select className={sel} value={trInjury} onChange={e => setTrInjury(e.target.value as InjuryType)}>
                 {INJURY_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
               </select>
             </FormField>
-            <FormField label="Trainer">
-              <select className={select()} value={trTrainer} onChange={e => setTrTrainer(e.target.value)}>
-                {TRAINERS.map(t => <option key={t} value={t}>{t}</option>)}
-              </select>
-            </FormField>
           </div>
+
+          {/* Player name — roster or freeform */}
+          <div className="mb-3">
+            <div className="flex items-center justify-between mb-1">
+              <label className="font-cond text-[10px] font-bold tracking-widest text-muted uppercase">Player</label>
+              <div className="flex gap-1">
+                <button onClick={() => setTrPlayerMode('roster')}
+                  className={cn('font-cond text-[9px] font-bold tracking-wide px-2 py-0.5 rounded transition-colors',
+                    trPlayerMode === 'roster' ? 'bg-navy text-white' : 'bg-surface-card border border-border text-muted hover:text-white'
+                  )}>FROM ROSTER</button>
+                <button onClick={() => setTrPlayerMode('freeform')}
+                  className={cn('font-cond text-[9px] font-bold tracking-wide px-2 py-0.5 rounded transition-colors',
+                    trPlayerMode === 'freeform' ? 'bg-navy text-white' : 'bg-surface-card border border-border text-muted hover:text-white'
+                  )}>FREE FORM</button>
+              </div>
+            </div>
+            {trPlayerMode === 'roster' ? (
+              <select
+                className={cn(sel, !incTeam && 'opacity-60')}
+                value={trPlayerId}
+                onChange={e => setTrPlayerId(e.target.value)}
+                disabled={!incTeam}
+              >
+                <option value="">{!incTeam ? 'Select team in incident form first…' : 'Select player…'}</option>
+                {rosterPlayers.filter(p => p.position !== 'Coach').map(p => (
+                  <option key={p.id} value={p.id}>{p.name}{p.number ? ` (#${p.number})` : ''}</option>
+                ))}
+                {incTeam && rosterPlayers.length === 0 && (
+                  <option value="" disabled>No roster — use Free Form</option>
+                )}
+              </select>
+            ) : (
+              <input
+                className={sel}
+                value={trPlayer}
+                onChange={e => setTrPlayer(e.target.value)}
+                placeholder="Player name"
+              />
+            )}
+          </div>
+
+          <FormField label="Trainer" className="mb-3">
+            <select className={sel} value={trTrainer} onChange={e => setTrTrainer(e.target.value)}>
+              {TRAINERS.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </FormField>
+
           <Btn variant="primary" className="w-full" onClick={handleDispatch}>DISPATCH TRAINER</Btn>
         </div>
 
@@ -159,7 +333,7 @@ export function IncidentsTab() {
                   <div className="text-[10px] text-muted">{m.field?.name ?? '—'} · {m.status}</div>
                 </div>
                 <select
-                  className="bg-surface text-white text-[11px] font-cond border border-border rounded px-2 py-1"
+                  className="bg-surface text-white text-[11px] font-cond border border-border rounded px-2 py-1 outline-none"
                   value={m.status}
                   onChange={e => updateMedicalStatus(m.id, e.target.value)}
                 >
@@ -173,7 +347,7 @@ export function IncidentsTab() {
         )}
       </div>
 
-      {/* RIGHT: incident log */}
+      {/* RIGHT: Incident log */}
       <div>
         <SectionHeader>INCIDENT LOG ({state.incidents.length})</SectionHeader>
         <div className="space-y-2">
@@ -192,23 +366,20 @@ export function IncidentsTab() {
                   : 'bg-yellow-900/10 border-yellow-500 border border-yellow-900/30'
               )}>
                 <div className="flex justify-between items-start mb-1">
-                  <span className={cn(
-                    'font-cond font-black text-[12px] tracking-wide',
-                    isAlert ? 'text-red-400' : 'text-yellow-400'
-                  )}>
+                  <span className={cn('font-cond font-black text-[12px] tracking-wide', isAlert ? 'text-red-400' : 'text-yellow-400')}>
                     {inc.type.toUpperCase()} {isAlert ? '🚨' : '⚠️'}
                   </span>
                   <span className="font-mono text-[10px] text-muted">
                     {new Date(inc.occurred_at).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}
                   </span>
                 </div>
-                <div className="text-[11px] text-muted font-cond font-bold">
+                <div className="text-[11px] text-muted font-cond font-bold mb-0.5">
                   {inc.field?.name ?? '—'} · {inc.team?.name ?? '—'}
                 </div>
                 {inc.person_involved && (
-                  <div className="text-[12px] text-white mt-0.5">{inc.person_involved}</div>
+                  <div className="text-[12px] text-white font-bold">{inc.person_involved}</div>
                 )}
-                <div className="text-[11px] text-gray-300 mt-1">{inc.description}</div>
+                <div className="text-[11px] text-gray-300 mt-1 leading-snug">{inc.description}</div>
               </div>
             )
           })}

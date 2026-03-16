@@ -15,21 +15,23 @@ import { WeatherTab } from '@/components/weather/WeatherTab'
 import { ParkMapTab } from '@/components/parkmap/ParkMapTab'
 import { EngineTab } from '@/components/engine/EngineTab'
 import { RulesTab } from '@/components/rules/RulesTab'
+import { ConflictsTab } from '@/components/conflicts/ConflictsTab'
 
 export type TabName =
   | 'dashboard' | 'schedule' | 'checkin' | 'rosters'
-  | 'refs' | 'incidents' | 'weather' | 'parkmap' | 'engine' | 'rules'
+  | 'refs' | 'incidents' | 'weather' | 'parkmap' | 'engine' | 'rules' | 'conflicts'
 
 const TABS: { id: TabName; label: string }[] = [
   { id: 'dashboard', label: 'Dashboard' },
   { id: 'schedule',  label: 'Schedule' },
   { id: 'checkin',   label: 'Check-In' },
   { id: 'rosters',   label: 'Rosters' },
-  { id: 'refs',      label: 'Refs & Volunteers' },
+  { id: 'refs',      label: 'Refs & Vols' },
+  { id: 'conflicts', label: 'Conflicts' },
   { id: 'incidents', label: 'Incidents' },
   { id: 'weather',   label: 'Weather' },
   { id: 'parkmap',   label: 'Park Map' },
-  { id: 'engine',    label: 'Engine' },
+  { id: 'engine',    label: 'Sched Engine' },
   { id: 'rules',     label: 'Rules' },
 ]
 
@@ -65,6 +67,7 @@ export function AppShell() {
           {activeTab === 'checkin'    && <CheckInTab />}
           {activeTab === 'rosters'    && <RostersTab />}
           {activeTab === 'refs'       && <RefsTab />}
+          {activeTab === 'conflicts'  && <ConflictsTab />}
           {activeTab === 'incidents'  && <IncidentsTab />}
           {activeTab === 'weather'    && <WeatherTab />}
           {activeTab === 'parkmap'    && <ParkMapTab />}
