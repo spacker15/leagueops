@@ -242,3 +242,87 @@ export interface RosterRow {
   number: string
   position: string
 }
+// ============================================================
+// Phase 1 — New types
+// ============================================================
+
+export interface Complex {
+  id: number
+  event_id: number
+  name: string
+  address: string | null
+  lat: number | null
+  lng: number | null
+  lightning_radius_miles: number
+  weather_provider: string
+  notes: string | null
+  created_at: string
+  fields?: Field[]
+}
+
+export type FieldBlockReason = 'weather' | 'maintenance' | 'reserved' | 'lightning' | 'other'
+
+export interface FieldBlock {
+  id: number
+  field_id: number
+  reason: FieldBlockReason
+  starts_at: string
+  ends_at: string
+  notes: string | null
+  created_by: string | null
+  created_at: string
+  field?: Field
+}
+
+export interface Season {
+  id: number
+  name: string
+  sport: string
+  start_date: string
+  end_date: string
+  notes: string | null
+  created_at: string
+}
+
+export interface RefereeAvailability {
+  id: number
+  referee_id: number
+  date: string
+  available_from: string
+  available_to: string
+  created_at: string
+}
+
+export type ConflictType =
+  | 'ref_double_booked'
+  | 'ref_unavailable'
+  | 'field_overlap'
+  | 'field_blocked'
+  | 'weather_closure'
+  | 'schedule_cascade'
+  | 'missing_referee'
+  | 'max_games_exceeded'
+
+export type ConflictSeverity = 'info' | 'warning' | 'critical'
+
+export interface ResolutionOption {
+  action: string
+  label: string
+  params?: Record<string, unknown>
+}
+
+export interface OperationalConflict {
+  id: number
+  event_id: number
+  conflict_type: ConflictType
+  severity: ConflictSeverity
+  impacted_game_ids: number[]
+  impacted_ref_ids: number[]
+  impacted_field_ids: number[]
+  description: string
+  resolution_options: ResolutionOption[]
+  resolved: boolean
+  resolved_at: string | null
+  resolved_by: string | null
+  created_at: string
+}
