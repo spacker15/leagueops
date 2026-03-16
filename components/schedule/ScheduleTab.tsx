@@ -20,7 +20,7 @@ interface FieldConflict extends OperationalConflict {
 
 export function ScheduleTab() {
   const { state, updateGameStatus, addGame, currentDate } = useApp()
-  const [viewMode, setViewMode]         = useState<ViewMode>('table')
+  const [viewMode, setViewMode]         = useState<ViewMode>('board')
   const [fieldFilter, setFieldFilter]   = useState('')
   const [divFilter, setDivFilter]       = useState('')
   const [statusFilter, setStatusFilter] = useState('')
@@ -351,69 +351,13 @@ export function ScheduleTab() {
 
       {/* ── BOARD VIEW ── */}
       {viewMode === 'board' && (
-        <div className="overflow-x-auto">
-          <div className="flex gap-3" style={{ minWidth: `${fieldColumns.length * 200}px` }}>
-            {fieldColumns.map(({ field, games }) => (
-              <div key={field.id} className="flex-shrink-0 w-48">
-                <div className="bg-navy text-center py-2 rounded-md mb-2 border border-border">
-                  <div className="font-cond font-black text-[13px] tracking-wide">{field.name}</div>
-                  <div className="font-cond text-[10px] text-muted">{games.length} games</div>
-                </div>
-                {games.map(game => {
-                  const hasConflict = conflictGameIds.has(game.id)
-                  const conflict    = conflicts.find(c => c.impacted_game_ids?.includes(game.id))
-                  return (
-                    <div key={game.id} className={cn(
-                      'rounded-md border mb-2 overflow-hidden',
-                      hasConflict
-                        ? conflict?.severity === 'critical'
-                          ? 'border-red-600/60 bg-red-900/15'
-                          : 'border-yellow-600/60 bg-yellow-900/10'
-                        : game.status === 'Live'
-                          ? 'border-green-700/60 bg-green-900/10'
-                          : game.status === 'Final'
-                            ? 'border-border/50 opacity-70'
-                            : 'border-border bg-surface-card'
-                    )}>
-                      <div className="bg-navy/60 px-2 py-1 flex justify-between items-center">
-                        <span className="font-mono text-[10px] text-blue-300">{game.scheduled_time}</span>
-                        <span className={cn('font-cond text-[9px] font-black tracking-wider px-1.5 py-0.5 rounded',
-                          game.status === 'Live'    ? 'badge-live' :
-                          game.status === 'Final'   ? 'badge-final' :
-                          game.status === 'Delayed' ? 'badge-delayed' : 'badge-scheduled'
-                        )}>{game.status.toUpperCase()}</span>
-                      </div>
-                      <div className="px-2 py-1.5">
-                        <div className="font-cond font-black text-[11px] leading-tight">
-                          {game.home_team?.name ?? '?'}
-                        </div>
-                        <div className="font-cond text-[9px] text-muted my-0.5">vs</div>
-                        <div className="font-cond font-black text-[11px] leading-tight">
-                          {game.away_team?.name ?? '?'}
-                        </div>
-                        <div className="font-cond text-[9px] text-muted mt-1">{game.division}</div>
-                        {hasConflict && (
-                          <div className={cn('font-cond text-[9px] font-bold mt-1',
-                            conflict?.severity === 'critical' ? 'text-red-400' : 'text-yellow-400'
-                          )}>
-                            ⚠ {conflict?.conflict_type?.replace(/_/g,' ').toUpperCase()}
-                          </div>
-                        )}
-                        {game.status !== 'Final' && (
-                          <button
-                            onClick={() => cycleStatus(game.id, game.status)}
-                            className="mt-1.5 w-full font-cond text-[9px] font-bold tracking-wider py-0.5 rounded bg-navy hover:bg-navy-light text-white transition-colors">
-                            {nextStatusLabel(game.status)}
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            ))}
-          </div>
-        </div>
+        <ScheduleBoardView
+          fieldColumns={fieldColumns}
+          conflicts={conflicts}
+          conflictGameIds={conflictGameIds}
+          onCycleStatus={cycleStatus}
+          onRescheduled={loadConflicts}
+        />
       )}
 
       {/* Add game modal */}
@@ -587,6 +531,215 @@ function ConflictRow({ conflict, onResolve, onApply, applying }: {
           className="shrink-0 font-cond text-[9px] font-bold px-2 py-1 rounded bg-green-900/40 text-green-400 border border-green-800/50 hover:bg-green-800/60 transition-colors whitespace-nowrap ml-1">
           DISMISS
         </button>
+      </div>
+    </div>
+  )
+}
+
+// ─── Rich Schedule Board View ────────────────────────────────
+function ScheduleBoardView({ fieldColumns, conflicts, conflictGameIds, onCycleStatus, onRescheduled }: {
+  fieldColumns: Array<{ field: any; games: any[] }>
+  conflicts: any[]
+  conflictGameIds: Set<number>
+  onCycleStatus: (id: number, status: GameStatus) => void
+  onRescheduled: () => void
+}) {
+  return (
+    <div className="overflow-x-auto pb-3">
+      <div className="flex gap-3" style={{ minWidth: `${Math.max(fieldColumns.length * 230, 600)}px` }}>
+        {fieldColumns.map(({ field, games }) => {
+          const liveCount    = games.filter(g => g.status === 'Live' || g.status === 'Halftime').length
+          const delayedCount = games.filter(g => g.status === 'Delayed').length
+          const finalCount   = games.filter(g => g.status === 'Final').length
+          const conflictCount = games.filter(g => conflictGameIds.has(g.id)).length
+
+          return (
+            <div key={field.id} className="flex-shrink-0" style={{ width: 220 }}>
+              {/* Field column header */}
+              <div className={cn(
+                'rounded-lg border-2 mb-3 overflow-hidden',
+                liveCount > 0    ? 'border-green-600/60' :
+                delayedCount > 0 ? 'border-red-600/60' :
+                conflictCount > 0 ? 'border-yellow-600/50' :
+                'border-border'
+              )}>
+                <div className={cn(
+                  'px-3 py-2.5',
+                  liveCount > 0    ? 'bg-green-900/30' :
+                  delayedCount > 0 ? 'bg-red-900/20' :
+                  'bg-navy'
+                )}>
+                  <div className="font-cond font-black text-[15px] tracking-wide text-white">{field.name}</div>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="font-cond text-[10px] text-muted">{games.length} games</span>
+                    {liveCount > 0 && (
+                      <span className="font-cond text-[9px] font-bold text-green-400 flex items-center gap-0.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse inline-block" />
+                        {liveCount} LIVE
+                      </span>
+                    )}
+                    {delayedCount > 0 && (
+                      <span className="font-cond text-[9px] font-bold text-red-400">⚡ {delayedCount} DELAYED</span>
+                    )}
+                    {conflictCount > 0 && (
+                      <span className="font-cond text-[9px] font-bold text-yellow-400">⚠ {conflictCount}</span>
+                    )}
+                  </div>
+                </div>
+                {/* Mini progress bar */}
+                <div className="flex h-1">
+                  {finalCount > 0 && <div className="bg-gray-600" style={{ width: `${finalCount / games.length * 100}%` }} />}
+                  {liveCount > 0 && <div className="bg-green-500" style={{ width: `${liveCount / games.length * 100}%` }} />}
+                  {delayedCount > 0 && <div className="bg-red-500" style={{ width: `${delayedCount / games.length * 100}%` }} />}
+                  <div className="bg-blue-700 flex-1" />
+                </div>
+              </div>
+
+              {/* Game cards */}
+              <div className="space-y-2">
+                {games.map(game => (
+                  <GameCard
+                    key={game.id}
+                    game={game}
+                    hasConflict={conflictGameIds.has(game.id)}
+                    conflict={conflicts.find(c => c.impacted_game_ids?.includes(game.id))}
+                    onCycleStatus={onCycleStatus}
+                    onRescheduled={onRescheduled}
+                  />
+                ))}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// ─── Individual Game Card ─────────────────────────────────────
+function GameCard({ game, hasConflict, conflict, onCycleStatus, onRescheduled }: {
+  game: any
+  hasConflict: boolean
+  conflict: any
+  onCycleStatus: (id: number, status: GameStatus) => void
+  onRescheduled: () => void
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const isLive     = game.status === 'Live' || game.status === 'Halftime'
+  const isFinal    = game.status === 'Final'
+  const isDelayed  = game.status === 'Delayed'
+  const isStarting = game.status === 'Starting'
+
+  const borderColor =
+    hasConflict && conflict?.severity === 'critical' ? 'border-red-600/70' :
+    hasConflict ? 'border-yellow-600/60' :
+    isLive      ? 'border-green-600/60' :
+    isDelayed   ? 'border-red-600/50' :
+    isStarting  ? 'border-orange-500/60' :
+    isFinal     ? 'border-border/40' :
+    'border-border'
+
+  const bgColor =
+    isLive    ? 'bg-green-900/10' :
+    isDelayed ? 'bg-red-900/10' :
+    isFinal   ? 'bg-surface-card/50' :
+    'bg-surface-card'
+
+  return (
+    <div className={cn('rounded-lg border overflow-hidden transition-all', borderColor, bgColor, isFinal && 'opacity-75')}>
+      {/* Card header — time + status */}
+      <div className={cn(
+        'px-3 py-2 flex justify-between items-center border-b border-border/50',
+        isLive    ? 'bg-green-900/20' :
+        isDelayed ? 'bg-red-900/20' :
+        isStarting ? 'bg-orange-900/20' :
+        'bg-navy/50'
+      )}>
+        <div className="flex items-center gap-2">
+          {isLive && <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse flex-shrink-0" />}
+          <span className="font-mono text-[11px] font-bold text-blue-300">{game.scheduled_time}</span>
+          <span className="font-cond text-[9px] font-bold text-muted">#{game.id}</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          {hasConflict && (
+            <span className={cn('font-cond text-[9px] font-black',
+              conflict?.severity === 'critical' ? 'text-red-400' : 'text-yellow-400'
+            )}>⚠</span>
+          )}
+          <span className={cn('font-cond text-[9px] font-black tracking-wider px-1.5 py-0.5 rounded',
+            game.status === 'Live'    ? 'badge-live' :
+            game.status === 'Final'   ? 'badge-final' :
+            game.status === 'Delayed' ? 'badge-delayed' :
+            game.status === 'Halftime'? 'badge-halftime' :
+            game.status === 'Starting'? 'badge-starting' :
+            'badge-scheduled'
+          )}>{game.status === 'Halftime' ? 'HALF' : game.status.toUpperCase()}</span>
+        </div>
+      </div>
+
+      {/* Matchup */}
+      <div className="px-3 py-2.5">
+        {/* Score display for live/final games */}
+        {(isLive || isFinal) ? (
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex-1 min-w-0">
+              <div className="font-cond font-black text-[13px] leading-tight truncate">{game.home_team?.name ?? '?'}</div>
+            </div>
+            <div className="flex items-center gap-1.5 px-2 flex-shrink-0">
+              <span className={cn('font-mono text-[18px] font-bold', isFinal ? 'text-muted' : 'text-green-400')}>
+                {game.home_score}
+              </span>
+              <span className="text-muted text-[12px]">–</span>
+              <span className={cn('font-mono text-[18px] font-bold', isFinal ? 'text-muted' : 'text-green-400')}>
+                {game.away_score}
+              </span>
+            </div>
+            <div className="flex-1 min-w-0 text-right">
+              <div className="font-cond font-black text-[13px] leading-tight truncate">{game.away_team?.name ?? '?'}</div>
+            </div>
+          </div>
+        ) : (
+          <div className="mb-2">
+            <div className="font-cond font-black text-[13px] leading-tight mb-0.5">{game.home_team?.name ?? '?'}</div>
+            <div className="font-cond text-[10px] text-muted mb-0.5">vs</div>
+            <div className="font-cond font-black text-[13px] leading-tight">{game.away_team?.name ?? '?'}</div>
+          </div>
+        )}
+
+        {/* Division */}
+        <div className="mb-2">
+          <span className="font-cond text-[9px] font-bold bg-blue-900/30 text-blue-300 px-1.5 py-0.5 rounded">
+            {game.division}
+          </span>
+        </div>
+
+        {/* Conflict detail */}
+        {hasConflict && conflict && (
+          <div className={cn(
+            'text-[9px] font-cond font-bold px-2 py-1 rounded mb-2',
+            conflict.severity === 'critical' ? 'bg-red-900/30 text-red-300' : 'bg-yellow-900/30 text-yellow-300'
+          )}>
+            ⚠ {conflict.conflict_type?.replace(/_/g, ' ').toUpperCase()}
+          </div>
+        )}
+
+        {/* Action buttons */}
+        {!isFinal && (
+          <div className="flex gap-1">
+            <button
+              onClick={() => onCycleStatus(game.id, game.status)}
+              className={cn(
+                'flex-1 font-cond text-[10px] font-bold tracking-wider py-1 rounded transition-colors',
+                isLive    ? 'bg-yellow-900/40 hover:bg-yellow-900/60 text-yellow-300 border border-yellow-800/40' :
+                isDelayed ? 'bg-green-900/40 hover:bg-green-900/60 text-green-300 border border-green-800/40' :
+                isStarting? 'bg-green-700 hover:bg-green-600 text-white' :
+                'bg-navy hover:bg-navy-light text-white'
+              )}>
+              {nextStatusLabel(game.status)}
+            </button>
+            <QuickRescheduleBtn game={game} onRescheduled={onRescheduled} />
+          </div>
+        )}
       </div>
     </div>
   )
