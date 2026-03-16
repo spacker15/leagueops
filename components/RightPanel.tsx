@@ -5,6 +5,10 @@ import { CoverageBar, Pill } from '@/components/ui'
 import { logTypeColor } from '@/lib/utils'
 import type { TabName } from '@/components/AppShell'
 import { cn } from '@/lib/utils'
+import { useEffect, useState } from 'react'
+import { createClient } from '@/supabase/client'
+import type { OperationalConflict } from '@/types'
+import { AlertTriangle, XCircle } from 'lucide-react'
 
 interface Props { onNavigate: (tab: TabName) => void }
 
@@ -62,6 +66,9 @@ export function RightPanel({ onNavigate }: Props) {
           ))
         }
       </Section>
+
+      {/* Operational Conflicts (Phase 2) */}
+      <ConflictPanel onNavigate={onNavigate} />
 
       {/* Weather */}
       <Section title="WEATHER / LIGHTNING" action={() => onNavigate('weather')} actionLabel="VIEW">
@@ -127,6 +134,75 @@ export function RightPanel({ onNavigate }: Props) {
   )
 }
 
+// ─── Conflict Panel ──────────────────────────────────────────
+function ConflictPanel({ onNavigate }: { onNavigate: (tab: TabName) => void }) {
+  const [conflicts, setConflicts] = useState<OperationalConflict[]>([])
+
+  useEffect(() => {
+    const sb = createClient()
+    sb.from('operational_conflicts')
+      .select('*')
+      .eq('event_id', 1)
+      .eq('resolved', false)
+      .order('severity', { ascending: false })
+      .limit(5)
+      .then(({ data }) => setConflicts((data as OperationalConflict[]) ?? []))
+
+    // Realtime subscription
+    const sub = sb.channel('rp-conflicts')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'operational_conflicts' }, () => {
+        sb.from('operational_conflicts')
+          .select('*').eq('event_id', 1).eq('resolved', false)
+          .order('severity', { ascending: false }).limit(5)
+          .then(({ data }) => setConflicts((data as OperationalConflict[]) ?? []))
+      })
+      .subscribe()
+
+    return () => { sb.removeChannel(sub) }
+  }, [])
+
+  const critical = conflicts.filter(c => c.severity === 'critical').length
+  const warning  = conflicts.filter(c => c.severity === 'warning').length
+
+  return (
+    <Section
+      title={`REF CONFLICTS${conflicts.length > 0 ? ` (${conflicts.length})` : ''}`}
+      action={() => onNavigate('refs')}
+      actionLabel="VIEW"
+    >
+      {conflicts.length === 0 ? (
+        <p className="text-[11px] text-green-400 font-cond font-bold">ALL CLEAR</p>
+      ) : (
+        <div>
+          {critical > 0 && (
+            <div className="flex items-center gap-1.5 mb-1">
+              <XCircle size={11} className="text-red-400" />
+              <span className="font-cond text-[11px] font-bold text-red-400">{critical} CRITICAL</span>
+            </div>
+          )}
+          {warning > 0 && (
+            <div className="flex items-center gap-1.5 mb-2">
+              <AlertTriangle size={11} className="text-yellow-400" />
+              <span className="font-cond text-[11px] font-bold text-yellow-400">{warning} WARNINGS</span>
+            </div>
+          )}
+          <div className="space-y-1.5">
+            {conflicts.slice(0, 3).map(c => (
+              <div key={c.id} className={cn(
+                'text-[10px] rounded p-1.5 border-l-2',
+                c.severity === 'critical' ? 'bg-white/5 border-red-500 text-red-300' : 'bg-white/5 border-yellow-500 text-yellow-300'
+              )}>
+                {c.description.length > 70 ? c.description.slice(0, 70) + '…' : c.description}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </Section>
+  )
+}
+
+// ─── Section wrapper ─────────────────────────────────────────
 function Section({
   title, children, action, actionLabel
 }: {
