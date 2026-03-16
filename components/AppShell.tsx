@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useApp } from '@/lib/store'
+import { useAuth } from '@/lib/auth'
 import { TopBar } from '@/components/TopBar'
 import { StatusRow } from '@/components/StatusRow'
 import { RightPanel } from '@/components/RightPanel'
@@ -16,28 +17,37 @@ import { ParkMapTab } from '@/components/parkmap/ParkMapTab'
 import { EngineTab } from '@/components/engine/EngineTab'
 import { RulesTab } from '@/components/rules/RulesTab'
 import { ConflictsTab } from '@/components/conflicts/ConflictsTab'
+import { UserManagement } from '@/components/auth/UserManagement'
+import { QRCodesPanel } from '@/components/auth/QRCodesPanel'
 
 export type TabName =
-  | 'dashboard' | 'schedule' | 'checkin' | 'rosters'
-  | 'refs' | 'incidents' | 'weather' | 'parkmap' | 'engine' | 'rules' | 'conflicts'
-
-const TABS: { id: TabName; label: string }[] = [
-  { id: 'dashboard', label: 'Dashboard' },
-  { id: 'schedule',  label: 'Schedule' },
-  { id: 'checkin',   label: 'Check-In' },
-  { id: 'rosters',   label: 'Rosters' },
-  { id: 'refs',      label: 'Refs & Vols' },
-  { id: 'conflicts', label: 'Conflicts' },
-  { id: 'incidents', label: 'Incidents' },
-  { id: 'weather',   label: 'Weather' },
-  { id: 'parkmap',   label: 'Park Map' },
-  { id: 'engine',    label: 'Sched Engine' },
-  { id: 'rules',     label: 'Rules' },
-]
+  | 'dashboard' | 'schedule' | 'checkin' | 'rosters' | 'qrcodes'
+  | 'refs' | 'conflicts' | 'incidents' | 'weather' | 'parkmap'
+  | 'engine' | 'rules' | 'users'
 
 export function AppShell() {
   const [activeTab, setActiveTab] = useState<TabName>('dashboard')
   const { state } = useApp()
+  const { userRole, signOut, isAdmin } = useAuth()
+
+  const ALL_TABS: { id: TabName; label: string; adminOnly?: boolean }[] = [
+    { id: 'dashboard', label: 'Dashboard' },
+    { id: 'schedule',  label: 'Schedule' },
+    { id: 'checkin',   label: 'Check-In' },
+    { id: 'rosters',   label: 'Rosters' },
+    { id: 'qrcodes',   label: 'QR Codes' },
+    { id: 'refs',      label: 'Refs & Vols' },
+    { id: 'conflicts', label: 'Conflicts' },
+    { id: 'incidents', label: 'Incidents' },
+    { id: 'weather',   label: 'Weather' },
+    { id: 'parkmap',   label: 'Park Map' },
+    { id: 'engine',    label: 'Sched Engine' },
+    { id: 'rules',     label: 'Rules' },
+    { id: 'users',     label: 'Users', adminOnly: true },
+  ]
+
+  // League admins see all tabs except Users
+  const TABS = ALL_TABS.filter(t => !t.adminOnly || isAdmin)
 
   if (state.loading) {
     return (
@@ -58,7 +68,8 @@ export function AppShell() {
 
   return (
     <div className="h-screen flex flex-col overflow-hidden">
-      <TopBar tabs={TABS} activeTab={activeTab} onTabChange={setActiveTab} />
+      <TopBar tabs={TABS} activeTab={activeTab} onTabChange={setActiveTab}
+        userRole={userRole} onSignOut={signOut} />
       <StatusRow />
       <div className="flex flex-1 overflow-hidden">
         <main className="flex-1 overflow-y-auto p-3 min-w-0">
@@ -66,6 +77,7 @@ export function AppShell() {
           {activeTab === 'schedule'   && <ScheduleTab />}
           {activeTab === 'checkin'    && <CheckInTab />}
           {activeTab === 'rosters'    && <RostersTab />}
+          {activeTab === 'qrcodes'    && <QRCodesPanel />}
           {activeTab === 'refs'       && <RefsTab />}
           {activeTab === 'conflicts'  && <ConflictsTab />}
           {activeTab === 'incidents'  && <IncidentsTab />}
@@ -73,6 +85,7 @@ export function AppShell() {
           {activeTab === 'parkmap'    && <ParkMapTab />}
           {activeTab === 'engine'     && <EngineTab />}
           {activeTab === 'rules'      && <RulesTab />}
+          {activeTab === 'users'      && <UserManagement />}
         </main>
         <RightPanel onNavigate={setActiveTab} />
       </div>

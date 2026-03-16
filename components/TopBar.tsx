@@ -2,14 +2,25 @@
 
 import { cn } from '@/lib/utils'
 import type { TabName } from '@/components/AppShell'
+import type { UserRole } from '@/lib/auth'
+import { LogOut } from 'lucide-react'
+
+const ROLE_COLORS: Record<string, string> = {
+  admin:        'bg-red/80 text-white',
+  league_admin: 'bg-blue-800/80 text-blue-200',
+  referee:      'bg-yellow-800/60 text-yellow-300',
+  volunteer:    'bg-green-800/60 text-green-300',
+}
 
 interface Props {
   tabs: { id: TabName; label: string }[]
   activeTab: TabName
   onTabChange: (tab: TabName) => void
+  userRole?: UserRole | null
+  onSignOut?: () => void
 }
 
-export function TopBar({ tabs, activeTab, onTabChange }: Props) {
+export function TopBar({ tabs, activeTab, onTabChange, userRole, onSignOut }: Props) {
   return (
     <header className="flex items-stretch h-12 bg-navy-dark border-b-2 border-red flex-shrink-0">
       {/* Logo */}
@@ -21,13 +32,6 @@ export function TopBar({ tabs, activeTab, onTabChange }: Props) {
           <rect x="12" y="12" width="9" height="9" rx="1.5" fill="white" fillOpacity="0.4"/>
         </svg>
         <span className="font-cond text-xl font-black tracking-widest text-white">LEAGUEOPS</span>
-      </div>
-
-      {/* Title separator */}
-      <div className="px-4 flex items-center border-r border-border flex-shrink-0">
-        <span className="font-cond text-[11px] font-bold tracking-[3px] text-muted uppercase">
-          Tournament Command Center
-        </span>
       </div>
 
       {/* Nav tabs */}
@@ -49,10 +53,38 @@ export function TopBar({ tabs, activeTab, onTabChange }: Props) {
         ))}
       </nav>
 
-      {/* Live indicator */}
-      <div className="flex items-center gap-2 px-4 flex-shrink-0">
-        <span className="w-2 h-2 rounded-full bg-red animate-pulse" />
-        <span className="font-cond text-[11px] font-black tracking-widest text-red">LIVE</span>
+      {/* Right side — live indicator + user */}
+      <div className="flex items-center gap-3 px-4 flex-shrink-0 border-l border-border">
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-red animate-pulse" />
+          <span className="font-cond text-[11px] font-black tracking-widest text-red">LIVE</span>
+        </div>
+
+        {userRole && (
+          <>
+            <div className="h-6 w-px bg-border" />
+            <div className="flex items-center gap-2">
+              <span className={cn(
+                'font-cond text-[10px] font-black tracking-wider px-2 py-0.5 rounded',
+                ROLE_COLORS[userRole.role] ?? 'bg-surface text-muted'
+              )}>
+                {userRole.role.replace('_', ' ').toUpperCase()}
+              </span>
+              <span className="font-cond text-[11px] text-white truncate max-w-[120px]">
+                {userRole.display_name}
+              </span>
+              {onSignOut && (
+                <button
+                  onClick={onSignOut}
+                  title="Sign out"
+                  className="text-muted hover:text-white transition-colors p-1"
+                >
+                  <LogOut size={13} />
+                </button>
+              )}
+            </div>
+          </>
+        )}
       </div>
     </header>
   )
