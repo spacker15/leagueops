@@ -358,3 +358,152 @@ export async function addOpsLog(eventId: number, message: string, logType: LogTy
     occurred_at: new Date().toISOString(),
   })
 }
+
+// ============================================================
+// Phase 1 — New data access functions
+// ============================================================
+
+// ---- Complexes ----
+export async function getComplexes(eventId: number) {
+  const sb = createClient()
+  const { data } = await sb
+    .from('complexes')
+    .select('*, fields(*)')
+    .eq('event_id', eventId)
+    .order('name')
+  return data ?? []
+}
+
+export async function insertComplex(complex: {
+  event_id: number
+  name: string
+  address?: string
+  lat?: number
+  lng?: number
+  lightning_radius_miles?: number
+}) {
+  const sb = createClient()
+  const { data } = await sb.from('complexes').insert(complex).select().single()
+  return data
+}
+
+export async function updateComplex(id: number, updates: Partial<{
+  name: string
+  address: string
+  lat: number
+  lng: number
+  lightning_radius_miles: number
+  notes: string
+}>) {
+  const sb = createClient()
+  await sb.from('complexes').update(updates).eq('id', id)
+}
+
+// ---- Field Blocks ----
+export async function getFieldBlocks(fieldId: number) {
+  const sb = createClient()
+  const { data } = await sb
+    .from('field_blocks')
+    .select('*')
+    .eq('field_id', fieldId)
+    .gte('ends_at', new Date().toISOString())
+    .order('starts_at')
+  return data ?? []
+}
+
+export async function getActiveFieldBlocks(eventId: number) {
+  const sb = createClient()
+  const now = new Date().toISOString()
+  const { data } = await sb
+    .from('field_blocks')
+    .select('*, field:fields!inner(*)')
+    .eq('fields.event_id', eventId)
+    .lte('starts_at', now)
+    .gte('ends_at', now)
+  return data ?? []
+}
+
+export async function insertFieldBlock(block: {
+  field_id: number
+  reason: string
+  starts_at: string
+  ends_at: string
+  notes?: string
+  created_by?: string
+}) {
+  const sb = createClient()
+  const { data } = await sb.from('field_blocks').insert(block).select().single()
+  return data
+}
+
+export async function deleteFieldBlock(id: number) {
+  const sb = createClient()
+  await sb.from('field_blocks').delete().eq('id', id)
+}
+
+// ---- Referee Availability ----
+export async function getRefAvailability(refereeId: number) {
+  const sb = createClient()
+  const { data } = await sb
+    .from('referee_availability')
+    .select('*')
+    .eq('referee_id', refereeId)
+    .order('date')
+  return data ?? []
+}
+
+export async function upsertRefAvailability(availability: {
+  referee_id: number
+  date: string
+  available_from: string
+  available_to: string
+}) {
+  const sb = createClient()
+  const { data } = await sb
+    .from('referee_availability')
+    .upsert(availability, { onConflict: 'referee_id,date' })
+    .select()
+    .single()
+  return data
+}
+
+// ---- Operational Conflicts ----
+export async function getOpenConflicts(eventId: number) {
+  const sb = createClient()
+  const { data } = await sb
+    .from('operational_conflicts')
+    .select('*')
+    .eq('event_id', eventId)
+    .eq('resolved', false)
+    .order('severity', { ascending: false })
+    .order('created_at', { ascending: false })
+  return data ?? []
+}
+
+export async function insertConflict(conflict: {
+  event_id: number
+  conflict_type: string
+  severity: string
+  impacted_game_ids?: number[]
+  impacted_ref_ids?: number[]
+  impacted_field_ids?: number[]
+  description: string
+  resolution_options?: object[]
+}) {
+  const sb = createClient()
+  const { data } = await sb
+    .from('operational_conflicts')
+    .insert(conflict)
+    .select()
+    .single()
+  return data
+}
+
+export async function resolveConflict(id: number, resolvedBy?: string) {
+  const sb = createClient()
+  await sb.from('operational_conflicts').update({
+    resolved: true,
+    resolved_at: new Date().toISOString(),
+    resolved_by: resolvedBy ?? 'operator',
+  }).eq('id', id)
+}
