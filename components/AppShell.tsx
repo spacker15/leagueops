@@ -14,10 +14,11 @@ import { IncidentsTab } from '@/components/incidents/IncidentsTab'
 import { WeatherTab } from '@/components/weather/WeatherTab'
 import { ParkMapTab } from '@/components/parkmap/ParkMapTab'
 import { EngineTab } from '@/components/engine/EngineTab'
+import { RulesTab } from '@/components/rules/RulesTab'
 
 export type TabName =
   | 'dashboard' | 'schedule' | 'checkin' | 'rosters'
-  | 'refs' | 'incidents' | 'weather' | 'parkmap' | 'engine'
+  | 'refs' | 'incidents' | 'weather' | 'parkmap' | 'engine' | 'rules'
 
 const TABS: { id: TabName; label: string }[] = [
   { id: 'dashboard', label: 'Dashboard' },
@@ -29,6 +30,7 @@ const TABS: { id: TabName; label: string }[] = [
   { id: 'weather',   label: 'Weather' },
   { id: 'parkmap',   label: 'Park Map' },
   { id: 'engine',    label: 'Engine' },
+  { id: 'rules',     label: 'Rules' },
 ]
 
 export function AppShell() {
@@ -67,6 +69,7 @@ export function AppShell() {
           {activeTab === 'weather'    && <WeatherTab />}
           {activeTab === 'parkmap'    && <ParkMapTab />}
           {activeTab === 'engine'     && <EngineTab />}
+          {activeTab === 'rules'      && <RulesTab />}
         </main>
         <RightPanel onNavigate={setActiveTab} />
       </div>

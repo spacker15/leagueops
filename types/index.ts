@@ -326,3 +326,63 @@ export interface OperationalConflict {
   resolved_by: string | null
   created_at: string
 }
+
+// ============================================================
+// Phase 3 — Weather Engine types
+// ============================================================
+
+export interface WeatherReading {
+  id?: number
+  complex_id: number
+  event_id?: number
+  temperature_f: number
+  feels_like_f: number
+  heat_index_f: number
+  humidity_pct: number
+  wind_mph: number
+  wind_gust_mph: number
+  wind_dir_deg: number
+  conditions: string
+  conditions_code: number
+  visibility_mi: number
+  pressure_mb: number
+  cloud_pct: number
+  uv_index: number
+  lightning_detected: boolean
+  lightning_miles: number | null
+  fetched_at: string
+  source?: 'live' | 'cache' | 'mock'
+  complex_name?: string
+}
+
+export interface LightningEvent {
+  id: number
+  complex_id: number
+  event_id: number
+  detected_at: string
+  closest_miles: number | null
+  delay_started_at: string | null
+  delay_ends_at: string | null
+  all_clear_at: string | null
+  reset_count: number
+  triggered_by: string
+  notes: string | null
+  created_at: string
+}
+
+export type HeatProtocolLevel = 'none' | 'advisory' | 'warning' | 'emergency'
+
+export interface WeatherEngineResult {
+  reading: WeatherReading
+  alerts: Array<{
+    type: string
+    severity: 'info' | 'warning' | 'critical'
+    title: string
+    description: string
+    auto_action: string | null
+  }>
+  actions_taken: string[]
+  games_affected: number
+  lightning_active: boolean
+  heat_protocol: HeatProtocolLevel
+}

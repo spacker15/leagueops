@@ -71,32 +71,7 @@ export function RightPanel({ onNavigate }: Props) {
       <ConflictPanel onNavigate={onNavigate} />
 
       {/* Weather */}
-      <Section title="WEATHER / LIGHTNING" action={() => onNavigate('weather')} actionLabel="VIEW">
-        {lightningActive ? (
-          <div>
-            <div className="font-cond text-[12px] font-black text-red-400 text-center tracking-wider mb-1 border border-red-500/40 rounded p-1 lightning-flash">
-              ⚡ LIGHTNING DELAY ACTIVE
-            </div>
-            <div className="font-mono text-xl text-red-400 text-center">{m}:{s.toString().padStart(2,'0')}</div>
-          </div>
-        ) : (
-          <div>
-            <div className="font-cond text-[11px] font-black text-green-400 text-center tracking-wider border border-green-500/30 rounded p-1">
-              ALL CLEAR
-            </div>
-            <div className="text-[10px] text-muted mt-2 space-y-0.5">
-              <div className="flex justify-between"><span>Temperature</span><span className="text-white">84°F</span></div>
-              <div className="flex justify-between"><span>Humidity</span><span className="text-white">67%</span></div>
-              <div className="flex justify-between"><span>Wind</span><span className="text-white">12 mph</span></div>
-            </div>
-          </div>
-        )}
-        {state.weatherAlerts.filter(a => a.is_active).length > 0 && (
-          <div className="mt-2 text-[10px] text-yellow-400 font-cond font-bold tracking-wide">
-            {state.weatherAlerts.filter(a => a.is_active).length} ACTIVE ALERT(S)
-          </div>
-        )}
-      </Section>
+      <WeatherRPPanel lightningActive={lightningActive} timerM={m} timerS={s} alertCount={state.weatherAlerts.filter(a => a.is_active).length} onNavigate={onNavigate} />
 
       {/* Trainer / Medical */}
       <Section title="TRAINER / MEDICAL" action={() => onNavigate('incidents')} actionLabel="DISPATCH">
@@ -224,5 +199,71 @@ function Section({
       </div>
       {children}
     </div>
+  )
+}
+
+// ─── Right Panel Weather component (Phase 3) ─────────────────
+function WeatherRPPanel({ lightningActive, timerM, timerS, alertCount, onNavigate }: {
+  lightningActive: boolean
+  timerM: number
+  timerS: number
+  alertCount: number
+  onNavigate: (tab: any) => void
+}) {
+  const [latestReading, setLatestReading] = useState<any>(null)
+
+  useEffect(() => {
+    // Load latest reading from complex 1
+    const sb = createClient()
+    sb.from('weather_readings')
+      .select('*')
+      .eq('complex_id', 1)
+      .order('fetched_at', { ascending: false })
+      .limit(1)
+      .single()
+      .then(({ data }) => { if (data) setLatestReading(data) })
+  }, [])
+
+  const heatIdx = latestReading?.heat_index_f
+  const heatColor = !heatIdx ? 'text-white' :
+    heatIdx >= 113 ? 'text-red-400' :
+    heatIdx >= 103 ? 'text-orange-400' :
+    heatIdx >= 95  ? 'text-yellow-400' : 'text-green-400'
+
+  return (
+    <Section title="WEATHER / LIGHTNING" action={() => onNavigate('weather')} actionLabel="VIEW">
+      {lightningActive ? (
+        <div>
+          <div className="font-cond text-[11px] font-black text-red-400 text-center tracking-wider mb-1 border border-red-500/40 rounded p-1 lightning-flash">
+            ⚡ LIGHTNING DELAY ACTIVE
+          </div>
+          <div className="font-mono text-xl text-red-400 text-center">
+            {timerM}:{timerS.toString().padStart(2,'0')}
+          </div>
+        </div>
+      ) : (
+        <div>
+          <div className="font-cond text-[10px] font-black text-green-400 text-center tracking-wider border border-green-500/30 rounded p-1 mb-2">
+            ALL CLEAR
+          </div>
+          {latestReading ? (
+            <div className="text-[10px] space-y-0.5">
+              <div className="flex justify-between"><span className="text-muted">Temp</span><span className="text-white font-mono">{latestReading.temperature_f}°F</span></div>
+              <div className="flex justify-between"><span className="text-muted">Heat Index</span><span className={cn('font-mono font-bold', heatColor)}>{latestReading.heat_index_f}°F</span></div>
+              <div className="flex justify-between"><span className="text-muted">Humidity</span><span className="text-white font-mono">{latestReading.humidity_pct}%</span></div>
+              <div className="flex justify-between"><span className="text-muted">Wind</span><span className="text-white font-mono">{latestReading.wind_mph} mph</span></div>
+              <div className="flex justify-between"><span className="text-muted">Conditions</span><span className="text-white capitalize">{latestReading.conditions}</span></div>
+            </div>
+          ) : (
+            <div className="text-[10px] text-muted font-cond text-center">Run Weather Scan for live data</div>
+          )}
+        </div>
+      )}
+      {alertCount > 0 && (
+        <div className="mt-2 text-[10px] text-yellow-400 font-cond font-bold tracking-wide">
+          ⚠ {alertCount} ACTIVE ALERT{alertCount > 1 ? 'S' : ''}
+        </div>
+      )}
+    </Section>
   )
 }
