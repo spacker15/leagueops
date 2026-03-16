@@ -45,7 +45,7 @@ export function QRCodesPanel() {
       `)
       .eq('event_id', 1)
       .order('player_id')
-    setTokens((data as QRToken[]) ?? [])
+    setTokens((data as unknown as QRToken[]) ?? [])
     setLoading(false)
   }
 
