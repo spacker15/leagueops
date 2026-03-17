@@ -85,10 +85,13 @@ export async function getPlayersByTeam(teamId: number): Promise<Player[]> {
 
 export async function getPlayersByEvent(eventId: number): Promise<Player[]> {
   const sb = createClient()
+  const { data: teams } = await sb.from('teams').select('id').eq('event_id', eventId)
+  const teamIds = (teams ?? []).map(t => t.id)
+  if (!teamIds.length) return []
   const { data } = await sb
     .from('players')
-    .select('*, team:teams!inner(*)')
-    .eq('teams.event_id', eventId)
+    .select('*, team:teams(*)')
+    .in('team_id', teamIds)
     .order('name')
   return data ?? []
 }
@@ -438,10 +441,13 @@ export async function getFieldBlocks(fieldId: number) {
 export async function getActiveFieldBlocks(eventId: number) {
   const sb = createClient()
   const now = new Date().toISOString()
+  const { data: fields } = await sb.from('fields').select('id').eq('event_id', eventId)
+  const fieldIds = (fields ?? []).map(f => f.id)
+  if (!fieldIds.length) return []
   const { data } = await sb
     .from('field_blocks')
-    .select('*, field:fields!inner(*)')
-    .eq('fields.event_id', eventId)
+    .select('*, field:fields(*)')
+    .in('field_id', fieldIds)
     .lte('starts_at', now)
     .gte('ends_at', now)
   return data ?? []

@@ -58,11 +58,12 @@ export function QRCodesPanel() {
   async function generateAllTokens() {
     setGenerating(true)
     const sb = createClient()
-    // Insert tokens for any players missing them
-    const { data: players } = await sb
-      .from('players')
-      .select('id, team:teams!inner(event_id)')
-      .eq('teams.event_id', 1)
+    // Insert tokens for any players missing them (fetch team IDs first — join filters don't work)
+    const { data: eventTeams } = await sb.from('teams').select('id').eq('event_id', 1)
+    const eventTeamIds = (eventTeams ?? []).map(t => t.id)
+    const { data: players } = eventTeamIds.length
+      ? await sb.from('players').select('id').in('team_id', eventTeamIds)
+      : { data: [] }
 
     if (players) {
       for (const p of players) {
