@@ -20,7 +20,7 @@ interface QRToken {
 }
 
 export function QRCodesPanel() {
-  const { state } = useApp()
+  const { state, eventId } = useApp()
   const [tokens, setTokens]     = useState<QRToken[]>([])
   const [loading, setLoading]   = useState(false)
   const [generating, setGenerating] = useState(false)
@@ -43,7 +43,7 @@ export function QRCodesPanel() {
           team:teams(name, division)
         )
       `)
-      .eq('event_id', 1)
+      .eq('event_id', eventId)
       .order('player_id')
     const mapped: QRToken[] = (data ?? []).map((row: any) => ({
       id:        row.id,
@@ -59,7 +59,7 @@ export function QRCodesPanel() {
     setGenerating(true)
     const sb = createClient()
     // Insert tokens for any players missing them (fetch team IDs first — join filters don't work)
-    const { data: eventTeams } = await sb.from('teams').select('id').eq('event_id', 1)
+    const { data: eventTeams } = await sb.from('teams').select('id').eq('event_id', eventId)
     const eventTeamIds = (eventTeams ?? []).map(t => t.id)
     const { data: players } = eventTeamIds.length
       ? await sb.from('players').select('id').in('team_id', eventTeamIds)
@@ -68,7 +68,7 @@ export function QRCodesPanel() {
     if (players) {
       for (const p of players) {
         await sb.from('player_qr_tokens').upsert(
-          { player_id: p.id, event_id: 1 },
+          { player_id: p.id, event_id: eventId },
           { onConflict: 'player_id,event_id' }
         )
       }
