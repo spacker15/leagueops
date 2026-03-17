@@ -6,6 +6,7 @@ import { LoginPage } from '@/components/auth/LoginPage'
 import { RefereePortal } from '@/components/auth/RefereePortal'
 import { VolunteerPortal } from '@/components/auth/VolunteerPortal'
 import { ProgramDashboard } from '@/components/programs/ProgramDashboard'
+import { PendingApprovalScreen } from '@/components/programs/PendingApprovalScreen'
 
 export default function Home() {
   const { user, userRole, loading } = useAuth()
@@ -29,11 +30,23 @@ export default function Home() {
 
   if (!user) return <LoginPage />
 
-  // Role-based routing
-  if (userRole?.role === 'referee')        return <RefereePortal />
-  if (userRole?.role === 'volunteer')      return <VolunteerPortal />
-  if (userRole?.role === 'program_leader') return <ProgramDashboard />
+  // Referee / Volunteer portals
+  if (userRole?.role === 'referee')   return <RefereePortal />
+  if (userRole?.role === 'volunteer') return <VolunteerPortal />
 
-  // Admin, League Admin, or authenticated without role → full app
+  // Program leader — check if approved
+  if (userRole?.role === 'program_leader') {
+    if (!userRole.is_active) return <PendingApprovalScreen />
+    return <ProgramDashboard />
+  }
+
+  // Logged in but no role assigned yet — could be a pending program leader
+  // who registered but whose user_role row might not exist yet
+  if (!userRole && user) {
+    // Check if they have a program pending
+    return <PendingApprovalScreen />
+  }
+
+  // Admin, League Admin → full app
   return <AppShell />
 }

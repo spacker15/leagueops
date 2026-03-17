@@ -46,12 +46,12 @@ export function QRCodesPanel() {
       .eq('event_id', 1)
       .order('player_id')
     const mapped: QRToken[] = (data ?? []).map((row: any) => ({
-  id:        row.id,
-  token:     row.token,
-  player_id: row.player_id,
-  player:    Array.isArray(row.player) ? row.player[0] : row.player,
-}))
-setTokens(mapped)
+      id:        row.id,
+      token:     row.token,
+      player_id: row.player_id,
+      player:    Array.isArray(row.player) ? row.player[0] : row.player,
+    }))
+    setTokens(mapped)
     setLoading(false)
   }
 

@@ -124,10 +124,11 @@ export function RostersTab() {
       )
       if (!team) continue
       inserts.push({
-        team_id:  team.id,
-        name:     `${row.firstname} ${row.lastname}`.trim(),
-        number:   null,
-        position: row.type === 'Coach' ? 'Coach' : null,
+        team_id:              team.id,
+        name:                 `${row.firstname} ${row.lastname}`.trim(),
+        number:               null,
+        position:             row.type === 'Coach' ? 'Coach' : null,
+        usa_lacrosse_number:  row.usa_lacrosse_number || null,
       })
       added++
     }

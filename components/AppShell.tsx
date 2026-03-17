@@ -34,9 +34,8 @@ export function AppShell() {
   const ALL_TABS: { id: TabName; label: string; adminOnly?: boolean }[] = [
     { id: 'dashboard', label: 'Dashboard' },
     { id: 'schedule',  label: 'Schedule' },
-    { id: 'checkin',   label: 'Check-In' },
+    { id: 'checkin',   label: 'Check-In & QR' },
     { id: 'rosters',   label: 'Rosters' },
-    { id: 'qrcodes',   label: 'QR Codes' },
     { id: 'refs',      label: 'Refs & Vols' },
     { id: 'conflicts', label: 'Conflicts' },
     { id: 'incidents', label: 'Incidents' },

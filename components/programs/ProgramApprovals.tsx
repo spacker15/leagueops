@@ -1,5 +1,7 @@
 'use client'
 
+import { RegistrationConfig } from '@/components/programs/RegistrationConfig'
+
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/supabase/client'
 import { useAuth } from '@/lib/auth'
@@ -34,7 +36,7 @@ export function ProgramApprovals() {
   const [actionId, setActionId]   = useState<number | null>(null)
   const [rejectNote, setRejectNote] = useState('')
   const [rejectingId, setRejectingId] = useState<number | null>(null)
-  const [activeTab, setActiveTab] = useState<'programs' | 'teams'>('programs')
+  const [activeTab, setActiveTab] = useState<'programs' | 'teams' | 'config'>('programs')
 
   const load = useCallback(async () => {
     const sb = createClient()
@@ -178,6 +180,12 @@ export function ProgramApprovals() {
         </button>
 
         {/* Filter */}
+        <button onClick={() => setActiveTab('config')}
+          className={cn('font-cond text-[12px] font-bold px-4 py-2 rounded-lg border transition-colors',
+            activeTab === 'config' ? 'bg-navy border-blue-400 text-white' : 'bg-surface-card border-border text-muted hover:text-white'
+          )}>
+          ⚙ Form Config
+        </button>
         <div className="ml-auto flex gap-1">
           {(['pending','approved','rejected','all'] as FilterStatus[]).map(f => (
             <button key={f} onClick={() => setFilter(f)}
@@ -343,6 +351,7 @@ export function ProgramApprovals() {
               ))}
             </div>
           )}
+          {activeTab === 'config' && <RegistrationConfig />}
         </>
       )}
     </div>
