@@ -131,6 +131,7 @@ interface ContextValue {
   liftLightning: () => Promise<void>
   addLog: (message: string, type?: LogType) => Promise<void>
   updateFieldMap: (fieldId: number, x: number, y: number) => void
+  updateFieldFull: (fieldId: number, props: Partial<import('@/types').Field>) => void
   updateFieldName: (fieldId: number, name: string) => Promise<void>
   addField: (name: string, number: string) => Promise<void>
 }
@@ -315,6 +316,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [state.fields])
 
+  const updateFieldFull = useCallback((fieldId: number, props: Partial<import('@/types').Field>) => {
+    const field = state.fields.find(f => f.id === fieldId)
+    if (field) {
+      dispatch({ type: 'UPDATE_FIELD', payload: { ...field, ...props } })
+      db.updateFieldFull(fieldId, props as any)
+    }
+  }, [state.fields])
+
   const updateFieldName = useCallback(async (fieldId: number, name: string) => {
     await db.updateFieldName(fieldId, name)
     const field = state.fields.find(f => f.id === fieldId)
@@ -335,7 +344,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       logIncident, dispatchTrainer, updateMedicalStatus,
       triggerLightning, liftLightning,
       addLog,
-      updateFieldMap, updateFieldName, addField,
+      updateFieldMap, updateFieldFull, updateFieldName, addField,
     }}>
       {children}
     </Ctx.Provider>

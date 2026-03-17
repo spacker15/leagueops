@@ -46,6 +46,10 @@ export interface Field {
   map_y: number
   map_w: number
   map_h: number
+  map_rotation?: number
+  map_color?: string
+  map_opacity?: number
+  map_shape?: string
   created_at: string
 }
 

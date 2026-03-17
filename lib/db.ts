@@ -38,6 +38,14 @@ export async function updateFieldMap(fieldId: number, x: number, y: number): Pro
   await sb.from('fields').update({ map_x: x, map_y: y }).eq('id', fieldId)
 }
 
+export async function updateFieldFull(fieldId: number, props: {
+  map_x?: number; map_y?: number; map_w?: number; map_h?: number
+  map_rotation?: number; map_color?: string; map_opacity?: number; map_shape?: string
+}): Promise<void> {
+  const sb = createClient()
+  await sb.from('fields').update(props).eq('id', fieldId)
+}
+
 export async function updateFieldName(fieldId: number, name: string): Promise<void> {
   const sb = createClient()
   await sb.from('fields').update({ name }).eq('id', fieldId)
