@@ -8,7 +8,7 @@ import type {
 import * as db from '@/lib/db'
 import { createClient } from '@/supabase/client'
 
-const EVENT_ID = 1
+// eventId is now dynamic — passed via AppProvider props
 
 interface State {
   event: Event | null
@@ -134,11 +134,12 @@ interface ContextValue {
   updateFieldFull: (fieldId: number, props: Partial<import('@/types').Field>) => void
   updateFieldName: (fieldId: number, name: string) => Promise<void>
   addField: (name: string, number: string) => Promise<void>
+  eventId: number
 }
 
 const Ctx = createContext<ContextValue | null>(null)
 
-export function AppProvider({ children }: { children: React.ReactNode }) {
+export function AppProvider({ children, eventId = 1 }: { children: React.ReactNode; eventId?: number }) {
   const [state, dispatch] = useReducer(reducer, initialState)
 
   // ---- Initial load ----
@@ -147,16 +148,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       dispatch({ type: 'SET_LOADING', payload: true })
       const [event, eventDates, fields, teams, referees, volunteers, incidents, medical, weather, opsLog] =
         await Promise.all([
-          db.getEvent(EVENT_ID),
-          db.getEventDates(EVENT_ID),
-          db.getFields(EVENT_ID),
-          db.getTeams(EVENT_ID),
-          db.getReferees(EVENT_ID),
-          db.getVolunteers(EVENT_ID),
-          db.getIncidents(EVENT_ID),
-          db.getMedicalIncidents(EVENT_ID),
-          db.getWeatherAlerts(EVENT_ID),
-          db.getOpsLog(EVENT_ID),
+          db.getEvent(eventId),
+          db.getEventDates(eventId),
+          db.getFields(eventId),
+          db.getTeams(eventId),
+          db.getReferees(eventId),
+          db.getVolunteers(eventId),
+          db.getIncidents(eventId),
+          db.getMedicalIncidents(eventId),
+          db.getWeatherAlerts(eventId),
+          db.getOpsLog(eventId),
         ])
       dispatch({
         type: 'INIT',
@@ -170,7 +171,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const currentDate = state.eventDates[state.currentDateIdx] ?? null
   useEffect(() => {
     if (!currentDate) return
-    db.getGamesByDate(EVENT_ID, currentDate.id).then(games => dispatch({ type: 'SET_GAMES', payload: games }))
+    db.getGamesByDate(eventId, currentDate.id).then(games => dispatch({ type: 'SET_GAMES', payload: games }))
   }, [currentDate])
 
   // ---- Real-time subscriptions ----
@@ -181,13 +182,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (payload.eventType === 'INSERT') dispatch({ type: 'ADD_OPS_LOG', payload: payload.new as OpsLogEntry })
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'incidents' }, () => {
-        db.getIncidents(EVENT_ID).then(d => dispatch({ type: 'SET_INCIDENTS', payload: d }))
+        db.getIncidents(eventId).then(d => dispatch({ type: 'SET_INCIDENTS', payload: d }))
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'games' }, () => {
-        if (currentDate) db.getGamesByDate(EVENT_ID, currentDate.id).then(d => dispatch({ type: 'SET_GAMES', payload: d }))
+        if (currentDate) db.getGamesByDate(eventId, currentDate.id).then(d => dispatch({ type: 'SET_GAMES', payload: d }))
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'medical_incidents' }, () => {
-        db.getMedicalIncidents(EVENT_ID).then(d => dispatch({ type: 'SET_MEDICAL', payload: d }))
+        db.getMedicalIncidents(eventId).then(d => dispatch({ type: 'SET_MEDICAL', payload: d }))
       })
       .subscribe()
     return () => { sb.removeChannel(sub) }
@@ -205,7 +206,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // ---- Actions ----
   const addLog = useCallback(async (message: string, type: LogType = 'info') => {
-    await db.addOpsLog(EVENT_ID, message, type)
+    await db.addOpsLog(eventId, message, type)
   }, [])
 
   const changeDate = useCallback((idx: number) => {
@@ -214,7 +215,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const refreshGames = useCallback(async () => {
     if (!currentDate) return
-    const games = await db.getGamesByDate(EVENT_ID, currentDate.id)
+    const games = await db.getGamesByDate(eventId, currentDate.id)
     dispatch({ type: 'SET_GAMES', payload: games })
   }, [currentDate])
 
@@ -282,9 +283,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const triggerLightning = useCallback(async () => {
     dispatch({ type: 'SET_LIGHTNING', payload: { active: true, seconds: 1800 } })
-    if (currentDate) await db.setAllGamesDelayed(EVENT_ID, currentDate.id)
+    if (currentDate) await db.setAllGamesDelayed(eventId, currentDate.id)
     await db.insertWeatherAlert({
-      event_id: EVENT_ID,
+      event_id: eventId,
       alert_type: 'Lightning Delay',
       description: 'All fields suspended — 30-minute lightning hold initiated',
       is_active: true,
@@ -293,18 +294,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     })
     await addLog('⚡ LIGHTNING DELAY INITIATED — All fields suspended', 'alert')
     await refreshGames()
-    const alerts = await db.getWeatherAlerts(EVENT_ID)
+    const alerts = await db.getWeatherAlerts(eventId)
     dispatch({ type: 'SET_WEATHER', payload: alerts })
   }, [currentDate, addLog, refreshGames])
 
   const liftLightning = useCallback(async () => {
     dispatch({ type: 'SET_LIGHTNING', payload: { active: false } })
-    if (currentDate) await db.resumeAllDelayedGames(EVENT_ID, currentDate.id)
+    if (currentDate) await db.resumeAllDelayedGames(eventId, currentDate.id)
     const alerts = state.weatherAlerts.filter(a => a.alert_type === 'Lightning Delay' && a.is_active)
     for (const alert of alerts) await db.resolveWeatherAlert(alert.id)
     await addLog('Lightning delay lifted — Fields resuming', 'ok')
     await refreshGames()
-    const newAlerts = await db.getWeatherAlerts(EVENT_ID)
+    const newAlerts = await db.getWeatherAlerts(eventId)
     dispatch({ type: 'SET_WEATHER', payload: newAlerts })
   }, [currentDate, state.weatherAlerts, addLog, refreshGames])
 
@@ -331,7 +332,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [state.fields])
 
   const addField = useCallback(async (name: string, number: string) => {
-    const created = await db.insertField(EVENT_ID, name, number)
+    const created = await db.insertField(eventId, name, number)
     if (created) dispatch({ type: 'ADD_FIELD', payload: created })
   }, [])
 
@@ -344,7 +345,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       logIncident, dispatchTrainer, updateMedicalStatus,
       triggerLightning, liftLightning,
       addLog,
-      updateFieldMap, updateFieldFull, updateFieldName, addField,
+      updateFieldMap, updateFieldFull, updateFieldName, addField, eventId,
     }}>
       {children}
     </Ctx.Provider>

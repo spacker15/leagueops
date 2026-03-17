@@ -3,67 +3,43 @@
 @tailwind utilities;
 
 :root {
-  --navy: #0B3D91;
-  --navy-dark: #072B6A;
-  --navy-light: #1a52b8;
-  --red: #D62828;
-  --red-dark: #a01e1e;
-  --surface: #040e24;
-  --panel: #071e4a;
-  --card: #0d2d6b;
-  --border: #2a4080;
-  --muted: #8899bb;
+  --navy:      #0B3D91;
+  --navy-dark: #061f52;
+  --navy-light:#1a52b8;
+  --red:       #D62828;
+  --surface:   #020810;
+  --card:      #081428;
+  --border:    #1a2d50;
+  --muted:     #5a6e9a;
 }
 
-* {
-  box-sizing: border-box;
-}
+* { box-sizing: border-box; }
+html, body { height: 100%; overflow: hidden; }
 
-html, body {
-  height: 100%;
-  overflow: hidden;
-}
-
-/* Custom scrollbar */
-::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar { width: 3px; height: 3px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #2a4080; border-radius: 2px; }
+::-webkit-scrollbar-thumb { background: #1a2d50; border-radius: 2px; }
 
-/* Barlow Condensed utility */
 .font-cond {
   font-family: var(--font-barlow-condensed);
-  letter-spacing: 0.5px;
+  letter-spacing: 0.3px;
 }
-.font-mono {
-  font-family: var(--font-roboto-mono);
-}
+.font-mono { font-family: var(--font-roboto-mono); }
 
-/* Status badge colors */
-.badge-live     { background: rgba(34,197,94,0.2);   color: #22c55e; }
-.badge-scheduled{ background: rgba(96,165,250,0.15); color: #93c5fd; }
-.badge-starting { background: rgba(249,115,22,0.2);  color: #fb923c; }
-.badge-halftime { background: rgba(234,179,8,0.2);   color: #facc15; }
-.badge-final    { background: rgba(107,114,128,0.2); color: #9ca3af; }
-.badge-delayed  { background: rgba(214,40,40,0.2);   color: #f87171; }
+/* Status badges — bold pill style */
+.badge-live      { background:#052e14; color:#22c55e; font-family:var(--font-barlow-condensed); font-size:10px; font-weight:900; letter-spacing:.1em; padding:2px 8px; border-radius:999px; border:1px solid rgba(34,197,94,.25); }
+.badge-scheduled { background:#071830; color:#60a5fa; font-family:var(--font-barlow-condensed); font-size:10px; font-weight:900; letter-spacing:.1em; padding:2px 8px; border-radius:999px; border:1px solid rgba(96,165,250,.2); }
+.badge-starting  { background:#2a1200; color:#fb923c; font-family:var(--font-barlow-condensed); font-size:10px; font-weight:900; letter-spacing:.1em; padding:2px 8px; border-radius:999px; border:1px solid rgba(249,115,22,.25); }
+.badge-halftime  { background:#1f1800; color:#facc15; font-family:var(--font-barlow-condensed); font-size:10px; font-weight:900; letter-spacing:.1em; padding:2px 8px; border-radius:999px; border:1px solid rgba(234,179,8,.2); }
+.badge-final     { background:#111520; color:#64748b; font-family:var(--font-barlow-condensed); font-size:10px; font-weight:900; letter-spacing:.1em; padding:2px 8px; border-radius:999px; border:1px solid #1e2d40; }
+.badge-delayed   { background:#2a0808; color:#f87171; font-family:var(--font-barlow-condensed); font-size:10px; font-weight:900; letter-spacing:.1em; padding:2px 8px; border-radius:999px; border:1px solid rgba(248,113,113,.2); }
+.badge-suspended { background:#1a0005; color:#f43f5e; font-family:var(--font-barlow-condensed); font-size:10px; font-weight:900; letter-spacing:.1em; padding:2px 8px; border-radius:999px; border:1px solid rgba(244,63,94,.25); }
 
-/* Lightning animation */
-@keyframes flashBorder {
-  0%, 100% { border-color: rgba(214,40,40,0.4); }
-  50%       { border-color: rgba(214,40,40,1); }
-}
-.lightning-flash {
-  animation: flashBorder 1s ease-in-out infinite;
-}
+/* Live pulse ring */
+@keyframes live-ring { 0%,100%{opacity:.6;transform:scale(1)} 50%{opacity:1;transform:scale(1.15)} }
+.live-dot { animation: live-ring 1.2s ease-in-out infinite; }
 
-/* Checkin bar */
-@keyframes fillBar {
-  from { width: 0; }
-}
+@keyframes flashBorder { 0%,100%{border-color:rgba(214,40,40,.3)} 50%{border-color:rgba(214,40,40,1)} }
+.lightning-flash { animation: flashBorder 1s ease-in-out infinite; }
 
-/* Field card hover */
-.field-card {
-  transition: border-color 0.15s ease, transform 0.1s ease;
-}
-.field-card:hover {
-  transform: translateY(-1px);
-}
+.tab-content { padding: 12px 14px; }

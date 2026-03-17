@@ -57,7 +57,7 @@ interface Props {
   isAdmin?: boolean
 }
 
-export function TopBar({ tabs, activeTab, onTabChange, userRole, onSignOut, isAdmin }: Props) {
+export function TopBar({ tabs, activeTab, onTabChange, userRole, onSignOut, isAdmin, onChangeEvent }: Props) {
   const [openGroup, setOpenGroup] = useState<string | null>(null)
   const navRef = useRef<HTMLDivElement>(null)
 
@@ -210,6 +210,12 @@ export function TopBar({ tabs, activeTab, onTabChange, userRole, onSignOut, isAd
             <span className="font-cond text-[13px] font-bold text-white truncate max-w-[110px]">
               {userRole.display_name}
             </span>
+            {onChangeEvent && (
+              <button onClick={onChangeEvent}
+                className="font-cond text-[9px] font-black tracking-[.1em] px-2 py-1 rounded border border-[#1a2d50] text-[#5a6e9a] hover:text-white hover:border-blue-400 transition-colors">
+                ⊞ EVENTS
+              </button>
+            )}
             {onSignOut && (
               <button onClick={onSignOut} title="Sign out"
                 className="text-[#4a5e80] hover:text-white transition-colors">

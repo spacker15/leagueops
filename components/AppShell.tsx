@@ -20,6 +20,7 @@ import { RulesTab } from '@/components/rules/RulesTab'
 import { ConflictsTab } from '@/components/conflicts/ConflictsTab'
 import { UserManagement } from '@/components/auth/UserManagement'
 import { ProgramApprovals } from '@/components/programs/ProgramApprovals'
+import { LeagueSettingsTab } from '@/components/settings/LeagueSettingsTab'
 import { EventSetupTab } from '@/components/settings/EventSetupTab'
 import { QRCodesPanel } from '@/components/auth/QRCodesPanel'
 
@@ -28,7 +29,7 @@ export type TabName =
   | 'refs' | 'conflicts' | 'incidents' | 'weather' | 'parkmap'
   | 'engine' | 'command' | 'rules' | 'users' | 'programs' | 'settings'
 
-export function AppShell() {
+export function AppShell({ onChangeEvent }: { onChangeEvent?: () => void }) {
   const [activeTab, setActiveTab] = useState<TabName>('dashboard')
   const { state } = useApp()
   const { userRole, signOut, isAdmin } = useAuth()
@@ -74,7 +75,7 @@ export function AppShell() {
   return (
     <div className="h-screen flex flex-col overflow-hidden">
       <TopBar tabs={TABS} activeTab={activeTab} onTabChange={setActiveTab}
-        userRole={userRole} onSignOut={signOut} isAdmin={isAdmin} />
+        userRole={userRole} onSignOut={signOut} isAdmin={isAdmin} onChangeEvent={onChangeEvent} />
       <StatusRow />
       <div className="flex flex-1 overflow-hidden">
         <main className="flex-1 overflow-y-auto min-w-0 tab-content">

@@ -1,7 +1,6 @@
 import type { Metadata } from 'next'
 import { Barlow, Barlow_Condensed, Roboto_Mono } from 'next/font/google'
 import { Toaster } from 'react-hot-toast'
-import { AppProvider } from '@/lib/store'
 import { AuthProvider } from '@/lib/auth'
 import './globals.css'
 
@@ -33,22 +32,20 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={`${barlow.variable} ${barlowCondensed.variable} ${robotoMono.variable}`}>
       <body className="bg-surface text-white font-sans antialiased">
         <AuthProvider>
-          <AppProvider>
-            {children}
-            <Toaster
-              position="bottom-right"
-              toastOptions={{
-                style: {
-                  background: '#0d2d6b',
-                  color: '#fff',
-                  border: '1px solid #2a4080',
-                  fontFamily: 'var(--font-barlow-condensed)',
-                  fontWeight: '700',
-                  letterSpacing: '0.5px',
-                },
-              }}
-            />
-          </AppProvider>
+          {children}
+          <Toaster
+            position="bottom-right"
+            toastOptions={{
+              style: {
+                background: '#081428',
+                color: '#fff',
+                border: '1px solid #1a2d50',
+                fontFamily: 'var(--font-barlow-condensed)',
+                fontWeight: '700',
+                letterSpacing: '0.5px',
+              },
+            }}
+          />
         </AuthProvider>
       </body>
     </html>
