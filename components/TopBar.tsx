@@ -55,6 +55,7 @@ interface Props {
   userRole?: UserRole | null
   onSignOut?: () => void
   isAdmin?: boolean
+  onChangeEvent?: () => void   // ← ADD THIS LINE
 }
 
 export function TopBar({ tabs, activeTab, onTabChange, userRole, onSignOut, isAdmin, onChangeEvent }: Props) {
