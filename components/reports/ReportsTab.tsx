@@ -4,6 +4,7 @@ import React, { useState, useMemo, useEffect } from 'react'
 import { useApp } from '@/lib/store'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/supabase/client'
+import { getAllGamesByEvent } from '@/lib/db'
 import type { Game, Team, Referee } from '@/types'
 
 type SubTab = 'results' | 'standings' | 'leaders' | 'matchups' | 'ref-schedule'
@@ -19,16 +20,22 @@ const SUB_TABS: { id: SubTab; label: string }[] = [
 export function ReportsTab() {
   const { state } = useApp()
   const [sub, setSub] = useState<SubTab>('results')
+  const [allGames, setAllGames] = useState<Game[]>([])
+
+  useEffect(() => {
+    if (!state.event?.id) return
+    getAllGamesByEvent(state.event.id).then(setAllGames)
+  }, [state.event?.id, state.games]) // re-fetch when state.games changes (scores/status updated)
 
   const finalGames = useMemo(
-    () => state.games.filter(g => g.status === 'Final'),
-    [state.games]
+    () => allGames.filter(g => g.status === 'Final'),
+    [allGames]
   )
 
   const divisions = useMemo(() => {
-    const divs = [...new Set(state.games.map(g => g.division))].sort()
+    const divs = [...new Set(allGames.map(g => g.division))].sort()
     return ['ALL', ...divs]
-  }, [state.games])
+  }, [allGames])
 
   const [divFilter, setDivFilter] = useState('ALL')
 
@@ -84,7 +91,7 @@ export function ReportsTab() {
       {sub === 'standings'    && <StandingsView games={finalGames} teams={state.teams} divFilter={divFilter} />}
       {sub === 'leaders'      && <LeadersView   games={finalGames} teams={state.teams} divFilter={divFilter} />}
       {sub === 'matchups'     && <MatchupsView  teams={state.teams} eventId={state.event?.id ?? null} divFilter={divFilter} />}
-      {sub === 'ref-schedule' && <RefScheduleView games={state.games} fields={state.fields} referees={state.referees} eventId={state.event?.id ?? null} />}
+      {sub === 'ref-schedule' && <RefScheduleView games={allGames} fields={state.fields} referees={state.referees} eventId={state.event?.id ?? null} />}
     </div>
   )
 }

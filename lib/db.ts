@@ -118,6 +118,22 @@ export async function getGamesByDate(eventId: number, eventDateId: number): Prom
   return (data as Game[]) ?? []
 }
 
+export async function getAllGamesByEvent(eventId: number): Promise<Game[]> {
+  const sb = createClient()
+  const { data } = await sb
+    .from('games')
+    .select(`
+      *,
+      field:fields(*),
+      home_team:teams!games_home_team_id_fkey(*),
+      away_team:teams!games_away_team_id_fkey(*),
+      event_date:event_dates(*)
+    `)
+    .eq('event_id', eventId)
+    .order('scheduled_time')
+  return (data as Game[]) ?? []
+}
+
 export async function getGame(gameId: number): Promise<Game | null> {
   const sb = createClient()
   const { data } = await sb
