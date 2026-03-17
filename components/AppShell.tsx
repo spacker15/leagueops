@@ -23,11 +23,13 @@ import { ProgramApprovals } from '@/components/programs/ProgramApprovals'
 import { LeagueSettingsTab } from '@/components/settings/LeagueSettingsTab'
 import { EventSetupTab } from '@/components/settings/EventSetupTab'
 import { QRCodesPanel } from '@/components/auth/QRCodesPanel'
+import { ReportsTab } from '@/components/reports/ReportsTab'
 
 export type TabName =
   | 'dashboard' | 'schedule' | 'checkin' | 'rosters' | 'qrcodes'
   | 'refs' | 'conflicts' | 'incidents' | 'weather' | 'parkmap'
   | 'engine' | 'command' | 'rules' | 'users' | 'programs' | 'settings'
+  | 'reports'
 
 export function AppShell({ onChangeEvent }: { onChangeEvent?: () => void }) {
   const [activeTab, setActiveTab] = useState<TabName>('dashboard')
@@ -50,6 +52,7 @@ export function AppShell({ onChangeEvent }: { onChangeEvent?: () => void }) {
     { id: 'users',     label: 'Users', adminOnly: true },
     { id: 'programs',  label: 'Programs', adminOnly: true },
     { id: 'settings',  label: 'Settings', adminOnly: true },
+    { id: 'reports',   label: 'Reports' },
   ]
 
   // League admins see all tabs except Users
@@ -95,6 +98,7 @@ export function AppShell({ onChangeEvent }: { onChangeEvent?: () => void }) {
           {activeTab === 'users'      && <UserManagement />}
           {activeTab === 'programs'   && <ProgramApprovals />}
           {activeTab === 'settings'   && <EventSetupTab />}
+          {activeTab === 'reports'    && <ReportsTab />}
         </main>
         <RightPanel onNavigate={setActiveTab} />
       </div>

@@ -40,6 +40,7 @@ const NAV_GROUPS: NavGroup[] = [
     { id: 'parkmap',  label: 'Park Map' },
   ]},
   { label: '⚡ COMMAND', tab: 'command', accent: true },
+  { label: 'REPORTS', tab: 'reports' },
   { label: 'ADMIN', adminOnly: true, items: [
     { id: 'rules',    label: 'Rules' },
     { id: 'programs', label: 'Programs' },
