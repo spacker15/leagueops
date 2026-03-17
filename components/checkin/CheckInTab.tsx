@@ -267,13 +267,31 @@ export function CheckInTab() {
     setApprovingId(null)
   }
 
-  // Player cards
+  // Player cards — load all players for event 1 via team IDs
   async function loadCards(teamId?: string) {
     setCardsLoading(true)
     const sb = createClient()
-    const { data } = teamId
-      ? await sb.from('players').select('id, name, number, position, usa_lacrosse_number, home_division, team:teams!inner(id, name, division), token:player_qr_tokens(token)').eq('team_id', Number(teamId)).order('name')
-      : await sb.from('players').select('id, name, number, position, usa_lacrosse_number, home_division, team:teams!inner(id, name, division, event_id), token:player_qr_tokens(token)').eq('teams.event_id', 1).order('name')
+
+    // Get team IDs for this event first
+    let teamIds: number[] = []
+    if (teamId) {
+      teamIds = [Number(teamId)]
+    } else {
+      const { data: teams } = await sb
+        .from('teams')
+        .select('id')
+        .eq('event_id', 1)
+      teamIds = (teams ?? []).map((t: any) => t.id)
+    }
+
+    if (teamIds.length === 0) { setCards([]); setCardsLoading(false); return }
+
+    const { data } = await sb
+      .from('players')
+      .select('id, name, number, position, usa_lacrosse_number, home_division, team_id, team:teams(id, name, division), token:player_qr_tokens(token)')
+      .in('team_id', teamIds)
+      .order('name')
+
     const mapped = (data ?? []).map((p: any) => ({
       ...p,
       token: Array.isArray(p.token) ? p.token[0]?.token : p.token?.token,
@@ -289,11 +307,22 @@ export function CheckInTab() {
 
   async function generateTokens() {
     const sb = createClient()
-    const { data: players } = await sb.from('players').select('id, team:teams!inner(event_id)').eq('teams.event_id', 1)
-    if (players) {
-      for (const p of players) await sb.from('player_qr_tokens').upsert({ player_id: p.id, event_id: 1 }, { onConflict: 'player_id,event_id' })
+    // Get all team IDs for event 1
+    const { data: teams } = await sb.from('teams').select('id').eq('event_id', 1)
+    const teamIds = (teams ?? []).map((t: any) => t.id)
+    if (teamIds.length === 0) { toast.error('No teams found for event'); return }
+    const { data: players } = await sb.from('players').select('id').in('team_id', teamIds)
+    if (players && players.length > 0) {
+      for (const p of players) {
+        await sb.from('player_qr_tokens').upsert(
+          { player_id: p.id, event_id: 1 },
+          { onConflict: 'player_id,event_id' }
+        )
+      }
       toast.success(`QR tokens ready for ${players.length} players`)
       loadCards(cardTeamFilter || undefined)
+    } else {
+      toast.error('No players found — upload rosters first')
     }
   }
 
@@ -591,55 +620,60 @@ function ApprovalRow({ approval, applying, onApprove, onDeny, context }: {
   onApprove: (name: string, type: 'referee' | 'volunteer' | 'admin') => void
   onDeny: (name: string) => void; context: 'game' | 'list'
 }) {
-  const [approverName, setApproverName] = useState('')
-  const [approverType, setApproverType] = useState<'referee' | 'volunteer' | 'admin'>('referee')
-  const [expanded, setExpanded] = useState(false)
+  const [approverName, setApproverName]   = useState('')
+  const [approverType, setApproverType]   = useState<'referee' | 'volunteer' | 'admin'>('referee')
+  const [coachName, setCoachName]         = useState('')
   const p = approval.player
+
+  function fullApproverName() {
+    const parts = [approverName]
+    if (coachName) parts.push(`(Coach: ${coachName})`)
+    return parts.join(' ')
+  }
 
   return (
     <div className="bg-yellow-900/10 border border-yellow-800/30 rounded-lg p-3">
-      <div className="flex items-start justify-between gap-3">
+      <div className="font-cond font-bold text-[13px] text-yellow-300 mb-0.5">
+        {p?.name ?? `Player #${approval.player_id}`}
+      </div>
+      <div className="font-cond text-[11px] text-muted mb-2">
+        Playing 2nd game — <span className="text-white">{approval.opposing_team_name}</span> coach approval needed
+      </div>
+      <div className="grid grid-cols-2 gap-2 mb-2">
         <div>
-          <div className="font-cond font-bold text-[13px] text-yellow-300">{p?.name ?? `Player #${approval.player_id}`}</div>
-          <div className="font-cond text-[11px] text-muted">
-            Playing 2nd game today — needs <span className="text-white">{approval.opposing_team_name}</span> approval
-          </div>
+          <div className="font-cond text-[9px] font-bold tracking-widest text-muted uppercase mb-1">YOUR NAME (REF/VOL)</div>
+          <input
+            className="w-full bg-surface border border-border text-white px-2 py-1.5 rounded text-[11px] outline-none focus:border-blue-400"
+            placeholder="e.g. Mike Johnson" value={approverName}
+            onChange={e => setApproverName(e.target.value)}
+          />
         </div>
-        <div className="flex gap-1.5 flex-shrink-0">
-          {!expanded ? (
-            <>
-              <button onClick={() => setExpanded(true)}
-                className="font-cond text-[11px] font-bold px-3 py-1.5 rounded bg-green-700 hover:bg-green-600 text-white transition-colors">
-                APPROVE
-              </button>
-              <button onClick={() => onDeny('Official')}
-                className="font-cond text-[11px] font-bold px-3 py-1.5 rounded bg-surface-card border border-red-800/50 text-red-400 hover:bg-red-900/20 transition-colors">
-                DENY
-              </button>
-            </>
-          ) : (
-            <div className="flex items-center gap-2">
-              <input
-                className="bg-surface border border-border text-white px-2 py-1 rounded text-[11px] outline-none focus:border-blue-400 w-32"
-                placeholder="Your name" value={approverName}
-                onChange={e => setApproverName(e.target.value)} autoFocus
-              />
-              <select className="bg-surface border border-border text-white px-1 py-1 rounded text-[10px] outline-none"
-                value={approverType} onChange={e => setApproverType(e.target.value as any)}>
-                <option value="referee">Referee</option>
-                <option value="volunteer">Volunteer</option>
-                <option value="admin">Admin</option>
-              </select>
-              <button
-                onClick={() => { if (approverName) onApprove(approverName, approverType); else toast.error('Enter your name') }}
-                disabled={applying}
-                className="font-cond text-[11px] font-bold px-3 py-1.5 rounded bg-green-700 hover:bg-green-600 text-white transition-colors disabled:opacity-50">
-                {applying ? '...' : 'CONFIRM'}
-              </button>
-              <button onClick={() => setExpanded(false)} className="text-muted hover:text-white text-[10px]">✕</button>
-            </div>
-          )}
+        <div>
+          <div className="font-cond text-[9px] font-bold tracking-widest text-muted uppercase mb-1">COACH WHO APPROVED (optional)</div>
+          <input
+            className="w-full bg-surface border border-border text-white px-2 py-1.5 rounded text-[11px] outline-none focus:border-blue-400"
+            placeholder="Coach name" value={coachName}
+            onChange={e => setCoachName(e.target.value)}
+          />
         </div>
+      </div>
+      <div className="flex gap-2 items-center">
+        <select className="bg-surface border border-border text-white px-1.5 py-1.5 rounded text-[10px] outline-none flex-shrink-0"
+          value={approverType} onChange={e => setApproverType(e.target.value as any)}>
+          <option value="referee">Referee</option>
+          <option value="volunteer">Volunteer</option>
+          <option value="admin">Admin</option>
+        </select>
+        <button
+          onClick={() => { if (approverName) onApprove(fullApproverName(), approverType); else toast.error('Enter your name') }}
+          disabled={applying}
+          className="flex-1 font-cond text-[11px] font-bold py-1.5 rounded bg-green-700 hover:bg-green-600 text-white transition-colors disabled:opacity-50">
+          {applying ? '...' : '✓ APPROVE & CHECK IN'}
+        </button>
+        <button onClick={() => onDeny(approverName || 'Official')}
+          className="font-cond text-[11px] font-bold px-3 py-1.5 rounded bg-surface-card border border-red-800/50 text-red-400 hover:bg-red-900/20 transition-colors">
+          ✗ DENY
+        </button>
       </div>
     </div>
   )
@@ -653,67 +687,71 @@ function ApprovalCard({ approval, applying, onApprove, onDeny }: {
 }) {
   const [approverName, setApproverName] = useState('')
   const [approverType, setApproverType] = useState<'referee' | 'volunteer' | 'admin'>('referee')
-  const p = approval.player
+  const [coachName, setCoachName]       = useState('')
+  const p    = approval.player
   const team = (p as any)?.team as any
+
+  function fullName() {
+    return coachName ? `${approverName} (Coach: ${coachName})` : approverName
+  }
 
   return (
     <div className="bg-surface-card border border-yellow-800/40 rounded-xl p-4">
-      <div className="flex items-start justify-between gap-4">
+      {/* Player info */}
+      <div className="flex items-center gap-3 mb-3">
+        <div className="w-10 h-10 rounded-full bg-yellow-900/30 border border-yellow-700/50 flex items-center justify-center font-cond font-black text-[14px] text-yellow-300 flex-shrink-0">
+          {p?.number ?? '?'}
+        </div>
         <div className="flex-1">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 rounded-full bg-yellow-900/30 border border-yellow-700/50 flex items-center justify-center font-cond font-black text-yellow-300 flex-shrink-0">
-              {p?.number ?? '?'}
-            </div>
-            <div>
-              <div className="font-cond font-black text-[15px] text-white">{p?.name ?? `Player #${approval.player_id}`}</div>
-              <div className="font-cond text-[11px] text-blue-300">{team?.name} · {team?.division}</div>
-            </div>
-          </div>
-          <div className="bg-yellow-900/20 rounded-lg px-3 py-2 text-[11px] font-cond leading-relaxed">
-            <div className="text-yellow-400 font-bold mb-0.5">MULTI-GAME REQUEST</div>
-            <div className="text-muted">
-              This player has already played a game today (Game #{approval.first_game_id}).
-              The <span className="text-white font-bold">{approval.opposing_team_name}</span> must approve
-              for this player to participate in Game #{approval.game_id}.
-            </div>
-          </div>
+          <div className="font-cond font-black text-[15px] text-white">{p?.name ?? `Player #${approval.player_id}`}</div>
+          <div className="font-cond text-[11px] text-blue-300">{team?.name} · {team?.division}</div>
         </div>
+        <div className="font-cond text-[10px] text-muted text-right">
+          Game #{approval.game_id}<br/>
+          {new Date(approval.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+        </div>
+      </div>
 
-        <div className="flex-shrink-0 space-y-2 w-52">
-          <div>
-            <div className="font-cond text-[9px] font-bold tracking-widest text-muted uppercase mb-1">APPROVING AS</div>
-            <div className="flex gap-1.5">
-              <input
-                className="flex-1 bg-surface border border-border text-white px-2 py-1.5 rounded text-[12px] outline-none focus:border-blue-400"
-                placeholder="Your name" value={approverName}
-                onChange={e => setApproverName(e.target.value)}
-              />
-              <select className="bg-surface border border-border text-white px-1.5 py-1.5 rounded text-[11px] outline-none"
-                value={approverType} onChange={e => setApproverType(e.target.value as any)}>
-                <option value="referee">Ref</option>
-                <option value="volunteer">Vol</option>
-                <option value="admin">Admin</option>
-              </select>
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => { if (approverName) onApprove(approverName, approverType); else toast.error('Enter your name') }}
-              disabled={applying}
-              className="flex-1 font-cond text-[12px] font-bold py-2 rounded bg-green-700 hover:bg-green-600 text-white transition-colors disabled:opacity-50">
-              {applying ? '...' : '✓ APPROVE'}
-            </button>
-            <button
-              onClick={() => onDeny(approverName || 'Official')}
-              disabled={applying}
-              className="flex-1 font-cond text-[12px] font-bold py-2 rounded bg-surface-card border border-red-800/50 text-red-400 hover:bg-red-900/20 transition-colors disabled:opacity-50">
-              ✗ DENY
-            </button>
-          </div>
-          <div className="font-cond text-[9px] text-muted text-center">
-            Requested {new Date(approval.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
-          </div>
+      <div className="bg-yellow-900/15 rounded-lg px-3 py-2 text-[11px] font-cond mb-3">
+        <span className="text-yellow-400 font-bold">Multi-game: </span>
+        <span className="text-muted">Already played Game #{approval.first_game_id} today. </span>
+        <span className="text-white font-bold">{approval.opposing_team_name}</span>
+        <span className="text-muted"> coach must approve.</span>
+      </div>
+
+      {/* Approval form */}
+      <div className="grid grid-cols-2 gap-2 mb-3">
+        <div>
+          <div className="font-cond text-[9px] font-bold tracking-widest text-muted uppercase mb-1">YOUR NAME *</div>
+          <input className="w-full bg-surface border border-border text-white px-2 py-1.5 rounded text-[12px] outline-none focus:border-blue-400"
+            placeholder="Referee or volunteer name" value={approverName}
+            onChange={e => setApproverName(e.target.value)} />
         </div>
+        <div>
+          <div className="font-cond text-[9px] font-bold tracking-widest text-muted uppercase mb-1">COACH WHO APPROVED (optional)</div>
+          <input className="w-full bg-surface border border-border text-white px-2 py-1.5 rounded text-[12px] outline-none focus:border-blue-400"
+            placeholder="Opposing coach name" value={coachName}
+            onChange={e => setCoachName(e.target.value)} />
+        </div>
+      </div>
+
+      <div className="flex gap-2 items-center">
+        <select className="bg-surface border border-border text-white px-2 py-2 rounded text-[11px] outline-none flex-shrink-0"
+          value={approverType} onChange={e => setApproverType(e.target.value as any)}>
+          <option value="referee">Referee</option>
+          <option value="volunteer">Volunteer</option>
+          <option value="admin">Admin</option>
+        </select>
+        <button
+          onClick={() => { if (approverName) onApprove(fullName(), approverType); else toast.error('Enter your name') }}
+          disabled={applying}
+          className="flex-1 font-cond text-[12px] font-bold py-2 rounded bg-green-700 hover:bg-green-600 text-white transition-colors disabled:opacity-50">
+          {applying ? 'APPROVING...' : '✓ APPROVE & CHECK IN'}
+        </button>
+        <button onClick={() => onDeny(approverName || 'Official')} disabled={applying}
+          className="font-cond text-[12px] font-bold px-4 py-2 rounded bg-surface-card border border-red-800/50 text-red-400 hover:bg-red-900/20 transition-colors disabled:opacity-50">
+          ✗ DENY
+        </button>
       </div>
     </div>
   )
@@ -723,8 +761,13 @@ function ApprovalCard({ approval, applying, onApprove, onDeny }: {
 function PlayerCard({ player, baseUrl, onPrint }: { player: PlayerWithExtras; baseUrl: string; onPrint: () => void }) {
   const team = player.team as any
   const checkinUrl = player.token ? `${baseUrl}/checkin/${player.token}` : null
+  const qrUrl = checkinUrl
+    ? `https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent(checkinUrl)}&color=0B3D91&bgcolor=FFFFFF`
+    : null
+
   return (
     <div className="bg-surface-card border border-border rounded-xl overflow-hidden">
+      {/* Header */}
       <div className="bg-navy px-3 py-2.5 border-b border-border">
         <div className="flex items-center gap-2">
           <div className="w-9 h-9 rounded-full bg-red flex items-center justify-center font-cond font-black text-[14px] text-white flex-shrink-0">
@@ -737,33 +780,63 @@ function PlayerCard({ player, baseUrl, onPrint }: { player: PlayerWithExtras; ba
           </div>
         </div>
       </div>
-      <div className="p-3 flex gap-3 items-start">
-        {checkinUrl ? (
-          <img src={`https://api.qrserver.com/v1/create-qr-code/?size=72x72&data=${encodeURIComponent(checkinUrl)}&color=0B3D91`}
-            alt="QR" className="w-[72px] h-[72px] rounded flex-shrink-0 border border-border bg-white p-1" />
+
+      {/* QR code — clickable to open check-in */}
+      <div className="p-3">
+        {qrUrl ? (
+          <a href={checkinUrl!} target="_blank" rel="noopener noreferrer" title="Click to open check-in page">
+            <img
+              src={qrUrl}
+              alt={`QR code for ${player.name}`}
+              className="w-full aspect-square rounded-lg border border-border bg-white p-2 hover:opacity-80 transition-opacity cursor-pointer"
+            />
+          </a>
         ) : (
-          <div className="w-[72px] h-[72px] rounded border-2 border-dashed border-border flex items-center justify-center flex-shrink-0">
-            <QrCode size={24} className="text-muted" />
+          <div className="w-full aspect-square rounded-lg border-2 border-dashed border-border flex flex-col items-center justify-center gap-2">
+            <QrCode size={32} className="text-muted" />
+            <div className="font-cond text-[9px] text-muted text-center">Click GENERATE QR CODES above</div>
           </div>
         )}
-        <div className="flex-1 min-w-0 space-y-1.5">
-          {player.usa_lacrosse_number && (
-            <div><div className="font-cond text-[8px] font-bold tracking-widest text-muted uppercase">USA LAX #</div>
-            <div className="font-mono text-[12px] font-bold text-white">{player.usa_lacrosse_number}</div></div>
-          )}
-          <div><div className="font-cond text-[8px] font-bold tracking-widest text-muted uppercase">JERSEY</div>
-          <div className="font-mono text-[12px] font-bold text-white">#{player.number ?? '—'}</div></div>
-          {(player.home_division || team?.division) && (
-            <div><div className="font-cond text-[8px] font-bold tracking-widest text-muted uppercase">DIVISION</div>
-            <div className="font-cond text-[11px] text-white">{player.home_division || team?.division}</div></div>
-          )}
-        </div>
       </div>
-      <div className="px-3 pb-3">
-        {checkinUrl
-          ? <button onClick={onPrint} className="w-full font-cond text-[10px] font-bold tracking-wide py-1.5 rounded bg-navy hover:bg-navy-light text-white transition-colors"><Printer size={10} className="inline mr-1" /> PRINT</button>
-          : <div className="font-cond text-[9px] text-muted text-center py-1.5">Click GENERATE QR first</div>
-        }
+
+      {/* Details */}
+      <div className="px-3 pb-2 space-y-1">
+        {player.usa_lacrosse_number && (
+          <div className="flex justify-between items-center">
+            <span className="font-cond text-[9px] font-bold tracking-widest text-muted uppercase">USA LAX #</span>
+            <span className="font-mono text-[11px] font-bold text-white">{player.usa_lacrosse_number}</span>
+          </div>
+        )}
+        <div className="flex justify-between items-center">
+          <span className="font-cond text-[9px] font-bold tracking-widest text-muted uppercase">JERSEY</span>
+          <span className="font-mono text-[11px] font-bold text-white">#{player.number ?? '—'}</span>
+        </div>
+        {(player.home_division || team?.division) && (
+          <div className="flex justify-between items-center">
+            <span className="font-cond text-[9px] font-bold tracking-widest text-muted uppercase">DIVISION</span>
+            <span className="font-cond text-[11px] text-white">{player.home_division || team?.division}</span>
+          </div>
+        )}
+      </div>
+
+      {/* Footer actions */}
+      <div className="px-3 pb-3 flex gap-1.5">
+        {checkinUrl ? (
+          <>
+            <a href={checkinUrl} target="_blank" rel="noopener noreferrer"
+              className="flex-1 font-cond text-[10px] font-bold tracking-wide py-1.5 rounded bg-blue-800 hover:bg-blue-700 text-white transition-colors text-center">
+              CHECK IN
+            </a>
+            <button onClick={onPrint}
+              className="font-cond text-[10px] font-bold tracking-wide px-2 py-1.5 rounded bg-navy hover:bg-navy-light text-white transition-colors">
+              <Printer size={10} />
+            </button>
+          </>
+        ) : (
+          <div className="flex-1 font-cond text-[9px] text-muted text-center py-1.5">
+            Generate QR codes first
+          </div>
+        )}
       </div>
     </div>
   )
