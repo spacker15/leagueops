@@ -1,16 +1,19 @@
 'use client'
 
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import { useApp } from '@/lib/store'
 import { cn } from '@/lib/utils'
-import type { Game, Team } from '@/types'
+import { createClient } from '@/supabase/client'
+import type { Game, Team, Referee } from '@/types'
 
-type SubTab = 'results' | 'standings' | 'leaders'
+type SubTab = 'results' | 'standings' | 'leaders' | 'matchups' | 'ref-schedule'
 
 const SUB_TABS: { id: SubTab; label: string }[] = [
-  { id: 'results',   label: 'RESULTS' },
-  { id: 'standings', label: 'STANDINGS' },
-  { id: 'leaders',   label: 'STAT LEADERS' },
+  { id: 'results',      label: 'RESULTS' },
+  { id: 'standings',    label: 'STANDINGS' },
+  { id: 'leaders',      label: 'STAT LEADERS' },
+  { id: 'matchups',     label: 'MATCHUPS' },
+  { id: 'ref-schedule', label: 'REF SCHEDULE' },
 ]
 
 export function ReportsTab() {
@@ -29,8 +32,10 @@ export function ReportsTab() {
 
   const [divFilter, setDivFilter] = useState('ALL')
 
+  const showDivFilter = sub !== 'ref-schedule'
+
   return (
-    <div className="p-4 max-w-5xl">
+    <div className="p-4 max-w-6xl">
       {/* Header */}
       <div className="flex items-center gap-3 mb-4">
         <div className="w-1 h-5 rounded-sm bg-red" />
@@ -43,7 +48,7 @@ export function ReportsTab() {
       </div>
 
       {/* Sub-tab bar */}
-      <div className="flex gap-1 mb-5" style={{ borderBottom: '1px solid #1a2d50' }}>
+      <div className="flex gap-1 mb-5 flex-wrap" style={{ borderBottom: '1px solid #1a2d50' }}>
         {SUB_TABS.map(t => (
           <button
             key={t.id}
@@ -61,21 +66,25 @@ export function ReportsTab() {
         ))}
 
         {/* Division filter */}
-        <div className="ml-auto flex items-center gap-2 pb-1">
-          <span className="font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase">Division</span>
-          <select
-            value={divFilter}
-            onChange={e => setDivFilter(e.target.value)}
-            className="bg-[#081428] border border-[#1a2d50] text-white px-2 py-1 rounded text-[11px] font-cond font-bold outline-none focus:border-blue-400"
-          >
-            {divisions.map(d => <option key={d} value={d}>{d}</option>)}
-          </select>
-        </div>
+        {showDivFilter && (
+          <div className="ml-auto flex items-center gap-2 pb-1">
+            <span className="font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase">Division</span>
+            <select
+              value={divFilter}
+              onChange={e => setDivFilter(e.target.value)}
+              className="bg-[#081428] border border-[#1a2d50] text-white px-2 py-1 rounded text-[11px] font-cond font-bold outline-none focus:border-blue-400"
+            >
+              {divisions.map(d => <option key={d} value={d}>{d}</option>)}
+            </select>
+          </div>
+        )}
       </div>
 
-      {sub === 'results'   && <ResultsView   games={finalGames} teams={state.teams} divFilter={divFilter} />}
-      {sub === 'standings' && <StandingsView games={finalGames} teams={state.teams} divFilter={divFilter} />}
-      {sub === 'leaders'   && <LeadersView   games={finalGames} teams={state.teams} divFilter={divFilter} />}
+      {sub === 'results'      && <ResultsView   games={finalGames} teams={state.teams} divFilter={divFilter} />}
+      {sub === 'standings'    && <StandingsView games={finalGames} teams={state.teams} divFilter={divFilter} />}
+      {sub === 'leaders'      && <LeadersView   games={finalGames} teams={state.teams} divFilter={divFilter} />}
+      {sub === 'matchups'     && <MatchupsView  teams={state.teams} eventId={state.event?.id ?? null} divFilter={divFilter} />}
+      {sub === 'ref-schedule' && <RefScheduleView games={state.games} fields={state.fields} referees={state.referees} eventId={state.event?.id ?? null} />}
     </div>
   )
 }
@@ -89,7 +98,6 @@ function ResultsView({ games, teams, divFilter }: { games: Game[]; teams: Team[]
     return <Empty message="No final games yet." />
   }
 
-  // Group by division
   const byDiv = groupBy(filtered, g => g.division)
 
   return (
@@ -155,10 +163,9 @@ interface TeamRecord {
 }
 
 function StandingsView({ games, teams, divFilter }: { games: Game[]; teams: Team[]; divFilter: string }) {
-  const allGames = games  // all final games passed in
+  const allGames = games
   const filtered = divFilter === 'ALL' ? allGames : allGames.filter(g => g.division === divFilter)
 
-  // Build records
   const records = buildRecords(filtered, teams)
   const byDiv = groupBy(Object.values(records), r => {
     const team = teams.find(t => t.id === r.teamId)
@@ -275,9 +282,7 @@ function LeaderBoard({ title, subtitle, rows, value, valueLabel, ascending = fal
       <div>
         {rows.map((r, i) => {
           const val = value(r)
-          const maxVal = ascending
-            ? Math.max(...rows.map(value)) || 1
-            : Math.max(...rows.map(value)) || 1
+          const maxVal = Math.max(...rows.map(value)) || 1
           const barPct = ascending
             ? (1 - val / maxVal) * 100
             : (val / maxVal) * 100
@@ -299,6 +304,393 @@ function LeaderBoard({ title, subtitle, rows, value, valueLabel, ascending = fal
             </div>
           )
         })}
+      </div>
+    </div>
+  )
+}
+
+// ── Matchups ──────────────────────────────────────────────────────────────────
+
+interface AllGame {
+  id: number
+  home_team_id: number
+  away_team_id: number
+  division: string
+}
+
+function MatchupsView({ teams, eventId, divFilter }: {
+  teams: Team[]
+  eventId: number | null
+  divFilter: string
+}) {
+  const [allGames, setAllGames] = useState<AllGame[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (!eventId) { setLoading(false); return }
+    const sb = createClient()
+    sb.from('games')
+      .select('id, home_team_id, away_team_id, division')
+      .eq('event_id', eventId)
+      .then(({ data }) => {
+        setAllGames((data as AllGame[]) ?? [])
+        setLoading(false)
+      })
+  }, [eventId])
+
+  const filteredTeams = useMemo(() => {
+    if (divFilter === 'ALL') return [...teams].sort((a, b) => a.name.localeCompare(b.name))
+    return teams.filter(t => t.division === divFilter).sort((a, b) => a.name.localeCompare(b.name))
+  }, [teams, divFilter])
+
+  const filteredGames = useMemo(() => {
+    if (divFilter === 'ALL') return allGames
+    return allGames.filter(g => g.division === divFilter)
+  }, [allGames, divFilter])
+
+  // Build matrix: matrix[rowTeamId][colTeamId] = count
+  const matrix = useMemo(() => {
+    const m: Record<number, Record<number, number>> = {}
+    for (const g of filteredGames) {
+      if (!m[g.home_team_id]) m[g.home_team_id] = {}
+      if (!m[g.away_team_id]) m[g.away_team_id] = {}
+      m[g.home_team_id][g.away_team_id] = (m[g.home_team_id][g.away_team_id] ?? 0) + 1
+      m[g.away_team_id][g.home_team_id] = (m[g.away_team_id][g.home_team_id] ?? 0) + 1
+    }
+    return m
+  }, [filteredGames])
+
+  if (loading) return <Empty message="Loading matchup data…" />
+  if (filteredTeams.length === 0) return <Empty message="No teams found for this division." />
+
+  const maxCount = Math.max(1, ...filteredTeams.flatMap(row =>
+    filteredTeams.map(col => row.id !== col.id ? (matrix[row.id]?.[col.id] ?? 0) : 0)
+  ))
+
+  return (
+    <div>
+      <div className="font-cond text-[10px] font-black tracking-[.15em] text-muted uppercase mb-3">
+        Games Played Between Teams · {filteredGames.length} total games
+      </div>
+      <div className="overflow-auto rounded-lg border border-[#1a2d50]">
+        <table className="border-collapse" style={{ minWidth: 'max-content' }}>
+          <thead>
+            <tr style={{ background: '#081428' }}>
+              {/* Top-left corner cell */}
+              <th className="px-3 py-2 border-r border-b border-[#1a2d50] sticky left-0 z-10" style={{ background: '#081428', minWidth: 140 }}>
+                <span className="font-cond text-[9px] font-black tracking-[.12em] text-muted uppercase">
+                  vs →
+                </span>
+              </th>
+              {filteredTeams.map(col => (
+                <th key={col.id} className="px-2 py-2 border-b border-[#1a2d50]" style={{ minWidth: 64 }}>
+                  <div
+                    className="font-cond text-[10px] font-black text-[#8a9ec0] whitespace-nowrap"
+                    style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', maxHeight: 100 }}
+                    title={col.name}
+                  >
+                    {col.name.length > 14 ? col.name.slice(0, 13) + '…' : col.name}
+                  </div>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {filteredTeams.map((row, ri) => (
+              <tr key={row.id} style={{ background: ri % 2 === 0 ? '#050f20' : '#030c1a' }}>
+                {/* Row header */}
+                <td
+                  className="px-3 py-1.5 border-r border-[#1a2d50] sticky left-0 z-10"
+                  style={{ background: ri % 2 === 0 ? '#050f20' : '#030c1a' }}
+                >
+                  <span className="font-cond text-[11px] font-bold text-white whitespace-nowrap" title={row.name}>
+                    {row.name.length > 18 ? row.name.slice(0, 17) + '…' : row.name}
+                  </span>
+                  <span className="ml-1.5 font-cond text-[9px] text-muted">{row.division}</span>
+                </td>
+                {/* Matrix cells */}
+                {filteredTeams.map(col => {
+                  const isSelf = row.id === col.id
+                  const count = isSelf ? null : (matrix[row.id]?.[col.id] ?? 0)
+                  const intensity = isSelf ? 0 : (count ?? 0) / maxCount
+
+                  return (
+                    <td key={col.id} className="text-center px-1 py-1.5 border-[#1a2d50]"
+                      style={{ borderLeft: '1px solid #0d1e3a' }}>
+                      {isSelf ? (
+                        <div className="w-8 h-6 mx-auto rounded"
+                          style={{ background: '#0d1e3a' }} />
+                      ) : count === 0 ? (
+                        <span className="font-mono text-[12px] text-[#1a2d50]">—</span>
+                      ) : (
+                        <div
+                          className="w-8 h-6 mx-auto rounded flex items-center justify-center"
+                          style={{
+                            background: `rgba(214,40,40,${0.15 + intensity * 0.7})`,
+                            border: `1px solid rgba(214,40,40,${0.3 + intensity * 0.5})`,
+                          }}
+                        >
+                          <span className="font-mono text-[13px] font-bold text-white">{count}</span>
+                        </div>
+                      )}
+                    </td>
+                  )
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="flex items-center gap-4 mt-2">
+        <span className="font-cond text-[9px] text-muted tracking-wide">
+          Cell = number of times teams have faced each other (home + away combined)
+        </span>
+        <div className="flex items-center gap-1.5 ml-auto">
+          <span className="font-cond text-[9px] text-muted">0</span>
+          {[0.2, 0.5, 0.8, 1.0].map(v => (
+            <div key={v} className="w-4 h-4 rounded"
+              style={{ background: `rgba(214,40,40,${0.15 + v * 0.7})` }} />
+          ))}
+          <span className="font-cond text-[9px] text-muted">{maxCount}</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Ref Schedule ──────────────────────────────────────────────────────────────
+
+interface RefAssignmentRow {
+  id: number
+  game_id: number
+  referee_id: number
+  role: string
+  referee: { id: number; name: string; grade_level: string } | null
+}
+
+function isYouthRef(gradeLevel: string): boolean {
+  // Grade 8 = Youth entry-level; Grade 7 and below = Adult
+  const lvl = gradeLevel?.toLowerCase() ?? ''
+  if (lvl.includes('youth')) return true
+  const num = parseInt(gradeLevel.replace(/\D/g, ''))
+  return !isNaN(num) && num >= 8
+}
+
+function hhLabel(hour: number): string {
+  if (hour === 0)  return '12:00 AM'
+  if (hour < 12)  return `${hour}:00 AM`
+  if (hour === 12) return '12:00 PM'
+  return `${hour - 12}:00 PM`
+}
+
+function RefScheduleView({ games, fields, referees, eventId }: {
+  games: Game[]
+  fields: { id: number; name: string }[]
+  referees: Referee[]
+  eventId: number | null
+}) {
+  const [assignments, setAssignments] = useState<RefAssignmentRow[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (!eventId || games.length === 0) { setLoading(false); return }
+    const gameIds = games.map(g => g.id)
+    const sb = createClient()
+    sb.from('ref_assignments')
+      .select('id, game_id, referee_id, role, referee:referees(id, name, grade_level)')
+      .in('game_id', gameIds)
+      .then(({ data }) => {
+        setAssignments((data as RefAssignmentRow[]) ?? [])
+        setLoading(false)
+      })
+  }, [eventId, games])
+
+  // Build: fieldId → hour → { adult: RefAssignmentRow[], youth: RefAssignmentRow[] }
+  const schedule = useMemo(() => {
+    type Slot = { adult: RefAssignmentRow[]; youth: RefAssignmentRow[] }
+    const byField: Record<number, Record<number, Slot>> = {}
+
+    // Index games by id
+    const gameById: Record<number, Game> = {}
+    for (const g of games) gameById[g.id] = g
+
+    for (const a of assignments) {
+      const game = gameById[a.game_id]
+      if (!game) continue
+      const fieldId = game.field_id
+      const hour = game.scheduled_time
+        ? parseInt(game.scheduled_time.split(':')[0])
+        : -1
+      if (!byField[fieldId]) byField[fieldId] = {}
+      if (!byField[fieldId][hour]) byField[fieldId][hour] = { adult: [], youth: [] }
+      const slot = byField[fieldId][hour]
+      if (a.referee && isYouthRef(a.referee.grade_level)) {
+        slot.youth.push(a)
+      } else {
+        slot.adult.push(a)
+      }
+    }
+    return byField
+  }, [assignments, games])
+
+  // Collect all unique hours across all fields
+  const allHours = useMemo(() => {
+    const hrs = new Set<number>()
+    for (const g of games) {
+      if (g.scheduled_time) hrs.add(parseInt(g.scheduled_time.split(':')[0]))
+    }
+    return [...hrs].sort((a, b) => a - b)
+  }, [games])
+
+  // Fields that have at least one game
+  const activeFieldIds = useMemo(() => {
+    const ids = new Set(games.map(g => g.field_id))
+    return fields.filter(f => ids.has(f.id))
+  }, [games, fields])
+
+  if (loading) return <Empty message="Loading ref schedule…" />
+  if (games.length === 0) return <Empty message="No games scheduled for today." />
+
+  // Summarize unassigned games per field/hour
+  const gamesByFieldHour: Record<number, Record<number, number>> = {}
+  for (const g of games) {
+    const hour = g.scheduled_time ? parseInt(g.scheduled_time.split(':')[0]) : -1
+    if (!gamesByFieldHour[g.field_id]) gamesByFieldHour[g.field_id] = {}
+    gamesByFieldHour[g.field_id][hour] = (gamesByFieldHour[g.field_id][hour] ?? 0) + 1
+  }
+
+  const totalAssigned = assignments.length
+  const totalAdult = assignments.filter(a => a.referee && !isYouthRef(a.referee.grade_level)).length
+  const totalYouth = assignments.filter(a => a.referee && isYouthRef(a.referee.grade_level)).length
+
+  return (
+    <div className="space-y-5">
+      {/* Summary row */}
+      <div className="grid grid-cols-3 gap-3">
+        {[
+          { label: 'TOTAL ASSIGNED', value: totalAssigned, color: '#8a9ec0' },
+          { label: 'ADULT REFS',     value: totalAdult,    color: '#60a5fa' },
+          { label: 'YOUTH REFS',     value: totalYouth,    color: '#34d399' },
+        ].map(s => (
+          <div key={s.label} className="rounded-lg border border-[#1a2d50] px-4 py-3" style={{ background: '#081428' }}>
+            <div className="font-cond text-[9px] font-black tracking-[.15em] text-muted uppercase">{s.label}</div>
+            <div className="font-mono text-[28px] font-bold mt-0.5" style={{ color: s.color }}>{s.value}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Per-field tables */}
+      {activeFieldIds.map(field => {
+        const fieldSlots = schedule[field.id] ?? {}
+        const fieldGames = gamesByFieldHour[field.id] ?? {}
+
+        return (
+          <div key={field.id}>
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-1 h-4 rounded-sm" style={{ background: '#0B3D91' }} />
+              <span className="font-cond text-[11px] font-black tracking-[.12em] text-white uppercase">
+                {field.name}
+              </span>
+            </div>
+            <div className="rounded-lg overflow-hidden border border-[#1a2d50]">
+              <table className="w-full">
+                <thead>
+                  <tr style={{ background: '#081428' }}>
+                    <Th>Hour</Th>
+                    <Th align="center">Games</Th>
+                    <Th align="center">Adult Refs</Th>
+                    <Th align="center">Youth Refs</Th>
+                    <Th align="center">Total</Th>
+                    <Th>Assigned Refs</Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {allHours.filter(h => (fieldGames[h] ?? 0) > 0).map((hour, i) => {
+                    const slot = fieldSlots[hour] ?? { adult: [], youth: [] }
+                    const total = slot.adult.length + slot.youth.length
+                    const gameCount = fieldGames[hour] ?? 0
+                    const allRefs = [...slot.adult, ...slot.youth]
+
+                    return (
+                      <tr key={hour} style={{ background: i % 2 === 0 ? '#050f20' : '#030c1a' }}>
+                        <Td>
+                          <span className="font-mono text-[12px] font-bold text-white">{hhLabel(hour)}</span>
+                        </Td>
+                        <Td align="center">
+                          <span className="font-mono text-[12px] text-[#8a9ec0]">{gameCount}</span>
+                        </Td>
+                        <Td align="center">
+                          <span className={cn(
+                            'font-mono text-[13px] font-bold',
+                            slot.adult.length > 0 ? 'text-[#60a5fa]' : 'text-[#1a2d50]'
+                          )}>
+                            {slot.adult.length || '—'}
+                          </span>
+                        </Td>
+                        <Td align="center">
+                          <span className={cn(
+                            'font-mono text-[13px] font-bold',
+                            slot.youth.length > 0 ? 'text-[#34d399]' : 'text-[#1a2d50]'
+                          )}>
+                            {slot.youth.length || '—'}
+                          </span>
+                        </Td>
+                        <Td align="center">
+                          <span className={cn(
+                            'font-mono text-[13px] font-bold',
+                            total > 0 ? 'text-white' : 'text-[#1a2d50]'
+                          )}>
+                            {total || '—'}
+                          </span>
+                        </Td>
+                        <Td>
+                          <div className="flex flex-wrap gap-1">
+                            {allRefs.length === 0 ? (
+                              <span className="font-cond text-[10px] text-[#1a2d50]">none assigned</span>
+                            ) : allRefs.map(a => {
+                              const youth = a.referee ? isYouthRef(a.referee.grade_level) : false
+                              return (
+                                <span
+                                  key={a.id}
+                                  title={a.referee?.grade_level}
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded font-cond text-[10px] font-bold"
+                                  style={{
+                                    background: youth ? 'rgba(52,211,153,0.12)' : 'rgba(96,165,250,0.12)',
+                                    border: `1px solid ${youth ? 'rgba(52,211,153,0.3)' : 'rgba(96,165,250,0.3)'}`,
+                                    color: youth ? '#34d399' : '#60a5fa',
+                                  }}
+                                >
+                                  <span
+                                    className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                                    style={{ background: youth ? '#34d399' : '#60a5fa' }}
+                                  />
+                                  {a.referee?.name ?? `Ref ${a.referee_id}`}
+                                </span>
+                              )
+                            })}
+                          </div>
+                        </Td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )
+      })}
+
+      {/* Legend */}
+      <div className="flex items-center gap-4 pt-1">
+        <span className="font-cond text-[9px] text-muted">Grade Level:</span>
+        <span className="flex items-center gap-1.5 font-cond text-[10px] font-bold" style={{ color: '#60a5fa' }}>
+          <span className="w-2 h-2 rounded-full" style={{ background: '#60a5fa' }} />
+          Adult (Grade 7 and below)
+        </span>
+        <span className="flex items-center gap-1.5 font-cond text-[10px] font-bold" style={{ color: '#34d399' }}>
+          <span className="w-2 h-2 rounded-full" style={{ background: '#34d399' }} />
+          Youth (Grade 8)
+        </span>
       </div>
     </div>
   )
