@@ -8,3 +8,11 @@ ALTER TABLE events ADD COLUMN IF NOT EXISTS secondary_color TEXT DEFAULT '#D6282
 
 -- Add updated_at to events
 ALTER TABLE events ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+
+-- Park map columns
+ALTER TABLE events ADD COLUMN IF NOT EXISTS park_photo_url    TEXT;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS google_maps_url   TEXT;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS google_maps_embed TEXT;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS park_lat          DOUBLE PRECISION;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS park_lng          DOUBLE PRECISION;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS park_name         TEXT;
