@@ -269,14 +269,38 @@ export function EventSetupTab() {
       }
     }
 
+    const d = (field: string) => (event as any)[field] || null
     const { error } = await sb.from('events').update({
-      ...event,
-      start_date:       event.start_date       || null,
-      end_date:         event.end_date         || null,
-      age_compute_date: event.age_compute_date || null,
-      lock_roster_date: event.lock_roster_date || null,
-      logo_url:   finalLogoUrl,
-      updated_at: new Date().toISOString(),
+      name: event.name, sport: event.sport, event_type: event.event_type,
+      location: event.location, time_zone: event.time_zone, status: event.status,
+      start_date: d('start_date'), end_date: d('end_date'),
+      age_compute_date: d('age_compute_date'), lock_roster_date: d('lock_roster_date'),
+      message: event.message, hotel_link: event.hotel_link, results_link: event.results_link,
+      external_id: event.external_id, info_url: event.info_url,
+      schedule_increment: event.schedule_increment, time_between_games: event.time_between_games,
+      game_guarantee: event.game_guarantee, max_athletes_per_roster: event.max_athletes_per_roster,
+      highlight_schedule_changes: event.highlight_schedule_changes,
+      back_to_back_warning: event.back_to_back_warning,
+      public_schedule: event.public_schedule, show_brackets: event.show_brackets,
+      show_team_list: event.show_team_list, show_seeding: event.show_seeding,
+      show_team_pool: event.show_team_pool, show_bracket_games: event.show_bracket_games,
+      show_team_contact_info: event.show_team_contact_info, show_team_city_state: event.show_team_city_state,
+      allow_public_post_scores: event.allow_public_post_scores, show_stat_leaders: event.show_stat_leaders,
+      allow_ties: event.allow_ties, show_goals_scored: event.show_goals_scored,
+      show_goals_allowed: event.show_goals_allowed, show_goal_diff: event.show_goal_diff,
+      show_head_to_head: event.show_head_to_head,
+      points_for_win: event.points_for_win, points_for_tie: event.points_for_tie, points_for_loss: event.points_for_loss,
+      exhibition_games: event.exhibition_games, schedule_home_games: event.schedule_home_games,
+      assign_work_teams: event.assign_work_teams, assign_bonus_points: event.assign_bonus_points,
+      game_by_game_stats: event.game_by_game_stats, auto_advance_pool_play: event.auto_advance_pool_play,
+      filter_drag_drop: event.filter_drag_drop,
+      periods_per_game: event.periods_per_game, minutes_per_period: event.minutes_per_period,
+      max_sets_per_match: event.max_sets_per_match,
+      ref_requirements: event.ref_requirements,
+      division_term: event.division_term, game_term_team1: event.game_term_team1, game_term_team2: event.game_term_team2,
+      classification: event.classification, tournament_series: event.tournament_series,
+      park_name: event.park_name, primary_color: event.primary_color, secondary_color: event.secondary_color,
+      logo_url: finalLogoUrl, updated_at: new Date().toISOString(),
     }).eq('id', 1)
 
     if (error) toast.error(error.message)
