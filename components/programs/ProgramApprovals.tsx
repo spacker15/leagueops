@@ -63,18 +63,55 @@ export function ProgramApprovals() {
       approved_at: new Date().toISOString(),
     }).eq('id', prog.id)
 
-    // Activate the program leader's user_roles record
+    // Activate the program leader's account
     await sb.from('user_roles').update({ is_active: true })
       .eq('program_id', prog.id).eq('role', 'program_leader')
 
+    // Auto-approve all pending teams for this program
+    const { data: pendingTeams } = await sb
+      .from('team_registrations')
+      .select('*')
+      .eq('program_id', prog.id)
+      .eq('status', 'pending')
+
+    let teamsCreated = 0
+    for (const reg of pendingTeams ?? []) {
+      // Create the actual team record
+      const { data: team, error: teamErr } = await sb.from('teams').insert({
+        event_id: 1,
+        name:     reg.team_name,
+        division: reg.division,
+      }).select().single()
+
+      if (teamErr || !team) continue
+
+      // Link team to program
+      await sb.from('program_teams').insert({
+        program_id: prog.id,
+        team_id:    (team as any).id,
+        event_id:   1,
+        division:   reg.division,
+      })
+
+      // Mark registration approved
+      await sb.from('team_registrations').update({
+        status:      'approved',
+        team_id:     (team as any).id,
+        reviewed_by: user?.id,
+        reviewed_at: new Date().toISOString(),
+      }).eq('id', reg.id)
+
+      teamsCreated++
+    }
+
     await sb.from('ops_log').insert({
       event_id:    1,
-      message:     `Program approved: ${prog.name} (${prog.contact_email})`,
+      message:     `Program approved: ${prog.name} — ${teamsCreated} team(s) auto-created`,
       log_type:    'ok',
       occurred_at: new Date().toISOString(),
     })
 
-    toast.success(`${prog.name} approved`)
+    toast.success(`${prog.name} approved — ${teamsCreated} team${teamsCreated !== 1 ? 's' : ''} created`)
     setActionId(null)
     load()
   }

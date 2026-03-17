@@ -360,7 +360,7 @@ export function RegisterPage() {
     }
   }
 
-  const inp = 'w-full bg-white/5 border border-border text-white px-3 py-2.5 rounded-lg text-[13px] outline-none focus:border-blue-400 transition-colors placeholder-white/20'
+  const inp = 'w-full bg-[#081428] border border-border text-white px-3 py-2.5 rounded-lg text-[13px] outline-none focus:border-blue-400 transition-colors placeholder-white/20'
   const lbl = 'font-cond text-[10px] font-bold tracking-widest text-muted uppercase block mb-1.5'
   const progQs  = questions.filter(q => q.section === 'program')
   const teamQs  = questions.filter(q => q.section === 'team')
@@ -599,10 +599,6 @@ export function RegisterPage() {
                   <input className={inp} value={shortName} onChange={e => setShortName(e.target.value)} placeholder="e.g. RYL" />
                 </div>
                 <div>
-                  <label className={lbl}>Association</label>
-                  <input className={inp} value={association} onChange={e => setAssociation(e.target.value)} placeholder="e.g. NFYLL" />
-                </div>
-                <div>
                   <label className={lbl}>City</label>
                   <input className={inp} value={city} onChange={e => setCity(e.target.value)} placeholder="City" />
                 </div>
@@ -630,20 +626,7 @@ export function RegisterPage() {
                 </div>
               </div>
 
-              {progQs.length > 0 && (
-                <div className="mt-5 pt-5 border-t border-border">
-                  <div className="font-cond text-[11px] font-bold tracking-widest text-muted uppercase mb-4">ADDITIONAL INFORMATION</div>
-                  <div className="grid grid-cols-2 gap-4">
-                    {progQs.map(q => (
-                      <div key={q.id} className={q.question_type === 'textarea' ? 'col-span-2' : ''}>
-                        <label className={lbl}>{q.question_text}{q.is_required && ' *'}</label>
-                        <QInput q={q} value={progAnswers[q.question_key] ?? ''}
-                          onChange={v => setProgAnswers(prev => ({ ...prev, [q.question_key]: v }))} cls={inp} />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+
             </div>
 
             {error && <Err msg={error} />}
