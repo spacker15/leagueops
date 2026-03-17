@@ -468,6 +468,12 @@ interface RefAssignmentRow {
   referee: { id: number; name: string; grade_level: string } | null
 }
 
+type RefRules = Record<string, { adult: number; youth: number }>
+
+function getExpected(division: string, rules: RefRules): { adult: number; youth: number } {
+  return rules[division] ?? rules['default'] ?? { adult: 2, youth: 0 }
+}
+
 function isYouthRef(gradeLevel: string): boolean {
   // Grade 8 = Youth entry-level; Grade 7 and below = Adult
   const lvl = gradeLevel?.toLowerCase() ?? ''
@@ -490,12 +496,23 @@ function RefScheduleView({ games, fields, referees, eventId }: {
   eventId: number | null
 }) {
   const [assignments, setAssignments] = useState<RefAssignmentRow[]>([])
+  const [refRules, setRefRules] = useState<RefRules>({
+    U8: { adult: 0, youth: 2 }, U10: { adult: 1, youth: 1 }, default: { adult: 2, youth: 0 },
+  })
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (!eventId || games.length === 0) { setLoading(false); return }
-    const gameIds = games.map(g => g.id)
+    if (!eventId) { setLoading(false); return }
     const sb = createClient()
+    // Fetch ref_requirements from event config
+    sb.from('events').select('ref_requirements').eq('id', eventId).single()
+      .then(({ data }) => {
+        if (data && (data as any).ref_requirements) {
+          setRefRules((data as any).ref_requirements)
+        }
+      })
+    if (games.length === 0) { setLoading(false); return }
+    const gameIds = games.map(g => g.id)
     sb.from('ref_assignments')
       .select('id, game_id, referee_id, role, referee:referees(id, name, grade_level)')
       .in('game_id', gameIds)
@@ -505,24 +522,30 @@ function RefScheduleView({ games, fields, referees, eventId }: {
       })
   }, [eventId, games])
 
-  // Build: fieldId → hour → { adult: RefAssignmentRow[], youth: RefAssignmentRow[] }
+  // Build: fieldId → hour → { adult: RefAssignmentRow[], youth: RefAssignmentRow[], divisions: string[] }
   const schedule = useMemo(() => {
-    type Slot = { adult: RefAssignmentRow[]; youth: RefAssignmentRow[] }
+    type Slot = { adult: RefAssignmentRow[]; youth: RefAssignmentRow[]; divisions: string[] }
     const byField: Record<number, Record<number, Slot>> = {}
 
     // Index games by id
     const gameById: Record<number, Game> = {}
     for (const g of games) gameById[g.id] = g
 
+    // Collect divisions per field/hour slot (from games, not assignments)
+    for (const g of games) {
+      const hour = g.scheduled_time ? parseInt(g.scheduled_time.split(':')[0]) : -1
+      if (!byField[g.field_id]) byField[g.field_id] = {}
+      if (!byField[g.field_id][hour]) byField[g.field_id][hour] = { adult: [], youth: [], divisions: [] }
+      byField[g.field_id][hour].divisions.push(g.division)
+    }
+
     for (const a of assignments) {
       const game = gameById[a.game_id]
       if (!game) continue
       const fieldId = game.field_id
-      const hour = game.scheduled_time
-        ? parseInt(game.scheduled_time.split(':')[0])
-        : -1
+      const hour = game.scheduled_time ? parseInt(game.scheduled_time.split(':')[0]) : -1
       if (!byField[fieldId]) byField[fieldId] = {}
-      if (!byField[fieldId][hour]) byField[fieldId][hour] = { adult: [], youth: [] }
+      if (!byField[fieldId][hour]) byField[fieldId][hour] = { adult: [], youth: [], divisions: [] }
       const slot = byField[fieldId][hour]
       if (a.referee && isYouthRef(a.referee.grade_level)) {
         slot.youth.push(a)
@@ -598,18 +621,41 @@ function RefScheduleView({ games, fields, referees, eventId }: {
                   <tr style={{ background: '#081428' }}>
                     <Th>Hour</Th>
                     <Th align="center">Games</Th>
-                    <Th align="center">Adult Refs</Th>
-                    <Th align="center">Youth Refs</Th>
-                    <Th align="center">Total</Th>
+                    <Th align="center">
+                      <span style={{ color: '#60a5fa' }}>Adult</span>
+                      <span className="text-muted"> Need</span>
+                    </Th>
+                    <Th align="center">
+                      <span style={{ color: '#60a5fa' }}>Adult</span>
+                      <span className="text-muted"> Have</span>
+                    </Th>
+                    <Th align="center">
+                      <span style={{ color: '#34d399' }}>Youth</span>
+                      <span className="text-muted"> Need</span>
+                    </Th>
+                    <Th align="center">
+                      <span style={{ color: '#34d399' }}>Youth</span>
+                      <span className="text-muted"> Have</span>
+                    </Th>
                     <Th>Assigned Refs</Th>
                   </tr>
                 </thead>
                 <tbody>
                   {allHours.filter(h => (fieldGames[h] ?? 0) > 0).map((hour, i) => {
-                    const slot = fieldSlots[hour] ?? { adult: [], youth: [] }
-                    const total = slot.adult.length + slot.youth.length
+                    const slot = fieldSlots[hour] ?? { adult: [], youth: [], divisions: [] }
                     const gameCount = fieldGames[hour] ?? 0
                     const allRefs = [...slot.adult, ...slot.youth]
+
+                    // Sum expected refs across all games in this slot
+                    const divs = slot.divisions
+                    let needAdult = 0, needYouth = 0
+                    for (const div of divs) {
+                      const exp = getExpected(div, refRules)
+                      needAdult += exp.adult
+                      needYouth += exp.youth
+                    }
+                    const shortAdult = slot.adult.length < needAdult
+                    const shortYouth = slot.youth.length < needYouth
 
                     return (
                       <tr key={hour} style={{ background: i % 2 === 0 ? '#050f20' : '#030c1a' }}>
@@ -619,28 +665,32 @@ function RefScheduleView({ games, fields, referees, eventId }: {
                         <Td align="center">
                           <span className="font-mono text-[12px] text-[#8a9ec0]">{gameCount}</span>
                         </Td>
+                        {/* Adult Need */}
+                        <Td align="center">
+                          <span className="font-mono text-[12px] text-[#60a5fa]">{needAdult}</span>
+                        </Td>
+                        {/* Adult Have */}
                         <Td align="center">
                           <span className={cn(
                             'font-mono text-[13px] font-bold',
-                            slot.adult.length > 0 ? 'text-[#60a5fa]' : 'text-[#1a2d50]'
+                            shortAdult ? 'text-red-400' : slot.adult.length > 0 ? 'text-[#60a5fa]' : 'text-[#1a2d50]'
                           )}>
-                            {slot.adult.length || '—'}
+                            {slot.adult.length}
+                            {shortAdult && <span className="font-cond text-[9px] ml-0.5">▲</span>}
                           </span>
                         </Td>
+                        {/* Youth Need */}
                         <Td align="center">
-                          <span className={cn(
-                            'font-mono text-[13px] font-bold',
-                            slot.youth.length > 0 ? 'text-[#34d399]' : 'text-[#1a2d50]'
-                          )}>
-                            {slot.youth.length || '—'}
-                          </span>
+                          <span className="font-mono text-[12px] text-[#34d399]">{needYouth}</span>
                         </Td>
+                        {/* Youth Have */}
                         <Td align="center">
                           <span className={cn(
                             'font-mono text-[13px] font-bold',
-                            total > 0 ? 'text-white' : 'text-[#1a2d50]'
+                            shortYouth ? 'text-red-400' : slot.youth.length > 0 ? 'text-[#34d399]' : 'text-[#1a2d50]'
                           )}>
-                            {total || '—'}
+                            {slot.youth.length}
+                            {shortYouth && <span className="font-cond text-[9px] ml-0.5">▲</span>}
                           </span>
                         </Td>
                         <Td>
@@ -681,7 +731,7 @@ function RefScheduleView({ games, fields, referees, eventId }: {
       })}
 
       {/* Legend */}
-      <div className="flex items-center gap-4 pt-1">
+      <div className="flex items-center gap-4 pt-1 flex-wrap">
         <span className="font-cond text-[9px] text-muted">Grade Level:</span>
         <span className="flex items-center gap-1.5 font-cond text-[10px] font-bold" style={{ color: '#60a5fa' }}>
           <span className="w-2 h-2 rounded-full" style={{ background: '#60a5fa' }} />
@@ -690,6 +740,9 @@ function RefScheduleView({ games, fields, referees, eventId }: {
         <span className="flex items-center gap-1.5 font-cond text-[10px] font-bold" style={{ color: '#34d399' }}>
           <span className="w-2 h-2 rounded-full" style={{ background: '#34d399' }} />
           Youth (Grade 8)
+        </span>
+        <span className="flex items-center gap-1.5 font-cond text-[10px] font-bold text-red-400">
+          ▲ = below required count · configure in Settings → Advanced
         </span>
       </div>
     </div>

@@ -7,7 +7,7 @@ import toast from 'react-hot-toast'
 import {
   Save, ChevronRight, CheckCircle, Trophy, Calendar,
   MapPin, Settings, Globe, Users, BarChart2, Sliders,
-  FileText, Upload, X, Plus,
+  FileText, Upload, X, Plus, Trash2,
 } from 'lucide-react'
 
 type SetupStep = 'sport' | 'type' | 'details' | 'done'
@@ -98,6 +98,8 @@ interface EventData {
   periods_per_game: number
   minutes_per_period: number
   max_sets_per_match: number
+  // Referee requirements
+  ref_requirements: Record<string, { adult: number; youth: number }>
   // Terms
   division_term: string
   game_term_team1: string
@@ -130,6 +132,7 @@ const DEFAULT_EVENT: Omit<EventData, 'id'> = {
   assign_bonus_points: false, game_by_game_stats: false,
   auto_advance_pool_play: false, filter_drag_drop: false,
   periods_per_game: 0, minutes_per_period: 0, max_sets_per_match: 0,
+  ref_requirements: { U8: { adult: 0, youth: 2 }, U10: { adult: 1, youth: 1 }, default: { adult: 2, youth: 0 } },
   division_term: 'Division', game_term_team1: 'Away', game_term_team2: 'Home',
   classification: '', tournament_series: '',
   logo_url: null, park_name: '', primary_color: '#0B3D91', secondary_color: '#D62828',
@@ -204,6 +207,7 @@ export function EventSetupTab() {
         periods_per_game:       d.periods_per_game ?? 0,
         minutes_per_period:     d.minutes_per_period ?? 0,
         max_sets_per_match:     d.max_sets_per_match ?? 0,
+        ref_requirements:       d.ref_requirements ?? { U8: { adult: 0, youth: 2 }, U10: { adult: 1, youth: 1 }, default: { adult: 2, youth: 0 } },
         division_term:          d.division_term ?? 'Division',
         game_term_team1:        d.game_term_team1 ?? 'Away',
         game_term_team2:        d.game_term_team2 ?? 'Home',
@@ -696,6 +700,11 @@ export function EventSetupTab() {
                   value={event.assign_bonus_points} onChange={v => set('assign_bonus_points', v)} />
               </div>
             </Card>
+
+            <RefRequirementsCard
+              value={event.ref_requirements}
+              onChange={v => set('ref_requirements', v)}
+            />
           </div>
         )}
 
@@ -834,5 +843,105 @@ function NumField({ label, help, value, onChange }: {
         value={value} onChange={e => onChange(Number(e.target.value))} />
       {help && <div className="font-cond text-[9px] text-muted mt-1 leading-snug">{help}</div>}
     </div>
+  )
+}
+
+// ── Referee Requirements Card ─────────────────────────────────
+
+type RefRules = Record<string, { adult: number; youth: number }>
+
+function RefRequirementsCard({ value, onChange }: {
+  value: RefRules
+  onChange: (v: RefRules) => void
+}) {
+  const [newDiv, setNewDiv] = useState('')
+
+  // Separate division rows from 'default'
+  const divRows = Object.entries(value).filter(([k]) => k !== 'default').sort(([a], [b]) => a.localeCompare(b))
+  const def = value['default'] ?? { adult: 2, youth: 0 }
+
+  function updateRule(div: string, field: 'adult' | 'youth', n: number) {
+    onChange({ ...value, [div]: { ...value[div], [field]: Math.max(0, n) } })
+  }
+
+  function removeRule(div: string) {
+    const next = { ...value }
+    delete next[div]
+    onChange(next)
+  }
+
+  function addRule() {
+    const d = newDiv.trim()
+    if (!d || value[d]) return
+    onChange({ ...value, [d]: { adult: 2, youth: 0 } })
+    setNewDiv('')
+  }
+
+  const numInp = 'w-14 bg-[#050f20] border border-[#1a2d50] text-white text-center px-2 py-1.5 rounded text-[13px] font-mono outline-none focus:border-blue-400 transition-colors'
+
+  return (
+    <Card title="Referee Requirements" icon={<Users size={14} />}>
+      <div className="font-cond text-[10px] text-muted mb-4 leading-relaxed">
+        Set how many adult and youth referees are required per game, by division.
+        The <span className="text-white font-bold">Default</span> row applies to any division not listed above it.
+      </div>
+
+      {/* Column headers */}
+      <div className="grid grid-cols-[1fr_80px_80px_32px] gap-2 mb-1 px-1">
+        <span className="font-cond text-[9px] font-black tracking-[.12em] text-muted uppercase">Division</span>
+        <span className="font-cond text-[9px] font-black tracking-[.12em] text-[#60a5fa] uppercase text-center">Adult Refs</span>
+        <span className="font-cond text-[9px] font-black tracking-[.12em] text-[#34d399] uppercase text-center">Youth Refs</span>
+        <span />
+      </div>
+
+      <div className="space-y-1.5">
+        {divRows.map(([div, rule]) => (
+          <div key={div} className="grid grid-cols-[1fr_80px_80px_32px] gap-2 items-center px-1 py-1 rounded hover:bg-[#050f20] group">
+            <span className="font-cond text-[13px] font-bold text-white">{div}</span>
+            <div className="flex justify-center">
+              <input type="number" min={0} max={9} className={numInp}
+                value={rule.adult} onChange={e => updateRule(div, 'adult', Number(e.target.value))} />
+            </div>
+            <div className="flex justify-center">
+              <input type="number" min={0} max={9} className={numInp}
+                value={rule.youth} onChange={e => updateRule(div, 'youth', Number(e.target.value))} />
+            </div>
+            <button onClick={() => removeRule(div)}
+              className="opacity-0 group-hover:opacity-100 flex items-center justify-center w-7 h-7 rounded hover:bg-red/20 transition-all">
+              <Trash2 size={12} className="text-red-400" />
+            </button>
+          </div>
+        ))}
+
+        {/* Default row */}
+        <div className="grid grid-cols-[1fr_80px_80px_32px] gap-2 items-center px-1 py-1 rounded border-t border-[#1a2d50] mt-2 pt-3">
+          <span className="font-cond text-[11px] font-black tracking-[.08em] text-muted uppercase">All Other Divisions</span>
+          <div className="flex justify-center">
+            <input type="number" min={0} max={9} className={numInp}
+              value={def.adult} onChange={e => updateRule('default', 'adult', Number(e.target.value))} />
+          </div>
+          <div className="flex justify-center">
+            <input type="number" min={0} max={9} className={numInp}
+              value={def.youth} onChange={e => updateRule('default', 'youth', Number(e.target.value))} />
+          </div>
+          <span />
+        </div>
+      </div>
+
+      {/* Add division row */}
+      <div className="flex items-center gap-2 mt-4 pt-4 border-t border-[#1a2d50]">
+        <input
+          value={newDiv}
+          onChange={e => setNewDiv(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && addRule()}
+          placeholder="Division name (e.g. U8, U12B)"
+          className="flex-1 bg-[#050f20] border border-[#1a2d50] text-white px-3 py-1.5 rounded text-[12px] font-cond outline-none focus:border-blue-400 placeholder:text-[#1a2d50] transition-colors"
+        />
+        <button onClick={addRule} disabled={!newDiv.trim() || !!value[newDiv.trim()]}
+          className="flex items-center gap-1.5 font-cond text-[11px] font-black tracking-[.08em] px-3 py-1.5 rounded border border-[#1a2d50] text-muted hover:text-white hover:border-blue-400 disabled:opacity-30 transition-all">
+          <Plus size={12} /> ADD
+        </button>
+      </div>
+    </Card>
   )
 }
