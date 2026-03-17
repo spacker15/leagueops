@@ -271,8 +271,10 @@ export function EventSetupTab() {
 
     const { error } = await sb.from('events').update({
       ...event,
-      start_date: event.start_date || null,
-      end_date:   event.end_date   || null,
+      start_date:       event.start_date       || null,
+      end_date:         event.end_date         || null,
+      age_compute_date: event.age_compute_date || null,
+      lock_roster_date: event.lock_roster_date || null,
       logo_url:   finalLogoUrl,
       updated_at: new Date().toISOString(),
     }).eq('id', 1)
