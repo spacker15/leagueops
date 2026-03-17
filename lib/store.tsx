@@ -52,6 +52,7 @@ type Action =
   | { type: 'TICK_LIGHTNING' }
   | { type: 'UPDATE_FIELD'; payload: Field }
   | { type: 'ADD_FIELD'; payload: Field }
+  | { type: 'DELETE_FIELD'; payload: number }
 
 function reducer(state: State, action: Action): State {
   switch (action.type) {
@@ -90,6 +91,7 @@ function reducer(state: State, action: Action): State {
     case 'UPDATE_FIELD':
       return { ...state, fields: state.fields.map(f => f.id === action.payload.id ? action.payload : f) }
     case 'ADD_FIELD': return { ...state, fields: [...state.fields, action.payload] }
+    case 'DELETE_FIELD': return { ...state, fields: state.fields.filter(f => f.id !== action.payload) }
     default: return state
   }
 }
@@ -133,7 +135,9 @@ interface ContextValue {
   updateFieldMap: (fieldId: number, x: number, y: number) => void
   updateFieldFull: (fieldId: number, props: Partial<import('@/types').Field>) => void
   updateFieldName: (fieldId: number, name: string) => Promise<void>
-  addField: (name: string, number: string) => Promise<void>
+  updateFieldDetails: (fieldId: number, props: { name?: string; number?: string; division?: string }) => Promise<void>
+  addField: (name: string, number: string, division?: string) => Promise<void>
+  deleteField: (fieldId: number) => Promise<void>
   eventId: number
 }
 
@@ -331,9 +335,20 @@ export function AppProvider({ children, eventId = 1 }: { children: React.ReactNo
     if (field) dispatch({ type: 'UPDATE_FIELD', payload: { ...field, name } })
   }, [state.fields])
 
-  const addField = useCallback(async (name: string, number: string) => {
-    const created = await db.insertField(eventId, name, number)
+  const addField = useCallback(async (name: string, number: string, division = '') => {
+    const created = await db.insertField(eventId, name, number, division)
     if (created) dispatch({ type: 'ADD_FIELD', payload: created })
+  }, [eventId])
+
+  const updateFieldDetails = useCallback(async (fieldId: number, props: { name?: string; number?: string; division?: string }) => {
+    await db.updateFieldDetails(fieldId, props)
+    const field = state.fields.find(f => f.id === fieldId)
+    if (field) dispatch({ type: 'UPDATE_FIELD', payload: { ...field, ...props } })
+  }, [state.fields])
+
+  const deleteField = useCallback(async (fieldId: number) => {
+    await db.deleteField(fieldId)
+    dispatch({ type: 'DELETE_FIELD', payload: fieldId })
   }, [])
 
   return (
@@ -345,7 +360,7 @@ export function AppProvider({ children, eventId = 1 }: { children: React.ReactNo
       logIncident, dispatchTrainer, updateMedicalStatus,
       triggerLightning, liftLightning,
       addLog,
-      updateFieldMap, updateFieldFull, updateFieldName, addField, eventId,
+      updateFieldMap, updateFieldFull, updateFieldName, updateFieldDetails, addField, deleteField, eventId,
     }}>
       {children}
     </Ctx.Provider>

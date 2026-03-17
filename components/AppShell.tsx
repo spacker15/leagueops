@@ -14,6 +14,7 @@ import { RefsTab } from '@/components/refs/RefsTab'
 import { IncidentsTab } from '@/components/incidents/IncidentsTab'
 import { WeatherTab } from '@/components/weather/WeatherTab'
 import { ParkMapTab } from '@/components/parkmap/ParkMapTab'
+import { FieldsTab } from '@/components/fields/FieldsTab'
 import { EngineTab } from '@/components/engine/EngineTab'
 import { CommandCenter } from '@/components/engine/CommandCenter'
 import { RulesTab } from '@/components/rules/RulesTab'
@@ -27,7 +28,7 @@ import { ReportsTab } from '@/components/reports/ReportsTab'
 
 export type TabName =
   | 'dashboard' | 'schedule' | 'checkin' | 'rosters' | 'qrcodes'
-  | 'refs' | 'conflicts' | 'incidents' | 'weather' | 'parkmap'
+  | 'refs' | 'conflicts' | 'incidents' | 'weather' | 'parkmap' | 'fields'
   | 'engine' | 'command' | 'rules' | 'users' | 'programs' | 'settings'
   | 'reports'
 
@@ -46,6 +47,7 @@ export function AppShell({ onChangeEvent }: { onChangeEvent?: () => void }) {
     { id: 'incidents', label: 'Incidents' },
     { id: 'weather',   label: 'Weather' },
     { id: 'parkmap',   label: 'Park Map' },
+    { id: 'fields',    label: 'Fields' },
     { id: 'command',   label: '⚡ Command' },
     { id: 'engine',    label: 'Sched Engine' },
     { id: 'rules',     label: 'Rules' },
@@ -55,8 +57,17 @@ export function AppShell({ onChangeEvent }: { onChangeEvent?: () => void }) {
     { id: 'reports',   label: 'Reports' },
   ]
 
-  // League admins see all tabs except Users
-  const TABS = ALL_TABS.filter(t => !t.adminOnly || isAdmin)
+  // Build visible tab list based on role permissions
+  const rolePerms: Record<string, string[]> = (state.event as any)?.role_permissions ?? {}
+  const TABS = ALL_TABS.filter(t => {
+    if (t.adminOnly) return isAdmin
+    if (isAdmin) return true
+    const role = userRole?.role
+    if (!role || role === 'league_admin') return true  // league_admin sees all non-admin tabs
+    const allowed = rolePerms[role]
+    if (!allowed || allowed.length === 0) return true  // no config = show all
+    return allowed.includes(t.id)
+  })
 
   if (state.loading) {
     return (
@@ -92,6 +103,7 @@ export function AppShell({ onChangeEvent }: { onChangeEvent?: () => void }) {
           {activeTab === 'incidents'  && <IncidentsTab />}
           {activeTab === 'weather'    && <WeatherTab />}
           {activeTab === 'parkmap'    && <ParkMapTab />}
+          {activeTab === 'fields'     && <FieldsTab />}
           {activeTab === 'command'    && <CommandCenter />}
           {activeTab === 'engine'     && <EngineTab />}
           {activeTab === 'rules'      && <RulesTab />}
