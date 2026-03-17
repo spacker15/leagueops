@@ -13,6 +13,7 @@ export interface UserRole {
   referee_id: number | null
   volunteer_id: number | null
   player_id: number | null
+  program_id: number | null
   display_name: string | null
   is_active: boolean
 }
