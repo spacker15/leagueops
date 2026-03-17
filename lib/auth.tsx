@@ -4,7 +4,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react'
 import { createClient } from '@/supabase/client'
 import type { User, Session } from '@supabase/supabase-js'
 
-export type AppRole = 'admin' | 'league_admin' | 'referee' | 'volunteer' | 'player' | 'program_leader'
+export type AppRole = 'admin' | 'league_admin' | 'referee' | 'volunteer' | 'player'
 
 export interface UserRole {
   id: number
@@ -13,7 +13,6 @@ export interface UserRole {
   referee_id: number | null
   volunteer_id: number | null
   player_id: number | null
-  program_id: number | null
   display_name: string | null
   is_active: boolean
 }
