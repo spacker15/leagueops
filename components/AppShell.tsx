@@ -74,10 +74,10 @@ export function AppShell() {
   return (
     <div className="h-screen flex flex-col overflow-hidden">
       <TopBar tabs={TABS} activeTab={activeTab} onTabChange={setActiveTab}
-        userRole={userRole} onSignOut={signOut} />
+        userRole={userRole} onSignOut={signOut} isAdmin={isAdmin} />
       <StatusRow />
       <div className="flex flex-1 overflow-hidden">
-        <main className="flex-1 overflow-y-auto p-3 min-w-0">
+        <main className="flex-1 overflow-y-auto min-w-0 tab-content">
           {activeTab === 'dashboard'  && <DashboardTab />}
           {activeTab === 'schedule'   && <ScheduleTab />}
           {activeTab === 'checkin'    && <CheckInTab />}
