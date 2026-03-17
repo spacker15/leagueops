@@ -270,7 +270,11 @@ export function EventSetupTab() {
     }
 
     const { error } = await sb.from('events').update({
-      ...event, logo_url: finalLogoUrl, updated_at: new Date().toISOString(),
+      ...event,
+      start_date: event.start_date || null,
+      end_date:   event.end_date   || null,
+      logo_url:   finalLogoUrl,
+      updated_at: new Date().toISOString(),
     }).eq('id', 1)
 
     if (error) toast.error(error.message)
