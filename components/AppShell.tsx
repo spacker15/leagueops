@@ -93,7 +93,7 @@ export function AppShell() {
           {activeTab === 'rules'      && <RulesTab />}
           {activeTab === 'users'      && <UserManagement />}
           {activeTab === 'programs'   && <ProgramApprovals />}
-          {activeTab === 'settings'   && <LeagueSettingsTab />}
+          {activeTab === 'settings'   && <EventSetupTab />}
         </main>
         <RightPanel onNavigate={setActiveTab} />
       </div>
