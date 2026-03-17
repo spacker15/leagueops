@@ -27,6 +27,7 @@ export interface Event {
   start_date: string
   end_date: string
   created_at: string
+  role_permissions?: Record<string, string[]>
 }
 
 export interface EventDate {
@@ -42,6 +43,7 @@ export interface Field {
   event_id: number
   name: string
   number: string
+  division?: string
   map_x: number
   map_y: number
   map_w: number

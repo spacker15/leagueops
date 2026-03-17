@@ -7,11 +7,11 @@ import toast from 'react-hot-toast'
 import {
   Save, ChevronRight, CheckCircle, Trophy, Calendar,
   MapPin, Settings, Globe, Users, BarChart2, Sliders,
-  FileText, Upload, X, Plus, Trash2,
+  FileText, Upload, X, Plus, Trash2, Map, Lock,
 } from 'lucide-react'
 
 type SetupStep = 'sport' | 'type' | 'details' | 'done'
-type SettingsTab = 'general' | 'schedule' | 'public' | 'scoring' | 'advanced' | 'branding'
+type SettingsTab = 'general' | 'schedule' | 'public' | 'scoring' | 'advanced' | 'branding' | 'map' | 'permissions'
 
 const SPORTS = [
   { name: 'Lacrosse', icon: '🥍' },
@@ -139,7 +139,8 @@ const DEFAULT_EVENT: Omit<EventData, 'id'> = {
 }
 
 export function EventSetupTab() {
-  const fileRef = useRef<HTMLInputElement>(null)
+  const fileRef    = useRef<HTMLInputElement>(null)
+  const mapFileRef = useRef<HTMLInputElement>(null)
   const [loading, setLoading]       = useState(true)
   const [hasEvent, setHasEvent]     = useState(false)
   const [saving, setSaving]         = useState(false)
@@ -148,6 +149,16 @@ export function EventSetupTab() {
   const [event, setEvent]           = useState<EventData>({ ...DEFAULT_EVENT })
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
   const [logoFile, setLogoFile]     = useState<File | null>(null)
+  // Map tab state
+  const [mapPhotoPreview, setMapPhotoPreview] = useState<string | null>(null)
+  const [mapPhotoFile, setMapPhotoFile]       = useState<File | null>(null)
+  const [mapSaving, setMapSaving]             = useState(false)
+  const [mapPhotoUrl, setMapPhotoUrl]         = useState<string | null>(null)
+  const [mapsUrl, setMapsUrl]                 = useState('')
+  const [embedCode, setEmbedCode]             = useState('')
+  // Permissions tab state
+  const [rolePerms, setRolePerms]   = useState<Record<string, string[]>>({})
+  const [permSaving, setPermSaving] = useState(false)
 
   useEffect(() => { loadEvent() }, [])
 
@@ -219,9 +230,57 @@ export function EventSetupTab() {
         secondary_color:        d.secondary_color ?? '#D62828',
       })
       setLogoPreview(d.logo_url ?? null)
+      setMapPhotoUrl(d.park_photo_url ?? null)
+      setMapPhotoPreview(d.park_photo_url ?? null)
+      setMapsUrl(d.google_maps_url ?? '')
+      setEmbedCode(d.google_maps_embed ?? '')
+      setRolePerms(d.role_permissions ?? {})
       setHasEvent(true)
     }
     setLoading(false)
+  }
+
+  function handleMapPhotoFile(file: File) {
+    if (!file.type.startsWith('image/')) { toast.error('Image files only'); return }
+    if (file.size > 10 * 1024 * 1024) { toast.error('Max 10MB'); return }
+    setMapPhotoFile(file)
+    const reader = new FileReader()
+    reader.onload = e => setMapPhotoPreview(e.target?.result as string)
+    reader.readAsDataURL(file)
+  }
+
+  async function saveMapSettings() {
+    setMapSaving(true)
+    const sb = createClient()
+    let finalPhoto = mapPhotoUrl
+    if (mapPhotoFile) {
+      const ext = mapPhotoFile.name.split('.').pop() ?? 'jpg'
+      const path = `events/1/park-photo.${ext}`
+      const { error } = await sb.storage.from('program-assets')
+        .upload(path, mapPhotoFile, { upsert: true, contentType: mapPhotoFile.type })
+      if (error) { toast.error(`Upload failed: ${error.message}`); setMapSaving(false); return }
+      finalPhoto = sb.storage.from('program-assets').getPublicUrl(path).data.publicUrl
+      setMapPhotoUrl(finalPhoto)
+      setMapPhotoFile(null)
+    }
+    const { error } = await sb.from('events').update({
+      park_photo_url:    finalPhoto,
+      google_maps_url:   mapsUrl || null,
+      google_maps_embed: embedCode || null,
+      park_name:         event.park_name || null,
+    }).eq('id', 1)
+    if (error) toast.error(error.message)
+    else toast.success('Map settings saved')
+    setMapSaving(false)
+  }
+
+  async function savePermissions() {
+    setPermSaving(true)
+    const sb = createClient()
+    const { error } = await sb.from('events').update({ role_permissions: rolePerms }).eq('id', 1)
+    if (error) toast.error(error.message)
+    else toast.success('Permissions saved')
+    setPermSaving(false)
   }
 
   function set<K extends keyof EventData>(key: K, val: EventData[K]) {
@@ -449,12 +508,14 @@ export function EventSetupTab() {
   const evType = EVENT_TYPES.find(t => t.id === event.event_type)
 
   const SETTINGS_TABS: { id: SettingsTab; label: string; icon: React.ReactNode }[] = [
-    { id: 'general',  label: 'General',    icon: <Settings size={13} /> },
-    { id: 'schedule', label: 'Schedule',   icon: <Calendar size={13} /> },
-    { id: 'public',   label: 'Public',     icon: <Globe size={13} /> },
-    { id: 'scoring',  label: 'Scoring',    icon: <BarChart2 size={13} /> },
-    { id: 'advanced', label: 'Advanced',   icon: <Sliders size={13} /> },
-    { id: 'branding', label: 'Branding',   icon: <FileText size={13} /> },
+    { id: 'general',     label: 'General',     icon: <Settings size={13} /> },
+    { id: 'schedule',    label: 'Schedule',    icon: <Calendar size={13} /> },
+    { id: 'public',      label: 'Public',      icon: <Globe size={13} /> },
+    { id: 'scoring',     label: 'Scoring',     icon: <BarChart2 size={13} /> },
+    { id: 'advanced',    label: 'Advanced',    icon: <Sliders size={13} /> },
+    { id: 'branding',    label: 'Branding',    icon: <FileText size={13} /> },
+    { id: 'map',         label: 'Map',         icon: <Map size={13} /> },
+    { id: 'permissions', label: 'Permissions', icon: <Lock size={13} /> },
   ]
 
   return (
@@ -811,15 +872,212 @@ export function EventSetupTab() {
               </div>
             </Card>
 
-            <Card title="Park / Complex">
-              <div>
-                <label className={lbl}>Complex / Park Name</label>
-                <input className={inp} value={event.park_name} onChange={e => set('park_name', e.target.value)}
-                  placeholder="e.g. Julington Creek Plantation Park" />
-              </div>
-            </Card>
           </div>
         )}
+
+        {/* ── MAP ── */}
+        {settingsTab === 'map' && (
+          <div className="space-y-6">
+            <Card title="Park / Complex" icon={<MapPin size={14} />}>
+              <div className="space-y-4">
+                <div>
+                  <label className={lbl}>Park / Complex Name</label>
+                  <input className={inp} value={event.park_name} onChange={e => set('park_name', e.target.value)}
+                    placeholder="e.g. Julington Creek Plantation Park" />
+                  <div className="font-cond text-[9px] text-muted mt-1">Displayed on the park map overlay</div>
+                </div>
+              </div>
+            </Card>
+
+            <Card title="Park Photo" icon={<Upload size={14} />}>
+              <div className="space-y-3">
+                {mapPhotoPreview ? (
+                  <div className="relative rounded-lg overflow-hidden border border-[#1a2d50]" style={{ height: 180 }}>
+                    <img src={mapPhotoPreview} alt="Park" className="w-full h-full object-cover" />
+                    <button onClick={() => { setMapPhotoPreview(null); setMapPhotoFile(null); setMapPhotoUrl(null) }}
+                      className="absolute top-2 right-2 w-7 h-7 bg-black/60 hover:bg-red rounded-full flex items-center justify-center">
+                      <X size={12} className="text-white" />
+                    </button>
+                  </div>
+                ) : (
+                  <button onClick={() => mapFileRef.current?.click()}
+                    className="w-full h-36 rounded-lg border-2 border-dashed border-[#1a2d50] hover:border-blue-400 flex flex-col items-center justify-center gap-2 bg-white/5 transition-colors">
+                    <Upload size={20} className="text-muted" />
+                    <span className="font-cond text-[10px] text-muted">Aerial photo or park map (max 10MB)</span>
+                  </button>
+                )}
+                <div className="flex items-center gap-3">
+                  <button onClick={() => mapFileRef.current?.click()}
+                    className="font-cond text-[11px] font-black tracking-[.1em] px-4 py-2 rounded-lg border border-[#1a2d50] text-muted hover:text-white transition-colors">
+                    {mapPhotoPreview ? 'CHANGE PHOTO' : 'CHOOSE FILE'}
+                  </button>
+                  {mapPhotoFile && <span className="font-cond text-[10px] text-blue-400">✓ {mapPhotoFile.name}</span>}
+                </div>
+                <input ref={mapFileRef} type="file" accept="image/*" className="hidden"
+                  onChange={e => { const f = e.target.files?.[0]; if (f) handleMapPhotoFile(f) }} />
+              </div>
+            </Card>
+
+            <Card title="Google Maps" icon={<Map size={14} />}>
+              <div className="space-y-4">
+                <div>
+                  <label className={lbl}>Google Maps Share Link</label>
+                  <input className={inp} value={mapsUrl} onChange={e => setMapsUrl(e.target.value)}
+                    placeholder="https://maps.google.com/..." />
+                </div>
+                <div>
+                  <label className={lbl}>
+                    <span className="flex items-center justify-between">
+                      <span>Embed Code</span>
+                      <a href="https://www.google.com/maps" target="_blank" rel="noopener noreferrer"
+                        className="text-blue-400 text-[9px] font-normal normal-case tracking-normal">Get from Google Maps →</a>
+                    </span>
+                  </label>
+                  <textarea className={cn(inp, 'resize-none h-20 font-mono text-[11px]')} value={embedCode}
+                    onChange={e => setEmbedCode(e.target.value)}
+                    placeholder='<iframe src="https://www.google.com/maps/embed?..." ...' />
+                  <div className="font-cond text-[9px] text-muted mt-1">Google Maps → Share → Embed a map → Copy HTML</div>
+                </div>
+              </div>
+            </Card>
+
+            <div className="flex justify-end">
+              <button onClick={saveMapSettings} disabled={mapSaving}
+                className="flex items-center gap-2 font-cond font-black text-[12px] tracking-[.1em] px-6 py-2.5 rounded-lg bg-red hover:bg-red/80 text-white transition-colors disabled:opacity-50">
+                <Save size={13} /> {mapSaving ? 'SAVING...' : 'SAVE MAP SETTINGS'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── PERMISSIONS ── */}
+        {settingsTab === 'permissions' && (
+          <PermissionsPanel rolePerms={rolePerms} setRolePerms={setRolePerms}
+            saving={permSaving} onSave={savePermissions} />
+        )}
+
+      </div>
+    </div>
+  )
+}
+
+// ── Permissions Panel ───────────────────────────────────────────
+
+const ALL_CONFIGURABLE_TABS = [
+  { id: 'dashboard',  label: 'Dashboard' },
+  { id: 'schedule',   label: 'Schedule' },
+  { id: 'checkin',    label: 'Check-In & QR' },
+  { id: 'rosters',    label: 'Rosters' },
+  { id: 'refs',       label: 'Refs & Vols' },
+  { id: 'conflicts',  label: 'Conflicts' },
+  { id: 'incidents',  label: 'Incidents' },
+  { id: 'weather',    label: 'Weather' },
+  { id: 'parkmap',    label: 'Park Map' },
+  { id: 'fields',     label: 'Fields' },
+  { id: 'command',    label: 'Command' },
+  { id: 'engine',     label: 'Sched Engine' },
+  { id: 'rules',      label: 'Rules' },
+  { id: 'reports',    label: 'Reports' },
+]
+
+const CONFIGURABLE_ROLES = [
+  { id: 'referee',        label: 'Referee',        color: 'text-yellow-400',  default: ['dashboard','schedule','checkin','refs','weather'] },
+  { id: 'volunteer',      label: 'Volunteer',      color: 'text-green-400',   default: ['dashboard','schedule','checkin','refs','weather'] },
+  { id: 'coach',          label: 'Coach',          color: 'text-blue-300',    default: ['dashboard','schedule','rosters','checkin'] },
+  { id: 'program_leader', label: 'Program Leader', color: 'text-purple-400',  default: ['dashboard','schedule','rosters','programs'] },
+]
+
+function PermissionsPanel({ rolePerms, setRolePerms, saving, onSave }: {
+  rolePerms: Record<string, string[]>
+  setRolePerms: (v: Record<string, string[]>) => void
+  saving: boolean
+  onSave: () => void
+}) {
+  function getRoleTabs(role: string, def: string[]) {
+    return rolePerms[role] ?? def
+  }
+
+  function toggle(role: string, tabId: string, def: string[]) {
+    const current = getRoleTabs(role, def)
+    const next = current.includes(tabId)
+      ? current.filter(t => t !== tabId)
+      : [...current, tabId]
+    setRolePerms({ ...rolePerms, [role]: next })
+  }
+
+  function resetRole(role: string, def: string[]) {
+    const next = { ...rolePerms }
+    delete next[role]
+    setRolePerms(next)
+  }
+
+  return (
+    <div className="space-y-5">
+      <div className="bg-[#081428] border border-[#1a2d50] rounded-xl overflow-hidden">
+        <div className="flex items-center gap-2 px-5 py-3 border-b border-[#1a2d50]">
+          <Lock size={13} className="text-muted" />
+          <span className="font-cond text-[11px] font-black tracking-[.12em] text-white uppercase">Tab Visibility by Role</span>
+          <span className="font-cond text-[10px] text-muted ml-2">— Admins &amp; League Admins always see everything</span>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-[#1a2d50]">
+                <th className="font-cond text-[10px] font-black tracking-[.1em] text-muted uppercase text-left px-4 py-2.5 w-36">Tab</th>
+                {CONFIGURABLE_ROLES.map(r => (
+                  <th key={r.id} className="font-cond text-[10px] font-black tracking-[.1em] uppercase text-center px-3 py-2.5 w-28">
+                    <span className={r.color}>{r.label}</span>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {ALL_CONFIGURABLE_TABS.map((tab, i) => (
+                <tr key={tab.id} className={i % 2 === 0 ? 'bg-transparent' : 'bg-white/[0.015]'}>
+                  <td className="px-4 py-2 font-cond text-[12px] text-white/80">{tab.label}</td>
+                  {CONFIGURABLE_ROLES.map(role => {
+                    const allowed = getRoleTabs(role.id, role.default)
+                    const checked = allowed.includes(tab.id)
+                    return (
+                      <td key={role.id} className="text-center px-3 py-2">
+                        <button onClick={() => toggle(role.id, tab.id, role.default)}
+                          className={cn(
+                            'w-5 h-5 rounded border-2 flex items-center justify-center mx-auto transition-colors',
+                            checked ? 'bg-green-700 border-green-600' : 'bg-transparent border-[#2a4080] hover:border-blue-400'
+                          )}>
+                          {checked && <span className="text-white text-[10px] font-black">✓</span>}
+                        </button>
+                      </td>
+                    )
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="flex items-center gap-3 px-4 py-3 border-t border-[#1a2d50]">
+          {CONFIGURABLE_ROLES.map(role => (
+            <button key={role.id} onClick={() => resetRole(role.id, role.default)}
+              className="font-cond text-[10px] text-muted hover:text-white transition-colors">
+              Reset {role.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="bg-[#081428] border border-[#1a2d50] rounded-xl p-4">
+        <div className="font-cond text-[10px] text-muted leading-relaxed">
+          <strong className="text-white/60">How it works:</strong> Unchecked tabs are hidden from that role's navigation.
+          If all boxes are unchecked for a role, the user will only see Dashboard.
+          League Admins always see all tabs. Admins always see everything including Settings, Users, and Programs.
+        </div>
+      </div>
+
+      <div className="flex justify-end">
+        <button onClick={onSave} disabled={saving}
+          className="flex items-center gap-2 font-cond font-black text-[12px] tracking-[.1em] px-6 py-2.5 rounded-lg bg-red hover:bg-red/80 text-white transition-colors disabled:opacity-50">
+          <Save size={13} /> {saving ? 'SAVING...' : 'SAVE PERMISSIONS'}
+        </button>
       </div>
     </div>
   )
