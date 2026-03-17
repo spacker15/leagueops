@@ -43,3 +43,9 @@ html, body { height: 100%; overflow: hidden; }
 .lightning-flash { animation: flashBorder 1s ease-in-out infinite; }
 
 .tab-content { padding: 12px 14px; }
+
+/* Ensure dropdown options have solid dark background (browser default is white) */
+select option {
+  background-color: #020810;
+  color: #ffffff;
+}
