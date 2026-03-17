@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import React, { useState, useMemo } from 'react'
 import { useApp } from '@/lib/store'
 import { cn } from '@/lib/utils'
 import type { Game, Team } from '@/types'
