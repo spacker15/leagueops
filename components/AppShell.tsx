@@ -19,12 +19,13 @@ import { RulesTab } from '@/components/rules/RulesTab'
 import { ConflictsTab } from '@/components/conflicts/ConflictsTab'
 import { UserManagement } from '@/components/auth/UserManagement'
 import { ProgramApprovals } from '@/components/programs/ProgramApprovals'
+import { LeagueSettingsTab } from '@/components/settings/LeagueSettingsTab'
 import { QRCodesPanel } from '@/components/auth/QRCodesPanel'
 
 export type TabName =
   | 'dashboard' | 'schedule' | 'checkin' | 'rosters' | 'qrcodes'
   | 'refs' | 'conflicts' | 'incidents' | 'weather' | 'parkmap'
-  | 'engine' | 'rules' | 'users' | 'programs'
+  | 'engine' | 'rules' | 'users' | 'programs' | 'settings'
 
 export function AppShell() {
   const [activeTab, setActiveTab] = useState<TabName>('dashboard')
@@ -45,6 +46,7 @@ export function AppShell() {
     { id: 'rules',     label: 'Rules' },
     { id: 'users',     label: 'Users', adminOnly: true },
     { id: 'programs',  label: 'Programs', adminOnly: true },
+    { id: 'settings',  label: 'Settings', adminOnly: true },
   ]
 
   // League admins see all tabs except Users
@@ -88,6 +90,7 @@ export function AppShell() {
           {activeTab === 'rules'      && <RulesTab />}
           {activeTab === 'users'      && <UserManagement />}
           {activeTab === 'programs'   && <ProgramApprovals />}
+          {activeTab === 'settings'   && <LeagueSettingsTab />}
         </main>
         <RightPanel onNavigate={setActiveTab} />
       </div>

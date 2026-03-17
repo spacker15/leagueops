@@ -5,3 +5,6 @@ ALTER TABLE events ADD COLUMN IF NOT EXISTS secondary_color TEXT DEFAULT '#D6282
 
 -- To set your logo, run:
 -- UPDATE events SET logo_url = 'https://your-logo-url.png' WHERE id = 1;
+
+-- Add updated_at to events
+ALTER TABLE events ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
