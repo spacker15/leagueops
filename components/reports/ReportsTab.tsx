@@ -517,7 +517,7 @@ function RefScheduleView({ games, fields, referees, eventId }: {
       .select('id, game_id, referee_id, role, referee:referees(id, name, grade_level)')
       .in('game_id', gameIds)
       .then(({ data }) => {
-        setAssignments((data as RefAssignmentRow[]) ?? [])
+        setAssignments((data as unknown as RefAssignmentRow[]) ?? [])
         setLoading(false)
       })
   }, [eventId, games])
