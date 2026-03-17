@@ -20,7 +20,7 @@ import { RulesTab } from '@/components/rules/RulesTab'
 import { ConflictsTab } from '@/components/conflicts/ConflictsTab'
 import { UserManagement } from '@/components/auth/UserManagement'
 import { ProgramApprovals } from '@/components/programs/ProgramApprovals'
-import { LeagueSettingsTab } from '@/components/settings/LeagueSettingsTab'
+import { EventSetupTab } from '@/components/settings/EventSetupTab'
 import { QRCodesPanel } from '@/components/auth/QRCodesPanel'
 
 export type TabName =
