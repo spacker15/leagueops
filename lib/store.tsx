@@ -1,6 +1,6 @@
 'use client'
 
-import React, { createContext, useContext, useEffect, useReducer, useCallback } from 'react'
+import React, { createContext, useContext, useEffect, useReducer, useCallback, useRef } from 'react'
 import type {
   Event,
   EventDate,
@@ -199,7 +199,7 @@ const Ctx = createContext<ContextValue | null>(null)
 
 export function AppProvider({
   children,
-  eventId = 1,
+  eventId,
 }: {
   children: React.ReactNode
   eventId?: number
@@ -208,6 +208,7 @@ export function AppProvider({
 
   // ---- Initial load ----
   useEffect(() => {
+    if (!eventId) return // D-01: null guard
     async function loadAll() {
       dispatch({ type: 'SET_LOADING', payload: true })
       const [
@@ -250,43 +251,62 @@ export function AppProvider({
       })
     }
     loadAll()
-  }, [])
+  }, [eventId])
 
   // ---- Load games when date changes ----
   const currentDate = state.eventDates[state.currentDateIdx] ?? null
+
+  // currentDateRef allows the realtime subscription to read the current date
+  // without adding it to the realtime useEffect dep array (avoids reconnect storm)
+  const currentDateRef = useRef(currentDate)
   useEffect(() => {
-    if (!currentDate) return
+    currentDateRef.current = currentDate
+  }, [currentDate])
+
+  useEffect(() => {
+    if (!currentDate || !eventId) return
     db.getGamesByDate(eventId, currentDate.id).then((games) =>
       dispatch({ type: 'SET_GAMES', payload: games })
     )
-  }, [currentDate])
+  }, [currentDate, eventId])
 
   // ---- Real-time subscriptions ----
+  // Dep array is [eventId] ONLY -- currentDate is read from ref to avoid
+  // reconnect storm on date tab switches (addresses review concern #3).
   useEffect(() => {
+    if (!eventId) return // D-01: null guard
     const sb = createClient()
+    const filter = `event_id=eq.${eventId}`
     const sub = sb
       .channel('leagueops-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'ops_log' }, (payload) => {
-        if (payload.eventType === 'INSERT')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'ops_log', filter },
+        (payload) => {
           dispatch({ type: 'ADD_OPS_LOG', payload: payload.new as OpsLogEntry })
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'incidents' }, () => {
+        }
+      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'incidents', filter }, () => {
         db.getIncidents(eventId).then((d) => dispatch({ type: 'SET_INCIDENTS', payload: d }))
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'games' }, () => {
-        if (currentDate)
-          db.getGamesByDate(eventId, currentDate.id).then((d) =>
-            dispatch({ type: 'SET_GAMES', payload: d })
-          )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'games', filter }, () => {
+        const cd = currentDateRef.current // read from ref, not state
+        if (cd) {
+          db.getGamesByDate(eventId, cd.id).then((d) => dispatch({ type: 'SET_GAMES', payload: d }))
+        }
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'medical_incidents' }, () => {
-        db.getMedicalIncidents(eventId).then((d) => dispatch({ type: 'SET_MEDICAL', payload: d }))
-      })
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'medical_incidents', filter },
+        () => {
+          db.getMedicalIncidents(eventId).then((d) => dispatch({ type: 'SET_MEDICAL', payload: d }))
+        }
+      )
       .subscribe()
     return () => {
       sb.removeChannel(sub)
     }
-  }, [currentDate])
+  }, [eventId]) // ONLY eventId -- currentDate read from ref
 
   // ---- Lightning timer ----
   useEffect(() => {
@@ -299,9 +319,12 @@ export function AppProvider({
   const todayGames = state.games
 
   // ---- Actions ----
-  const addLog = useCallback(async (message: string, type: LogType = 'info') => {
-    await db.addOpsLog(eventId, message, type)
-  }, [])
+  const addLog = useCallback(
+    async (message: string, type: LogType = 'info') => {
+      await db.addOpsLog(eventId, message, type)
+    },
+    [eventId]
+  )
 
   const changeDate = useCallback((idx: number) => {
     dispatch({ type: 'SET_DATE', payload: idx })
@@ -311,7 +334,7 @@ export function AppProvider({
     if (!currentDate) return
     const games = await db.getGamesByDate(eventId, currentDate.id)
     dispatch({ type: 'SET_GAMES', payload: games })
-  }, [currentDate])
+  }, [currentDate, eventId])
 
   const updateGameStatus = useCallback(
     async (gameId: number, status: GameStatus) => {
@@ -431,7 +454,7 @@ export function AppProvider({
     await refreshGames()
     const alerts = await db.getWeatherAlerts(eventId)
     dispatch({ type: 'SET_WEATHER', payload: alerts })
-  }, [currentDate, addLog, refreshGames])
+  }, [currentDate, eventId, addLog, refreshGames])
 
   const liftLightning = useCallback(async () => {
     dispatch({ type: 'SET_LIGHTNING', payload: { active: false } })
@@ -444,7 +467,7 @@ export function AppProvider({
     await refreshGames()
     const newAlerts = await db.getWeatherAlerts(eventId)
     dispatch({ type: 'SET_WEATHER', payload: newAlerts })
-  }, [currentDate, state.weatherAlerts, addLog, refreshGames])
+  }, [currentDate, eventId, state.weatherAlerts, addLog, refreshGames])
 
   const updateFieldMap = useCallback(
     (fieldId: number, x: number, y: number) => {
