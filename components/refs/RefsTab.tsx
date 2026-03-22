@@ -27,6 +27,7 @@ import {
   Trash2,
   Users,
   Calendar,
+  Link2,
 } from 'lucide-react'
 
 // ─── Types ───────────────────────────────────────────────────
@@ -304,6 +305,7 @@ export function RefsTab() {
   const [conflicts, setConflicts] = useState<OperationalConflict[]>([])
   const [running, setRunning] = useState(false)
   const [engineResult, setEngineResult] = useState<string | null>(null)
+  const [copyingInvite, setCopyingInvite] = useState<'referee' | 'volunteer' | null>(null)
   const [roleModal, setRoleModal] = useState<{
     personId: number
     personType: PersonType
@@ -729,6 +731,26 @@ export function RefsTab() {
     setNewDate('')
   }
 
+  async function copyInviteLink(type: 'referee' | 'volunteer') {
+    const eventId = (state.event as any)?.id
+    if (!eventId) return
+    setCopyingInvite(type)
+    const sb = createClient()
+    const token = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2)
+    const { error } = await sb
+      .from('registration_invites')
+      .insert({ event_id: eventId, type, token })
+    if (error) {
+      toast.error('Could not generate link')
+      setCopyingInvite(null)
+      return
+    }
+    const url = `${window.location.origin}/join/${token}`
+    await navigator.clipboard.writeText(url)
+    toast.success(`${type === 'referee' ? 'Referee' : 'Volunteer'} invite link copied!`)
+    setCopyingInvite(null)
+  }
+
   // Group games by field
   const fieldColumns = state.fields
     .map((field) => ({
@@ -941,75 +963,104 @@ export function RefsTab() {
 
       {/* ═══ REFEREES TAB ════════════════════════════════════════ */}
       {subTab === 'referees' && (
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(210px,1fr))] gap-2">
-          {state.referees.map((ref) => {
-            const rd = ref as any
-            return (
-              <div
-                key={ref.id}
-                className={cn(
-                  'p-3 rounded-md border transition-all',
-                  ref.checked_in
-                    ? 'bg-green-900/10 border-green-800/40'
-                    : 'bg-surface-card border-border'
-                )}
-              >
-                <div className="flex gap-2 items-start mb-2">
-                  <Avatar name={ref.name} variant="red" />
-                  <div className="min-w-0 flex-1">
-                    <div className="font-cond font-black text-[13px] truncate">{ref.name}</div>
-                    <div className="font-cond text-[10px] text-muted">{ref.grade_level}</div>
-                  </div>
-                </div>
-                <div className="flex flex-wrap gap-1 mb-2">
-                  {ref.checked_in ? (
-                    <Pill variant="green">CHECKED IN</Pill>
-                  ) : (
-                    <Pill variant="yellow">NOT IN</Pill>
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <div className="font-cond text-[11px] text-muted">
+              {state.referees.length} referee{state.referees.length !== 1 ? 's' : ''} registered
+            </div>
+            <button
+              onClick={() => copyInviteLink('referee')}
+              disabled={!!copyingInvite}
+              className="flex items-center gap-1.5 font-cond text-[11px] font-black tracking-wider px-3 py-1.5 rounded-lg bg-red/20 border border-red/40 text-red-300 hover:bg-red/30 transition-colors disabled:opacity-50"
+            >
+              <Link2 size={11} />
+              {copyingInvite === 'referee' ? 'COPYING...' : 'COPY INVITE LINK'}
+            </button>
+          </div>
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(210px,1fr))] gap-2">
+            {state.referees.map((ref) => {
+              const rd = ref as any
+              return (
+                <div
+                  key={ref.id}
+                  className={cn(
+                    'p-3 rounded-md border transition-all',
+                    ref.checked_in
+                      ? 'bg-green-900/10 border-green-800/40'
+                      : 'bg-surface-card border-border'
                   )}
-                  {rd.max_games_per_day && <Pill variant="gray">MAX {rd.max_games_per_day}</Pill>}
-                </div>
-                {rd.eligible_divisions?.length > 0 && (
+                >
+                  <div className="flex gap-2 items-start mb-2">
+                    <Avatar name={ref.name} variant="red" />
+                    <div className="min-w-0 flex-1">
+                      <div className="font-cond font-black text-[13px] truncate">{ref.name}</div>
+                      <div className="font-cond text-[10px] text-muted">{ref.grade_level}</div>
+                    </div>
+                  </div>
                   <div className="flex flex-wrap gap-1 mb-2">
-                    {(rd.eligible_divisions as string[]).map((d: string) => (
-                      <span
-                        key={d}
-                        className="font-cond text-[9px] font-bold bg-blue-900/30 text-blue-300 px-1.5 py-0.5 rounded"
-                      >
-                        {d}
-                      </span>
-                    ))}
+                    {ref.checked_in ? (
+                      <Pill variant="green">CHECKED IN</Pill>
+                    ) : (
+                      <Pill variant="yellow">NOT IN</Pill>
+                    )}
+                    {rd.max_games_per_day && <Pill variant="gray">MAX {rd.max_games_per_day}</Pill>}
                   </div>
-                )}
-                {rd.certifications?.length > 0 && (
-                  <div className="font-cond text-[9px] text-muted mb-2">
-                    {(rd.certifications as string[]).join(' · ')}
+                  {rd.eligible_divisions?.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mb-2">
+                      {(rd.eligible_divisions as string[]).map((d: string) => (
+                        <span
+                          key={d}
+                          className="font-cond text-[9px] font-bold bg-blue-900/30 text-blue-300 px-1.5 py-0.5 rounded"
+                        >
+                          {d}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {rd.certifications?.length > 0 && (
+                    <div className="font-cond text-[9px] text-muted mb-2">
+                      {(rd.certifications as string[]).join(' · ')}
+                    </div>
+                  )}
+                  <div className="flex gap-1 mt-2">
+                    <button
+                      onClick={() => toggleRefCheckin(ref.id)}
+                      className="flex-1 font-cond text-[10px] font-bold tracking-wider py-1 rounded bg-navy hover:bg-navy-light text-white transition-colors"
+                    >
+                      {ref.checked_in ? 'CHECK OUT' : 'CHECK IN'}
+                    </button>
+                    <button
+                      onClick={() => openAvailability(ref)}
+                      title="Availability"
+                      className="font-cond text-[10px] font-bold px-2 py-1 rounded bg-surface border border-border text-muted hover:text-white hover:border-blue-400 transition-colors"
+                    >
+                      <Clock size={11} />
+                    </button>
                   </div>
-                )}
-                <div className="flex gap-1 mt-2">
-                  <button
-                    onClick={() => toggleRefCheckin(ref.id)}
-                    className="flex-1 font-cond text-[10px] font-bold tracking-wider py-1 rounded bg-navy hover:bg-navy-light text-white transition-colors"
-                  >
-                    {ref.checked_in ? 'CHECK OUT' : 'CHECK IN'}
-                  </button>
-                  <button
-                    onClick={() => openAvailability(ref)}
-                    title="Availability"
-                    className="font-cond text-[10px] font-bold px-2 py-1 rounded bg-surface border border-border text-muted hover:text-white hover:border-blue-400 transition-colors"
-                  >
-                    <Clock size={11} />
-                  </button>
                 </div>
-              </div>
-            )
-          })}
+              )
+            })}
+          </div>
         </div>
       )}
 
       {/* ═══ VOLUNTEERS TAB ══════════════════════════════════════ */}
       {subTab === 'volunteers' && (
         <div>
+          <div className="flex items-center justify-between mb-3">
+            <div className="font-cond text-[11px] text-muted">
+              {state.volunteers.length} volunteer{state.volunteers.length !== 1 ? 's' : ''}{' '}
+              registered
+            </div>
+            <button
+              onClick={() => copyInviteLink('volunteer')}
+              disabled={!!copyingInvite}
+              className="flex items-center gap-1.5 font-cond text-[11px] font-black tracking-wider px-3 py-1.5 rounded-lg bg-blue-900/30 border border-blue-700/50 text-blue-300 hover:bg-blue-900/50 transition-colors disabled:opacity-50"
+            >
+              <Link2 size={11} />
+              {copyingInvite === 'volunteer' ? 'COPYING...' : 'COPY INVITE LINK'}
+            </button>
+          </div>
           <div className="grid grid-cols-[repeat(auto-fill,minmax(210px,1fr))] gap-2 mb-6">
             {state.volunteers.map((vol) => (
               <div
