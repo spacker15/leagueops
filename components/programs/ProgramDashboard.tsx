@@ -59,6 +59,8 @@ type Tab = 'overview' | 'teams' | 'rosters' | 'register'
 
 export function ProgramDashboard() {
   const { userRole, signOut } = useAuth()
+  const portalEventId = userRole?.event_id
+  if (!portalEventId) return null
   const [program, setProgram] = useState<Program | null>(null)
   const [teamRegs, setTeamRegs] = useState<TeamReg[]>([])
   const [teams, setTeams] = useState<any[]>([])
@@ -121,7 +123,7 @@ export function ProgramDashboard() {
     const sb = createClient()
     const { error } = await sb.from('team_registrations').insert({
       program_id: userRole.program_id,
-      event_id: 1,
+      event_id: portalEventId,
       team_name: newTeamName,
       division: newTeamDiv,
       head_coach_name: newCoachName || null,

@@ -5,6 +5,7 @@ import { RegistrationConfig } from '@/components/programs/RegistrationConfig'
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/supabase/client'
 import { useAuth } from '@/lib/auth'
+import { useApp } from '@/lib/store'
 import { cn } from '@/lib/utils'
 import { Btn, SectionHeader } from '@/components/ui'
 import toast from 'react-hot-toast'
@@ -43,6 +44,8 @@ type FilterStatus = 'pending' | 'approved' | 'rejected' | 'all'
 
 export function ProgramApprovals() {
   const { user } = useAuth()
+  const { eventId } = useApp()
+  if (!eventId) return null
   const [programs, setPrograms] = useState<Program[]>([])
   const [teamRegs, setTeamRegs] = useState<TeamReg[]>([])
   const [filter, setFilter] = useState<FilterStatus>('pending')
@@ -105,7 +108,7 @@ export function ProgramApprovals() {
       const { data: team, error: teamErr } = await sb
         .from('teams')
         .insert({
-          event_id: 1,
+          event_id: eventId,
           name: reg.team_name,
           division: reg.division,
         })
@@ -118,7 +121,7 @@ export function ProgramApprovals() {
       await sb.from('program_teams').insert({
         program_id: prog.id,
         team_id: (team as any).id,
-        event_id: 1,
+        event_id: eventId,
         division: reg.division,
       })
 
@@ -137,7 +140,7 @@ export function ProgramApprovals() {
     }
 
     await sb.from('ops_log').insert({
-      event_id: 1,
+      event_id: eventId,
       message: `Program approved: ${prog.name} — ${teamsCreated} team(s) auto-created`,
       log_type: 'ok',
       occurred_at: new Date().toISOString(),
@@ -175,7 +178,7 @@ export function ProgramApprovals() {
     const { data: team, error } = await sb
       .from('teams')
       .insert({
-        event_id: 1,
+        event_id: eventId,
         name: reg.team_name,
         division: reg.division,
       })
@@ -192,7 +195,7 @@ export function ProgramApprovals() {
     await sb.from('program_teams').insert({
       program_id: reg.program_id,
       team_id: team.id,
-      event_id: 1,
+      event_id: eventId,
       division: reg.division,
     })
 
@@ -208,7 +211,7 @@ export function ProgramApprovals() {
       .eq('id', reg.id)
 
     await sb.from('ops_log').insert({
-      event_id: 1,
+      event_id: eventId,
       message: `Team approved: ${reg.team_name} (${reg.division}) — Team #${team.id} created`,
       log_type: 'ok',
       occurred_at: new Date().toISOString(),

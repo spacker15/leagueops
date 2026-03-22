@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/supabase/client'
 import { useAuth } from '@/lib/auth'
 import { cn } from '@/lib/utils'
@@ -73,7 +74,20 @@ const defaultTeam = (division = ''): TeamEntry => ({
   customAnswers: {},
 })
 
-export function RegisterPage() {
+function RegisterPageInner() {
+  const searchParams = useSearchParams()
+  const eventIdParam = searchParams.get('event_id')
+  const eventId = eventIdParam ? Number(eventIdParam) : null
+  if (!eventId) {
+    return (
+      <div className="min-h-screen bg-surface flex items-center justify-center">
+        <div className="text-center text-red-400 p-8 font-cond">
+          No event specified. Please use a valid registration link.
+        </div>
+      </div>
+    )
+  }
+
   const { signIn, user } = useAuth()
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -130,13 +144,13 @@ export function RegisterPage() {
       sb
         .from('registration_divisions')
         .select('*')
-        .eq('event_id', 1)
+        .eq('event_id', eventId)
         .eq('is_active', true)
         .order('sort_order'),
       sb
         .from('registration_questions')
         .select('*')
-        .eq('event_id', 1)
+        .eq('event_id', eventId)
         .eq('is_active', true)
         .order('section')
         .order('sort_order'),
@@ -457,7 +471,7 @@ export function RegisterPage() {
           role: 'program_leader',
           display_name: contactName,
           program_id: programId,
-          event_id: 1,
+          event_id: eventId,
           is_active: false,
         })
       }
@@ -469,7 +483,7 @@ export function RegisterPage() {
           .from('team_registrations')
           .insert({
             program_id: programId,
-            event_id: 1,
+            event_id: eventId,
             team_name: team.name,
             division: team.division,
             head_coach_name: team.coachName || null,
@@ -496,7 +510,7 @@ export function RegisterPage() {
       }
 
       await sb.from('ops_log').insert({
-        event_id: 1,
+        event_id: eventId,
         message: `Program registration ${previousProgram ? 'updated' : 'submitted'}: ${progName} — ${teams.length} team(s)`,
         log_type: 'info',
         occurred_at: new Date().toISOString(),
@@ -1346,6 +1360,14 @@ export function RegisterPage() {
         )}
       </div>
     </div>
+  )
+}
+
+export function RegisterPage() {
+  return (
+    <Suspense fallback={null}>
+      <RegisterPageInner />
+    </Suspense>
   )
 }
 
