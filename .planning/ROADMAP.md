@@ -54,10 +54,11 @@ created: 2026-03-22
 **Requirements:** SEC-04, SEC-05
 **UI hint:** no
 **Depends on:** Phase 1
-**Plans:** 4 plans
+**Plans:** 5 plans
 
 Plans:
 
+- [ ] 02-00-PLAN.md — Wave 0: Store behavioral test scaffolding (SEC-04, SEC-05)
 - [ ] 02-01-PLAN.md — Engine eventId parameter injection (referee, weather, field, unified, rules)
 - [ ] 02-02-PLAN.md — API route hardcode removal (~19 routes, 400 guards)
 - [ ] 02-03-PLAN.md — Store loadAll/realtime dependency fixes (SEC-05)
