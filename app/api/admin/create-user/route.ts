@@ -31,6 +31,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'email, password, role required' }, { status: 400 })
   }
 
+  if (!event_id) {
+    return NextResponse.json({ error: 'event_id required' }, { status: 400 })
+  }
+
   // Use service role client to create auth user
   const adminSb = createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -56,7 +60,7 @@ export async function POST(req: NextRequest) {
     display_name: display_name ?? email,
     referee_id: referee_id ?? null,
     volunteer_id: volunteer_id ?? null,
-    event_id: event_id ?? 1,
+    event_id: event_id,
     is_active: true,
   })
 
@@ -68,7 +72,7 @@ export async function POST(req: NextRequest) {
 
   // Log it
   await adminSb.from('ops_log').insert({
-    event_id: event_id ?? 1,
+    event_id: event_id,
     message: `User created: ${email} (${role}) by admin`,
     log_type: 'info',
     occurred_at: new Date().toISOString(),

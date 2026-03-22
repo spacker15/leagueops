@@ -4,7 +4,8 @@ import { createClient } from '@/supabase/server'
 export async function GET(req: NextRequest) {
   const sb = createClient()
   const { searchParams } = new URL(req.url)
-  const eventId = searchParams.get('event_id') ?? '1'
+  const eventId = searchParams.get('event_id')
+  if (!eventId) return NextResponse.json({ error: 'event_id required' }, { status: 400 })
   const { data, error } = await sb
     .from('registration_fees')
     .select('*')

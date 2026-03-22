@@ -13,11 +13,12 @@ export async function GET(req: NextRequest) {
   const sb = createClient()
   const { searchParams } = new URL(req.url)
   const gameId = searchParams.get('game_id')
-  const eventId = searchParams.get('event_id') ?? '1'
+  const eventId = searchParams.get('event_id')
   const allPending = searchParams.get('all')
 
   try {
     if (allPending) {
+      if (!eventId) return NextResponse.json({ error: 'event_id required' }, { status: 400 })
       const data = await getAllPendingApprovals(Number(eventId), sb)
       return NextResponse.json(data)
     }
@@ -25,6 +26,7 @@ export async function GET(req: NextRequest) {
       const data = await getPendingApprovals(Number(gameId), sb)
       return NextResponse.json(data)
     }
+    if (!eventId) return NextResponse.json({ error: 'event_id required' }, { status: 400 })
     return NextResponse.json([])
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 })

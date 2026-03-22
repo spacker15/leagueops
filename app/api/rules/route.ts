@@ -5,7 +5,8 @@ import { invalidateRulesCache } from '@/lib/engines/rules'
 export async function GET(req: NextRequest) {
   const sb = createClient()
   const { searchParams } = new URL(req.url)
-  const eventId = searchParams.get('event_id') ?? '1'
+  const eventId = searchParams.get('event_id')
+  if (!eventId) return NextResponse.json({ error: 'event_id required' }, { status: 400 })
   const category = searchParams.get('category')
 
   let query = sb
@@ -25,10 +26,14 @@ export async function GET(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   const sb = createClient()
   const body = await req.json()
-  const { id, rule_value, changed_by = 'operator' } = body
+  const { id, rule_value, changed_by = 'operator', event_id } = body
 
   if (!id || rule_value === undefined) {
     return NextResponse.json({ error: 'id and rule_value required' }, { status: 400 })
+  }
+
+  if (!event_id) {
+    return NextResponse.json({ error: 'event_id required' }, { status: 400 })
   }
 
   // Get current value for audit
@@ -55,9 +60,11 @@ export async function PATCH(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
+  invalidateRulesCache(Number(event_id))
+
   // Audit log
   await sb.from('rule_changes').insert({
-    event_id: 1,
+    event_id,
     rule_id: id,
     rule_key: current.rule_key,
     old_value: current.rule_value,
@@ -67,7 +74,7 @@ export async function PATCH(req: NextRequest) {
   })
 
   await sb.from('ops_log').insert({
-    event_id: 1,
+    event_id,
     message: `Rule updated: ${current.category}.${current.rule_key} → "${rule_value}" (was "${current.rule_value}")`,
     log_type: 'warn',
     occurred_at: new Date().toISOString(),
@@ -80,7 +87,11 @@ export async function POST(req: NextRequest) {
   // Reset to default
   const sb = createClient()
   const body = await req.json()
-  const { action, id, event_id = 1 } = body
+  const { action, id, event_id } = body
+
+  if (!event_id) {
+    return NextResponse.json({ error: 'event_id required' }, { status: 400 })
+  }
 
   if (action === 'reset_one' && id) {
     const { data: current } = await sb
@@ -117,6 +128,7 @@ export async function POST(req: NextRequest) {
       occurred_at: new Date().toISOString(),
     })
 
+    invalidateRulesCache(Number(event_id))
     return NextResponse.json({ reset: true })
   }
 
@@ -146,6 +158,7 @@ export async function POST(req: NextRequest) {
         log_type: 'info',
         occurred_at: new Date().toISOString(),
       })
+      invalidateRulesCache(Number(event_id))
     }
     return NextResponse.json({ reset: overrides?.length ?? 0 })
   }

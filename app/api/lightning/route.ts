@@ -22,10 +22,11 @@ export async function POST(req: NextRequest) {
   const { complex_id, action, event_id } = body
 
   if (!complex_id) return NextResponse.json({ error: 'complex_id required' }, { status: 400 })
+  if (!event_id) return NextResponse.json({ error: 'event_id required' }, { status: 400 })
 
   try {
     if (action === 'lift') {
-      await liftLightningDelay(Number(complex_id), Number(event_id ?? 1), sb)
+      await liftLightningDelay(Number(complex_id), Number(event_id), sb)
       return NextResponse.json({ lifted: true })
     }
 
@@ -42,14 +43,14 @@ export async function POST(req: NextRequest) {
         .from('games')
         .update({ status: 'Delayed' })
         .in('field_id', fieldIds)
-        .eq('event_id', event_id ?? 1)
+        .eq('event_id', event_id)
         .in('status', ['Scheduled', 'Starting', 'Live', 'Halftime'])
     }
 
     // Create lightning event
     await sb.from('lightning_events').insert({
       complex_id: complex_id,
-      event_id: event_id ?? 1,
+      event_id: event_id,
       delay_started_at: new Date().toISOString(),
       delay_ends_at: delayEnd.toISOString(),
       triggered_by: 'manual',
@@ -57,7 +58,7 @@ export async function POST(req: NextRequest) {
 
     // Create weather alert
     await sb.from('weather_alerts').insert({
-      event_id: event_id ?? 1,
+      event_id: event_id,
       complex_id: complex_id,
       alert_type: 'Lightning Delay',
       description: 'Manual lightning delay triggered — all fields suspended for 30 minutes',
@@ -68,7 +69,7 @@ export async function POST(req: NextRequest) {
     })
 
     await sb.from('ops_log').insert({
-      event_id: event_id ?? 1,
+      event_id: event_id,
       message: `⚡ LIGHTNING DELAY TRIGGERED (manual) — all fields suspended until ${delayEnd.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`,
       log_type: 'alert',
       occurred_at: new Date().toISOString(),
