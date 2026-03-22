@@ -51,25 +51,30 @@ export function ConflictsTab() {
   const [blockNotes, setBlockNotes]   = useState('')
   const [addingBlock, setAddingBlock] = useState(false)
 
+  const eventId = state.event?.id
+
   const loadConflicts = useCallback(async () => {
-    const res = await fetch('/api/field-engine?event_id=1&type=open')
+    if (!eventId) return
+    const res = await fetch(`/api/field-engine?event_id=${eventId}&type=open`)
     if (res.ok) setConflicts((await res.json()) as OperationalConflict[])
-  }, [])
+  }, [eventId])
 
   const loadBlocks = useCallback(async () => {
+    if (!eventId) return
     const sb = createClient()
     const { data } = await sb
       .from('field_blocks')
       .select('*, field:fields(id, name)')
-      .eq('event_id', 1)
+      .eq('event_id', eventId)
       .order('starts_at')
     setBlocks((data as FieldBlock[]) ?? [])
-  }, [])
+  }, [eventId])
 
   const loadHistory = useCallback(async () => {
-    const res = await fetch('/api/field-engine?event_id=1&type=history')
+    if (!eventId) return
+    const res = await fetch(`/api/field-engine?event_id=${eventId}&type=history`)
     if (res.ok) setRuns((await res.json()) as EngineRun[])
-  }, [])
+  }, [eventId])
 
   useEffect(() => {
     loadConflicts()
@@ -144,7 +149,7 @@ export function ConflictsTab() {
     const sb = createClient()
     const { error } = await sb.from('field_blocks').insert({
       field_id:  Number(blockField),
-      event_id:  1,
+      event_id:  eventId,
       reason:    blockReason,
       starts_at: blockStart,
       ends_at:   blockEnd,
@@ -155,7 +160,7 @@ export function ConflictsTab() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        event_id: 1,
+        event_id: eventId,
         message: `Field block added: ${state.fields.find(f => f.id === Number(blockField))?.name} — ${blockReason}`,
         log_type: 'warn',
       }),

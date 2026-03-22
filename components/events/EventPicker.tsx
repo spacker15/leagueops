@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/supabase/client'
 import { useAuth } from '@/lib/auth'
 import { cn } from '@/lib/utils'
-import { Plus, LogOut, Calendar, MapPin, ChevronRight, Trophy, Copy, CheckCircle } from 'lucide-react'
+import { Plus, LogOut, Calendar, MapPin, ChevronRight, Trophy, Copy, CheckCircle, ChevronDown, ChevronUp } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 interface EventSummary {
@@ -52,6 +52,17 @@ export function EventPicker({ onSelectEvent }: Props) {
   const [newStart, setNewStart]   = useState('')
   const [newEnd, setNewEnd]       = useState('')
 
+  // Complex step
+  const [complexName, setComplexName]       = useState('')
+  const [complexAddress, setComplexAddress] = useState('')
+
+  // Copy-from-previous step
+  const [showCopySection, setShowCopySection] = useState(false)
+  const [copyFromId, setCopyFromId]           = useState<number | ''>('')
+  const [copyRefs, setCopyRefs]               = useState(true)
+  const [copyTeams, setCopyTeams]             = useState(false)
+  const [copyComplexes, setCopyComplexes]     = useState(false)
+
   useEffect(() => { loadEvents() }, [])
 
   async function loadEvents() {
@@ -86,6 +97,9 @@ export function EventPicker({ onSelectEvent }: Props) {
     if (!newName || !newStart || !newEnd || !newLocation) {
       toast.error('Name, location, and dates required'); return
     }
+    if (!complexName.trim()) {
+      toast.error('Complex name is required'); return
+    }
     setCreating(true)
     const sb   = createClient()
     const user = (await sb.auth.getUser()).data.user
@@ -112,9 +126,11 @@ export function EventPicker({ onSelectEvent }: Props) {
 
     if (error) { toast.error(error.message); setCreating(false); return }
 
+    const newEventId = (ev as any).id
+
     // Add creator as owner admin
     await sb.from('event_admins').insert({
-      event_id: (ev as any).id,
+      event_id: newEventId,
       user_id:  user?.id,
       role:     'owner',
     })
@@ -124,16 +140,70 @@ export function EventPicker({ onSelectEvent }: Props) {
       user_id:      user?.id,
       role:         'admin',
       display_name: userRole?.display_name ?? 'Admin',
-      event_id:     (ev as any).id,
+      event_id:     newEventId,
       is_active:    true,
     }, { onConflict: 'user_id,event_id' })
+
+    // Create the primary complex
+    await sb.from('complexes').insert({
+      event_id: newEventId,
+      name:     complexName.trim(),
+      address:  complexAddress.trim() || null,
+    })
+
+    // Copy from previous event if requested
+    if (showCopySection && copyFromId) {
+      const src = Number(copyFromId)
+
+      if (copyComplexes) {
+        const { data: srcComplexes } = await sb.from('complexes').select('*').eq('event_id', src)
+        for (const c of srcComplexes ?? []) {
+          const { data: newC } = await sb.from('complexes').insert({
+            event_id: newEventId, name: c.name, address: c.address,
+            lat: c.lat, lng: c.lng, lightning_radius_miles: c.lightning_radius_miles,
+          }).select().single()
+          if (newC) {
+            const { data: srcFields } = await sb.from('fields').select('*').eq('complex_id', c.id)
+            for (const f of srcFields ?? []) {
+              await sb.from('fields').insert({
+                event_id: newEventId, name: f.name, number: f.number,
+                division: f.division, complex_id: (newC as any).id,
+              })
+            }
+          }
+        }
+      }
+
+      if (copyRefs) {
+        const { data: srcRefs } = await sb.from('referees').select('*').eq('event_id', src)
+        for (const r of srcRefs ?? []) {
+          await sb.from('referees').insert({
+            event_id: newEventId, name: r.name, email: r.email,
+            phone: r.phone, certification: r.certification,
+            checked_in: false,
+          })
+        }
+      }
+
+      if (copyTeams) {
+        const { data: srcTeams } = await sb.from('teams').select('*').eq('event_id', src)
+        for (const t of srcTeams ?? []) {
+          await sb.from('teams').insert({
+            event_id: newEventId, name: t.name, division: t.division,
+            age_group: t.age_group, coach_name: t.coach_name, coach_email: t.coach_email,
+          })
+        }
+      }
+    }
 
     toast.success(`${newName} created!`)
     setCreating(false)
     setShowForm(false)
     setNewName(''); setNewLocation(''); setNewStart(''); setNewEnd('')
+    setComplexName(''); setComplexAddress('')
+    setShowCopySection(false); setCopyFromId('')
     await loadEvents()
-    onSelectEvent((ev as any).id)
+    onSelectEvent(newEventId)
   }
 
   function copyCode(id: number, code: string) {
@@ -225,6 +295,69 @@ export function EventPicker({ onSelectEvent }: Props) {
                 <input type="date" className={inp} value={newEnd} onChange={e => setNewEnd(e.target.value)} />
               </div>
             </div>
+
+            {/* ── Primary Complex ── */}
+            <div className="mt-5 pt-4 border-t border-[#1a2d50]">
+              <div className="font-cond text-[11px] font-black tracking-[.12em] text-[#5a6e9a] uppercase mb-3">
+                Primary Complex *
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2">
+                  <label className={lbl}>Complex Name *</label>
+                  <input className={inp} value={complexName} onChange={e => setComplexName(e.target.value)}
+                    placeholder="e.g. Riverside Sports Complex" />
+                </div>
+                <div className="col-span-2">
+                  <label className={lbl}>Address (optional — used for weather)</label>
+                  <input className={inp} value={complexAddress} onChange={e => setComplexAddress(e.target.value)}
+                    placeholder="e.g. 1234 Park Blvd, Jacksonville, FL 32099" />
+                </div>
+              </div>
+              <p className="text-[10px] text-[#5a6e9a] mt-1.5">You can add more complexes and fields from Settings → Map after creation.</p>
+            </div>
+
+            {/* ── Copy from previous event ── */}
+            <div className="mt-4 border border-[#1a2d50] rounded-xl overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setShowCopySection(s => !s)}
+                className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-white/5 transition-colors">
+                <span className="font-cond text-[11px] font-black tracking-[.1em] text-[#5a6e9a] uppercase">
+                  Copy from a previous event?
+                </span>
+                {showCopySection ? <ChevronUp size={14} className="text-[#5a6e9a]" /> : <ChevronDown size={14} className="text-[#5a6e9a]" />}
+              </button>
+              {showCopySection && (
+                <div className="px-4 pb-4 border-t border-[#1a2d50]">
+                  <div className="mt-3">
+                    <label className={lbl}>Copy from event</label>
+                    <select className={inp} value={copyFromId} onChange={e => setCopyFromId(e.target.value ? Number(e.target.value) : '')}>
+                      <option value="">— Select an event —</option>
+                      {events.map(ev => (
+                        <option key={ev.id} value={ev.id}>{ev.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  {copyFromId && (
+                    <div className="mt-3 space-y-2">
+                      <div className="font-cond text-[10px] font-black tracking-[.1em] text-[#5a6e9a] uppercase mb-1">What to copy</div>
+                      {[
+                        { label: 'Referees', value: copyRefs, set: setCopyRefs },
+                        { label: 'Teams', value: copyTeams, set: setCopyTeams },
+                        { label: 'Complexes & Fields', value: copyComplexes, set: setCopyComplexes },
+                      ].map(({ label, value, set }) => (
+                        <label key={label} className="flex items-center gap-2.5 cursor-pointer select-none">
+                          <input type="checkbox" checked={value} onChange={e => set(e.target.checked)}
+                            className="w-3.5 h-3.5 accent-blue-500" />
+                          <span className="font-cond text-[12px] text-white">{label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
             <div className="flex gap-3 mt-5 pt-4 border-t border-[#1a2d50]">
               <button onClick={() => setShowForm(false)}
                 className="font-cond text-[12px] text-[#5a6e9a] hover:text-white px-4 py-2 transition-colors">

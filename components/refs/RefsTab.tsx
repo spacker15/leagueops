@@ -275,12 +275,13 @@ export function RefsTab() {
   useEffect(() => { loadAssignments() }, [loadAssignments])
 
   const loadConflicts = useCallback(async () => {
+    if (!state.event?.id) return
     const sb = createClient()
     const { data } = await sb.from('operational_conflicts').select('*')
-      .eq('event_id', 1).eq('resolved', false)
+      .eq('event_id', state.event.id).eq('resolved', false)
       .order('severity', { ascending: false })
     setConflicts((data as OperationalConflict[]) ?? [])
-  }, [])
+  }, [state.event?.id])
 
   useEffect(() => { loadConflicts() }, [loadConflicts])
 
