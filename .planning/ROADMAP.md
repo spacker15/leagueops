@@ -11,7 +11,7 @@ created: 2026-03-22
 
 | Phase | Name | Requirements | UI | Depends On |
 |-------|------|-------------|----|------------|
-| 1 | Engine Client Refactor | 4/5 | In Progress|  |
+| 1 | Engine Client Refactor | 5/5 | Complete   | 2026-03-22 |
 | 2 | Hardcode Removal & Event Context | SEC-04, SEC-05 | no | Phase 1 |
 | 3 | API Auth & Validation | SEC-02, SEC-07, SEC-08 | no | Phase 2 |
 | 4 | RLS & Database Security | SEC-01 | no | Phase 1, Phase 2 |

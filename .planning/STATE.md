@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-stopped_at: Completed 01-03-PLAN.md (Existing API Route Updates)
-last_updated: "2026-03-22T20:31:19.286Z"
+stopped_at: Completed 01-05-PLAN.md (Engine Unit Tests)
+last_updated: "2026-03-22T20:35:32.229Z"
 progress:
   total_phases: 10
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 5
-  completed_plans: 4
+  completed_plans: 5
 ---
 
 # Project State: LeagueOps
@@ -37,8 +37,8 @@ See: .planning/PROJECT.md (updated 2026-03-22)
 
 ## Active Context
 
-**Last session:** 2026-03-22T20:31:19.283Z
-**Stopped at:** Completed 01-03-PLAN.md (Existing API Route Updates)
+**Last session:** 2026-03-22T20:35:32.225Z
+**Stopped at:** Completed 01-05-PLAN.md (Engine Unit Tests)
 **Plans completed:** 01-01 (Core Engine Refactor) — 7 tasks, 12 files, 19 min; 01-02 (New API Routes for CommandCenter) — 3 tasks, 3 files, 3 min
 
 ## Performance Metrics
@@ -50,6 +50,7 @@ See: .planning/PROJECT.md (updated 2026-03-22)
 | Phase 01-engine-client-refactor P01 | 19 | 7 tasks | 12 files |
 | Phase 01-engine-client-refactor P04 | 5 | 2 tasks | 1 files |
 | Phase 01-engine-client-refactor P03 | 2 | 5 tasks | 3 files |
+| Phase 01-engine-client-refactor P05 | 7 | 7 tasks | 9 files |
 
 ## Decisions Log
 
@@ -65,3 +66,5 @@ See: .planning/PROJECT.md (updated 2026-03-22)
 | 01-03 | Tasks 1-4 (existing engine routes) were pre-completed in Plan 01-01 — no additional changes required |
 | 01-04 | WeatherTab.tsx pure-function imports verified safe — conditionIcon, windDirection, evaluateAlerts, calcHeatIndex, THRESHOLDS require no DB access |
 | 01-04 | CommandCenter.tsx client-to-API migration complete — all engine operations now go through fetch() to API routes |
+| 01-05 | Shared _mockSb.ts excluded from vitest via _mock*.ts glob pattern in exclude array to prevent no-suite error |
+| 01-05 | Integration test uses inline vi.fn() in vi.mock() factory to avoid Vitest hoisting-before-initialization errors |
