@@ -49,7 +49,8 @@ export async function POST(req: NextRequest) {
 export async function GET(req: NextRequest) {
   const sb = createClient()
   const { searchParams } = new URL(req.url)
-  const eventId = searchParams.get('event_id') ?? '1'
+  const eventId = searchParams.get('event_id')
+  if (!eventId) return NextResponse.json({ error: 'event_id required' }, { status: 400 })
   const type = searchParams.get('type') ?? 'open' // 'open' | 'all' | 'history'
 
   if (type === 'history') {
