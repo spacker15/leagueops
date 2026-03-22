@@ -60,7 +60,7 @@ Plans:
 
 - [x] 02-00-PLAN.md — Wave 0: Store behavioral test scaffolding (SEC-04, SEC-05)
 - [x] 02-01-PLAN.md — Engine eventId parameter injection (referee, weather, field, unified, rules)
-- [ ] 02-02-PLAN.md — API route hardcode removal (~19 routes, 400 guards)
+- [x] 02-02-PLAN.md — API route hardcode removal (~19 routes, 400 guards)
 - [ ] 02-03-PLAN.md — Store loadAll/realtime dependency fixes (SEC-05)
 - [ ] 02-04-PLAN.md — Component hardcode removal (~18 files, QR slug, portals)
 

@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: Executing Phase 02
-stopped_at: Completed 02-01-PLAN.md (Engine eventId Parameterization)
-last_updated: "2026-03-22T22:38:02.450Z"
+stopped_at: Completed 02-02-PLAN.md (API Route Hardcode Removal)
+last_updated: "2026-03-22T22:45:00Z"
 progress:
   total_phases: 10
   completed_phases: 1
   total_plans: 10
-  completed_plans: 7
+  completed_plans: 8
 ---
 
 # Project State: LeagueOps
@@ -53,6 +53,7 @@ See: .planning/PROJECT.md (updated 2026-03-22)
 | Phase 01-engine-client-refactor P05 | 7    | 7 tasks  | 9 files  |
 | Phase 02-hardcode-removal-event-context P00 | 2 | 1 tasks | 1 files |
 | Phase 02-hardcode-removal-event-context P01 | 9 | 2 tasks | 17 files |
+| Phase 02-hardcode-removal-event-context P02 | 3 min | 2 tasks | 17 files |
 
 ## Decisions Log
 
@@ -71,3 +72,6 @@ See: .planning/PROJECT.md (updated 2026-03-22)
 | 01-05      | Shared \_mockSb.ts excluded from vitest via \_mock\*.ts glob pattern in exclude array to prevent no-suite error                                    |
 | 01-05      | Integration test uses inline vi.fn() in vi.mock() factory to avoid Vitest hoisting-before-initialization errors                                    |
 | 02-00      | All 4 store test cases use test.fails() -- suite stays green while documenting broken dep arrays and missing realtime filters that Plan 03 will fix |
+| 02-02      | Engine routes (referee, weather, unified) were already updated in Plan 01 -- only field-engine GET needed the ?? '1' fix |
+| 02-02      | invalidateRulesCache called in 3 locations: PATCH update, POST reset_one, POST reset_all -- ensures cache eviction on every mutation path |
+| 02-02      | eligibility GET uses scoped event_id guards per code path -- allPending requires it, gameId path does not |
