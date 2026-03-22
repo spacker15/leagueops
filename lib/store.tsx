@@ -209,6 +209,7 @@ export function AppProvider({
   // ---- Initial load ----
   useEffect(() => {
     if (!eventId) return // D-01: null guard
+    const eid = eventId // narrowed -- TS now knows eid is number inside closure
     async function loadAll() {
       dispatch({ type: 'SET_LOADING', payload: true })
       const [
@@ -223,16 +224,16 @@ export function AppProvider({
         weather,
         opsLog,
       ] = await Promise.all([
-        db.getEvent(eventId),
-        db.getEventDates(eventId),
-        db.getFields(eventId),
-        db.getTeams(eventId),
-        db.getReferees(eventId),
-        db.getVolunteers(eventId),
-        db.getIncidents(eventId),
-        db.getMedicalIncidents(eventId),
-        db.getWeatherAlerts(eventId),
-        db.getOpsLog(eventId),
+        db.getEvent(eid),
+        db.getEventDates(eid),
+        db.getFields(eid),
+        db.getTeams(eid),
+        db.getReferees(eid),
+        db.getVolunteers(eid),
+        db.getIncidents(eid),
+        db.getMedicalIncidents(eid),
+        db.getWeatherAlerts(eid),
+        db.getOpsLog(eid),
       ])
       dispatch({
         type: 'INIT',
@@ -275,8 +276,9 @@ export function AppProvider({
   // reconnect storm on date tab switches (addresses review concern #3).
   useEffect(() => {
     if (!eventId) return // D-01: null guard
+    const eid = eventId // narrowed -- TS now knows eid is number inside closure
     const sb = createClient()
-    const filter = `event_id=eq.${eventId}`
+    const filter = `event_id=eq.${eid}`
     const sub = sb
       .channel('leagueops-realtime')
       .on(
@@ -287,19 +289,19 @@ export function AppProvider({
         }
       )
       .on('postgres_changes', { event: '*', schema: 'public', table: 'incidents', filter }, () => {
-        db.getIncidents(eventId).then((d) => dispatch({ type: 'SET_INCIDENTS', payload: d }))
+        db.getIncidents(eid).then((d) => dispatch({ type: 'SET_INCIDENTS', payload: d }))
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'games', filter }, () => {
         const cd = currentDateRef.current // read from ref, not state
         if (cd) {
-          db.getGamesByDate(eventId, cd.id).then((d) => dispatch({ type: 'SET_GAMES', payload: d }))
+          db.getGamesByDate(eid, cd.id).then((d) => dispatch({ type: 'SET_GAMES', payload: d }))
         }
       })
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'medical_incidents', filter },
         () => {
-          db.getMedicalIncidents(eventId).then((d) => dispatch({ type: 'SET_MEDICAL', payload: d }))
+          db.getMedicalIncidents(eid).then((d) => dispatch({ type: 'SET_MEDICAL', payload: d }))
         }
       )
       .subscribe()
@@ -321,7 +323,7 @@ export function AppProvider({
   // ---- Actions ----
   const addLog = useCallback(
     async (message: string, type: LogType = 'info') => {
-      await db.addOpsLog(eventId, message, type)
+      await db.addOpsLog(eventId!, message, type)
     },
     [eventId]
   )
@@ -332,7 +334,7 @@ export function AppProvider({
 
   const refreshGames = useCallback(async () => {
     if (!currentDate) return
-    const games = await db.getGamesByDate(eventId, currentDate.id)
+    const games = await db.getGamesByDate(eventId!, currentDate.id)
     dispatch({ type: 'SET_GAMES', payload: games })
   }, [currentDate, eventId])
 
@@ -441,9 +443,9 @@ export function AppProvider({
 
   const triggerLightning = useCallback(async () => {
     dispatch({ type: 'SET_LIGHTNING', payload: { active: true, seconds: 1800 } })
-    if (currentDate) await db.setAllGamesDelayed(eventId, currentDate.id)
+    if (currentDate) await db.setAllGamesDelayed(eventId!, currentDate.id)
     await db.insertWeatherAlert({
-      event_id: eventId,
+      event_id: eventId!,
       alert_type: 'Lightning Delay',
       description: 'All fields suspended — 30-minute lightning hold initiated',
       is_active: true,
@@ -452,20 +454,20 @@ export function AppProvider({
     })
     await addLog('⚡ LIGHTNING DELAY INITIATED — All fields suspended', 'alert')
     await refreshGames()
-    const alerts = await db.getWeatherAlerts(eventId)
+    const alerts = await db.getWeatherAlerts(eventId!)
     dispatch({ type: 'SET_WEATHER', payload: alerts })
   }, [currentDate, eventId, addLog, refreshGames])
 
   const liftLightning = useCallback(async () => {
     dispatch({ type: 'SET_LIGHTNING', payload: { active: false } })
-    if (currentDate) await db.resumeAllDelayedGames(eventId, currentDate.id)
+    if (currentDate) await db.resumeAllDelayedGames(eventId!, currentDate.id)
     const alerts = state.weatherAlerts.filter(
       (a) => a.alert_type === 'Lightning Delay' && a.is_active
     )
     for (const alert of alerts) await db.resolveWeatherAlert(alert.id)
     await addLog('Lightning delay lifted — Fields resuming', 'ok')
     await refreshGames()
-    const newAlerts = await db.getWeatherAlerts(eventId)
+    const newAlerts = await db.getWeatherAlerts(eventId!)
     dispatch({ type: 'SET_WEATHER', payload: newAlerts })
   }, [currentDate, eventId, state.weatherAlerts, addLog, refreshGames])
 
@@ -502,7 +504,7 @@ export function AppProvider({
 
   const addField = useCallback(
     async (name: string, number: string, division = '', complexId?: number) => {
-      const created = await db.insertField(eventId, name, number, division, complexId)
+      const created = await db.insertField(eventId!, name, number, division, complexId)
       if (created) dispatch({ type: 'ADD_FIELD', payload: created })
     },
     [eventId]
@@ -547,7 +549,7 @@ export function AppProvider({
         updateFieldDetails,
         addField,
         deleteField,
-        eventId,
+        eventId: eventId ?? 0,
       }}
     >
       {children}
