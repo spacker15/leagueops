@@ -201,22 +201,6 @@ events
 ---
 
 ## CSV Roster Upload Format
-
-The Rosters tab accepts CSV files in these formats:
-
-```csv
-Team,PlayerName
-Creeks,Megan Packer
-Riptide,Jordan Reyes
-```
-
-```csv
-Team,PlayerName,Number,Position
-Creeks,Megan Packer,8,Attack
-Creeks,Ashton Packer,12,Midfield
-Riptide,Jordan Reyes,5,Attack
-```
-
 Upload → preview → **OK — COMMIT ROSTER** to write to the database.
 
 ---
