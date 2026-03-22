@@ -33,8 +33,8 @@ export type TabName =
   | 'engine' | 'command' | 'rules' | 'users' | 'programs' | 'payments' | 'settings'
   | 'reports'
 
-export function AppShell({ onChangeEvent }: { onChangeEvent?: () => void }) {
-  const [activeTab, setActiveTab] = useState<TabName>('dashboard')
+export function AppShell({ onChangeEvent, initialTab }: { onChangeEvent?: () => void; initialTab?: TabName }) {
+  const [activeTab, setActiveTab] = useState<TabName>(initialTab ?? 'dashboard')
   const { state } = useApp()
   const { userRole, signOut, isAdmin } = useAuth()
 
