@@ -14,7 +14,7 @@ Requirements for this milestone. Each maps to roadmap phases.
 - [x] **SEC-03**: All engine modules (`referee.ts`, `weather.ts`, `field.ts`, `eligibility.ts`, `unified.ts`) accept a server-side Supabase client parameter instead of importing browser client
 - [ ] **SEC-04**: All hardcoded `event_id = 1` references (~60 locations) replaced with dynamic event_id from context/props/params
 - [ ] **SEC-05**: Real-time subscriptions scoped to current event_id
-- [ ] **SEC-06**: OpenWeather API key moved from `NEXT_PUBLIC_*` to server-only environment variable
+- [x] **SEC-06**: OpenWeather API key moved from `NEXT_PUBLIC_*` to server-only environment variable
 - [ ] **SEC-07**: All API route request bodies validated with zod schemas
 - [ ] **SEC-08**: Rate limiting applied to weather-engine, referee-engine, and public-facing endpoints via Upstash
 

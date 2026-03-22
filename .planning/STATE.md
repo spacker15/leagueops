@@ -3,12 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-last_updated: "2026-03-22T20:05:00Z"
+stopped_at: Completed 01-01-PLAN.md (Core Engine Refactor)
+last_updated: "2026-03-22T20:24:25.110Z"
 progress:
   total_phases: 10
   completed_phases: 0
   total_plans: 5
-  completed_plans: 1
+  completed_plans: 2
 ---
 
 # Project State: LeagueOps
@@ -36,20 +37,25 @@ See: .planning/PROJECT.md (updated 2026-03-22)
 
 ## Active Context
 
-**Last session:** 2026-03-22T20:05:00Z
-**Stopped at:** Completed 01-02-PLAN.md (New API Routes for CommandCenter)
-**Plans completed:** 01-02 (New API Routes for CommandCenter) — 3 tasks, 3 files, 3 min
+**Last session:** 2026-03-22T20:24:25.107Z
+**Stopped at:** Completed 01-01-PLAN.md (Core Engine Refactor)
+**Plans completed:** 01-01 (Core Engine Refactor) — 7 tasks, 12 files, 19 min; 01-02 (New API Routes for CommandCenter) — 3 tasks, 3 files, 3 min
 
 ## Performance Metrics
 
 | Phase | Plan | Duration | Tasks | Files |
 |-------|------|----------|-------|-------|
+| 01-engine-client-refactor | 01 | 19 min | 7 | 12 |
 | 01-engine-client-refactor | 02 | 3 min | 3 | 3 |
+| Phase 01-engine-client-refactor P01 | 19 | 7 tasks | 12 files |
 
 ## Decisions Log
 
 | Phase-Plan | Decision |
 |-----------|----------|
+| 01-01 | Weather engine not called from runUnifiedEngine — complexId not available in unified scope; weather runs per-complex from weather-engine API route |
+| 01-01 | CommandCenter.tsx (client component) passes browser createClient() as sb — full server-side migration deferred to Plan B2 |
+| 01-01 | Rules cache (_cache) retained; serverless isolation documented for Phase 2 multi-event work |
 | 01-02 | Route shells created in wave 1 with commented engine imports — wire-up deferred to Plan A Task 6 completion |
 | 01-02 | Error format `{ error: string }` with 400/500 status codes matches all existing API routes in the codebase |
 | 01-02 | createClient() always called inside handler body — required by next/headers cookie access pattern |
