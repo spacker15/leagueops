@@ -41,7 +41,7 @@ decisions:
 metrics:
   duration: 45 min
   completed_date: "2026-03-22"
-  tasks_completed: 2
+  tasks_completed: 3
   tasks_total: 3
   files_modified: 18
 ---
@@ -88,7 +88,7 @@ After type-check revealed two errors: `FieldCard` and `QuickRescheduleBtn` neede
 
 ### Task 3: Final sweep and type-check
 
-**Checkpoint -- awaiting user verification.**
+User approved. Verification confirmed: zero hardcodes, type-check passes, tests pass (pre-existing referee-engine failures excluded).
 
 ## Verification Results
 
