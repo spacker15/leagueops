@@ -14,6 +14,7 @@ import { EventPicker } from '@/components/events/EventPicker'
 export default function Home() {
   const { user, userRole, loading } = useAuth()
   const [selectedEventId, setSelectedEventId] = useState<number | null>(null)
+  const [isNewEvent, setIsNewEvent] = useState(false)
 
   if (loading) {
     return (
@@ -46,13 +47,19 @@ export default function Home() {
   if (!user) return <PendingApprovalScreen />
 
   if (!selectedEventId) {
-    return <EventPicker onSelectEvent={setSelectedEventId} />
+    return <EventPicker onSelectEvent={(id, isNew) => {
+      setSelectedEventId(id)
+      setIsNewEvent(isNew ?? false)
+    }} />
   }
 
   // Full app with selected event
   return (
     <AppProvider eventId={selectedEventId}>
-      <AppShell onChangeEvent={() => setSelectedEventId(null)} />
+      <AppShell
+        onChangeEvent={() => { setSelectedEventId(null); setIsNewEvent(false) }}
+        initialTab={isNewEvent ? 'settings' : 'dashboard'}
+      />
     </AppProvider>
   )
 }

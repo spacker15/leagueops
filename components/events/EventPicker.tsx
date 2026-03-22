@@ -23,7 +23,7 @@ interface EventSummary {
 }
 
 interface Props {
-  onSelectEvent: (eventId: number) => void
+  onSelectEvent: (eventId: number, isNew?: boolean) => void
 }
 
 const SPORTS_EMOJI: Record<string, string> = {
@@ -132,8 +132,7 @@ export function EventPicker({ onSelectEvent }: Props) {
     setCreating(false)
     setShowForm(false)
     setNewName(''); setNewLocation(''); setNewStart(''); setNewEnd('')
-    await loadEvents()
-    onSelectEvent((ev as any).id)
+    onSelectEvent((ev as any).id, true)
   }
 
   function copyCode(id: number, code: string) {
