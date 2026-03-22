@@ -5,7 +5,7 @@ import { resolveAlert } from '@/lib/engines/unified'
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { alert_id, resolved_by, note } = body
+    const { alert_id, resolved_by, note, event_id } = body
 
     if (!alert_id || typeof alert_id !== 'number') {
       return NextResponse.json(
@@ -21,8 +21,15 @@ export async function POST(request: Request) {
       )
     }
 
+    if (!event_id || typeof event_id !== 'number') {
+      return NextResponse.json(
+        { error: 'event_id is required and must be a number' },
+        { status: 400 }
+      )
+    }
+
     const sb = createClient()
-    await resolveAlert(alert_id, resolved_by, note ?? undefined, sb)
+    await resolveAlert(alert_id, resolved_by, note ?? undefined, event_id, sb)
     return NextResponse.json({ success: true })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error'

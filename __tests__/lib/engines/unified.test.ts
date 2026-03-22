@@ -53,10 +53,10 @@ describe('unified engine', () => {
       makeChain({ data: [], error: null })
     )
 
-    await runUnifiedEngine(42, mockSb)
+    await runUnifiedEngine(42, 1, mockSb)
 
-    expect(runRefereeEngine).toHaveBeenCalledWith(42, mockSb)
-    expect(runFieldConflictEngine).toHaveBeenCalledWith(42, mockSb)
+    expect(runRefereeEngine).toHaveBeenCalledWith(42, 1, mockSb)
+    expect(runFieldConflictEngine).toHaveBeenCalledWith(42, 1, mockSb)
   })
 
   it('runUnifiedEngine aggregates results into expected shape', async () => {
@@ -64,7 +64,7 @@ describe('unified engine', () => {
       makeChain({ data: [], error: null })
     )
 
-    const result = await runUnifiedEngine(1, mockSb)
+    const result = await runUnifiedEngine(1, 1, mockSb)
 
     expect(result).toHaveProperty('alerts_created')
     expect(result).toHaveProperty('alerts_escalated')
@@ -95,7 +95,7 @@ describe('unified engine', () => {
       makeChain({ data: null, error: null })
     )
 
-    const result = await runUnifiedEngine(1, mockSb)
+    const result = await runUnifiedEngine(1, 1, mockSb)
 
     expect(result.referee_conflicts).toBe(1)
   })
@@ -109,7 +109,7 @@ describe('unified engine', () => {
     )
 
     // Should not throw — engine catches the error and logs it
-    const result = await runUnifiedEngine(1, mockSb)
+    const result = await runUnifiedEngine(1, 1, mockSb)
 
     // Both engines failed, so conflicts should be 0
     expect(result.referee_conflicts).toBe(0)
@@ -136,7 +136,7 @@ describe('unified engine', () => {
       .mockReturnValueOnce(makeChain({ data: mockAlert, error: null })) // ops_alerts .single()
       .mockReturnValue(makeChain({ data: null, error: null })) // update + ops_log
 
-    await resolveAlert(5, 'admin', 'Resolved manually', mockSb)
+    await resolveAlert(5, 'admin', 'Resolved manually', 1, mockSb)
 
     const calledTables = (mockSb.from as ReturnType<typeof vi.fn>).mock.calls.map(
       (call: unknown[]) => call[0]
@@ -150,7 +150,7 @@ describe('unified engine', () => {
       makeChain({ data: [], error: null })
     )
 
-    const summary = await generateShiftHandoff('admin', mockSb)
+    const summary = await generateShiftHandoff('admin', 1, mockSb)
 
     expect(typeof summary).toBe('string')
     expect(summary).toContain('Shift Handoff')

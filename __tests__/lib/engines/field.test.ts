@@ -15,7 +15,7 @@ describe('field conflict engine', () => {
       .mockReturnValueOnce(makeChain({ data: [], error: null })) // event_rules (getRules → loadRules)
       .mockReturnValueOnce(makeChain({ data: [], error: null })) // games (empty → early return)
 
-    const result = await runFieldConflictEngine(1, mockSb)
+    const result = await runFieldConflictEngine(1, 1, mockSb)
     expect(result.conflicts).toHaveLength(0)
     expect(result.clean).toBe(true)
     expect(result.summary).toContain('No games')
@@ -26,7 +26,7 @@ describe('field conflict engine', () => {
       makeChain({ data: [], error: null })
     )
 
-    const result = await runFieldConflictEngine(1, mockSb)
+    const result = await runFieldConflictEngine(1, 1, mockSb)
 
     const calledTables = (mockSb.from as ReturnType<typeof vi.fn>).mock.calls.map(
       (call: unknown[]) => call[0]
@@ -43,7 +43,7 @@ describe('field conflict engine', () => {
       makeChain({ data: [], error: null })
     )
 
-    const result = await runFullConflictScan(1, mockSb)
+    const result = await runFullConflictScan(1, 1, mockSb)
     expect(result).toHaveProperty('field')
     expect(result.field).toHaveProperty('conflicts')
   })
@@ -53,7 +53,7 @@ describe('field conflict engine', () => {
       makeChain({ data: null, error: null })
     )
 
-    const result = await applyResolution(99, 'move_to_field', {}, mockSb)
+    const result = await applyResolution(99, 'move_to_field', {}, 1, mockSb)
 
     const calledTables = (mockSb.from as ReturnType<typeof vi.fn>).mock.calls.map(
       (call: unknown[]) => call[0]
@@ -68,7 +68,7 @@ describe('field conflict engine', () => {
       makeChain({ data: null, error: null })
     )
 
-    await applyResolution(1, 'reschedule_game', { game_id: 5, new_time: '10:00 AM' }, mockSb)
+    await applyResolution(1, 'reschedule_game', { game_id: 5, new_time: '10:00 AM' }, 1, mockSb)
 
     const calledTables = (mockSb.from as ReturnType<typeof vi.fn>).mock.calls.map(
       (call: unknown[]) => call[0]

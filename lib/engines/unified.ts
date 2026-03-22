@@ -45,6 +45,7 @@ export interface UnifiedRunResult {
 // ─── Run all engines ──────────────────────────────────────────
 export async function runUnifiedEngine(
   eventDateId: number,
+  eventId: number,
   sb: SupabaseClient
 ): Promise<UnifiedRunResult> {
   const runAt = new Date().toISOString()
@@ -63,15 +64,15 @@ export async function runUnifiedEngine(
 
   try {
     const [refData, fieldData] = await Promise.all([
-      runRefereeEngine(eventDateId, sb),
-      runFieldConflictEngine(eventDateId, sb),
+      runRefereeEngine(eventDateId, eventId, sb),
+      runFieldConflictEngine(eventDateId, eventId, sb),
     ])
     refResult = refData
     fieldResult = fieldData
   } catch (err) {
     // Log error but continue — partial results are still useful
     await sb.from('ops_log').insert({
-      event_id: 1,
+      event_id: eventId,
       message: `Unified engine sub-engine error: ${err instanceof Error ? err.message : String(err)}`,
       log_type: 'warn',
       source: 'unified_engine',
@@ -83,7 +84,7 @@ export async function runUnifiedEngine(
   if (refResult?.conflicts) {
     for (const c of refResult.conflicts) {
       refConflicts++
-      const alert = buildRefAlert(c, eventDateId)
+      const alert = buildRefAlert(c, eventDateId, eventId)
       const { error } = await sb.from('ops_alerts').insert(alert)
       if (!error) created++
     }
@@ -93,7 +94,7 @@ export async function runUnifiedEngine(
   if (fieldResult?.conflicts) {
     for (const c of fieldResult.conflicts) {
       fieldConflicts++
-      const alert = buildFieldAlert(c, eventDateId)
+      const alert = buildFieldAlert(c, eventDateId, eventId)
       const { error } = await sb.from('ops_alerts').insert(alert)
       if (!error) created++
     }
@@ -103,7 +104,7 @@ export async function runUnifiedEngine(
   const { data: unresolved } = await sb
     .from('ops_alerts')
     .select('id, created_at, escalation_threshold_minutes, severity')
-    .eq('event_id', 1)
+    .eq('event_id', eventId)
     .eq('resolved', false)
     .neq('severity', 'critical')
     .neq('severity', 'resolved')
@@ -124,7 +125,7 @@ export async function runUnifiedEngine(
 
   // Log the run
   await sb.from('ops_log').insert({
-    event_id: 1,
+    event_id: eventId,
     message: `Unified engine run: ${refConflicts} ref conflicts, ${fieldConflicts} field conflicts, ${weatherAlerts} weather alerts. ${created} new alerts, ${escalated} escalated.`,
     log_type: created + escalated > 0 ? 'warn' : 'ok',
     source: 'unified_engine',
@@ -146,6 +147,7 @@ export async function resolveAlert(
   alertId: number,
   resolvedBy: string,
   note: string | undefined,
+  eventId: number,
   sb: SupabaseClient
 ): Promise<void> {
   // Get the alert
@@ -156,7 +158,7 @@ export async function resolveAlert(
 
   // Apply the resolution action if there is one
   if (a.resolution_action && a.resolution_params) {
-    await applyResolutionAction(a.resolution_action, a.resolution_params, sb)
+    await applyResolutionAction(a.resolution_action, a.resolution_params, eventId, sb)
   }
 
   // Mark resolved
@@ -172,7 +174,7 @@ export async function resolveAlert(
     .eq('id', alertId)
 
   await sb.from('ops_log').insert({
-    event_id: 1,
+    event_id: eventId,
     message: `Alert resolved by ${resolvedBy}: ${a.title}`,
     log_type: 'ok',
     source: 'command_center',
@@ -184,6 +186,7 @@ export async function resolveAlert(
 async function applyResolutionAction(
   action: string,
   params: Record<string, any>,
+  eventId: number,
   sb: SupabaseClient
 ) {
   switch (action) {
@@ -192,7 +195,7 @@ async function applyResolutionAction(
       if (game_id) {
         await sb.from('games').update({ status: 'Delayed' }).eq('id', game_id)
         await sb.from('ops_log').insert({
-          event_id: 1,
+          event_id: eventId,
           message: `Game #${game_id} delayed by ${minutes ?? '?'} minutes via auto-resolution`,
           log_type: 'warn',
           source: 'command_center',
@@ -227,7 +230,7 @@ async function applyResolutionAction(
       await sb
         .from('games')
         .update({ status: 'Scheduled' })
-        .eq('event_id', 1)
+        .eq('event_id', eventId)
         .eq('status', 'Suspended')
       break
     }
@@ -236,7 +239,7 @@ async function applyResolutionAction(
 }
 
 // ─── Generate shift handoff ───────────────────────────────────
-export async function generateShiftHandoff(createdBy: string, sb: SupabaseClient): Promise<string> {
+export async function generateShiftHandoff(createdBy: string, eventId: number, sb: SupabaseClient): Promise<string> {
   const now = new Date()
   const hourAgo = new Date(now.getTime() - 60 * 60 * 1000)
 
@@ -340,7 +343,7 @@ export async function generateShiftHandoff(createdBy: string, sb: SupabaseClient
 
   // Save handoff
   await sb.from('shift_handoffs').insert({
-    event_id: 1,
+    event_id: eventId,
     created_by: createdBy,
     summary,
     period_start: hourAgo.toISOString(),
@@ -358,9 +361,9 @@ export async function generateShiftHandoff(createdBy: string, sb: SupabaseClient
 }
 
 // ─── Alert builders ───────────────────────────────────────────
-function buildRefAlert(conflict: any, eventDateId: number): any {
+function buildRefAlert(conflict: any, eventDateId: number, eventId: number): any {
   const base = {
-    event_id: 1,
+    event_id: eventId,
     event_date_id: eventDateId,
     source: 'referee_engine',
     resolved: false,
@@ -410,9 +413,9 @@ function buildRefAlert(conflict: any, eventDateId: number): any {
   }
 }
 
-function buildFieldAlert(conflict: any, eventDateId: number): any {
+function buildFieldAlert(conflict: any, eventDateId: number, eventId: number): any {
   const base = {
-    event_id: 1,
+    event_id: eventId,
     event_date_id: eventDateId,
     source: 'field_engine',
     resolved: false,

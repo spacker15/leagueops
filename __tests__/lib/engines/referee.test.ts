@@ -11,7 +11,7 @@ describe('referee engine', () => {
 
   it('runRefereeEngine returns safe default when no data', async () => {
     // All queries return empty arrays
-    const result = await runRefereeEngine(1, mockSb)
+    const result = await runRefereeEngine(1, 1, mockSb)
     expect(result).toHaveProperty('conflicts')
     expect(result).toHaveProperty('clean')
     expect(result).toHaveProperty('summary')
@@ -26,14 +26,14 @@ describe('referee engine', () => {
       .mockReturnValueOnce(makeChain({ data: null, error: null })) // event_dates .single()
       .mockReturnValueOnce(makeChain({ data: [], error: null })) // referee_availability
 
-    const result = await runRefereeEngine(1, mockSb)
+    const result = await runRefereeEngine(1, 1, mockSb)
     // With no data, referee engine returns early with clean=true
     expect(result.clean).toBe(true)
     expect(result.conflicts).toHaveLength(0)
   })
 
   it('runRefereeEngine calls games and referees tables', async () => {
-    await runRefereeEngine(1, mockSb)
+    await runRefereeEngine(1, 1, mockSb)
 
     const calledTables = (mockSb.from as ReturnType<typeof vi.fn>).mock.calls.map(
       (call: unknown[]) => call[0]
@@ -63,7 +63,7 @@ describe('referee engine', () => {
       .mockReturnValueOnce(makeChain({ data: [], error: null })) // referee_availability
       .mockReturnValue(makeChain({ data: [], error: null })) // DB writes (clear conflicts, insert)
 
-    const result = await runRefereeEngine(1, mockSb)
+    const result = await runRefereeEngine(1, 1, mockSb)
     expect(result.conflicts.length).toBeGreaterThan(0)
     const missingRefConflict = result.conflicts.find((c) => c.type === 'missing_referee')
     expect(missingRefConflict).toBeDefined()
@@ -76,7 +76,7 @@ describe('referee engine', () => {
       .mockReturnValueOnce(makeChain({ data: [], error: null })) // referees
       .mockReturnValueOnce(makeChain({ data: [], error: null })) // games
 
-    const result = await findAvailableRefs(1, '9:00 AM', 'Boys 12U', [], mockSb)
+    const result = await findAvailableRefs(1, '9:00 AM', 'Boys 12U', [], 1, mockSb)
     expect(result).toEqual([])
   })
 
@@ -94,7 +94,7 @@ describe('referee engine', () => {
       .mockReturnValueOnce(makeChain({ data: [], error: null })) // referee_availability
 
     // Exclude ref id 1
-    const result = await findAvailableRefs(1, '9:00 AM', 'Boys 12U', [1], mockSb)
+    const result = await findAvailableRefs(1, '9:00 AM', 'Boys 12U', [1], 1, mockSb)
     const refIds = result.map((r) => r.id)
     expect(refIds).not.toContain(1)
     expect(refIds).toContain(2)

@@ -5,16 +5,21 @@ import { createClient } from '@/supabase/server'
 export async function POST(req: NextRequest) {
   const sb = createClient()
   const body = await req.json()
-  const { complex_id, api_key } = body
+  const { complex_id, event_id, api_key } = body
 
   if (!complex_id) {
     return NextResponse.json({ error: 'complex_id required' }, { status: 400 })
+  }
+
+  if (!event_id) {
+    return NextResponse.json({ error: 'event_id required' }, { status: 400 })
   }
 
   try {
     const result = await runWeatherEngine(
       Number(complex_id),
       api_key ?? process.env.OPENWEATHER_API_KEY,
+      Number(event_id),
       sb
     )
     return NextResponse.json(result)

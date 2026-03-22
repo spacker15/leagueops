@@ -22,8 +22,6 @@ import type {
   ResolutionOption,
 } from '@/types'
 
-const EVENT_ID = 1
-
 // ---- Time helpers ----
 
 /** Parse "8:00 AM" or "14:30" into total minutes since midnight */
@@ -85,6 +83,7 @@ export interface RefereeEngineResult {
  */
 export async function runRefereeEngine(
   eventDateId: number,
+  eventId: number,
   sb: SupabaseClient
 ): Promise<RefereeEngineResult> {
   // 1. Load all games for this date with their ref assignments
@@ -101,7 +100,7 @@ export async function runRefereeEngine(
     .order('scheduled_time')
 
   // 2. Load all referees with their profiles
-  const { data: referees } = await sb.from('referees').select('*').eq('event_id', EVENT_ID)
+  const { data: referees } = await sb.from('referees').select('*').eq('event_id', eventId)
 
   // 3. Load availability for this date
   const { data: eventDate } = await sb
@@ -306,12 +305,13 @@ export async function runRefereeEngine(
   await clearStaleConflicts(
     eventDateId,
     ['ref_double_booked', 'ref_unavailable', 'max_games_exceeded', 'missing_referee'],
+    eventId,
     sb
   )
 
   for (const conflict of conflicts) {
     await sb.from('operational_conflicts').insert({
-      event_id: EVENT_ID,
+      event_id: eventId,
       conflict_type: conflict.type,
       severity: conflict.severity,
       impacted_game_ids: conflict.gameIds,
@@ -340,6 +340,7 @@ export async function runRefereeEngine(
 async function clearStaleConflicts(
   eventDateId: number,
   types: ConflictType[],
+  eventId: number,
   sb: SupabaseClient
 ) {
   // Get game IDs for this date to scope the delete
@@ -352,7 +353,7 @@ async function clearStaleConflicts(
   const { data: existing } = await sb
     .from('operational_conflicts')
     .select('id, impacted_game_ids')
-    .eq('event_id', EVENT_ID)
+    .eq('event_id', eventId)
     .eq('resolved', false)
     .in('conflict_type', types)
 
@@ -376,6 +377,7 @@ export async function findAvailableRefs(
   gameTime: string,
   division: string,
   excludeRefIds: number[] = [],
+  eventId: number,
   sb: SupabaseClient
 ): Promise<Referee[]> {
   const { data: eventDate } = await sb
@@ -387,7 +389,7 @@ export async function findAvailableRefs(
   const { data: refs } = await sb
     .from('referees')
     .select('*')
-    .eq('event_id', EVENT_ID)
+    .eq('event_id', eventId)
     .eq('checked_in', true)
 
   if (!refs || !eventDate) return []

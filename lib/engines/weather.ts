@@ -12,7 +12,6 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 
-const EVENT_ID = 1
 const CACHE_MINUTES = 5
 
 // ─── Thresholds ───────────────────────────────────────────────
@@ -87,6 +86,7 @@ export interface WeatherEngineResult {
 export async function runWeatherEngine(
   complexId: number,
   apiKey: string | undefined,
+  eventId: number,
   sb: SupabaseClient
 ): Promise<WeatherEngineResult> {
   // Load complex
@@ -109,7 +109,7 @@ export async function runWeatherEngine(
   // Store the reading
   await sb.from('weather_readings').insert({
     complex_id: complexId,
-    event_id: EVENT_ID,
+    event_id: eventId,
     temperature_f: reading.temperature_f,
     feels_like_f: reading.feels_like_f,
     heat_index_f: reading.heat_index_f,
@@ -150,7 +150,7 @@ export async function runWeatherEngine(
     .from('games')
     .select('id, status')
     .in('field_id', fieldIds)
-    .eq('event_id', EVENT_ID)
+    .eq('event_id', eventId)
     .neq('status', 'Final')
 
   const activeGameIds = (games ?? []).map((g: any) => g.id)
@@ -159,7 +159,7 @@ export async function runWeatherEngine(
   for (const alert of alerts) {
     // Write alert to DB
     await sb.from('weather_alerts').insert({
-      event_id: EVENT_ID,
+      event_id: eventId,
       complex_id: complexId,
       alert_type: alert.title,
       description: alert.description,
@@ -194,7 +194,7 @@ export async function runWeatherEngine(
       const delayEnd = new Date(Date.now() + THRESHOLDS.lightning.delay_minutes * 60 * 1000)
       await sb.from('lightning_events').insert({
         complex_id: complexId,
-        event_id: EVENT_ID,
+        event_id: eventId,
         closest_miles: reading.lightning_miles,
         delay_started_at: new Date().toISOString(),
         delay_ends_at: delayEnd.toISOString(),
@@ -229,7 +229,7 @@ export async function runWeatherEngine(
   if (actions_taken.length > 0) {
     for (const action of actions_taken) {
       await sb.from('ops_log').insert({
-        event_id: EVENT_ID,
+        event_id: eventId,
         message: `[${complex.name}] ${action}`,
         log_type: lightning_active ? 'alert' : heat_protocol === 'emergency' ? 'alert' : 'warn',
         occurred_at: new Date().toISOString(),
@@ -237,7 +237,7 @@ export async function runWeatherEngine(
     }
   } else {
     await sb.from('ops_log').insert({
-      event_id: EVENT_ID,
+      event_id: eventId,
       message: `Weather check: ${complex.name} — ${reading.conditions}, ${reading.temperature_f}°F, ${reading.wind_mph} mph`,
       log_type: 'info',
       occurred_at: new Date().toISOString(),

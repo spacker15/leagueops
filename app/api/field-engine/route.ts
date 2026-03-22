@@ -5,10 +5,14 @@ import { createClient } from '@/supabase/server'
 export async function POST(req: NextRequest) {
   const sb = createClient()
   const body = await req.json()
-  const { action, event_date_id, conflict_id, resolution_action, resolution_params } = body
+  const { action, event_date_id, event_id, conflict_id, resolution_action, resolution_params } = body
 
   if (!event_date_id && action !== 'resolve') {
     return NextResponse.json({ error: 'event_date_id required' }, { status: 400 })
+  }
+
+  if (!event_id) {
+    return NextResponse.json({ error: 'event_id required' }, { status: 400 })
   }
 
   try {
@@ -23,18 +27,19 @@ export async function POST(req: NextRequest) {
         Number(conflict_id),
         resolution_action,
         resolution_params ?? {},
+        Number(event_id),
         sb
       )
       return NextResponse.json(result)
     }
 
     if (action === 'full') {
-      const result = await runFullConflictScan(Number(event_date_id), sb)
+      const result = await runFullConflictScan(Number(event_date_id), Number(event_id), sb)
       return NextResponse.json(result)
     }
 
     // Default: field engine only
-    const result = await runFieldConflictEngine(Number(event_date_id), sb)
+    const result = await runFieldConflictEngine(Number(event_date_id), Number(event_id), sb)
     return NextResponse.json(result)
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 })

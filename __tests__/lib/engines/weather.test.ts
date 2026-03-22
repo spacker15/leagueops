@@ -194,7 +194,7 @@ describe('runWeatherEngine', () => {
       makeChain({ data: null, error: null })
     )
 
-    await expect(runWeatherEngine(999, undefined, mockSb)).rejects.toThrow('Complex 999 not found')
+    await expect(runWeatherEngine(999, undefined, 1, mockSb)).rejects.toThrow('Complex 999 not found')
   })
 
   it('runWeatherEngine uses mock weather when no API key and resolves', async () => {
@@ -205,7 +205,7 @@ describe('runWeatherEngine', () => {
       .mockReturnValue(makeChain({ data: null, error: null })) // all DB writes
 
     // apiKey is undefined, complex has no lat/lng → uses mock weather
-    const result = await runWeatherEngine(1, undefined, mockSb)
+    const result = await runWeatherEngine(1, undefined, 1, mockSb)
     expect(result).toHaveProperty('reading')
     expect(result).toHaveProperty('alerts')
     expect(result.reading.source).toBe('mock')
