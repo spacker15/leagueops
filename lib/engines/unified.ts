@@ -52,7 +52,7 @@ export async function runUnifiedEngine(
   let escalated = 0
   let refConflicts = 0
   let fieldConflicts = 0
-  let weatherAlerts = 0
+  const weatherAlerts = 0
 
   // Run referee and field engines in parallel via direct function calls.
   // Weather engine requires a complexId — not available in unified context at this stage.
