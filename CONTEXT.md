@@ -18,21 +18,22 @@ LeagueOps is a real-time tournament operations platform for youth lacrosse (and 
 
 ## Tech Stack
 
-| Layer | Technology |
-|-------|-----------|
-| Framework | Next.js 14 App Router |
-| Database | Supabase (PostgreSQL + Realtime) |
-| Auth | Supabase Auth |
-| Hosting | Vercel (auto-deploy on push to main) |
-| Styling | Tailwind CSS + custom CSS variables |
-| Fonts | Barlow Condensed (UI), Roboto Mono (numbers) |
-| State | React Context (AppProvider + AuthProvider) |
+| Layer     | Technology                                   |
+| --------- | -------------------------------------------- |
+| Framework | Next.js 14 App Router                        |
+| Database  | Supabase (PostgreSQL + Realtime)             |
+| Auth      | Supabase Auth                                |
+| Hosting   | Vercel (auto-deploy on push to main)         |
+| Styling   | Tailwind CSS + custom CSS variables          |
+| Fonts     | Barlow Condensed (UI), Roboto Mono (numbers) |
+| State     | React Context (AppProvider + AuthProvider)   |
 
 ---
 
 ## Design System
 
 **Color palette (defined in `tailwind.config.js` and `app/globals.css`):**
+
 - Background: `#020810` (near-black)
 - Card: `#081428` (dark navy)
 - Border: `#1a2d50`
@@ -41,11 +42,13 @@ LeagueOps is a real-time tournament operations platform for youth lacrosse (and 
 - Red accent: `#D62828`
 
 **Typography:**
+
 - All UI labels: `font-cond font-black tracking-[.12em] uppercase` (Barlow Condensed)
 - Numbers/scores: `font-mono` (Roboto Mono)
 - Standard text: `font-cond font-bold`
 
 **Common class patterns:**
+
 ```
 inp = 'w-full bg-[#081428] border border-[#1a2d50] text-white px-3 py-2.5 rounded-lg text-[13px] outline-none focus:border-blue-400'
 lbl = 'font-cond text-[10px] font-black tracking-[.12em] text-[#5a6e9a] uppercase block mb-1.5'
@@ -58,6 +61,7 @@ lbl = 'font-cond text-[10px] font-black tracking-[.12em] text-[#5a6e9a] uppercas
 ## Architecture
 
 ### Multi-Event / Multi-Tenancy
+
 - Each **event** (tournament, season, etc.) is a fully isolated workspace
 - URL pattern: `leagueops.vercel.app/e/[slug]` (e.g. `/e/knights-lacrosse-2025`)
 - Root `/` shows the **EventPicker** — a home screen listing all events
@@ -67,6 +71,7 @@ lbl = 'font-cond text-[10px] font-black tracking-[.12em] text-[#5a6e9a] uppercas
 - **Admin / league_admin** see only events they're assigned to via `event_admins` table
 
 ### Authentication Flow
+
 ```
 Login → page.tsx checks role:
   super_admin / admin / league_admin → EventPicker (/)
@@ -74,18 +79,19 @@ Login → page.tsx checks role:
   volunteer → VolunteerPortal
   program_leader (active) → ProgramDashboard
   program_leader (inactive) → PendingApprovalScreen
-  
+
 /e/[slug] → resolves slug → loads AppProvider(eventId) → AppShell
 ```
 
 ### Roles
-| Role | Access |
-|------|--------|
-| `super_admin` | Everything + create events |
-| `admin` | Full app for assigned events |
-| `league_admin` | Full app except Users tab |
-| `referee` | RefereePortal — self check-in + game roster |
-| `volunteer` | VolunteerPortal — self check-in + game roster |
+
+| Role             | Access                                                  |
+| ---------------- | ------------------------------------------------------- |
+| `super_admin`    | Everything + create events                              |
+| `admin`          | Full app for assigned events                            |
+| `league_admin`   | Full app except Users tab                               |
+| `referee`        | RefereePortal — self check-in + game roster             |
+| `volunteer`      | VolunteerPortal — self check-in + game roster           |
 | `program_leader` | ProgramDashboard — manage their program's teams/rosters |
 
 ---
@@ -107,10 +113,10 @@ components/
   TopBar.tsx                  ← Grouped dropdown nav (SCHEDULE▾, GAME DAY▾, etc.)
   StatusRow.tsx               ← Game status counts + date nav
   RightPanel.tsx              ← Live sidebar (coverage bars, incidents, ops log)
-  
+
   events/
     EventPicker.tsx           ← Home screen — event cards + create form (super admin)
-  
+
   dashboard/DashboardTab.tsx  ← Field command board — scoreboard-style field cards
   schedule/ScheduleTab.tsx    ← Schedule with board/table view + conflict scan
   checkin/CheckInTab.tsx      ← Check-In + QR codes + player cards (combined)
@@ -124,7 +130,7 @@ components/
     EngineTab.tsx             ← Schedule generator
     CommandCenter.tsx         ← Phase 5 — unified ops center
   rules/RulesTab.tsx          ← 35 configurable rules (thresholds, flags)
-  
+
   auth/
     LoginPage.tsx             ← Login form
     RefereePortal.tsx         ← Ref self-checkin + game roster tabs
@@ -132,14 +138,14 @@ components/
     RegisterPage.tsx          ← Public program registration wizard
     UserManagement.tsx        ← Admin CRUD for users/roles
     QRCodesPanel.tsx          ← QR token management (legacy, merged into CheckInTab)
-  
+
   programs/
     EventPicker.tsx           ← (see events/ above)
     ProgramDashboard.tsx      ← Program leader portal — teams, rosters
     ProgramApprovals.tsx      ← Admin — approve/reject programs + teams + form config
     PendingApprovalScreen.tsx ← Shown to unapproved program leaders
     RegistrationConfig.tsx    ← Admin — configure registration divisions + questions
-  
+
   settings/
     EventSetupTab.tsx         ← Full event configuration (General/Schedule/Public/etc.)
     LeagueSettingsTab.tsx     ← Legacy — logo + colors (superseded by EventSetupTab)
@@ -169,35 +175,35 @@ supabase/
 
 ## Database — Key Tables
 
-| Table | Purpose |
-|-------|---------|
-| `events` | Core event config — sport, dates, settings, logo, colors |
-| `event_dates` | Individual days within an event |
-| `event_admins` | Which users manage which events |
-| `fields` | Fields with map_x/y/w/h/rotation/color |
-| `teams` | Teams per event |
-| `players` | Players per team — usa_lacrosse_number, home_division |
-| `games` | Games — field, time, status, score |
-| `referees` / `volunteers` | Staff records |
-| `ref_assignments` / `vol_assignments` | Game assignments |
-| `player_checkins` | Who is checked in to each game |
-| `player_qr_tokens` | QR codes for player check-in |
-| `multi_game_approvals` | Pending approvals for players in 2+ games/day |
-| `eligibility_violations` | Play-down rule violations |
-| `incidents` / `medical_incidents` | Incident log |
-| `weather_alerts` | Weather alerts |
-| `ops_log` | Realtime operations feed |
-| `ops_alerts` | Phase 5 — prioritized alerts from engines |
-| `shift_handoffs` | Shift handoff summaries |
-| `programs` | Program organizations (e.g. Fleming Island) |
-| `program_leaders` | User → program links |
-| `program_teams` | Program → team links per event |
-| `team_registrations` | Team registration requests |
-| `registration_divisions` | Available divisions for registration |
-| `registration_questions` | Custom registration form questions |
-| `user_roles` | User → role mapping per event |
-| `event_rules` | 35 configurable rules per event |
-| `sports` | Sports lookup table |
+| Table                                 | Purpose                                                  |
+| ------------------------------------- | -------------------------------------------------------- |
+| `events`                              | Core event config — sport, dates, settings, logo, colors |
+| `event_dates`                         | Individual days within an event                          |
+| `event_admins`                        | Which users manage which events                          |
+| `fields`                              | Fields with map_x/y/w/h/rotation/color                   |
+| `teams`                               | Teams per event                                          |
+| `players`                             | Players per team — usa_lacrosse_number, home_division    |
+| `games`                               | Games — field, time, status, score                       |
+| `referees` / `volunteers`             | Staff records                                            |
+| `ref_assignments` / `vol_assignments` | Game assignments                                         |
+| `player_checkins`                     | Who is checked in to each game                           |
+| `player_qr_tokens`                    | QR codes for player check-in                             |
+| `multi_game_approvals`                | Pending approvals for players in 2+ games/day            |
+| `eligibility_violations`              | Play-down rule violations                                |
+| `incidents` / `medical_incidents`     | Incident log                                             |
+| `weather_alerts`                      | Weather alerts                                           |
+| `ops_log`                             | Realtime operations feed                                 |
+| `ops_alerts`                          | Phase 5 — prioritized alerts from engines                |
+| `shift_handoffs`                      | Shift handoff summaries                                  |
+| `programs`                            | Program organizations (e.g. Fleming Island)              |
+| `program_leaders`                     | User → program links                                     |
+| `program_teams`                       | Program → team links per event                           |
+| `team_registrations`                  | Team registration requests                               |
+| `registration_divisions`              | Available divisions for registration                     |
+| `registration_questions`              | Custom registration form questions                       |
+| `user_roles`                          | User → role mapping per event                            |
+| `event_rules`                         | 35 configurable rules per event                          |
+| `sports`                              | Sports lookup table                                      |
 
 **Important:** Most tables have `event_id` — all queries must be scoped to the active event. The store passes `eventId` as a prop from the URL slug resolution.
 
@@ -240,22 +246,27 @@ ADMIN ▾            → Rules, Programs, Users, Settings
 ## Key Engines
 
 ### Referee Engine (`lib/engines/referee.ts`)
+
 Detects: ref_double_booked, ref_unavailable, max_games_exceeded, missing_referee  
 API: `POST /api/referee-engine { event_date_id }`
 
 ### Field Conflict Engine (`lib/engines/field.ts`)
+
 Detects: field_overlap, field_blocked, schedule_cascade, missing_referee  
 API: `POST /api/field-engine { event_date_id }`
 
 ### Weather Engine (`lib/engines/weather.ts`)
+
 Uses OpenWeatherMap or mock data. Detects lightning, heat, wind.  
 API: `POST /api/weather-engine { complex_id }`
 
 ### Eligibility Engine (`lib/engines/eligibility.ts`)
+
 Rules: no play-down (players can't play below registered division), multi-game requires opposing coach approval.  
 API: `POST /api/eligibility { action: 'check'|'approve'|'deny', ... }`
 
 ### Unified Engine (`lib/engines/unified.ts`)
+
 Runs all three engines simultaneously, creates `ops_alerts`, escalates unresolved alerts.  
 API called from Command Center "RUN ALL ENGINES" button.
 
@@ -291,6 +302,7 @@ API called from Command Center "RUN ALL ENGINES" button.
 4. **Dropdown visibility** — inputs using `bg-white/5` (transparent) make `<option>` elements invisible. Always use a solid color like `bg-[#081428]`.
 
 5. **Storage RLS** — the `program-assets` bucket needs an open RLS policy. If logo uploads fail with "row level security" error, run:
+
 ```sql
 CREATE POLICY "Public access program-assets" ON storage.objects
 FOR ALL USING (bucket_id = 'program-assets')

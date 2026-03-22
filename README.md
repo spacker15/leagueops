@@ -6,18 +6,18 @@ A production-ready, real-time tournament operations system for managing youth sp
 
 ## Features
 
-| Module | Description |
-|---|---|
-| **Dashboard** | Live ESPN-style field command board with status, scores, refs, check-in progress |
-| **Schedule** | Multi-field schedule table with status cycling, filters, add-game modal |
-| **Player Check-In** | Per-game check-in with duplicate detection and conflict alerts |
-| **Rosters** | CSV upload with preview/commit workflow, team roster viewer |
-| **Refs & Volunteers** | Grid cards with click-to-toggle check-in, game assignment table |
-| **Incidents** | Incident log (8 types) + trainer/medical dispatch with status tracking |
-| **Weather** | Conditions display + one-click lightning delay with 30-min countdown |
-| **Park Map** | Drag-and-drop interactive field layout canvas |
-| **Scheduling Engine** | Generate balanced schedules from teams/divisions/fields, import to schedule |
-| **Operations Log** | All actions timestamped and stored in DB, shown in real-time |
+| Module                | Description                                                                      |
+| --------------------- | -------------------------------------------------------------------------------- |
+| **Dashboard**         | Live ESPN-style field command board with status, scores, refs, check-in progress |
+| **Schedule**          | Multi-field schedule table with status cycling, filters, add-game modal          |
+| **Player Check-In**   | Per-game check-in with duplicate detection and conflict alerts                   |
+| **Rosters**           | CSV upload with preview/commit workflow, team roster viewer                      |
+| **Refs & Volunteers** | Grid cards with click-to-toggle check-in, game assignment table                  |
+| **Incidents**         | Incident log (8 types) + trainer/medical dispatch with status tracking           |
+| **Weather**           | Conditions display + one-click lightning delay with 30-min countdown             |
+| **Park Map**          | Drag-and-drop interactive field layout canvas                                    |
+| **Scheduling Engine** | Generate balanced schedules from teams/divisions/fields, import to schedule      |
+| **Operations Log**    | All actions timestamped and stored in DB, shown in real-time                     |
 
 ---
 
@@ -86,6 +86,7 @@ npm install
 #### d) Enable Realtime
 
 In Supabase dashboard → **Database** → **Replication** → ensure these tables are enabled:
+
 - `games`
 - `player_checkins`
 - `incidents`
@@ -98,6 +99,7 @@ The schema.sql already includes the `ALTER PUBLICATION` commands, but double-che
 #### e) Get your API keys
 
 Go to **Project Settings** → **API**:
+
 - **Project URL** → `NEXT_PUBLIC_SUPABASE_URL`
 - **anon public** key → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - **service_role secret** key → `SUPABASE_SERVICE_ROLE_KEY`
@@ -150,12 +152,12 @@ git push -u origin main
 
 In the Vercel project settings → **Environment Variables**, add:
 
-| Key | Value |
-|---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` | Your Supabase project URL |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Your Supabase anon key |
-| `SUPABASE_SERVICE_ROLE_KEY` | Your Supabase service role key |
-| `NEXT_PUBLIC_APP_URL` | Your Vercel deployment URL (e.g. `https://leagueops.vercel.app`) |
+| Key                             | Value                                                            |
+| ------------------------------- | ---------------------------------------------------------------- |
+| `NEXT_PUBLIC_SUPABASE_URL`      | Your Supabase project URL                                        |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Your Supabase anon key                                           |
+| `SUPABASE_SERVICE_ROLE_KEY`     | Your Supabase service role key                                   |
+| `NEXT_PUBLIC_APP_URL`           | Your Vercel deployment URL (e.g. `https://leagueops.vercel.app`) |
 
 ### 4. Deploy
 
@@ -201,6 +203,7 @@ events
 ---
 
 ## CSV Roster Upload Format
+
 Upload → preview → **OK — COMMIT ROSTER** to write to the database.
 
 ---
@@ -208,6 +211,7 @@ Upload → preview → **OK — COMMIT ROSTER** to write to the database.
 ## Key Workflows
 
 ### Lightning Delay Protocol
+
 1. Weather tab → **⚡ TRIGGER LIGHTNING DELAY**
 2. All active/scheduled games on current day → status `Delayed`
 3. 30-minute countdown timer starts
@@ -216,6 +220,7 @@ Upload → preview → **OK — COMMIT ROSTER** to write to the database.
 6. Click **LIFT LIGHTNING DELAY** to resume all fields
 
 ### Player Check-In
+
 1. Check-In tab → select a game
 2. Both team rosters load from DB
 3. Click any player row to toggle check-in
@@ -223,12 +228,14 @@ Upload → preview → **OK — COMMIT ROSTER** to write to the database.
 5. All check-ins persist to `player_checkins` table
 
 ### Scheduling Engine
+
 1. Engine tab → add teams by division
 2. Set games per team, duration, rest windows, available fields
 3. **GENERATE SCHEDULE** → shows balanced matchup list
 4. **IMPORT TO SCHEDULE** → writes all games to DB for current day
 
 ### Incident + Trainer Dispatch
+
 1. Incidents tab → fill form → **LOG INCIDENT**
 2. Written to `incidents` table, appears in right-panel monitor
 3. For injuries → also fill trainer dispatch form → **DISPATCH TRAINER**
@@ -290,20 +297,20 @@ leagueops/
 
 ## Seed Data Summary
 
-| Entity | Count |
-|---|---|
-| Events | 1 (Knights Lacrosse Summer Invitational 2025) |
-| Event dates | 2 (Jun 14–15, 2025) |
-| Fields | 8 (Field 1–6, Field 1A, Field 1B) |
-| Teams | 14 across U12, U14, U16, U12B |
-| Players | 83 with numbers and positions |
-| Games | 28 (15 Day 1, 13 Day 2) |
-| Referees | 10 (Grade 5–8) |
-| Volunteers | 10 (Score Table, Clock, Field Marshal, Operations, Gate) |
-| Incidents | 3 (injury, coach incident, spectator issue) |
-| Medical | 1 (knee injury — Tara Bloom, released) |
-| Weather Alerts | 1 (heat advisory) |
-| Ops Log | 14 timestamped entries |
+| Entity         | Count                                                    |
+| -------------- | -------------------------------------------------------- |
+| Events         | 1 (Knights Lacrosse Summer Invitational 2025)            |
+| Event dates    | 2 (Jun 14–15, 2025)                                      |
+| Fields         | 8 (Field 1–6, Field 1A, Field 1B)                        |
+| Teams          | 14 across U12, U14, U16, U12B                            |
+| Players        | 83 with numbers and positions                            |
+| Games          | 28 (15 Day 1, 13 Day 2)                                  |
+| Referees       | 10 (Grade 5–8)                                           |
+| Volunteers     | 10 (Score Table, Clock, Field Marshal, Operations, Gate) |
+| Incidents      | 3 (injury, coach incident, spectator issue)              |
+| Medical        | 1 (knee injury — Tara Bloom, released)                   |
+| Weather Alerts | 1 (heat advisory)                                        |
+| Ops Log        | 14 timestamped entries                                   |
 
 ---
 

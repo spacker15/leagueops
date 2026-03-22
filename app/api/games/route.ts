@@ -4,7 +4,7 @@ import { createClient } from '@/supabase/server'
 export async function GET(req: NextRequest) {
   const sb = createClient()
   const { searchParams } = new URL(req.url)
-  const eventId     = searchParams.get('event_id')
+  const eventId = searchParams.get('event_id')
   const eventDateId = searchParams.get('event_date_id')
 
   if (!eventId || !eventDateId) {
@@ -13,13 +13,15 @@ export async function GET(req: NextRequest) {
 
   const { data, error } = await sb
     .from('games')
-    .select(`
+    .select(
+      `
       *,
       field:fields(*),
       home_team:teams!games_home_team_id_fkey(*),
       away_team:teams!games_away_team_id_fkey(*),
       event_date:event_dates(*)
-    `)
+    `
+    )
     .eq('event_id', eventId)
     .eq('event_date_id', eventDateId)
     .order('scheduled_time')
@@ -29,18 +31,20 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const sb   = createClient()
+  const sb = createClient()
   const body = await req.json()
 
   const { data, error } = await sb
     .from('games')
     .insert(body)
-    .select(`
+    .select(
+      `
       *,
       field:fields(*),
       home_team:teams!games_home_team_id_fkey(*),
       away_team:teams!games_away_team_id_fkey(*)
-    `)
+    `
+    )
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

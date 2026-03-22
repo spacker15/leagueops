@@ -27,10 +27,16 @@ interface Props {
   eventId: number
 }
 
-export function QRCheckinClient({ token, player, games, checkedInGameIds: initialCheckins, eventId }: Props) {
+export function QRCheckinClient({
+  token,
+  player,
+  games,
+  checkedInGameIds: initialCheckins,
+  eventId,
+}: Props) {
   const [checkedInIds, setCheckedInIds] = useState<number[]>(initialCheckins)
-  const [loading, setLoading]           = useState<number | null>(null)
-  const [success, setSuccess]           = useState<number | null>(null)
+  const [loading, setLoading] = useState<number | null>(null)
+  const [success, setSuccess] = useState<number | null>(null)
 
   async function checkIn(gameId: number) {
     if (checkedInIds.includes(gameId)) return
@@ -39,8 +45,8 @@ export function QRCheckinClient({ token, player, games, checkedInGameIds: initia
 
     // Check in the player
     const { error } = await sb.from('player_checkins').upsert({
-      game_id:       gameId,
-      player_id:     player.id,
+      game_id: gameId,
+      player_id: player.id,
       checked_in_at: new Date().toISOString(),
     })
 
@@ -48,22 +54,22 @@ export function QRCheckinClient({ token, player, games, checkedInGameIds: initia
     await sb.from('qr_checkin_log').insert({
       token,
       player_id: player.id,
-      game_id:   gameId,
-      event_id:  eventId,
-      success:   !error,
-      message:   error?.message ?? 'Checked in via QR',
+      game_id: gameId,
+      event_id: eventId,
+      success: !error,
+      message: error?.message ?? 'Checked in via QR',
       scanned_at: new Date().toISOString(),
     })
 
     // Ops log
     if (!error) {
       await sb.from('ops_log').insert({
-        event_id:    eventId,
-        message:     `QR check-in: ${player.name} (${player.team?.name}) checked in for Game #${gameId}`,
-        log_type:    'ok',
+        event_id: eventId,
+        message: `QR check-in: ${player.name} (${player.team?.name}) checked in for Game #${gameId}`,
+        log_type: 'ok',
         occurred_at: new Date().toISOString(),
       })
-      setCheckedInIds(prev => [...prev, gameId])
+      setCheckedInIds((prev) => [...prev, gameId])
       setSuccess(gameId)
       setTimeout(() => setSuccess(null), 3000)
     }
@@ -72,13 +78,15 @@ export function QRCheckinClient({ token, player, games, checkedInGameIds: initia
   }
 
   // Find the most relevant game — next upcoming or current live
-  const nextGame = games.find(g => !checkedInIds.includes(g.id))
+  const nextGame = games.find((g) => !checkedInIds.includes(g.id))
 
   return (
     <div className="min-h-screen bg-surface flex flex-col items-center justify-start pt-8 px-4 pb-8">
       {/* Header */}
       <div className="text-center mb-6">
-        <div className="font-cond text-2xl font-black tracking-widest text-white mb-1">LEAGUEOPS</div>
+        <div className="font-cond text-2xl font-black tracking-widest text-white mb-1">
+          LEAGUEOPS
+        </div>
         <div className="font-cond text-[11px] text-muted tracking-widest">PLAYER CHECK-IN</div>
       </div>
 
@@ -89,14 +97,19 @@ export function QRCheckinClient({ token, player, games, checkedInGameIds: initia
             <span className="font-cond font-black text-3xl text-blue-300">#{player.number}</span>
           ) : (
             <span className="font-cond font-black text-2xl text-blue-300">
-              {player.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+              {player.name
+                .split(' ')
+                .map((n) => n[0])
+                .join('')
+                .slice(0, 2)}
             </span>
           )}
         </div>
         <div className="font-cond font-black text-[22px] text-white mb-1">{player.name}</div>
         <div className="font-cond text-[13px] text-blue-300 mb-1">{player.team?.name}</div>
         <div className="font-cond text-[11px] text-muted">
-          {player.team?.division}{player.position ? ` · ${player.position}` : ''}
+          {player.team?.division}
+          {player.position ? ` · ${player.position}` : ''}
         </div>
       </div>
 
@@ -104,18 +117,21 @@ export function QRCheckinClient({ token, player, games, checkedInGameIds: initia
       <div className="w-full max-w-sm">
         {games.length === 0 ? (
           <div className="bg-surface-card border border-border rounded-xl p-8 text-center">
-            <div className="font-cond text-muted text-[13px]">No upcoming games found for your team</div>
+            <div className="font-cond text-muted text-[13px]">
+              No upcoming games found for your team
+            </div>
           </div>
         ) : (
           <div className="space-y-3">
             <div className="font-cond text-[11px] font-bold tracking-widest text-muted uppercase text-center mb-2">
               TAP TO CHECK IN
             </div>
-            {games.map(game => {
+            {games.map((game) => {
               const isCheckedIn = checkedInIds.includes(game.id)
-              const isLoading   = loading === game.id
-              const isSuccess   = success === game.id
-              const isMyTeam    = game.home_team?.id === player.team?.id || game.away_team?.id === player.team?.id
+              const isLoading = loading === game.id
+              const isSuccess = success === game.id
+              const isMyTeam =
+                game.home_team?.id === player.team?.id || game.away_team?.id === player.team?.id
 
               return (
                 <button
@@ -134,7 +150,9 @@ export function QRCheckinClient({ token, player, games, checkedInGameIds: initia
                   <div className="flex justify-between items-start mb-2">
                     <div className="flex items-center gap-2">
                       <Clock size={13} className="text-muted" />
-                      <span className="font-mono text-[14px] font-bold text-blue-300">{game.scheduled_time}</span>
+                      <span className="font-mono text-[14px] font-bold text-blue-300">
+                        {game.scheduled_time}
+                      </span>
                     </div>
                     {isCheckedIn ? (
                       <div className="flex items-center gap-1.5 font-cond text-[11px] font-bold text-green-400">
@@ -144,10 +162,18 @@ export function QRCheckinClient({ token, player, games, checkedInGameIds: initia
                     ) : isLoading ? (
                       <span className="font-cond text-[11px] text-muted">CHECKING IN...</span>
                     ) : (
-                      <span className={cn('font-cond text-[10px] font-black px-2 py-0.5 rounded',
-                        game.status === 'Live' ? 'badge-live' :
-                        game.status === 'Starting' ? 'badge-starting' : 'badge-scheduled'
-                      )}>{game.status.toUpperCase()}</span>
+                      <span
+                        className={cn(
+                          'font-cond text-[10px] font-black px-2 py-0.5 rounded',
+                          game.status === 'Live'
+                            ? 'badge-live'
+                            : game.status === 'Starting'
+                              ? 'badge-starting'
+                              : 'badge-scheduled'
+                        )}
+                      >
+                        {game.status.toUpperCase()}
+                      </span>
                     )}
                   </div>
 

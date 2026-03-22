@@ -1,12 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { checkPlayerEligibility, approveMultiGame, denyMultiGame, getPendingApprovals, getAllPendingApprovals } from '@/lib/engines/eligibility'
+import {
+  checkPlayerEligibility,
+  approveMultiGame,
+  denyMultiGame,
+  getPendingApprovals,
+  getAllPendingApprovals,
+} from '@/lib/engines/eligibility'
 import { createClient } from '@/supabase/server'
 
 // GET — load pending approvals
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
-  const gameId    = searchParams.get('game_id')
-  const eventId   = searchParams.get('event_id') ?? '1'
+  const gameId = searchParams.get('game_id')
+  const eventId = searchParams.get('event_id') ?? '1'
   const allPending = searchParams.get('all')
 
   try {
@@ -33,16 +39,26 @@ export async function POST(req: NextRequest) {
     if (action === 'check') {
       const { player_id, game_id, event_date_id } = body
       if (!player_id || !game_id || !event_date_id) {
-        return NextResponse.json({ error: 'player_id, game_id, event_date_id required' }, { status: 400 })
+        return NextResponse.json(
+          { error: 'player_id, game_id, event_date_id required' },
+          { status: 400 }
+        )
       }
-      const result = await checkPlayerEligibility(Number(player_id), Number(game_id), Number(event_date_id))
+      const result = await checkPlayerEligibility(
+        Number(player_id),
+        Number(game_id),
+        Number(event_date_id)
+      )
       return NextResponse.json(result)
     }
 
     if (action === 'approve') {
       const { approval_id, approved_by, approved_by_name } = body
       if (!approval_id || !approved_by || !approved_by_name) {
-        return NextResponse.json({ error: 'approval_id, approved_by, approved_by_name required' }, { status: 400 })
+        return NextResponse.json(
+          { error: 'approval_id, approved_by, approved_by_name required' },
+          { status: 400 }
+        )
       }
       await approveMultiGame(Number(approval_id), approved_by, approved_by_name)
       return NextResponse.json({ approved: true })

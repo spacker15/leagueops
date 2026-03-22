@@ -18,18 +18,18 @@ const CACHE_MINUTES = 5
 // ─── Thresholds ───────────────────────────────────────────────
 export const THRESHOLDS = {
   lightning: {
-    radius_miles: 8,        // trigger delay if lightning within this radius
-    delay_minutes: 30,      // hold after last strike
-    reset_minutes: 30,      // restart clock if new strike during delay
+    radius_miles: 8, // trigger delay if lightning within this radius
+    delay_minutes: 30, // hold after last strike
+    reset_minutes: 30, // restart clock if new strike during delay
   },
   heat: {
-    advisory_f: 95,         // heat index — issue advisory, water breaks
-    warning_f: 103,         // mandatory breaks every 20 min
-    emergency_f: 113,       // suspend play
+    advisory_f: 95, // heat index — issue advisory, water breaks
+    warning_f: 103, // mandatory breaks every 20 min
+    emergency_f: 113, // suspend play
   },
   wind: {
-    advisory_mph: 25,       // issue wind advisory
-    suspend_mph: 40,        // suspend play
+    advisory_mph: 25, // issue wind advisory
+    suspend_mph: 40, // suspend play
   },
   rain: {
     heavy_mm_per_hour: 7.6, // heavy rain (0.3 in/hr)
@@ -60,7 +60,14 @@ export interface WeatherReading {
 }
 
 export interface WeatherAlert {
-  type: 'lightning' | 'heat_advisory' | 'heat_warning' | 'heat_emergency' | 'high_wind' | 'severe_weather' | 'heavy_rain'
+  type:
+    | 'lightning'
+    | 'heat_advisory'
+    | 'heat_warning'
+    | 'heat_emergency'
+    | 'high_wind'
+    | 'severe_weather'
+    | 'heavy_rain'
   severity: 'info' | 'warning' | 'critical'
   title: string
   description: string
@@ -77,15 +84,14 @@ export interface WeatherEngineResult {
 }
 
 // ─── Main engine function ─────────────────────────────────────
-export async function runWeatherEngine(complexId: number, apiKey?: string): Promise<WeatherEngineResult> {
+export async function runWeatherEngine(
+  complexId: number,
+  apiKey?: string
+): Promise<WeatherEngineResult> {
   const sb = createClient()
 
   // Load complex
-  const { data: complex } = await sb
-    .from('complexes')
-    .select('*')
-    .eq('id', complexId)
-    .single()
+  const { data: complex } = await sb.from('complexes').select('*').eq('id', complexId).single()
 
   if (!complex) throw new Error(`Complex ${complexId} not found`)
 
@@ -101,28 +107,31 @@ export async function runWeatherEngine(complexId: number, apiKey?: string): Prom
 
   // Store the reading
   await sb.from('weather_readings').insert({
-    complex_id:    complexId,
-    event_id:      EVENT_ID,
+    complex_id: complexId,
+    event_id: EVENT_ID,
     temperature_f: reading.temperature_f,
-    feels_like_f:  reading.feels_like_f,
-    heat_index_f:  reading.heat_index_f,
-    humidity_pct:  reading.humidity_pct,
-    wind_mph:      reading.wind_mph,
+    feels_like_f: reading.feels_like_f,
+    heat_index_f: reading.heat_index_f,
+    humidity_pct: reading.humidity_pct,
+    wind_mph: reading.wind_mph,
     wind_gust_mph: reading.wind_gust_mph,
-    wind_dir_deg:  reading.wind_dir_deg,
-    conditions:    reading.conditions,
+    wind_dir_deg: reading.wind_dir_deg,
+    conditions: reading.conditions,
     conditions_code: reading.conditions_code,
     visibility_mi: reading.visibility_mi,
-    pressure_mb:   reading.pressure_mb,
-    cloud_pct:     reading.cloud_pct,
-    uv_index:      reading.uv_index,
+    pressure_mb: reading.pressure_mb,
+    cloud_pct: reading.cloud_pct,
+    uv_index: reading.uv_index,
     lightning_detected: reading.lightning_detected,
-    lightning_miles:    reading.lightning_miles,
-    fetched_at:    reading.fetched_at,
+    lightning_miles: reading.lightning_miles,
+    fetched_at: reading.fetched_at,
   })
 
   // Update complex cache timestamp
-  await sb.from('complexes').update({ last_weather_fetch: new Date().toISOString() }).eq('id', complexId)
+  await sb
+    .from('complexes')
+    .update({ last_weather_fetch: new Date().toISOString() })
+    .eq('id', complexId)
 
   // Evaluate alerts
   const alerts = evaluateAlerts(reading)
@@ -149,20 +158,20 @@ export async function runWeatherEngine(complexId: number, apiKey?: string): Prom
   for (const alert of alerts) {
     // Write alert to DB
     await sb.from('weather_alerts').insert({
-      event_id:             EVENT_ID,
-      complex_id:           complexId,
-      alert_type:           alert.title,
-      description:          alert.description,
-      is_active:            true,
-      severity:             alert.severity,
-      temperature_f:        reading.temperature_f,
-      heat_index_f:         reading.heat_index_f,
-      humidity_pct:         reading.humidity_pct,
-      wind_mph:             reading.wind_mph,
-      conditions:           reading.conditions,
-      lightning_detected:   reading.lightning_detected,
-      lightning_miles:      reading.lightning_miles,
-      source:               reading.source,
+      event_id: EVENT_ID,
+      complex_id: complexId,
+      alert_type: alert.title,
+      description: alert.description,
+      is_active: true,
+      severity: alert.severity,
+      temperature_f: reading.temperature_f,
+      heat_index_f: reading.heat_index_f,
+      humidity_pct: reading.humidity_pct,
+      wind_mph: reading.wind_mph,
+      conditions: reading.conditions,
+      lightning_detected: reading.lightning_detected,
+      lightning_miles: reading.lightning_miles,
+      source: reading.source,
     })
 
     // Auto-actions based on alert type
@@ -172,7 +181,8 @@ export async function runWeatherEngine(complexId: number, apiKey?: string): Prom
 
       // Delay all active games at this complex
       if (activeGameIds.length > 0) {
-        await sb.from('games')
+        await sb
+          .from('games')
           .update({ status: 'Delayed' })
           .in('id', activeGameIds)
           .in('status', ['Scheduled', 'Starting', 'Live', 'Halftime'])
@@ -182,22 +192,28 @@ export async function runWeatherEngine(complexId: number, apiKey?: string): Prom
       // Create lightning event record
       const delayEnd = new Date(Date.now() + THRESHOLDS.lightning.delay_minutes * 60 * 1000)
       await sb.from('lightning_events').insert({
-        complex_id:        complexId,
-        event_id:          EVENT_ID,
-        closest_miles:     reading.lightning_miles,
-        delay_started_at:  new Date().toISOString(),
-        delay_ends_at:     delayEnd.toISOString(),
-        triggered_by:      reading.source,
+        complex_id: complexId,
+        event_id: EVENT_ID,
+        closest_miles: reading.lightning_miles,
+        delay_started_at: new Date().toISOString(),
+        delay_ends_at: delayEnd.toISOString(),
+        triggered_by: reading.source,
       })
-      actions_taken.push(`Lightning delay set — hold until ${delayEnd.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`)
+      actions_taken.push(
+        `Lightning delay set — hold until ${delayEnd.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`
+      )
     }
 
     if (alert.type === 'heat_emergency') {
       heat_protocol = 'emergency'
-      actions_taken.push(`🌡 Heat emergency — play suspended (${reading.heat_index_f}°F heat index)`)
+      actions_taken.push(
+        `🌡 Heat emergency — play suspended (${reading.heat_index_f}°F heat index)`
+      )
     } else if (alert.type === 'heat_warning' && heat_protocol !== 'emergency') {
       heat_protocol = 'warning'
-      actions_taken.push(`🌡 Heat warning — mandatory breaks every 20 min (${reading.heat_index_f}°F)`)
+      actions_taken.push(
+        `🌡 Heat warning — mandatory breaks every 20 min (${reading.heat_index_f}°F)`
+      )
     } else if (alert.type === 'heat_advisory' && heat_protocol === 'none') {
       heat_protocol = 'advisory'
       actions_taken.push(`🌡 Heat advisory — water breaks required (${reading.heat_index_f}°F)`)
@@ -212,17 +228,17 @@ export async function runWeatherEngine(complexId: number, apiKey?: string): Prom
   if (actions_taken.length > 0) {
     for (const action of actions_taken) {
       await sb.from('ops_log').insert({
-        event_id:    EVENT_ID,
-        message:     `[${complex.name}] ${action}`,
-        log_type:    lightning_active ? 'alert' : heat_protocol === 'emergency' ? 'alert' : 'warn',
+        event_id: EVENT_ID,
+        message: `[${complex.name}] ${action}`,
+        log_type: lightning_active ? 'alert' : heat_protocol === 'emergency' ? 'alert' : 'warn',
         occurred_at: new Date().toISOString(),
       })
     }
   } else {
     await sb.from('ops_log').insert({
-      event_id:    EVENT_ID,
-      message:     `Weather check: ${complex.name} — ${reading.conditions}, ${reading.temperature_f}°F, ${reading.wind_mph} mph`,
-      log_type:    'info',
+      event_id: EVENT_ID,
+      message: `Weather check: ${complex.name} — ${reading.conditions}, ${reading.temperature_f}°F, ${reading.wind_mph} mph`,
+      log_type: 'info',
       occurred_at: new Date().toISOString(),
     })
   }
@@ -235,11 +251,14 @@ export function evaluateAlerts(reading: WeatherReading): WeatherAlert[] {
   const alerts: WeatherAlert[] = []
 
   // Lightning
-  if (reading.lightning_detected && (reading.lightning_miles ?? 99) <= THRESHOLDS.lightning.radius_miles) {
+  if (
+    reading.lightning_detected &&
+    (reading.lightning_miles ?? 99) <= THRESHOLDS.lightning.radius_miles
+  ) {
     alerts.push({
-      type:        'lightning',
-      severity:    'critical',
-      title:       'Lightning Detected',
+      type: 'lightning',
+      severity: 'critical',
+      title: 'Lightning Detected',
       description: `Lightning detected ${reading.lightning_miles} miles away — within ${THRESHOLDS.lightning.radius_miles}-mile safety radius. All fields suspended.`,
       auto_action: 'suspend_all_fields',
     })
@@ -248,9 +267,9 @@ export function evaluateAlerts(reading: WeatherReading): WeatherAlert[] {
   // Thunderstorm condition codes (OWM: 200-232)
   if (reading.conditions_code >= 200 && reading.conditions_code < 300) {
     alerts.push({
-      type:        'lightning',
-      severity:    'critical',
-      title:       'Thunderstorm Warning',
+      type: 'lightning',
+      severity: 'critical',
+      title: 'Thunderstorm Warning',
       description: `Thunderstorm conditions detected (${reading.conditions}). All outdoor activities suspended.`,
       auto_action: 'suspend_all_fields',
     })
@@ -260,44 +279,47 @@ export function evaluateAlerts(reading: WeatherReading): WeatherAlert[] {
   const hi = reading.heat_index_f
   if (hi >= THRESHOLDS.heat.emergency_f) {
     alerts.push({
-      type:        'heat_emergency',
-      severity:    'critical',
-      title:       'Extreme Heat Emergency',
+      type: 'heat_emergency',
+      severity: 'critical',
+      title: 'Extreme Heat Emergency',
       description: `Heat index ${hi}°F — play suspended. All participants must seek shade and hydration immediately.`,
       auto_action: 'suspend_all_fields',
     })
   } else if (hi >= THRESHOLDS.heat.warning_f) {
     alerts.push({
-      type:        'heat_warning',
-      severity:    'warning',
-      title:       'Heat Warning',
+      type: 'heat_warning',
+      severity: 'warning',
+      title: 'Heat Warning',
       description: `Heat index ${hi}°F — mandatory 5-min water break every 20 minutes. Coaches must monitor players.`,
       auto_action: 'mandatory_breaks',
     })
   } else if (hi >= THRESHOLDS.heat.advisory_f) {
     alerts.push({
-      type:        'heat_advisory',
-      severity:    'info',
-      title:       'Heat Advisory',
+      type: 'heat_advisory',
+      severity: 'info',
+      title: 'Heat Advisory',
       description: `Heat index ${hi}°F — water breaks required. Extra hydration stations activated.`,
       auto_action: 'water_breaks',
     })
   }
 
   // High wind
-  if (reading.wind_mph >= THRESHOLDS.wind.suspend_mph || reading.wind_gust_mph >= THRESHOLDS.wind.suspend_mph + 10) {
+  if (
+    reading.wind_mph >= THRESHOLDS.wind.suspend_mph ||
+    reading.wind_gust_mph >= THRESHOLDS.wind.suspend_mph + 10
+  ) {
     alerts.push({
-      type:        'high_wind',
-      severity:    'critical',
-      title:       'High Wind Warning',
+      type: 'high_wind',
+      severity: 'critical',
+      title: 'High Wind Warning',
       description: `Wind ${reading.wind_mph} mph, gusts ${reading.wind_gust_mph} mph — dangerous conditions. Play suspended.`,
       auto_action: 'suspend_all_fields',
     })
   } else if (reading.wind_mph >= THRESHOLDS.wind.advisory_mph) {
     alerts.push({
-      type:        'high_wind',
-      severity:    'warning',
-      title:       'Wind Advisory',
+      type: 'high_wind',
+      severity: 'warning',
+      title: 'Wind Advisory',
       description: `Wind ${reading.wind_mph} mph — monitor conditions. Goalies and flags secured.`,
       auto_action: null,
     })
@@ -306,9 +328,9 @@ export function evaluateAlerts(reading: WeatherReading): WeatherAlert[] {
   // Heavy rain (OWM code 500-531)
   if (reading.conditions_code >= 500 && reading.conditions_code < 600) {
     alerts.push({
-      type:        'heavy_rain',
-      severity:    reading.conditions_code >= 502 ? 'warning' : 'info',
-      title:       reading.conditions_code >= 502 ? 'Heavy Rain Warning' : 'Rain Advisory',
+      type: 'heavy_rain',
+      severity: reading.conditions_code >= 502 ? 'warning' : 'info',
+      title: reading.conditions_code >= 502 ? 'Heavy Rain Warning' : 'Rain Advisory',
       description: `${reading.conditions} — field conditions being monitored.`,
       auto_action: null,
     })
@@ -322,15 +344,15 @@ export function calcHeatIndex(tempF: number, humidity: number): number {
   if (tempF < 80) return tempF
   // Rothfusz equation
   const hi =
-    -42.379
-    + 2.04901523 * tempF
-    + 10.14333127 * humidity
-    - 0.22475541 * tempF * humidity
-    - 0.00683783 * tempF * tempF
-    - 0.05481717 * humidity * humidity
-    + 0.00122874 * tempF * tempF * humidity
-    + 0.00085282 * tempF * humidity * humidity
-    - 0.00000199 * tempF * tempF * humidity * humidity
+    -42.379 +
+    2.04901523 * tempF +
+    10.14333127 * humidity -
+    0.22475541 * tempF * humidity -
+    0.00683783 * tempF * tempF -
+    0.05481717 * humidity * humidity +
+    0.00122874 * tempF * tempF * humidity +
+    0.00085282 * tempF * humidity * humidity -
+    0.00000199 * tempF * tempF * humidity * humidity
   return Math.round(hi * 10) / 10
 }
 
@@ -342,30 +364,30 @@ async function fetchLiveWeather(complex: any, apiKey: string): Promise<WeatherRe
   if (!res.ok) throw new Error(`OpenWeatherMap error: ${res.status}`)
 
   const d = await res.json()
-  const tempF    = Math.round(d.main.temp * 10) / 10
+  const tempF = Math.round(d.main.temp * 10) / 10
   const humidity = d.main.humidity
-  const heatIdx  = calcHeatIndex(tempF, humidity)
+  const heatIdx = calcHeatIndex(tempF, humidity)
 
   return {
-    temperature_f:    tempF,
-    feels_like_f:     Math.round(d.main.feels_like * 10) / 10,
-    heat_index_f:     heatIdx,
-    humidity_pct:     humidity,
-    wind_mph:         Math.round(d.wind.speed * 10) / 10,
-    wind_gust_mph:    Math.round((d.wind.gust ?? d.wind.speed) * 10) / 10,
-    wind_dir_deg:     d.wind.deg ?? 0,
-    conditions:       d.weather[0]?.description ?? 'Unknown',
-    conditions_code:  d.weather[0]?.id ?? 800,
-    visibility_mi:    Math.round((d.visibility ?? 10000) / 1609 * 10) / 10,
-    pressure_mb:      d.main.pressure,
-    cloud_pct:        d.clouds?.all ?? 0,
-    uv_index:         0, // not in basic weather endpoint
+    temperature_f: tempF,
+    feels_like_f: Math.round(d.main.feels_like * 10) / 10,
+    heat_index_f: heatIdx,
+    humidity_pct: humidity,
+    wind_mph: Math.round(d.wind.speed * 10) / 10,
+    wind_gust_mph: Math.round((d.wind.gust ?? d.wind.speed) * 10) / 10,
+    wind_dir_deg: d.wind.deg ?? 0,
+    conditions: d.weather[0]?.description ?? 'Unknown',
+    conditions_code: d.weather[0]?.id ?? 800,
+    visibility_mi: Math.round(((d.visibility ?? 10000) / 1609) * 10) / 10,
+    pressure_mb: d.main.pressure,
+    cloud_pct: d.clouds?.all ?? 0,
+    uv_index: 0, // not in basic weather endpoint
     lightning_detected: (d.weather[0]?.id ?? 0) >= 200 && (d.weather[0]?.id ?? 0) < 300,
-    lightning_miles:  null,
-    complex_id:       complex.id,
-    complex_name:     complex.name,
-    fetched_at:       new Date().toISOString(),
-    source:           'live',
+    lightning_miles: null,
+    complex_id: complex.id,
+    complex_name: complex.name,
+    fetched_at: new Date().toISOString(),
+    source: 'live',
   }
 }
 
@@ -374,9 +396,9 @@ export function getMockWeather(complex: any): WeatherReading {
   // Slightly randomized realistic Jacksonville June weather
   const baseTemp = 84 + Math.round((Math.random() - 0.5) * 8)
   const humidity = 65 + Math.round(Math.random() * 15)
-  const wind     = 8 + Math.round(Math.random() * 10)
-  const gusts    = wind + Math.round(Math.random() * 8)
-  const heatIdx  = calcHeatIndex(baseTemp, humidity)
+  const wind = 8 + Math.round(Math.random() * 10)
+  const gusts = wind + Math.round(Math.random() * 8)
+  const heatIdx = calcHeatIndex(baseTemp, humidity)
 
   const condOptions = [
     { desc: 'Partly Cloudy', code: 801 },
@@ -387,25 +409,25 @@ export function getMockWeather(complex: any): WeatherReading {
   const cond = condOptions[Math.floor(Math.random() * condOptions.length)]
 
   return {
-    temperature_f:    baseTemp,
-    feels_like_f:     baseTemp + 3,
-    heat_index_f:     heatIdx,
-    humidity_pct:     humidity,
-    wind_mph:         wind,
-    wind_gust_mph:    gusts,
-    wind_dir_deg:     225,
-    conditions:       cond.desc,
-    conditions_code:  cond.code,
-    visibility_mi:    10,
-    pressure_mb:      1015,
-    cloud_pct:        30,
-    uv_index:         9,
+    temperature_f: baseTemp,
+    feels_like_f: baseTemp + 3,
+    heat_index_f: heatIdx,
+    humidity_pct: humidity,
+    wind_mph: wind,
+    wind_gust_mph: gusts,
+    wind_dir_deg: 225,
+    conditions: cond.desc,
+    conditions_code: cond.code,
+    visibility_mi: 10,
+    pressure_mb: 1015,
+    cloud_pct: 30,
+    uv_index: 9,
     lightning_detected: false,
-    lightning_miles:  null,
-    complex_id:       complex.id,
-    complex_name:     complex.name,
-    fetched_at:       new Date().toISOString(),
-    source:           'mock',
+    lightning_miles: null,
+    complex_id: complex.id,
+    complex_name: complex.name,
+    fetched_at: new Date().toISOString(),
+    source: 'mock',
   }
 }
 
@@ -450,7 +472,7 @@ export async function checkLightningStatus(complexId: number) {
   if (!data) return { active: false, event: null, secondsLeft: 0 }
 
   const endsAt = new Date((data as any).delay_ends_at).getTime()
-  const now    = Date.now()
+  const now = Date.now()
   const secondsLeft = Math.max(0, Math.round((endsAt - now) / 1000))
 
   return {
@@ -465,13 +487,15 @@ export async function liftLightningDelay(complexId: number, eventId: number) {
   const sb = createClient()
 
   // Mark event as cleared
-  await sb.from('lightning_events')
+  await sb
+    .from('lightning_events')
     .update({ all_clear_at: new Date().toISOString() })
     .eq('complex_id', complexId)
     .is('all_clear_at', null)
 
   // Resolve active lightning weather alerts
-  await sb.from('weather_alerts')
+  await sb
+    .from('weather_alerts')
     .update({ is_active: false, auto_resolved: true })
     .eq('complex_id', complexId)
     .eq('is_active', true)
@@ -481,7 +505,8 @@ export async function liftLightningDelay(complexId: number, eventId: number) {
   const { data: fields } = await sb.from('fields').select('id').eq('complex_id', complexId)
   const fieldIds = (fields ?? []).map((f: any) => f.id)
   if (fieldIds.length > 0) {
-    await sb.from('games')
+    await sb
+      .from('games')
       .update({ status: 'Scheduled' })
       .in('field_id', fieldIds)
       .eq('status', 'Delayed')
@@ -489,16 +514,33 @@ export async function liftLightningDelay(complexId: number, eventId: number) {
   }
 
   await sb.from('ops_log').insert({
-    event_id:    eventId,
-    message:     `Lightning delay lifted — All clear issued for complex ${complexId}`,
-    log_type:    'ok',
+    event_id: eventId,
+    message: `Lightning delay lifted — All clear issued for complex ${complexId}`,
+    log_type: 'ok',
     occurred_at: new Date().toISOString(),
   })
 }
 
 // ─── Wind direction label ─────────────────────────────────────
 export function windDirection(deg: number): string {
-  const dirs = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW']
+  const dirs = [
+    'N',
+    'NNE',
+    'NE',
+    'ENE',
+    'E',
+    'ESE',
+    'SE',
+    'SSE',
+    'S',
+    'SSW',
+    'SW',
+    'WSW',
+    'W',
+    'WNW',
+    'NW',
+    'NNW',
+  ]
   return dirs[Math.round(deg / 22.5) % 16]
 }
 

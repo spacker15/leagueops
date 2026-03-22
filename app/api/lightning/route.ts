@@ -37,7 +37,8 @@ export async function POST(req: NextRequest) {
 
     // Delay all games
     if (fieldIds.length > 0) {
-      await sb.from('games')
+      await sb
+        .from('games')
         .update({ status: 'Delayed' })
         .in('field_id', fieldIds)
         .eq('event_id', event_id ?? 1)
@@ -46,29 +47,29 @@ export async function POST(req: NextRequest) {
 
     // Create lightning event
     await sb.from('lightning_events').insert({
-      complex_id:       complex_id,
-      event_id:         event_id ?? 1,
+      complex_id: complex_id,
+      event_id: event_id ?? 1,
       delay_started_at: new Date().toISOString(),
-      delay_ends_at:    delayEnd.toISOString(),
-      triggered_by:     'manual',
+      delay_ends_at: delayEnd.toISOString(),
+      triggered_by: 'manual',
     })
 
     // Create weather alert
     await sb.from('weather_alerts').insert({
-      event_id:           event_id ?? 1,
-      complex_id:         complex_id,
-      alert_type:         'Lightning Delay',
-      description:        'Manual lightning delay triggered — all fields suspended for 30 minutes',
-      is_active:          true,
-      severity:           'critical',
+      event_id: event_id ?? 1,
+      complex_id: complex_id,
+      alert_type: 'Lightning Delay',
+      description: 'Manual lightning delay triggered — all fields suspended for 30 minutes',
+      is_active: true,
+      severity: 'critical',
       lightning_detected: true,
-      source:             'manual',
+      source: 'manual',
     })
 
     await sb.from('ops_log').insert({
-      event_id:    event_id ?? 1,
-      message:     `⚡ LIGHTNING DELAY TRIGGERED (manual) — all fields suspended until ${delayEnd.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`,
-      log_type:    'alert',
+      event_id: event_id ?? 1,
+      message: `⚡ LIGHTNING DELAY TRIGGERED (manual) — all fields suspended until ${delayEnd.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`,
+      log_type: 'alert',
       occurred_at: new Date().toISOString(),
     })
 

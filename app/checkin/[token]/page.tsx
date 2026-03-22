@@ -8,12 +8,14 @@ export default async function QRCheckinPage({ params }: { params: { token: strin
   // Look up the token
   const { data: tokenData } = await sb
     .from('player_qr_tokens')
-    .select(`
+    .select(
+      `
       token, player_id, event_id,
       player:players(id, name, number, position,
         team:teams(id, name, division)
       )
-    `)
+    `
+    )
     .eq('token', token)
     .single()
 
@@ -23,7 +25,9 @@ export default async function QRCheckinPage({ params }: { params: { token: strin
         <div className="bg-surface-card border border-red-800/50 rounded-xl p-8 max-w-sm w-full text-center">
           <div className="text-4xl mb-4">❌</div>
           <div className="font-cond font-black text-[18px] text-red-400 mb-2">INVALID QR CODE</div>
-          <div className="font-cond text-[12px] text-muted">This QR code is not recognized. Contact your team administrator.</div>
+          <div className="font-cond text-[12px] text-muted">
+            This QR code is not recognized. Contact your team administrator.
+          </div>
         </div>
       </div>
     )
@@ -32,15 +36,19 @@ export default async function QRCheckinPage({ params }: { params: { token: strin
   // Find their current/next game
   const { data: games } = await sb
     .from('games')
-    .select(`
+    .select(
+      `
       id, scheduled_time, status, division,
       field:fields(name),
       home_team:teams!games_home_team_id_fkey(id, name),
       away_team:teams!games_away_team_id_fkey(id, name)
-    `)
+    `
+    )
     .eq('event_id', tokenData.event_id)
     .in('status', ['Scheduled', 'Starting', 'Live', 'Halftime'])
-    .or(`home_team_id.eq.${(tokenData.player as any).team?.id},away_team_id.eq.${(tokenData.player as any).team?.id}`)
+    .or(
+      `home_team_id.eq.${(tokenData.player as any).team?.id},away_team_id.eq.${(tokenData.player as any).team?.id}`
+    )
     .order('scheduled_time')
 
   // Check if already checked in to any game

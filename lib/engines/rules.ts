@@ -78,7 +78,11 @@ export async function getRuleNum(category: string, key: string, fallback: number
   return isNaN(n) ? fallback : n
 }
 
-export async function getRuleBool(category: string, key: string, fallback: boolean): Promise<boolean> {
+export async function getRuleBool(
+  category: string,
+  key: string,
+  fallback: boolean
+): Promise<boolean> {
   const v = await getRule(category, key, String(fallback))
   return v === 'true' || v === '1'
 }
@@ -88,39 +92,39 @@ export async function getWeatherThresholds() {
   const rules = await getRules()
   return {
     lightning: {
-      radius_miles:       parseFloat(rules['lightning.radius_miles']        ?? '8'),
-      delay_minutes:      parseFloat(rules['lightning.delay_minutes']       ?? '30'),
-      reset_on_new_strike: rules['lightning.reset_on_new_strike']           !== 'false',
-      auto_detect:        rules['lightning.auto_detect']                    !== 'false',
+      radius_miles: parseFloat(rules['lightning.radius_miles'] ?? '8'),
+      delay_minutes: parseFloat(rules['lightning.delay_minutes'] ?? '30'),
+      reset_on_new_strike: rules['lightning.reset_on_new_strike'] !== 'false',
+      auto_detect: rules['lightning.auto_detect'] !== 'false',
     },
     heat: {
-      advisory_f:         parseFloat(rules['heat.advisory_f']               ?? '95'),
-      warning_f:          parseFloat(rules['heat.warning_f']                ?? '103'),
-      emergency_f:        parseFloat(rules['heat.emergency_f']              ?? '113'),
-      advisory_break_min: parseFloat(rules['heat.advisory_break_min']       ?? '30'),
-      warning_break_min:  parseFloat(rules['heat.warning_break_min']        ?? '20'),
-      use_heat_index:     rules['heat.use_heat_index']                      !== 'false',
+      advisory_f: parseFloat(rules['heat.advisory_f'] ?? '95'),
+      warning_f: parseFloat(rules['heat.warning_f'] ?? '103'),
+      emergency_f: parseFloat(rules['heat.emergency_f'] ?? '113'),
+      advisory_break_min: parseFloat(rules['heat.advisory_break_min'] ?? '30'),
+      warning_break_min: parseFloat(rules['heat.warning_break_min'] ?? '20'),
+      use_heat_index: rules['heat.use_heat_index'] !== 'false',
     },
     wind: {
-      advisory_mph:       parseFloat(rules['wind.advisory_mph']             ?? '25'),
-      suspend_mph:        parseFloat(rules['wind.suspend_mph']              ?? '40'),
-      gust_factor:        parseFloat(rules['wind.gust_factor']              ?? '50'),
+      advisory_mph: parseFloat(rules['wind.advisory_mph'] ?? '25'),
+      suspend_mph: parseFloat(rules['wind.suspend_mph'] ?? '40'),
+      gust_factor: parseFloat(rules['wind.gust_factor'] ?? '50'),
     },
-    poll_interval_min:    parseFloat(rules['weather.poll_interval_min']     ?? '5'),
+    poll_interval_min: parseFloat(rules['weather.poll_interval_min'] ?? '5'),
   }
 }
 
 export async function getRefereeRules() {
   const rules = await getRules()
   return {
-    travel_buffer_min:   parseFloat(rules['referee.travel_buffer_min']      ?? '30'),
-    max_games_per_day:   parseFloat(rules['referee.max_games_per_day']      ?? '4'),
-    refs_per_game:       parseFloat(rules['referee.refs_per_game']          ?? '2'),
-    require_checkin:     rules['referee.require_checkin']                   === 'true',
+    travel_buffer_min: parseFloat(rules['referee.travel_buffer_min'] ?? '30'),
+    max_games_per_day: parseFloat(rules['referee.max_games_per_day'] ?? '4'),
+    refs_per_game: parseFloat(rules['referee.refs_per_game'] ?? '2'),
+    require_checkin: rules['referee.require_checkin'] === 'true',
     min_grade: {
-      U12: parseFloat(rules['referee.min_grade_u12']                        ?? '5'),
-      U14: parseFloat(rules['referee.min_grade_u14']                        ?? '6'),
-      U16: parseFloat(rules['referee.min_grade_u16']                        ?? '7'),
+      U12: parseFloat(rules['referee.min_grade_u12'] ?? '5'),
+      U14: parseFloat(rules['referee.min_grade_u14'] ?? '6'),
+      U16: parseFloat(rules['referee.min_grade_u16'] ?? '7'),
     },
   }
 }
@@ -128,12 +132,12 @@ export async function getRefereeRules() {
 export async function getSchedulingRules() {
   const rules = await getRules()
   return {
-    game_duration_min:   parseFloat(rules['scheduling.game_duration_min']   ?? '60'),
-    buffer_min:          parseFloat(rules['scheduling.buffer_min']          ?? '10'),
-    min_rest_min:        parseFloat(rules['scheduling.min_rest_min']        ?? '90'),
-    earliest_start:      rules['scheduling.earliest_start']                 ?? '08:00',
-    latest_end:          rules['scheduling.latest_end']                     ?? '18:00',
-    allow_doubleheaders: rules['scheduling.allow_doubleheaders']            !== 'false',
+    game_duration_min: parseFloat(rules['scheduling.game_duration_min'] ?? '60'),
+    buffer_min: parseFloat(rules['scheduling.buffer_min'] ?? '10'),
+    min_rest_min: parseFloat(rules['scheduling.min_rest_min'] ?? '90'),
+    earliest_start: rules['scheduling.earliest_start'] ?? '08:00',
+    latest_end: rules['scheduling.latest_end'] ?? '18:00',
+    allow_doubleheaders: rules['scheduling.allow_doubleheaders'] !== 'false',
   }
 }
 
@@ -155,29 +159,32 @@ export async function updateRule(
   if (!current) return
 
   // Update rule
-  await sb.from('event_rules').update({
-    rule_value:   newValue,
-    is_override:  true,
-    updated_at:   new Date().toISOString(),
-    updated_by:   changedBy,
-  }).eq('id', id)
+  await sb
+    .from('event_rules')
+    .update({
+      rule_value: newValue,
+      is_override: true,
+      updated_at: new Date().toISOString(),
+      updated_by: changedBy,
+    })
+    .eq('id', id)
 
   // Write to change log
   await sb.from('rule_changes').insert({
-    event_id:   EVENT_ID,
-    rule_id:    id,
-    rule_key:   current.rule_key,
-    old_value:  current.rule_value,
-    new_value:  newValue,
+    event_id: EVENT_ID,
+    rule_id: id,
+    rule_key: current.rule_key,
+    old_value: current.rule_value,
+    new_value: newValue,
     changed_by: changedBy,
     changed_at: new Date().toISOString(),
   })
 
   // Write to ops log
   await sb.from('ops_log').insert({
-    event_id:    EVENT_ID,
-    message:     `Rule updated: ${current.rule_key} → ${newValue} (was: ${current.rule_value})`,
-    log_type:    'warn',
+    event_id: EVENT_ID,
+    message: `Rule updated: ${current.rule_key} → ${newValue} (was: ${current.rule_value})`,
+    log_type: 'warn',
     occurred_at: new Date().toISOString(),
   })
 
@@ -195,27 +202,30 @@ export async function resetRule(id: number): Promise<void> {
 
   if (!current) return
 
-  await sb.from('event_rules').update({
-    rule_value:   current.default_value,
-    is_override:  false,
-    updated_at:   new Date().toISOString(),
-    updated_by:   'system',
-  }).eq('id', id)
+  await sb
+    .from('event_rules')
+    .update({
+      rule_value: current.default_value,
+      is_override: false,
+      updated_at: new Date().toISOString(),
+      updated_by: 'system',
+    })
+    .eq('id', id)
 
   await sb.from('rule_changes').insert({
-    event_id:   EVENT_ID,
-    rule_id:    id,
-    rule_key:   current.rule_key,
-    old_value:  current.rule_value,
-    new_value:  current.default_value,
+    event_id: EVENT_ID,
+    rule_id: id,
+    rule_key: current.rule_key,
+    old_value: current.rule_value,
+    new_value: current.default_value,
     changed_by: 'reset',
     changed_at: new Date().toISOString(),
   })
 
   await sb.from('ops_log').insert({
-    event_id:    EVENT_ID,
-    message:     `Rule reset to default: ${current.rule_key} → ${current.default_value}`,
-    log_type:    'info',
+    event_id: EVENT_ID,
+    message: `Rule reset to default: ${current.rule_key} → ${current.default_value}`,
+    log_type: 'info',
     occurred_at: new Date().toISOString(),
   })
 
@@ -233,12 +243,15 @@ export async function resetAllRules(eventId = EVENT_ID): Promise<void> {
 
   if (overrides && overrides.length > 0) {
     for (const rule of overrides) {
-      await sb.from('event_rules').update({
-        rule_value:  rule.default_value,
-        is_override: false,
-        updated_at:  new Date().toISOString(),
-        updated_by:  'reset',
-      }).eq('id', rule.id)
+      await sb
+        .from('event_rules')
+        .update({
+          rule_value: rule.default_value,
+          is_override: false,
+          updated_at: new Date().toISOString(),
+          updated_by: 'reset',
+        })
+        .eq('id', rule.id)
     }
   }
 

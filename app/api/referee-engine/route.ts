@@ -20,12 +20,15 @@ export async function POST(req: NextRequest) {
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const eventDateId = searchParams.get('event_date_id')
-  const gameTime    = searchParams.get('game_time')
-  const division    = searchParams.get('division')
-  const excludeRaw  = searchParams.get('exclude_refs')
+  const gameTime = searchParams.get('game_time')
+  const division = searchParams.get('division')
+  const excludeRaw = searchParams.get('exclude_refs')
 
   if (!eventDateId || !gameTime || !division) {
-    return NextResponse.json({ error: 'event_date_id, game_time, division required' }, { status: 400 })
+    return NextResponse.json(
+      { error: 'event_date_id, game_time, division required' },
+      { status: 400 }
+    )
   }
 
   const excludeIds = excludeRaw ? excludeRaw.split(',').map(Number) : []

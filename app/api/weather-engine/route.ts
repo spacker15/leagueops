@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const complexId = searchParams.get('complex_id')
-  const history   = searchParams.get('history')
+  const history = searchParams.get('history')
 
   if (!complexId) {
     return NextResponse.json({ error: 'complex_id required' }, { status: 400 })

@@ -4,7 +4,19 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/supabase/client'
 import { useAuth } from '@/lib/auth'
 import { cn } from '@/lib/utils'
-import { Plus, LogOut, Calendar, MapPin, ChevronRight, Trophy, Copy, CheckCircle, ArrowLeft, Settings, Users } from 'lucide-react'
+import {
+  Plus,
+  LogOut,
+  Calendar,
+  MapPin,
+  ChevronRight,
+  Trophy,
+  Copy,
+  CheckCircle,
+  ArrowLeft,
+  Settings,
+  Users,
+} from 'lucide-react'
 import toast from 'react-hot-toast'
 
 interface EventSummary {
@@ -27,44 +39,56 @@ interface Props {
 }
 
 const SPORTS_EMOJI: Record<string, string> = {
-  Lacrosse: '🥍', Soccer: '⚽', Basketball: '🏀', Baseball: '⚾',
-  Softball: '🥎', Volleyball: '🏐', Football: '🏈', Hockey: '🏒',
-  Tennis: '🎾', Swimming: '🏊', Track: '🏃', Wrestling: '🤼', Other: '🏆',
+  Lacrosse: '🥍',
+  Soccer: '⚽',
+  Basketball: '🏀',
+  Baseball: '⚾',
+  Softball: '🥎',
+  Volleyball: '🏐',
+  Football: '🏈',
+  Hockey: '🏒',
+  Tennis: '🎾',
+  Swimming: '🏊',
+  Track: '🏃',
+  Wrestling: '🤼',
+  Other: '🏆',
 }
 
 export function EventPicker({ onSelectEvent }: Props) {
   const { userRole, signOut } = useAuth()
-  const [events, setEvents]         = useState<EventSummary[]>([])
-  const [loading, setLoading]       = useState(true)
-  const [creating, setCreating]     = useState(false)
+  const [events, setEvents] = useState<EventSummary[]>([])
+  const [loading, setLoading] = useState(true)
+  const [creating, setCreating] = useState(false)
   const [copiedCode, setCopiedCode] = useState<number | null>(null)
 
   // Wizard state
-  const [step, setStep]             = useState<1 | 2>(1)
-  const [showForm, setShowForm]     = useState(false)
+  const [step, setStep] = useState<1 | 2>(1)
+  const [showForm, setShowForm] = useState(false)
 
   // Step 1 — event details
-  const [newName, setNewName]         = useState('')
-  const [newSport, setNewSport]       = useState('Lacrosse')
-  const [newType, setNewType]         = useState('tournament')
+  const [newName, setNewName] = useState('')
+  const [newSport, setNewSport] = useState('Lacrosse')
+  const [newType, setNewType] = useState('tournament')
   const [newLocation, setNewLocation] = useState('')
-  const [newStart, setNewStart]       = useState('')
-  const [newEnd, setNewEnd]           = useState('')
+  const [newStart, setNewStart] = useState('')
+  const [newEnd, setNewEnd] = useState('')
 
   // Step 2 — copy options
-  const [copySourceId, setCopySourceId]   = useState<number | null>(null)
-  const [copySettings, setCopySettings]   = useState(true)   // fields + rules
-  const [copyRefsVols, setCopyRefsVols]   = useState(true)   // referees + volunteers
+  const [copySourceId, setCopySourceId] = useState<number | null>(null)
+  const [copySettings, setCopySettings] = useState(true) // fields + rules
+  const [copyRefsVols, setCopyRefsVols] = useState(true) // referees + volunteers
 
   // Primary complex (required on creation)
-  const [complexName, setComplexName]       = useState('')
+  const [complexName, setComplexName] = useState('')
   const [complexAddress, setComplexAddress] = useState('')
 
   // Additional copy categories
-  const [copyTeams, setCopyTeams]           = useState(false)
-  const [copyComplexes, setCopyComplexes]   = useState(false)
+  const [copyTeams, setCopyTeams] = useState(false)
+  const [copyComplexes, setCopyComplexes] = useState(false)
 
-  useEffect(() => { loadEvents() }, [])
+  useEffect(() => {
+    loadEvents()
+  }, [])
 
   async function loadEvents() {
     const sb = createClient()
@@ -77,14 +101,23 @@ export function EventPicker({ onSelectEvent }: Props) {
     const eventIds = (adminRows ?? []).map((r: any) => r.event_id)
 
     if (eventIds.length === 0) {
-      const { data } = await sb.from('events')
-        .select('id,name,sport,event_type,location,start_date,end_date,status,logo_url,event_code,slug,primary_color')
-        .eq('id', 1).single()
+      const { data } = await sb
+        .from('events')
+        .select(
+          'id,name,sport,event_type,location,start_date,end_date,status,logo_url,event_code,slug,primary_color'
+        )
+        .eq('id', 1)
+        .single()
       if (data) setEvents([data as EventSummary])
     } else {
-      const { data } = await sb.from('events')
-        .select('id,name,sport,event_type,location,start_date,end_date,status,logo_url,event_code,slug,primary_color')
-        .in('id', eventIds).eq('is_active', true).order('created_at', { ascending: false })
+      const { data } = await sb
+        .from('events')
+        .select(
+          'id,name,sport,event_type,location,start_date,end_date,status,logo_url,event_code,slug,primary_color'
+        )
+        .in('id', eventIds)
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
       setEvents((data as EventSummary[]) ?? [])
     }
     setLoading(false)
@@ -96,7 +129,8 @@ export function EventPicker({ onSelectEvent }: Props) {
       return
     }
     if (!complexName.trim()) {
-      toast.error('Primary complex name is required'); return
+      toast.error('Primary complex name is required')
+      return
     }
     setStep(2)
   }
@@ -104,38 +138,59 @@ export function EventPicker({ onSelectEvent }: Props) {
   function resetForm() {
     setShowForm(false)
     setStep(1)
-    setNewName(''); setNewLocation(''); setNewStart(''); setNewEnd('')
-    setNewSport('Lacrosse'); setNewType('tournament')
-    setCopySourceId(null); setCopySettings(true); setCopyRefsVols(true)
-    setComplexName(''); setComplexAddress('')
-    setCopyTeams(false); setCopyComplexes(false)
+    setNewName('')
+    setNewLocation('')
+    setNewStart('')
+    setNewEnd('')
+    setNewSport('Lacrosse')
+    setNewType('tournament')
+    setCopySourceId(null)
+    setCopySettings(true)
+    setCopyRefsVols(true)
+    setComplexName('')
+    setComplexAddress('')
+    setCopyTeams(false)
+    setCopyComplexes(false)
   }
 
   async function createEvent() {
     setCreating(true)
-    const sb   = createClient()
+    const sb = createClient()
     const user = (await sb.auth.getUser()).data.user
 
-    const slug = newName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
-      + '-' + new Date().getFullYear()
+    const slug =
+      newName
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '') +
+      '-' +
+      new Date().getFullYear()
 
-    const { data: ev, error } = await sb.from('events').insert({
-      name:            newName,
-      sport:           newSport,
-      event_type:      newType,
-      location:        newLocation,
-      start_date:      newStart,
-      end_date:        newEnd,
-      status:          'draft',
-      slug,
-      owner_id:        user?.id,
-      is_active:       true,
-      event_code:      Math.random().toString(36).substring(2, 8).toUpperCase(),
-      primary_color:   '#0B3D91',
-      secondary_color: '#D62828',
-    }).select().single()
+    const { data: ev, error } = await sb
+      .from('events')
+      .insert({
+        name: newName,
+        sport: newSport,
+        event_type: newType,
+        location: newLocation,
+        start_date: newStart,
+        end_date: newEnd,
+        status: 'draft',
+        slug,
+        owner_id: user?.id,
+        is_active: true,
+        event_code: Math.random().toString(36).substring(2, 8).toUpperCase(),
+        primary_color: '#0B3D91',
+        secondary_color: '#D62828',
+      })
+      .select()
+      .single()
 
-    if (error) { toast.error(error.message); setCreating(false); return }
+    if (error) {
+      toast.error(error.message)
+      setCreating(false)
+      return
+    }
 
     const newEventId = (ev as any).id
 
@@ -143,19 +198,22 @@ export function EventPicker({ onSelectEvent }: Props) {
     await sb.from('event_admins').insert({ event_id: newEventId, user_id: user?.id, role: 'owner' })
 
     // Add to user_roles
-    await sb.from('user_roles').upsert({
-      user_id:      user?.id,
-      role:         'admin',
-      display_name: userRole?.display_name ?? 'Admin',
-      event_id:     newEventId,
-      is_active:    true,
-    }, { onConflict: 'user_id,event_id' })
+    await sb.from('user_roles').upsert(
+      {
+        user_id: user?.id,
+        role: 'admin',
+        display_name: userRole?.display_name ?? 'Admin',
+        event_id: newEventId,
+        is_active: true,
+      },
+      { onConflict: 'user_id,event_id' }
+    )
 
     // Create the primary complex
     await sb.from('complexes').insert({
       event_id: newEventId,
-      name:     complexName.trim(),
-      address:  complexAddress.trim() || null,
+      name: complexName.trim(),
+      address: complexAddress.trim() || null,
     })
 
     // ── Copy from source event if selected ──────────────────────────────────
@@ -164,72 +222,106 @@ export function EventPicker({ onSelectEvent }: Props) {
 
       if (copySettings) {
         jobs.push(async () => {
-          const { data } = await sb.from('fields')
-            .select('name,number,division,map_x,map_y,map_w,map_h,map_rotation,map_color,map_opacity,map_shape')
+          const { data } = await sb
+            .from('fields')
+            .select(
+              'name,number,division,map_x,map_y,map_w,map_h,map_rotation,map_color,map_opacity,map_shape'
+            )
             .eq('event_id', copySourceId)
-          if (data?.length) await sb.from('fields').insert(data.map(f => ({ ...f, event_id: newEventId })))
+          if (data?.length)
+            await sb.from('fields').insert(data.map((f) => ({ ...f, event_id: newEventId })))
         })
         jobs.push(async () => {
-          const { data } = await sb.from('event_rules')
+          const { data } = await sb
+            .from('event_rules')
             .select('category,rule_key,value,value_type,label,description')
             .eq('event_id', copySourceId)
-          if (data?.length) await sb.from('event_rules').insert(data.map(r => ({ ...r, event_id: newEventId })))
+          if (data?.length)
+            await sb.from('event_rules').insert(data.map((r) => ({ ...r, event_id: newEventId })))
         })
       }
 
       if (copyRefsVols) {
         jobs.push(async () => {
-          const { data } = await sb.from('referees')
+          const { data } = await sb
+            .from('referees')
             .select('name,grade_level,phone,email')
             .eq('event_id', copySourceId)
-          if (data?.length) await sb.from('referees').insert(data.map(r => ({ ...r, event_id: newEventId, checked_in: false })))
+          if (data?.length)
+            await sb
+              .from('referees')
+              .insert(data.map((r) => ({ ...r, event_id: newEventId, checked_in: false })))
         })
         jobs.push(async () => {
-          const { data } = await sb.from('volunteers')
+          const { data } = await sb
+            .from('volunteers')
             .select('name,role,phone')
             .eq('event_id', copySourceId)
-          if (data?.length) await sb.from('volunteers').insert(data.map(v => ({ ...v, event_id: newEventId, checked_in: false })))
+          if (data?.length)
+            await sb
+              .from('volunteers')
+              .insert(data.map((v) => ({ ...v, event_id: newEventId, checked_in: false })))
         })
       }
 
       if (copyTeams) {
         jobs.push(async () => {
-          const { data } = await sb.from('teams')
+          const { data } = await sb
+            .from('teams')
             .select('name,division,age_group,coach_name,coach_email')
             .eq('event_id', copySourceId)
-          if (data?.length) await sb.from('teams').insert(data.map(t => ({ ...t, event_id: newEventId })))
+          if (data?.length)
+            await sb.from('teams').insert(data.map((t) => ({ ...t, event_id: newEventId })))
         })
       }
 
       if (copyComplexes) {
         jobs.push(async () => {
-          const { data: srcComplexes } = await sb.from('complexes').select('*').eq('event_id', copySourceId)
+          const { data: srcComplexes } = await sb
+            .from('complexes')
+            .select('*')
+            .eq('event_id', copySourceId)
           for (const c of srcComplexes ?? []) {
-            const { data: newC } = await sb.from('complexes').insert({
-              event_id: newEventId, name: c.name, address: c.address,
-              lat: c.lat, lng: c.lng, lightning_radius_miles: c.lightning_radius_miles,
-            }).select().single()
+            const { data: newC } = await sb
+              .from('complexes')
+              .insert({
+                event_id: newEventId,
+                name: c.name,
+                address: c.address,
+                lat: c.lat,
+                lng: c.lng,
+                lightning_radius_miles: c.lightning_radius_miles,
+              })
+              .select()
+              .single()
             if (newC) {
               const { data: srcFields } = await sb.from('fields').select('*').eq('complex_id', c.id)
               if (srcFields?.length) {
-                await sb.from('fields').insert(srcFields.map(f => ({
-                  event_id: newEventId, name: f.name, number: f.number,
-                  division: f.division, complex_id: (newC as any).id,
-                })))
+                await sb.from('fields').insert(
+                  srcFields.map((f) => ({
+                    event_id: newEventId,
+                    name: f.name,
+                    number: f.number,
+                    division: f.division,
+                    complex_id: (newC as any).id,
+                  }))
+                )
               }
             }
           }
         })
       }
 
-      await Promise.all(jobs.map(j => j()))
+      await Promise.all(jobs.map((j) => j()))
 
       const what = [
         copySettings && 'fields & settings',
         copyRefsVols && 'refs & volunteers',
         copyTeams && 'teams',
         copyComplexes && 'complexes',
-      ].filter(Boolean).join(', ')
+      ]
+        .filter(Boolean)
+        .join(', ')
       toast.success(`${newName} created with ${what} copied!`)
     } else {
       toast.success(`${newName} created!`)
@@ -249,11 +341,17 @@ export function EventPicker({ onSelectEvent }: Props) {
 
   function formatDate(d: string) {
     if (!d) return ''
-    return new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    return new Date(d + 'T00:00:00').toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    })
   }
 
-  const inp = 'w-full bg-[#030d20] border border-[#1a2d50] text-white px-3 py-2 rounded-lg text-[13px] outline-none focus:border-blue-400 transition-colors'
-  const lbl = 'font-cond text-[9px] font-black tracking-[.12em] text-[#5a6e9a] uppercase block mb-1.5'
+  const inp =
+    'w-full bg-[#030d20] border border-[#1a2d50] text-white px-3 py-2 rounded-lg text-[13px] outline-none focus:border-blue-400 transition-colors'
+  const lbl =
+    'font-cond text-[9px] font-black tracking-[.12em] text-[#5a6e9a] uppercase block mb-1.5'
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: '#020810' }}>
@@ -262,16 +360,21 @@ export function EventPicker({ onSelectEvent }: Props) {
         <div className="flex items-center gap-3">
           <div className="w-1 h-6 rounded-sm bg-red" />
           <svg width="20" height="20" viewBox="0 0 22 22" fill="none">
-            <rect x="1" y="1" width="9" height="9" rx="1.5" fill="white" fillOpacity="0.9"/>
-            <rect x="12" y="1" width="9" height="9" rx="1.5" fill="white" fillOpacity="0.9"/>
-            <rect x="1" y="12" width="9" height="9" rx="1.5" fill="white" fillOpacity="0.9"/>
-            <rect x="12" y="12" width="9" height="9" rx="1.5" fill="white" fillOpacity="0.35"/>
+            <rect x="1" y="1" width="9" height="9" rx="1.5" fill="white" fillOpacity="0.9" />
+            <rect x="12" y="1" width="9" height="9" rx="1.5" fill="white" fillOpacity="0.9" />
+            <rect x="1" y="12" width="9" height="9" rx="1.5" fill="white" fillOpacity="0.9" />
+            <rect x="12" y="12" width="9" height="9" rx="1.5" fill="white" fillOpacity="0.35" />
           </svg>
-          <span className="font-cond text-[20px] font-black tracking-[.15em] text-white">LEAGUEOPS</span>
+          <span className="font-cond text-[20px] font-black tracking-[.15em] text-white">
+            LEAGUEOPS
+          </span>
         </div>
         <div className="flex items-center gap-3">
           <span className="font-cond text-[12px] text-[#5a6e9a]">{userRole?.display_name}</span>
-          <button onClick={signOut} className="flex items-center gap-1.5 font-cond text-[11px] text-[#5a6e9a] hover:text-white transition-colors">
+          <button
+            onClick={signOut}
+            className="flex items-center gap-1.5 font-cond text-[11px] text-[#5a6e9a] hover:text-white transition-colors"
+          >
             <LogOut size={13} /> Sign out
           </button>
         </div>
@@ -281,11 +384,20 @@ export function EventPicker({ onSelectEvent }: Props) {
         {/* Title row */}
         <div className="flex items-end justify-between mb-8">
           <div>
-            <div className="font-cond text-[28px] font-black tracking-[.06em] text-white mb-1">MY EVENTS</div>
-            <div className="font-cond text-[13px] text-[#5a6e9a]">Select an event to manage, or create a new one</div>
+            <div className="font-cond text-[28px] font-black tracking-[.06em] text-white mb-1">
+              MY EVENTS
+            </div>
+            <div className="font-cond text-[13px] text-[#5a6e9a]">
+              Select an event to manage, or create a new one
+            </div>
           </div>
-          <button onClick={() => { setShowForm(s => !s); setStep(1) }}
-            className="flex items-center gap-2 font-cond font-black text-[13px] tracking-[.1em] px-5 py-2.5 rounded-xl bg-red hover:bg-red/80 text-white transition-colors">
+          <button
+            onClick={() => {
+              setShowForm((s) => !s)
+              setStep(1)
+            }}
+            className="flex items-center gap-2 font-cond font-black text-[13px] tracking-[.1em] px-5 py-2.5 rounded-xl bg-red hover:bg-red/80 text-white transition-colors"
+          >
             <Plus size={15} /> CREATE EVENT
           </button>
         </div>
@@ -295,15 +407,31 @@ export function EventPicker({ onSelectEvent }: Props) {
           <div className="bg-[#081428] border border-[#1a2d50] rounded-2xl p-6 mb-6">
             {/* Step indicator */}
             <div className="flex items-center gap-3 mb-6">
-              {[{ n: 1, label: 'Event Details' }, { n: 2, label: 'Copy Options' }].map(({ n, label }) => (
+              {[
+                { n: 1, label: 'Event Details' },
+                { n: 2, label: 'Copy Options' },
+              ].map(({ n, label }) => (
                 <div key={n} className="flex items-center gap-2">
-                  <div className={cn(
-                    'w-6 h-6 rounded-full flex items-center justify-center font-cond text-[11px] font-black',
-                    step === n ? 'bg-red text-white' : step > n ? 'bg-green-700 text-white' : 'bg-[#1a2d50] text-[#5a6e9a]'
-                  )}>{step > n ? '✓' : n}</div>
-                  <span className={cn('font-cond text-[11px] font-black tracking-wide',
-                    step === n ? 'text-white' : 'text-[#5a6e9a]'
-                  )}>{label.toUpperCase()}</span>
+                  <div
+                    className={cn(
+                      'w-6 h-6 rounded-full flex items-center justify-center font-cond text-[11px] font-black',
+                      step === n
+                        ? 'bg-red text-white'
+                        : step > n
+                          ? 'bg-green-700 text-white'
+                          : 'bg-[#1a2d50] text-[#5a6e9a]'
+                    )}
+                  >
+                    {step > n ? '✓' : n}
+                  </div>
+                  <span
+                    className={cn(
+                      'font-cond text-[11px] font-black tracking-wide',
+                      step === n ? 'text-white' : 'text-[#5a6e9a]'
+                    )}
+                  >
+                    {label.toUpperCase()}
+                  </span>
                   {n < 2 && <ChevronRight size={12} className="text-[#1a2d50]" />}
                 </div>
               ))}
@@ -312,22 +440,41 @@ export function EventPicker({ onSelectEvent }: Props) {
             {/* ── Step 1: Event details ── */}
             {step === 1 && (
               <>
-                <div className="font-cond text-[14px] font-black tracking-[.1em] text-white mb-5">NEW EVENT</div>
+                <div className="font-cond text-[14px] font-black tracking-[.1em] text-white mb-5">
+                  NEW EVENT
+                </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="col-span-2">
                     <label className={lbl}>Event Name *</label>
-                    <input className={inp} value={newName} onChange={e => setNewName(e.target.value)}
-                      placeholder="e.g. Knights Lacrosse Summer Invitational 2025" autoFocus />
+                    <input
+                      className={inp}
+                      value={newName}
+                      onChange={(e) => setNewName(e.target.value)}
+                      placeholder="e.g. Knights Lacrosse Summer Invitational 2025"
+                      autoFocus
+                    />
                   </div>
                   <div>
                     <label className={lbl}>Sport</label>
-                    <select className={inp} value={newSport} onChange={e => setNewSport(e.target.value)}>
-                      {Object.keys(SPORTS_EMOJI).map(s => <option key={s} value={s}>{SPORTS_EMOJI[s]} {s}</option>)}
+                    <select
+                      className={inp}
+                      value={newSport}
+                      onChange={(e) => setNewSport(e.target.value)}
+                    >
+                      {Object.keys(SPORTS_EMOJI).map((s) => (
+                        <option key={s} value={s}>
+                          {SPORTS_EMOJI[s]} {s}
+                        </option>
+                      ))}
                     </select>
                   </div>
                   <div>
                     <label className={lbl}>Type</label>
-                    <select className={inp} value={newType} onChange={e => setNewType(e.target.value)}>
+                    <select
+                      className={inp}
+                      value={newType}
+                      onChange={(e) => setNewType(e.target.value)}
+                    >
                       <option value="tournament">🏆 Tournament</option>
                       <option value="season">📅 Season</option>
                       <option value="clinic">📋 Clinic</option>
@@ -336,16 +483,30 @@ export function EventPicker({ onSelectEvent }: Props) {
                   </div>
                   <div className="col-span-2">
                     <label className={lbl}>Location / Venue *</label>
-                    <input className={inp} value={newLocation} onChange={e => setNewLocation(e.target.value)}
-                      placeholder="e.g. Riverside Sports Complex, Jacksonville FL" />
+                    <input
+                      className={inp}
+                      value={newLocation}
+                      onChange={(e) => setNewLocation(e.target.value)}
+                      placeholder="e.g. Riverside Sports Complex, Jacksonville FL"
+                    />
                   </div>
                   <div>
                     <label className={lbl}>Start Date *</label>
-                    <input type="date" className={inp} value={newStart} onChange={e => setNewStart(e.target.value)} />
+                    <input
+                      type="date"
+                      className={inp}
+                      value={newStart}
+                      onChange={(e) => setNewStart(e.target.value)}
+                    />
                   </div>
                   <div>
                     <label className={lbl}>End Date *</label>
-                    <input type="date" className={inp} value={newEnd} onChange={e => setNewEnd(e.target.value)} />
+                    <input
+                      type="date"
+                      className={inp}
+                      value={newEnd}
+                      onChange={(e) => setNewEnd(e.target.value)}
+                    />
                   </div>
                 </div>
 
@@ -357,25 +518,39 @@ export function EventPicker({ onSelectEvent }: Props) {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="col-span-2">
                       <label className={lbl}>Complex Name *</label>
-                      <input className={inp} value={complexName} onChange={e => setComplexName(e.target.value)}
-                        placeholder="e.g. Riverside Sports Complex" />
+                      <input
+                        className={inp}
+                        value={complexName}
+                        onChange={(e) => setComplexName(e.target.value)}
+                        placeholder="e.g. Riverside Sports Complex"
+                      />
                     </div>
                     <div className="col-span-2">
                       <label className={lbl}>Address (optional — used for weather)</label>
-                      <input className={inp} value={complexAddress} onChange={e => setComplexAddress(e.target.value)}
-                        placeholder="e.g. 1234 Park Blvd, Jacksonville, FL 32099" />
+                      <input
+                        className={inp}
+                        value={complexAddress}
+                        onChange={(e) => setComplexAddress(e.target.value)}
+                        placeholder="e.g. 1234 Park Blvd, Jacksonville, FL 32099"
+                      />
                     </div>
                   </div>
-                  <p className="text-[10px] text-[#5a6e9a] mt-1.5">You can add more complexes and fields from Settings → Map after creation.</p>
+                  <p className="text-[10px] text-[#5a6e9a] mt-1.5">
+                    You can add more complexes and fields from Settings → Map after creation.
+                  </p>
                 </div>
 
                 <div className="flex gap-3 mt-5 pt-4 border-t border-[#1a2d50]">
-                  <button onClick={resetForm}
-                    className="font-cond text-[12px] text-[#5a6e9a] hover:text-white px-4 py-2 transition-colors">
+                  <button
+                    onClick={resetForm}
+                    className="font-cond text-[12px] text-[#5a6e9a] hover:text-white px-4 py-2 transition-colors"
+                  >
                     CANCEL
                   </button>
-                  <button onClick={goToStep2}
-                    className="flex items-center gap-2 font-cond font-black text-[13px] tracking-[.1em] px-6 py-2.5 rounded-xl bg-red hover:bg-red/80 text-white transition-colors ml-auto">
+                  <button
+                    onClick={goToStep2}
+                    className="flex items-center gap-2 font-cond font-black text-[13px] tracking-[.1em] px-6 py-2.5 rounded-xl bg-red hover:bg-red/80 text-white transition-colors ml-auto"
+                  >
                     NEXT → COPY OPTIONS
                   </button>
                 </div>
@@ -385,9 +560,12 @@ export function EventPicker({ onSelectEvent }: Props) {
             {/* ── Step 2: Copy options ── */}
             {step === 2 && (
               <>
-                <div className="font-cond text-[14px] font-black tracking-[.1em] text-white mb-1">COPY FROM AN EXISTING EVENT?</div>
+                <div className="font-cond text-[14px] font-black tracking-[.1em] text-white mb-1">
+                  COPY FROM AN EXISTING EVENT?
+                </div>
                 <div className="font-cond text-[11px] text-[#5a6e9a] mb-5">
-                  Optionally carry over settings or people from a previous event. Each event is fully independent — changes here won't affect other events.
+                  Optionally carry over settings or people from a previous event. Each event is
+                  fully independent — changes here won't affect other events.
                 </div>
 
                 {/* Source event selector */}
@@ -395,46 +573,73 @@ export function EventPicker({ onSelectEvent }: Props) {
                   <label className={lbl}>Copy settings from</label>
                   <div className="space-y-2">
                     {/* Start fresh */}
-                    <label className={cn(
-                      'flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all',
-                      copySourceId === null
-                        ? 'border-blue-500/60 bg-blue-900/20'
-                        : 'border-[#1a2d50] bg-[#030d20] hover:border-[#2a3d60]'
-                    )}>
-                      <input type="radio" className="accent-blue-500"
+                    <label
+                      className={cn(
+                        'flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all',
+                        copySourceId === null
+                          ? 'border-blue-500/60 bg-blue-900/20'
+                          : 'border-[#1a2d50] bg-[#030d20] hover:border-[#2a3d60]'
+                      )}
+                    >
+                      <input
+                        type="radio"
+                        className="accent-blue-500"
                         checked={copySourceId === null}
-                        onChange={() => setCopySourceId(null)} />
+                        onChange={() => setCopySourceId(null)}
+                      />
                       <div>
-                        <div className="font-cond text-[12px] font-black text-white">Start fresh</div>
-                        <div className="font-cond text-[10px] text-[#5a6e9a]">Blank event with no pre-loaded data</div>
+                        <div className="font-cond text-[12px] font-black text-white">
+                          Start fresh
+                        </div>
+                        <div className="font-cond text-[10px] text-[#5a6e9a]">
+                          Blank event with no pre-loaded data
+                        </div>
                       </div>
                     </label>
 
                     {/* Existing events */}
-                    {events.map(ev => (
-                      <label key={ev.id} className={cn(
-                        'flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all',
-                        copySourceId === ev.id
-                          ? 'border-blue-500/60 bg-blue-900/20'
-                          : 'border-[#1a2d50] bg-[#030d20] hover:border-[#2a3d60]'
-                      )}>
-                        <input type="radio" className="accent-blue-500"
+                    {events.map((ev) => (
+                      <label
+                        key={ev.id}
+                        className={cn(
+                          'flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all',
+                          copySourceId === ev.id
+                            ? 'border-blue-500/60 bg-blue-900/20'
+                            : 'border-[#1a2d50] bg-[#030d20] hover:border-[#2a3d60]'
+                        )}
+                      >
+                        <input
+                          type="radio"
+                          className="accent-blue-500"
                           checked={copySourceId === ev.id}
-                          onChange={() => setCopySourceId(ev.id)} />
+                          onChange={() => setCopySourceId(ev.id)}
+                        />
                         <div className="flex-1 min-w-0">
-                          <div className="font-cond text-[12px] font-black text-white truncate">{ev.name}</div>
+                          <div className="font-cond text-[12px] font-black text-white truncate">
+                            {ev.name}
+                          </div>
                           <div className="font-cond text-[10px] text-[#5a6e9a]">
-                            {SPORTS_EMOJI[ev.sport] ?? '🏆'} {ev.sport} · {formatDate(ev.start_date)}
+                            {SPORTS_EMOJI[ev.sport] ?? '🏆'} {ev.sport} ·{' '}
+                            {formatDate(ev.start_date)}
                           </div>
                         </div>
-                        <div className={cn('font-cond text-[9px] font-black tracking-wider px-2 py-0.5 rounded flex-shrink-0',
-                          ev.status === 'active' ? 'bg-green-900/40 text-green-400' : 'bg-[#1a2d50] text-[#5a6e9a]'
-                        )}>{ev.status.toUpperCase()}</div>
+                        <div
+                          className={cn(
+                            'font-cond text-[9px] font-black tracking-wider px-2 py-0.5 rounded flex-shrink-0',
+                            ev.status === 'active'
+                              ? 'bg-green-900/40 text-green-400'
+                              : 'bg-[#1a2d50] text-[#5a6e9a]'
+                          )}
+                        >
+                          {ev.status.toUpperCase()}
+                        </div>
                       </label>
                     ))}
 
                     {events.length === 0 && (
-                      <div className="font-cond text-[11px] text-[#5a6e9a] italic px-3">No previous events to copy from</div>
+                      <div className="font-cond text-[11px] text-[#5a6e9a] italic px-3">
+                        No previous events to copy from
+                      </div>
                     )}
                   </div>
                 </div>
@@ -445,13 +650,18 @@ export function EventPicker({ onSelectEvent }: Props) {
                     <div className={lbl}>What to copy</div>
                     <div className="space-y-3 mt-2">
                       <label className="flex items-start gap-3 cursor-pointer group">
-                        <input type="checkbox" className="accent-blue-500 mt-0.5 flex-shrink-0"
+                        <input
+                          type="checkbox"
+                          className="accent-blue-500 mt-0.5 flex-shrink-0"
                           checked={copySettings}
-                          onChange={e => setCopySettings(e.target.checked)} />
+                          onChange={(e) => setCopySettings(e.target.checked)}
+                        />
                         <div>
                           <div className="flex items-center gap-1.5">
                             <Settings size={12} className="text-blue-400" />
-                            <span className="font-cond text-[12px] font-black text-white">Fields & Settings</span>
+                            <span className="font-cond text-[12px] font-black text-white">
+                              Fields & Settings
+                            </span>
                           </div>
                           <div className="font-cond text-[10px] text-[#5a6e9a] mt-0.5">
                             Copies all fields (names, numbers, map positions) and configured rules
@@ -459,13 +669,18 @@ export function EventPicker({ onSelectEvent }: Props) {
                         </div>
                       </label>
                       <label className="flex items-start gap-3 cursor-pointer group">
-                        <input type="checkbox" className="accent-blue-500 mt-0.5 flex-shrink-0"
+                        <input
+                          type="checkbox"
+                          className="accent-blue-500 mt-0.5 flex-shrink-0"
                           checked={copyRefsVols}
-                          onChange={e => setCopyRefsVols(e.target.checked)} />
+                          onChange={(e) => setCopyRefsVols(e.target.checked)}
+                        />
                         <div>
                           <div className="flex items-center gap-1.5">
                             <Users size={12} className="text-blue-400" />
-                            <span className="font-cond text-[12px] font-black text-white">Referees & Volunteers</span>
+                            <span className="font-cond text-[12px] font-black text-white">
+                              Referees & Volunteers
+                            </span>
                           </div>
                           <div className="font-cond text-[10px] text-[#5a6e9a] mt-0.5">
                             Copies the ref pool and volunteer roster — check-in status starts fresh
@@ -473,13 +688,18 @@ export function EventPicker({ onSelectEvent }: Props) {
                         </div>
                       </label>
                       <label className="flex items-start gap-3 cursor-pointer group">
-                        <input type="checkbox" className="accent-blue-500 mt-0.5 flex-shrink-0"
+                        <input
+                          type="checkbox"
+                          className="accent-blue-500 mt-0.5 flex-shrink-0"
                           checked={copyTeams}
-                          onChange={e => setCopyTeams(e.target.checked)} />
+                          onChange={(e) => setCopyTeams(e.target.checked)}
+                        />
                         <div>
                           <div className="flex items-center gap-1.5">
                             <Users size={12} className="text-blue-400" />
-                            <span className="font-cond text-[12px] font-black text-white">Teams</span>
+                            <span className="font-cond text-[12px] font-black text-white">
+                              Teams
+                            </span>
                           </div>
                           <div className="font-cond text-[10px] text-[#5a6e9a] mt-0.5">
                             Copies team names and divisions
@@ -487,16 +707,22 @@ export function EventPicker({ onSelectEvent }: Props) {
                         </div>
                       </label>
                       <label className="flex items-start gap-3 cursor-pointer group">
-                        <input type="checkbox" className="accent-blue-500 mt-0.5 flex-shrink-0"
+                        <input
+                          type="checkbox"
+                          className="accent-blue-500 mt-0.5 flex-shrink-0"
                           checked={copyComplexes}
-                          onChange={e => setCopyComplexes(e.target.checked)} />
+                          onChange={(e) => setCopyComplexes(e.target.checked)}
+                        />
                         <div>
                           <div className="flex items-center gap-1.5">
                             <MapPin size={12} className="text-blue-400" />
-                            <span className="font-cond text-[12px] font-black text-white">Complexes & Fields</span>
+                            <span className="font-cond text-[12px] font-black text-white">
+                              Complexes & Fields
+                            </span>
                           </div>
                           <div className="font-cond text-[10px] text-[#5a6e9a] mt-0.5">
-                            Copies all complexes and their fields (in addition to the primary complex above)
+                            Copies all complexes and their fields (in addition to the primary
+                            complex above)
                           </div>
                         </div>
                       </label>
@@ -505,13 +731,22 @@ export function EventPicker({ onSelectEvent }: Props) {
                 )}
 
                 <div className="flex gap-3 pt-4 border-t border-[#1a2d50]">
-                  <button onClick={() => setStep(1)}
-                    className="flex items-center gap-1.5 font-cond text-[12px] text-[#5a6e9a] hover:text-white px-4 py-2 transition-colors">
+                  <button
+                    onClick={() => setStep(1)}
+                    className="flex items-center gap-1.5 font-cond text-[12px] text-[#5a6e9a] hover:text-white px-4 py-2 transition-colors"
+                  >
                     <ArrowLeft size={13} /> BACK
                   </button>
-                  <button onClick={createEvent} disabled={creating}
-                    className="flex items-center gap-2 font-cond font-black text-[13px] tracking-[.1em] px-6 py-2.5 rounded-xl bg-red hover:bg-red/80 text-white transition-colors disabled:opacity-50 ml-auto">
-                    {creating ? 'CREATING...' : copySourceId ? 'CREATE & COPY →' : 'CREATE & ENTER →'}
+                  <button
+                    onClick={createEvent}
+                    disabled={creating}
+                    className="flex items-center gap-2 font-cond font-black text-[13px] tracking-[.1em] px-6 py-2.5 rounded-xl bg-red hover:bg-red/80 text-white transition-colors disabled:opacity-50 ml-auto"
+                  >
+                    {creating
+                      ? 'CREATING...'
+                      : copySourceId
+                        ? 'CREATE & COPY →'
+                        : 'CREATE & ENTER →'}
                   </button>
                 </div>
               </>
@@ -526,46 +761,64 @@ export function EventPicker({ onSelectEvent }: Props) {
           <div className="text-center py-20">
             <Trophy size={48} className="mx-auto mb-4" style={{ color: '#1a2d50' }} />
             <div className="font-cond text-[18px] font-black text-white mb-2">NO EVENTS YET</div>
-            <div className="font-cond text-[13px] text-[#5a6e9a]">Click CREATE EVENT to get started</div>
+            <div className="font-cond text-[13px] text-[#5a6e9a]">
+              Click CREATE EVENT to get started
+            </div>
           </div>
         ) : (
           <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4">
-            {events.map(ev => {
-              const sport  = SPORTS_EMOJI[ev.sport] ?? '🏆'
-              const color  = ev.primary_color ?? '#0B3D91'
+            {events.map((ev) => {
+              const sport = SPORTS_EMOJI[ev.sport] ?? '🏆'
+              const color = ev.primary_color ?? '#0B3D91'
               const isLive = ev.status === 'active'
 
               return (
-                <div key={ev.id}
+                <div
+                  key={ev.id}
                   className="group relative rounded-2xl overflow-hidden border transition-all hover:border-blue-400/60 cursor-pointer"
                   style={{ background: '#081428', borderColor: isLive ? '#22c55e40' : '#1a2d50' }}
-                  onClick={() => onSelectEvent(ev.id)}>
-
+                  onClick={() => onSelectEvent(ev.id)}
+                >
                   <div className="h-1.5" style={{ background: color }} />
 
                   <div className="p-5">
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex items-center gap-3">
                         {ev.logo_url ? (
-                          <img src={ev.logo_url} alt="" className="w-12 h-12 rounded-xl object-contain bg-white/5 p-1 flex-shrink-0" />
+                          <img
+                            src={ev.logo_url}
+                            alt=""
+                            className="w-12 h-12 rounded-xl object-contain bg-white/5 p-1 flex-shrink-0"
+                          />
                         ) : (
-                          <div className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl flex-shrink-0"
-                            style={{ background: color + '30', border: `1px solid ${color}40` }}>
+                          <div
+                            className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl flex-shrink-0"
+                            style={{ background: color + '30', border: `1px solid ${color}40` }}
+                          >
                             {sport}
                           </div>
                         )}
                         <div>
-                          <div className="font-cond text-[16px] font-black text-white leading-tight">{ev.name}</div>
+                          <div className="font-cond text-[16px] font-black text-white leading-tight">
+                            {ev.name}
+                          </div>
                           <div className="font-cond text-[10px] text-[#5a6e9a] capitalize mt-0.5">
                             {ev.sport} {ev.event_type}
                           </div>
                         </div>
                       </div>
-                      <div className={cn('font-cond text-[9px] font-black tracking-[.15em] px-2 py-1 rounded flex-shrink-0',
-                        isLive ? 'bg-green-900/40 text-green-400' :
-                        ev.status === 'completed' ? 'bg-gray-800 text-gray-500' :
-                        'bg-[#0d1a2e] text-[#5a6e9a]'
-                      )}>{ev.status.toUpperCase()}</div>
+                      <div
+                        className={cn(
+                          'font-cond text-[9px] font-black tracking-[.15em] px-2 py-1 rounded flex-shrink-0',
+                          isLive
+                            ? 'bg-green-900/40 text-green-400'
+                            : ev.status === 'completed'
+                              ? 'bg-gray-800 text-gray-500'
+                              : 'bg-[#0d1a2e] text-[#5a6e9a]'
+                        )}
+                      >
+                        {ev.status.toUpperCase()}
+                      </div>
                     </div>
 
                     <div className="space-y-1.5 mb-4">
@@ -575,24 +828,43 @@ export function EventPicker({ onSelectEvent }: Props) {
                       </div>
                       <div className="flex items-center gap-2 font-cond text-[11px] text-[#5a6e9a]">
                         <Calendar size={11} className="flex-shrink-0" />
-                        <span>{formatDate(ev.start_date)}{ev.end_date && ev.end_date !== ev.start_date ? ` – ${formatDate(ev.end_date)}` : ''}</span>
+                        <span>
+                          {formatDate(ev.start_date)}
+                          {ev.end_date && ev.end_date !== ev.start_date
+                            ? ` – ${formatDate(ev.end_date)}`
+                            : ''}
+                        </span>
                       </div>
                     </div>
 
                     <div className="flex items-center justify-between pt-3 border-t border-[#1a2d50]">
                       {ev.event_code && (
                         <button
-                          onClick={e => { e.stopPropagation(); copyCode(ev.id, ev.event_code!) }}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            copyCode(ev.id, ev.event_code!)
+                          }}
                           className="flex items-center gap-1.5 font-mono text-[11px] font-bold text-[#5a6e9a] hover:text-white transition-colors"
-                          title="Copy event code">
-                          {copiedCode === ev.id
-                            ? <><CheckCircle size={11} className="text-green-400" /> <span className="text-green-400">Copied!</span></>
-                            : <><Copy size={11} /> {ev.event_code}</>
-                          }
+                          title="Copy event code"
+                        >
+                          {copiedCode === ev.id ? (
+                            <>
+                              <CheckCircle size={11} className="text-green-400" />{' '}
+                              <span className="text-green-400">Copied!</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy size={11} /> {ev.event_code}
+                            </>
+                          )}
                         </button>
                       )}
                       <div className="flex items-center gap-1.5 font-cond text-[11px] font-black tracking-[.08em] text-[#5a6e9a] group-hover:text-white transition-colors ml-auto">
-                        OPEN <ChevronRight size={13} className="group-hover:translate-x-0.5 transition-transform" />
+                        OPEN{' '}
+                        <ChevronRight
+                          size={13}
+                          className="group-hover:translate-x-0.5 transition-transform"
+                        />
                       </div>
                     </div>
                   </div>

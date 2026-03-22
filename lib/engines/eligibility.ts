@@ -14,11 +14,23 @@ export type EligibilityResult =
   | { eligible: true }
   | { eligible: false; reason: 'play_down'; playerDiv: string; gameDiv: string; message: string }
   | { eligible: false; reason: 'max_games'; gamesPlayed: number; max: number; message: string }
-  | { eligible: 'pending_approval'; approvalId: number; message: string; firstGameId: number; opposingTeamName: string }
+  | {
+      eligible: 'pending_approval'
+      approvalId: number
+      message: string
+      firstGameId: number
+      opposingTeamName: string
+    }
 
 // ─── Division rank map ────────────────────────────────────────
 const AGE_RANK: Record<string, number> = {
-  '8U': 1, '10U': 2, '12U': 3, '14U': 4, '16U': 5, '18U': 6, 'Open': 99
+  '8U': 1,
+  '10U': 2,
+  '12U': 3,
+  '14U': 4,
+  '16U': 5,
+  '18U': 6,
+  Open: 99,
 }
 
 function getAgeRank(division: string): number {
@@ -29,7 +41,7 @@ function getAgeRank(division: string): number {
 
 function getGender(division: string): string {
   if (division.toLowerCase().includes('girl')) return 'Girls'
-  if (division.toLowerCase().includes('boy'))  return 'Boys'
+  if (division.toLowerCase().includes('boy')) return 'Boys'
   return 'Co-Ed'
 }
 
@@ -44,11 +56,20 @@ export async function checkPlayerEligibility(
   // Load game info
   const { data: game } = await sb
     .from('games')
-    .select('id, division, event_id, event_date_id, home_team_id, away_team_id, home_team:teams!games_home_team_id_fkey(name), away_team:teams!games_away_team_id_fkey(name)')
+    .select(
+      'id, division, event_id, event_date_id, home_team_id, away_team_id, home_team:teams!games_home_team_id_fkey(name), away_team:teams!games_away_team_id_fkey(name)'
+    )
     .eq('id', gameId)
     .single()
 
-  if (!game) return { eligible: false, reason: 'play_down', playerDiv: '', gameDiv: '', message: 'Game not found' }
+  if (!game)
+    return {
+      eligible: false,
+      reason: 'play_down',
+      playerDiv: '',
+      gameDiv: '',
+      message: 'Game not found',
+    }
 
   // Load player + their team division
   const { data: player } = await sb
@@ -57,11 +78,21 @@ export async function checkPlayerEligibility(
     .eq('id', playerId)
     .single()
 
-  if (!player) return { eligible: false, reason: 'play_down', playerDiv: '', gameDiv: '', message: 'Player not found' }
+  if (!player)
+    return {
+      eligible: false,
+      reason: 'play_down',
+      playerDiv: '',
+      gameDiv: '',
+      message: 'Player not found',
+    }
 
-  const playerDiv = (player as any).home_division
-    || (Array.isArray((player as any).team) ? (player as any).team[0]?.division : (player as any).team?.division)
-    || ''
+  const playerDiv =
+    (player as any).home_division ||
+    (Array.isArray((player as any).team)
+      ? (player as any).team[0]?.division
+      : (player as any).team?.division) ||
+    ''
 
   const gameDiv = (game as any).division ?? ''
 
@@ -70,21 +101,27 @@ export async function checkPlayerEligibility(
     .from('event_rules')
     .select('rule_key, rule_value')
     .eq('event_id', (game as any).event_id)
-    .in('rule_key', ['enforce_play_down', 'allow_play_up', 'multi_game_require_approval', 'multi_game_max_per_day', 'ref_can_approve_multi'])
+    .in('rule_key', [
+      'enforce_play_down',
+      'allow_play_up',
+      'multi_game_require_approval',
+      'multi_game_max_per_day',
+      'ref_can_approve_multi',
+    ])
 
   const ruleMap: Record<string, string> = {}
   for (const r of rules ?? []) ruleMap[(r as any).rule_key] = (r as any).rule_value
 
-  const enforcePlayDown        = ruleMap['enforce_play_down'] !== 'false'
-  const requireMultiApproval   = ruleMap['multi_game_require_approval'] !== 'false'
-  const maxGames               = parseInt(ruleMap['multi_game_max_per_day'] ?? '2')
+  const enforcePlayDown = ruleMap['enforce_play_down'] !== 'false'
+  const requireMultiApproval = ruleMap['multi_game_require_approval'] !== 'false'
+  const maxGames = parseInt(ruleMap['multi_game_max_per_day'] ?? '2')
 
   // ── Rule 1: Play-down check ───────────────────────────────
   if (enforcePlayDown && playerDiv && gameDiv) {
     const playerRank = getAgeRank(playerDiv)
-    const gameRank   = getAgeRank(gameDiv)
+    const gameRank = getAgeRank(gameDiv)
     const playerGender = getGender(playerDiv)
-    const gameGender   = getGender(gameDiv)
+    const gameGender = getGender(gameDiv)
 
     // Same gender check (boys can't play in girls divisions and vice versa)
     // Cross-gender only allowed for Co-Ed
@@ -101,22 +138,22 @@ export async function checkPlayerEligibility(
     // Age play-down check (same gender only)
     if (playerGender === gameGender && playerRank > 0 && gameRank > 0 && gameRank < playerRank) {
       await sb.from('eligibility_violations').insert({
-        player_id:      playerId,
-        game_id:        gameId,
-        event_id:       (game as any).event_id,
+        player_id: playerId,
+        game_id: gameId,
+        event_id: (game as any).event_id,
         violation_type: 'play_down',
         player_division: playerDiv,
-        game_division:   gameDiv,
-        description:    `${player.name} (${playerDiv}) attempted to play down in ${gameDiv} game #${gameId}`,
-        resolved:       false,
+        game_division: gameDiv,
+        description: `${player.name} (${playerDiv}) attempted to play down in ${gameDiv} game #${gameId}`,
+        resolved: false,
       })
 
       return {
         eligible: false,
-        reason:    'play_down',
+        reason: 'play_down',
         playerDiv,
         gameDiv,
-        message:  `${player.name} is registered in ${playerDiv} and cannot play down in a ${gameDiv} game`,
+        message: `${player.name} is registered in ${playerDiv} and cannot play down in a ${gameDiv} game`,
       }
     }
   }
@@ -130,12 +167,10 @@ export async function checkPlayerEligibility(
     .neq('game_id', gameId)
 
   // Filter to same event date
-  const sameDayCheckins = (todayCheckins ?? []).filter(
-    (c: any) => {
-      const gEDI = Array.isArray(c.game) ? c.game[0]?.event_date_id : c.game?.event_date_id
-      return gEDI === eventDateId
-    }
-  )
+  const sameDayCheckins = (todayCheckins ?? []).filter((c: any) => {
+    const gEDI = Array.isArray(c.game) ? c.game[0]?.event_date_id : c.game?.event_date_id
+    return gEDI === eventDateId
+  })
 
   const gamesPlayedToday = sameDayCheckins.length
 
@@ -152,7 +187,7 @@ export async function checkPlayerEligibility(
     if ((existingApproval as any).status === 'denied') {
       return {
         eligible: false,
-        reason:  'play_down',
+        reason: 'play_down',
         playerDiv,
         gameDiv,
         message: `Multi-game request for ${player.name} was denied by the opposing coach`,
@@ -162,7 +197,7 @@ export async function checkPlayerEligibility(
     return {
       eligible: 'pending_approval',
       approvalId: (existingApproval as any).id,
-      message:   `Waiting for opposing coach approval`,
+      message: `Waiting for opposing coach approval`,
       firstGameId: sameDayCheckins[0] ? Number((sameDayCheckins[0] as any).game_id) : 0,
       opposingTeamName: 'opposing team',
     }
@@ -177,51 +212,57 @@ export async function checkPlayerEligibility(
   if (gamesPlayedToday >= 1 && requireMultiApproval) {
     // Determine opposing team (the team that's NOT the player's team)
     const playerTeamId = (player as any).team_id
-    const opposingTeamId = (game as any).home_team_id === playerTeamId
-      ? (game as any).away_team_id
-      : (game as any).home_team_id
-    const opposingTeam = (game as any).home_team_id === playerTeamId
-      ? (game as any).away_team
-      : (game as any).home_team
+    const opposingTeamId =
+      (game as any).home_team_id === playerTeamId
+        ? (game as any).away_team_id
+        : (game as any).home_team_id
+    const opposingTeam =
+      (game as any).home_team_id === playerTeamId
+        ? (game as any).away_team
+        : (game as any).home_team
     const opposingTeamName = Array.isArray(opposingTeam)
-      ? opposingTeam[0]?.name ?? 'Opposing Team'
-      : opposingTeam?.name ?? 'Opposing Team'
+      ? (opposingTeam[0]?.name ?? 'Opposing Team')
+      : (opposingTeam?.name ?? 'Opposing Team')
 
     // Create approval request
-    const { data: approval } = await sb.from('multi_game_approvals').insert({
-      player_id:          playerId,
-      game_id:            gameId,
-      first_game_id:      sameDayCheckins[0] ? Number((sameDayCheckins[0] as any).game_id) : null,
-      event_id:           (game as any).event_id,
-      event_date_id:      eventDateId,
-      opposing_team_id:   opposingTeamId,
-      opposing_team_name: opposingTeamName,
-      status:             'pending',
-      checkin_held:       true,
-    }).select().single()
+    const { data: approval } = await sb
+      .from('multi_game_approvals')
+      .insert({
+        player_id: playerId,
+        game_id: gameId,
+        first_game_id: sameDayCheckins[0] ? Number((sameDayCheckins[0] as any).game_id) : null,
+        event_id: (game as any).event_id,
+        event_date_id: eventDateId,
+        opposing_team_id: opposingTeamId,
+        opposing_team_name: opposingTeamName,
+        status: 'pending',
+        checkin_held: true,
+      })
+      .select()
+      .single()
 
     await sb.from('eligibility_violations').insert({
-      player_id:      playerId,
-      game_id:        gameId,
-      event_id:       (game as any).event_id,
+      player_id: playerId,
+      game_id: gameId,
+      event_id: (game as any).event_id,
       violation_type: 'multi_game_pending',
       player_division: playerDiv,
-      game_division:   gameDiv,
-      description:    `${player.name} playing ${gamesPlayedToday + 1} games today — opposing coach approval needed`,
+      game_division: gameDiv,
+      description: `${player.name} playing ${gamesPlayedToday + 1} games today — opposing coach approval needed`,
     })
 
     await sb.from('ops_log').insert({
-      event_id:    (game as any).event_id,
-      message:     `Multi-game approval requested: ${player.name} game #${gameId} — opposing team: ${opposingTeamName}`,
-      log_type:    'warn',
+      event_id: (game as any).event_id,
+      message: `Multi-game approval requested: ${player.name} game #${gameId} — opposing team: ${opposingTeamName}`,
+      log_type: 'warn',
       occurred_at: new Date().toISOString(),
     })
 
     return {
-      eligible:           'pending_approval',
-      approvalId:         (approval as any).id,
-      message:            `${player.name} has already played today. Awaiting ${opposingTeamName} approval.`,
-      firstGameId:        sameDayCheckins[0] ? Number((sameDayCheckins[0] as any).game_id) : 0,
+      eligible: 'pending_approval',
+      approvalId: (approval as any).id,
+      message: `${player.name} has already played today. Awaiting ${opposingTeamName} approval.`,
+      firstGameId: sameDayCheckins[0] ? Number((sameDayCheckins[0] as any).game_id) : 0,
       opposingTeamName,
     }
   }
@@ -241,11 +282,11 @@ export async function approveMultiGame(
   const { data: approval } = await sb
     .from('multi_game_approvals')
     .update({
-      status:          'approved',
-      approved_by:     approvedBy,
+      status: 'approved',
+      approved_by: approvedBy,
       approved_by_name: approvedByName,
-      approved_at:     new Date().toISOString(),
-      checkin_held:    false,
+      approved_at: new Date().toISOString(),
+      checkin_held: false,
     })
     .eq('id', approvalId)
     .select()
@@ -255,22 +296,23 @@ export async function approveMultiGame(
 
   // Complete the player check-in that was held
   await sb.from('player_checkins').upsert({
-    game_id:       (approval as any).game_id,
-    player_id:     (approval as any).player_id,
+    game_id: (approval as any).game_id,
+    player_id: (approval as any).player_id,
     checked_in_at: new Date().toISOString(),
   })
 
   // Resolve the eligibility violation
-  await sb.from('eligibility_violations')
+  await sb
+    .from('eligibility_violations')
     .update({ resolved: true })
     .eq('player_id', (approval as any).player_id)
     .eq('game_id', (approval as any).game_id)
     .eq('violation_type', 'multi_game_pending')
 
   await sb.from('ops_log').insert({
-    event_id:    (approval as any).event_id,
-    message:     `Multi-game approved by ${approvedBy} (${approvedByName}) for player in game #${(approval as any).game_id}`,
-    log_type:    'ok',
+    event_id: (approval as any).event_id,
+    message: `Multi-game approved by ${approvedBy} (${approvedByName}) for player in game #${(approval as any).game_id}`,
+    log_type: 'ok',
     occurred_at: new Date().toISOString(),
   })
 }
@@ -291,16 +333,17 @@ export async function denyMultiGame(
 
   if (!approval) return
 
-  await sb.from('eligibility_violations')
+  await sb
+    .from('eligibility_violations')
     .update({ resolved: true })
     .eq('player_id', (approval as any).player_id)
     .eq('game_id', (approval as any).game_id)
     .eq('violation_type', 'multi_game_pending')
 
   await sb.from('ops_log').insert({
-    event_id:    (approval as any).event_id,
-    message:     `Multi-game DENIED by ${deniedBy}: ${reason}`,
-    log_type:    'warn',
+    event_id: (approval as any).event_id,
+    message: `Multi-game DENIED by ${deniedBy}: ${reason}`,
+    log_type: 'warn',
     occurred_at: new Date().toISOString(),
   })
 }
@@ -310,11 +353,13 @@ export async function getPendingApprovals(gameId: number) {
   const sb = createClient()
   const { data } = await sb
     .from('multi_game_approvals')
-    .select(`
+    .select(
+      `
       id, player_id, game_id, first_game_id, opposing_team_name,
       status, created_at, checkin_held,
       player:players(id, name, number)
-    `)
+    `
+    )
     .eq('game_id', gameId)
     .eq('status', 'pending')
     .order('created_at')
@@ -326,11 +371,13 @@ export async function getAllPendingApprovals(eventId: number) {
   const sb = createClient()
   const { data } = await sb
     .from('multi_game_approvals')
-    .select(`
+    .select(
+      `
       id, player_id, game_id, first_game_id, opposing_team_name,
       status, created_at, event_date_id,
       player:players(id, name, number, team:teams(name, division))
-    `)
+    `
+    )
     .eq('event_id', eventId)
     .eq('status', 'pending')
     .order('created_at')
