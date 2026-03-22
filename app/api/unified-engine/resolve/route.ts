@@ -1,15 +1,15 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/supabase/server'
-// import { resolveAlert } from '@/lib/engines/unified'  // wire after Plan A Task 6
+import { resolveAlert } from '@/lib/engines/unified'
 
 export async function POST(request: Request) {
   try {
     const body = await request.json()
     const { alert_id, resolved_by, note } = body
 
-    if (!alert_id || typeof alert_id !== 'string') {
+    if (!alert_id || typeof alert_id !== 'number') {
       return NextResponse.json(
-        { error: 'alert_id is required and must be a string' },
+        { error: 'alert_id is required and must be a number' },
         { status: 400 }
       )
     }
@@ -22,11 +22,8 @@ export async function POST(request: Request) {
     }
 
     const sb = createClient()
-    // await resolveAlert(alert_id, resolved_by, note ?? undefined, sb)
-    // return NextResponse.json({ success: true })
-
-    // TODO: remove this placeholder once Plan A Task 6 is complete
-    return NextResponse.json({ message: 'resolve route created, pending Plan A wire-up' })
+    await resolveAlert(alert_id, resolved_by, note ?? undefined, sb)
+    return NextResponse.json({ success: true })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error'
     return NextResponse.json({ error: message }, { status: 500 })

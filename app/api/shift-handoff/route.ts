@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/supabase/server'
-// import { generateShiftHandoff } from '@/lib/engines/unified'  // wire after Plan A Task 6
+import { generateShiftHandoff } from '@/lib/engines/unified'
 
 export async function POST(request: Request) {
   try {
@@ -15,11 +15,8 @@ export async function POST(request: Request) {
     }
 
     const sb = createClient()
-    // const result = await generateShiftHandoff(created_by, sb)
-    // return NextResponse.json(result)
-
-    // TODO: remove this placeholder once Plan A Task 6 is complete
-    return NextResponse.json({ message: 'shift-handoff route created, pending Plan A wire-up' })
+    const result = await generateShiftHandoff(created_by, sb)
+    return NextResponse.json(result)
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error'
     return NextResponse.json({ error: message }, { status: 500 })
