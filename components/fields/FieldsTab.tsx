@@ -1,10 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useApp } from '@/lib/store'
 import { cn } from '@/lib/utils'
 import toast from 'react-hot-toast'
 import { Plus, Pencil, Trash2, Check, X, Layout } from 'lucide-react'
+import * as db from '@/lib/db'
+import type { Complex } from '@/types'
 
 const inp = 'bg-[#081428] border border-[#1a2d50] text-white px-2.5 py-1.5 rounded text-[12px] outline-none focus:border-blue-400 transition-colors w-full'
 
@@ -12,41 +14,57 @@ interface EditState {
   name: string
   number: string
   division: string
+  complex_id: number | null
 }
 
 export function FieldsTab() {
   const { state, addField, updateFieldDetails, deleteField } = useApp()
 
   // Add form state
-  const [newName, setNewName]       = useState('')
-  const [newNumber, setNewNumber]   = useState('')
-  const [newDivision, setNewDivision] = useState('')
-  const [adding, setAdding]         = useState(false)
+  const [newName, setNewName]             = useState('')
+  const [newNumber, setNewNumber]         = useState('')
+  const [newDivision, setNewDivision]     = useState('')
+  const [newComplexId, setNewComplexId]   = useState<number | ''>('')
+  const [adding, setAdding]               = useState(false)
 
   // Edit state — which row is being edited
-  const [editId, setEditId]   = useState<number | null>(null)
-  const [editVals, setEditVals] = useState<EditState>({ name: '', number: '', division: '' })
+  const [editId, setEditId]     = useState<number | null>(null)
+  const [editVals, setEditVals] = useState<EditState>({ name: '', number: '', division: '', complex_id: null })
+
+  // Complexes for this event
+  const [complexes, setComplexes] = useState<Complex[]>([])
+
+  useEffect(() => {
+    if (state.event?.id) {
+      db.getComplexes(state.event.id).then(data => setComplexes(data as Complex[]))
+    }
+  }, [state.event?.id])
 
   const divisions = Array.from(new Set(state.teams.map((t: any) => t.division).filter(Boolean))).sort() as string[]
 
   async function handleAdd() {
     if (!newName.trim()) { toast.error('Field name required'); return }
     setAdding(true)
-    await addField(newName.trim(), newNumber.trim(), newDivision.trim())
-    setNewName(''); setNewNumber(''); setNewDivision('')
+    await addField(newName.trim(), newNumber.trim(), newDivision.trim(), newComplexId || undefined)
+    setNewName(''); setNewNumber(''); setNewDivision(''); setNewComplexId('')
     toast.success('Field added')
     setAdding(false)
   }
 
-  function startEdit(field: { id: number; name: string; number: string; division?: string }) {
+  function startEdit(field: { id: number; name: string; number: string; division?: string; complex_id?: number | null }) {
     setEditId(field.id)
-    setEditVals({ name: field.name, number: field.number, division: field.division ?? '' })
+    setEditVals({ name: field.name, number: field.number, division: field.division ?? '', complex_id: field.complex_id ?? null })
   }
 
   async function saveEdit() {
     if (!editId) return
     if (!editVals.name.trim()) { toast.error('Field name required'); return }
-    await updateFieldDetails(editId, { name: editVals.name.trim(), number: editVals.number.trim(), division: editVals.division.trim() })
+    await updateFieldDetails(editId, {
+      name: editVals.name.trim(),
+      number: editVals.number.trim(),
+      division: editVals.division.trim(),
+      complex_id: editVals.complex_id,
+    })
     toast.success('Saved')
     setEditId(null)
   }
@@ -62,6 +80,8 @@ export function FieldsTab() {
     return na !== nb ? na - nb : a.name.localeCompare(b.name)
   })
 
+  const complexName = (id?: number | null) => complexes.find(c => c.id === id)?.name ?? null
+
   return (
     <div>
       <div className="flex items-center justify-between mb-5">
@@ -75,13 +95,13 @@ export function FieldsTab() {
       {/* Add form */}
       <div className="bg-[#081428] border border-[#1a2d50] rounded-xl p-4 mb-5">
         <div className="font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase mb-3">Add Field</div>
-        <div className="flex gap-3 items-end">
+        <div className="flex gap-3 items-end flex-wrap">
           <div className="w-20">
             <label className="font-cond text-[10px] text-muted block mb-1"># Number</label>
             <input className={inp} value={newNumber} onChange={e => setNewNumber(e.target.value)}
               placeholder="1" onKeyDown={e => e.key === 'Enter' && handleAdd()} />
           </div>
-          <div className="flex-1">
+          <div className="flex-1 min-w-[120px]">
             <label className="font-cond text-[10px] text-muted block mb-1">Name *</label>
             <input className={inp} value={newName} onChange={e => setNewName(e.target.value)}
               placeholder="e.g. Field 1 – North" onKeyDown={e => e.key === 'Enter' && handleAdd()} autoFocus />
@@ -95,6 +115,15 @@ export function FieldsTab() {
               {divisions.map(d => <option key={d} value={d} />)}
             </datalist>
           </div>
+          {complexes.length > 0 && (
+            <div className="w-40">
+              <label className="font-cond text-[10px] text-muted block mb-1">Complex</label>
+              <select className={inp} value={newComplexId} onChange={e => setNewComplexId(e.target.value ? Number(e.target.value) : '')}>
+                <option value="">No complex</option>
+                {complexes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
+          )}
           <button onClick={handleAdd} disabled={adding || !newName.trim()}
             className="flex items-center gap-1.5 font-cond font-black text-[11px] tracking-[.1em] px-4 py-1.5 rounded-lg bg-red hover:bg-red/80 text-white transition-colors disabled:opacity-50 whitespace-nowrap h-[34px]">
             <Plus size={12} /> ADD
@@ -115,6 +144,9 @@ export function FieldsTab() {
                 <th className="font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase text-left px-4 py-2.5 w-16">#</th>
                 <th className="font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase text-left px-4 py-2.5">Name</th>
                 <th className="font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase text-left px-4 py-2.5 w-40">Division</th>
+                {complexes.length > 0 && (
+                  <th className="font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase text-left px-4 py-2.5 w-40">Complex</th>
+                )}
                 <th className="w-20 px-4 py-2.5" />
               </tr>
             </thead>
@@ -144,6 +176,15 @@ export function FieldsTab() {
                           {divisions.map(d => <option key={d} value={d} />)}
                         </datalist>
                       </td>
+                      {complexes.length > 0 && (
+                        <td className="px-3 py-2">
+                          <select className={inp} value={editVals.complex_id ?? ''}
+                            onChange={e => setEditVals(v => ({ ...v, complex_id: e.target.value ? Number(e.target.value) : null }))}>
+                            <option value="">No complex</option>
+                            {complexes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                          </select>
+                        </td>
+                      )}
                       <td className="px-3 py-2">
                         <div className="flex gap-1">
                           <button onClick={saveEdit}
@@ -174,6 +215,14 @@ export function FieldsTab() {
                           : <span className="font-cond text-[11px] text-muted/40">—</span>
                         }
                       </td>
+                      {complexes.length > 0 && (
+                        <td className="px-4 py-3">
+                          {complexName(field.complex_id)
+                            ? <span className="font-cond text-[11px] font-bold px-2 py-0.5 rounded bg-[#1a2d50] text-green-300">{complexName(field.complex_id)}</span>
+                            : <span className="font-cond text-[11px] text-muted/40">—</span>
+                          }
+                        </td>
+                      )}
                       <td className="px-3 py-3">
                         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                           <button onClick={() => startEdit(field)}

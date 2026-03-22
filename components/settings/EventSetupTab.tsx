@@ -7,8 +7,10 @@ import toast from 'react-hot-toast'
 import {
   Save, ChevronRight, CheckCircle, Trophy, Calendar,
   MapPin, Settings, Globe, Users, BarChart2, Sliders,
-  FileText, Upload, X, Plus, Trash2, Map, Lock,
+  FileText, Upload, X, Plus, Trash2, Map, Lock, Pencil, Check,
 } from 'lucide-react'
+import * as db from '@/lib/db'
+import type { Complex } from '@/types'
 
 type SetupStep = 'sport' | 'type' | 'details' | 'done'
 type SettingsTab = 'general' | 'schedule' | 'public' | 'scoring' | 'advanced' | 'branding' | 'map' | 'permissions'
@@ -156,11 +158,23 @@ export function EventSetupTab() {
   const [mapPhotoUrl, setMapPhotoUrl]         = useState<string | null>(null)
   const [mapsUrl, setMapsUrl]                 = useState('')
   const [embedCode, setEmbedCode]             = useState('')
+  // Complexes state
+  const [complexes, setComplexes]             = useState<Complex[]>([])
+  const [addingComplex, setAddingComplex]     = useState(false)
+  const [newCx, setNewCx]                     = useState({ name: '', address: '', lat: '', lng: '' })
+  const [editingCxId, setEditingCxId]         = useState<number | null>(null)
+  const [editCx, setEditCx]                   = useState({ name: '', address: '', lat: '', lng: '' })
+  const [cxSaving, setCxSaving]               = useState(false)
   // Permissions tab state
   const [rolePerms, setRolePerms]   = useState<Record<string, string[]>>({})
   const [permSaving, setPermSaving] = useState(false)
 
   useEffect(() => { loadEvent() }, [])
+
+  async function loadComplexes(eventId: number) {
+    const data = await db.getComplexes(eventId)
+    setComplexes(data as Complex[])
+  }
 
   async function loadEvent() {
     const sb = createClient()
@@ -236,6 +250,7 @@ export function EventSetupTab() {
       setEmbedCode(d.google_maps_embed ?? '')
       setRolePerms(d.role_permissions ?? {})
       setHasEvent(true)
+      loadComplexes(d.id)
     }
     setLoading(false)
   }
@@ -272,6 +287,57 @@ export function EventSetupTab() {
     if (error) toast.error(error.message)
     else toast.success('Map settings saved')
     setMapSaving(false)
+  }
+
+  async function handleAddComplex() {
+    if (!newCx.name.trim()) { toast.error('Complex name required'); return }
+    if (!event.id) return
+    setCxSaving(true)
+    const created = await db.insertComplex({
+      event_id: event.id,
+      name: newCx.name.trim(),
+      address: newCx.address.trim() || undefined,
+      lat: newCx.lat ? parseFloat(newCx.lat) : undefined,
+      lng: newCx.lng ? parseFloat(newCx.lng) : undefined,
+    })
+    if (created) {
+      setComplexes(prev => [...prev, created as Complex])
+      setNewCx({ name: '', address: '', lat: '', lng: '' })
+      setAddingComplex(false)
+      toast.success('Complex added')
+    }
+    setCxSaving(false)
+  }
+
+  async function handleSaveComplex() {
+    if (!editingCxId || !editCx.name.trim()) return
+    setCxSaving(true)
+    await db.updateComplex(editingCxId, {
+      name: editCx.name.trim(),
+      address: editCx.address.trim() || undefined,
+      lat: editCx.lat ? parseFloat(editCx.lat) : undefined,
+      lng: editCx.lng ? parseFloat(editCx.lng) : undefined,
+    })
+    setComplexes(prev => prev.map(c => c.id === editingCxId
+      ? { ...c, name: editCx.name.trim(), address: editCx.address.trim() || null,
+          lat: editCx.lat ? parseFloat(editCx.lat) : null,
+          lng: editCx.lng ? parseFloat(editCx.lng) : null }
+      : c))
+    setEditingCxId(null)
+    toast.success('Complex updated')
+    setCxSaving(false)
+  }
+
+  async function handleDeleteComplex(id: number, name: string) {
+    if (!confirm(`Delete "${name}"? Fields assigned to this complex will be unlinked.`)) return
+    await db.deleteComplex(id)
+    setComplexes(prev => prev.filter(c => c.id !== id))
+    toast.success('Complex removed')
+  }
+
+  function startEditComplex(c: Complex) {
+    setEditingCxId(c.id)
+    setEditCx({ name: c.name, address: c.address ?? '', lat: c.lat?.toString() ?? '', lng: c.lng?.toString() ?? '' })
   }
 
   async function savePermissions() {
@@ -878,14 +944,106 @@ export function EventSetupTab() {
         {/* ── MAP ── */}
         {settingsTab === 'map' && (
           <div className="space-y-6">
-            <Card title="Park / Complex" icon={<MapPin size={14} />}>
-              <div className="space-y-4">
-                <div>
-                  <label className={lbl}>Park / Complex Name</label>
-                  <input className={inp} value={event.park_name} onChange={e => set('park_name', e.target.value)}
-                    placeholder="e.g. Julington Creek Plantation Park" />
-                  <div className="font-cond text-[9px] text-muted mt-1">Displayed on the park map overlay</div>
-                </div>
+            <Card title="Complexes" icon={<MapPin size={14} />}>
+              <div className="space-y-3">
+                {/* Complex list */}
+                {complexes.length === 0 && !addingComplex && (
+                  <div className="text-center py-6 font-cond text-[11px] text-muted">No complexes yet — add your first one below</div>
+                )}
+                {complexes.map(c => (
+                  <div key={c.id} className="bg-[#050e1a] border border-[#1a2d50] rounded-lg overflow-hidden">
+                    {editingCxId === c.id ? (
+                      <div className="p-3 space-y-2">
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="col-span-2">
+                            <label className={lbl}>Name *</label>
+                            <input className={inp} value={editCx.name} onChange={e => setEditCx(v => ({ ...v, name: e.target.value }))} autoFocus />
+                          </div>
+                          <div className="col-span-2">
+                            <label className={lbl}>Address</label>
+                            <input className={inp} value={editCx.address} onChange={e => setEditCx(v => ({ ...v, address: e.target.value }))} placeholder="123 Main St, City, ST 00000" />
+                          </div>
+                          <div>
+                            <label className={lbl}>Latitude</label>
+                            <input className={inp} value={editCx.lat} onChange={e => setEditCx(v => ({ ...v, lat: e.target.value }))} placeholder="30.3322" />
+                          </div>
+                          <div>
+                            <label className={lbl}>Longitude</label>
+                            <input className={inp} value={editCx.lng} onChange={e => setEditCx(v => ({ ...v, lng: e.target.value }))} placeholder="-81.6557" />
+                          </div>
+                        </div>
+                        <div className="flex gap-2 pt-1">
+                          <button onClick={handleSaveComplex} disabled={cxSaving}
+                            className="flex items-center gap-1 font-cond font-black text-[11px] tracking-[.1em] px-3 py-1.5 rounded bg-green-700 hover:bg-green-600 text-white transition-colors disabled:opacity-50">
+                            <Check size={11} /> SAVE
+                          </button>
+                          <button onClick={() => setEditingCxId(null)}
+                            className="font-cond font-black text-[11px] tracking-[.1em] px-3 py-1.5 rounded border border-[#1a2d50] text-muted hover:text-white transition-colors">
+                            CANCEL
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between px-4 py-3">
+                        <div>
+                          <div className="font-cond font-black text-[13px] text-white">{c.name}</div>
+                          {c.address && <div className="font-cond text-[10px] text-muted mt-0.5">{c.address}</div>}
+                          {(c.lat || c.lng) && <div className="font-cond text-[9px] text-muted/60 mt-0.5">GPS: {c.lat}, {c.lng}</div>}
+                        </div>
+                        <div className="flex gap-1">
+                          <button onClick={() => startEditComplex(c)}
+                            className="w-7 h-7 flex items-center justify-center rounded hover:bg-[#1a2d50] text-muted hover:text-white transition-colors">
+                            <Pencil size={12} />
+                          </button>
+                          <button onClick={() => handleDeleteComplex(c.id, c.name)}
+                            className="w-7 h-7 flex items-center justify-center rounded hover:bg-red/20 text-muted hover:text-red-400 transition-colors">
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+
+                {/* Add form */}
+                {addingComplex ? (
+                  <div className="bg-[#050e1a] border border-blue-500/40 rounded-lg p-3 space-y-2">
+                    <div className="font-cond text-[10px] font-black tracking-[.12em] text-blue-400 uppercase mb-2">New Complex</div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="col-span-2">
+                        <label className={lbl}>Name *</label>
+                        <input className={inp} value={newCx.name} onChange={e => setNewCx(v => ({ ...v, name: e.target.value }))} placeholder="e.g. North Campus" autoFocus />
+                      </div>
+                      <div className="col-span-2">
+                        <label className={lbl}>Address</label>
+                        <input className={inp} value={newCx.address} onChange={e => setNewCx(v => ({ ...v, address: e.target.value }))} placeholder="123 Main St, City, ST 00000" />
+                      </div>
+                      <div>
+                        <label className={lbl}>Latitude</label>
+                        <input className={inp} value={newCx.lat} onChange={e => setNewCx(v => ({ ...v, lat: e.target.value }))} placeholder="30.3322" />
+                      </div>
+                      <div>
+                        <label className={lbl}>Longitude</label>
+                        <input className={inp} value={newCx.lng} onChange={e => setNewCx(v => ({ ...v, lng: e.target.value }))} placeholder="-81.6557" />
+                      </div>
+                    </div>
+                    <div className="flex gap-2 pt-1">
+                      <button onClick={handleAddComplex} disabled={cxSaving || !newCx.name.trim()}
+                        className="flex items-center gap-1 font-cond font-black text-[11px] tracking-[.1em] px-3 py-1.5 rounded bg-red hover:bg-red/80 text-white transition-colors disabled:opacity-50">
+                        <Plus size={11} /> ADD COMPLEX
+                      </button>
+                      <button onClick={() => { setAddingComplex(false); setNewCx({ name: '', address: '', lat: '', lng: '' }) }}
+                        className="font-cond font-black text-[11px] tracking-[.1em] px-3 py-1.5 rounded border border-[#1a2d50] text-muted hover:text-white transition-colors">
+                        CANCEL
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button onClick={() => setAddingComplex(true)}
+                    className="w-full flex items-center justify-center gap-2 font-cond font-black text-[11px] tracking-[.1em] py-2.5 rounded-lg border border-dashed border-[#1a2d50] text-muted hover:text-white hover:border-blue-400 transition-colors">
+                    <Plus size={12} /> ADD COMPLEX
+                  </button>
+                )}
               </div>
             </Card>
 

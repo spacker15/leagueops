@@ -51,17 +51,17 @@ export async function updateFieldName(fieldId: number, name: string): Promise<vo
   await sb.from('fields').update({ name }).eq('id', fieldId)
 }
 
-export async function insertField(eventId: number, name: string, number: string, division = ''): Promise<Field | null> {
+export async function insertField(eventId: number, name: string, number: string, division = '', complexId?: number): Promise<Field | null> {
   const sb = createClient()
   const { data } = await sb
     .from('fields')
-    .insert({ event_id: eventId, name, number, division })
+    .insert({ event_id: eventId, name, number, division, ...(complexId ? { complex_id: complexId } : {}) })
     .select()
     .single()
   return data
 }
 
-export async function updateFieldDetails(fieldId: number, props: { name?: string; number?: string; division?: string }): Promise<void> {
+export async function updateFieldDetails(fieldId: number, props: { name?: string; number?: string; division?: string; complex_id?: number | null }): Promise<void> {
   const sb = createClient()
   await sb.from('fields').update(props).eq('id', fieldId)
 }
@@ -434,6 +434,11 @@ export async function updateComplex(id: number, updates: Partial<{
 }>) {
   const sb = createClient()
   await sb.from('complexes').update(updates).eq('id', id)
+}
+
+export async function deleteComplex(id: number) {
+  const sb = createClient()
+  await sb.from('complexes').delete().eq('id', id)
 }
 
 // ---- Field Blocks ----
