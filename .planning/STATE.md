@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: Executing Phase 02
-stopped_at: Completed 02-00-PLAN.md (Store Behavioral Test Scaffold)
-last_updated: "2026-03-22T22:24:43.018Z"
+stopped_at: Completed 02-01-PLAN.md (Engine eventId Parameterization)
+last_updated: "2026-03-22T22:38:02.450Z"
 progress:
   total_phases: 10
   completed_phases: 1
   total_plans: 10
-  completed_plans: 6
+  completed_plans: 7
 ---
 
 # Project State: LeagueOps
@@ -37,8 +37,8 @@ See: .planning/PROJECT.md (updated 2026-03-22)
 
 ## Active Context
 
-**Last session:** 2026-03-22T22:24:43.015Z
-**Stopped at:** Completed 02-00-PLAN.md (Store Behavioral Test Scaffold)
+**Last session:** 2026-03-22T22:38:02.447Z
+**Stopped at:** Completed 02-01-PLAN.md (Engine eventId Parameterization)
 **Plans completed:** 01-01 (Core Engine Refactor) — 7 tasks, 12 files, 19 min; 01-02 (New API Routes for CommandCenter) — 3 tasks, 3 files, 3 min
 
 ## Performance Metrics
@@ -52,6 +52,7 @@ See: .planning/PROJECT.md (updated 2026-03-22)
 | Phase 01-engine-client-refactor P03 | 2    | 5 tasks  | 3 files  |
 | Phase 01-engine-client-refactor P05 | 7    | 7 tasks  | 9 files  |
 | Phase 02-hardcode-removal-event-context P00 | 2 | 1 tasks | 1 files |
+| Phase 02-hardcode-removal-event-context P01 | 9 | 2 tasks | 17 files |
 
 ## Decisions Log
 
