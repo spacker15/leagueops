@@ -8,7 +8,7 @@
  *      approval from the opposing team's coach (or a ref/volunteer).
  */
 
-import { createClient } from '@/supabase/client'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
 export type EligibilityResult =
   | { eligible: true }
@@ -49,10 +49,9 @@ function getGender(division: string): string {
 export async function checkPlayerEligibility(
   playerId: number,
   gameId: number,
-  eventDateId: number
+  eventDateId: number,
+  sb: SupabaseClient
 ): Promise<EligibilityResult> {
-  const sb = createClient()
-
   // Load game info
   const { data: game } = await sb
     .from('games')
@@ -274,10 +273,9 @@ export async function checkPlayerEligibility(
 export async function approveMultiGame(
   approvalId: number,
   approvedBy: 'coach' | 'referee' | 'volunteer' | 'admin',
-  approvedByName: string
+  approvedByName: string,
+  sb: SupabaseClient
 ): Promise<void> {
-  const sb = createClient()
-
   // Update approval record
   const { data: approval } = await sb
     .from('multi_game_approvals')
@@ -321,9 +319,9 @@ export async function approveMultiGame(
 export async function denyMultiGame(
   approvalId: number,
   deniedBy: string,
-  reason: string
+  reason: string,
+  sb: SupabaseClient
 ): Promise<void> {
-  const sb = createClient()
   const { data: approval } = await sb
     .from('multi_game_approvals')
     .update({ status: 'denied', denial_reason: reason, approved_by_name: deniedBy })
@@ -349,8 +347,7 @@ export async function denyMultiGame(
 }
 
 // ─── Load pending approvals for a game ───────────────────────
-export async function getPendingApprovals(gameId: number) {
-  const sb = createClient()
+export async function getPendingApprovals(gameId: number, sb: SupabaseClient) {
   const { data } = await sb
     .from('multi_game_approvals')
     .select(
@@ -367,8 +364,7 @@ export async function getPendingApprovals(gameId: number) {
 }
 
 // ─── Load all open approvals for an event ────────────────────
-export async function getAllPendingApprovals(eventId: number) {
-  const sb = createClient()
+export async function getAllPendingApprovals(eventId: number, sb: SupabaseClient) {
   const { data } = await sb
     .from('multi_game_approvals')
     .select(
