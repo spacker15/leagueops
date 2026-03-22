@@ -42,10 +42,13 @@ const NAV_GROUPS: NavGroup[] = [
   { label: '⚡ COMMAND', tab: 'command', accent: true },
   { label: 'REPORTS', tab: 'reports' },
   { label: 'ADMIN', adminOnly: true, items: [
-    { id: 'rules',    label: 'Rules' },
-    { id: 'programs', label: 'Programs' },
-    { id: 'users',    label: 'Users' },
-    { id: 'settings', label: 'Settings' },
+    { id: 'rules',     label: 'Rules' },
+    { id: 'fields',    label: 'Fields' },
+    { id: 'programs',  label: 'Programs' },
+    { id: 'payments',  label: 'Payments' },
+    { id: 'users',     label: 'Users' },
+    { id: 'qrcodes',   label: 'QR Codes' },
+    { id: 'settings',  label: 'Settings' },
   ]},
 ]
 
