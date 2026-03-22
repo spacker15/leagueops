@@ -3,12 +3,13 @@ import { liftLightningDelay, checkLightningStatus } from '@/lib/engines/weather'
 import { createClient } from '@/supabase/server'
 
 export async function GET(req: NextRequest) {
+  const sb = createClient()
   const { searchParams } = new URL(req.url)
   const complexId = searchParams.get('complex_id')
   if (!complexId) return NextResponse.json({ error: 'complex_id required' }, { status: 400 })
 
   try {
-    const status = await checkLightningStatus(Number(complexId))
+    const status = await checkLightningStatus(Number(complexId), sb)
     return NextResponse.json(status)
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 })
@@ -16,6 +17,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const sb = createClient()
   const body = await req.json()
   const { complex_id, action, event_id } = body
 
@@ -23,12 +25,11 @@ export async function POST(req: NextRequest) {
 
   try {
     if (action === 'lift') {
-      await liftLightningDelay(Number(complex_id), Number(event_id ?? 1))
+      await liftLightningDelay(Number(complex_id), Number(event_id ?? 1), sb)
       return NextResponse.json({ lifted: true })
     }
 
     // action === 'trigger' — manual lightning trigger
-    const sb = createClient()
     const delayEnd = new Date(Date.now() + 30 * 60 * 1000)
 
     // Get fields at complex

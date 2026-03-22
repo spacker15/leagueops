@@ -138,7 +138,8 @@ export function CommandCenter() {
   async function handleRunAll() {
     setRunning(true)
     try {
-      const result = await runUnifiedEngine(eventDateId)
+      const sb = createClient()
+      const result = await runUnifiedEngine(eventDateId, sb)
       setRunResult(result)
       setLastRun(new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }))
       await loadAlerts()
@@ -158,7 +159,8 @@ export function CommandCenter() {
   async function handleResolve(alertId: number, note?: string) {
     setResolvingId(alertId)
     try {
-      await resolveAlert(alertId, approverName, note)
+      const sb = createClient()
+      await resolveAlert(alertId, approverName, note, sb)
       toast.success('Resolved')
       await loadAlerts()
     } catch (err: any) {
@@ -170,7 +172,8 @@ export function CommandCenter() {
   async function handleGenerateHandoff() {
     setGeneratingHandoff(true)
     try {
-      const summary = await generateShiftHandoff(approverName)
+      const sb = createClient()
+      const summary = await generateShiftHandoff(approverName, sb)
       setHandoff(summary)
       toast.success('Shift handoff generated')
     } catch (err: any) {

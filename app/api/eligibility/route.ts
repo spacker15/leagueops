@@ -10,6 +10,7 @@ import { createClient } from '@/supabase/server'
 
 // GET — load pending approvals
 export async function GET(req: NextRequest) {
+  const sb = createClient()
   const { searchParams } = new URL(req.url)
   const gameId = searchParams.get('game_id')
   const eventId = searchParams.get('event_id') ?? '1'
@@ -17,11 +18,11 @@ export async function GET(req: NextRequest) {
 
   try {
     if (allPending) {
-      const data = await getAllPendingApprovals(Number(eventId))
+      const data = await getAllPendingApprovals(Number(eventId), sb)
       return NextResponse.json(data)
     }
     if (gameId) {
-      const data = await getPendingApprovals(Number(gameId))
+      const data = await getPendingApprovals(Number(gameId), sb)
       return NextResponse.json(data)
     }
     return NextResponse.json([])
@@ -32,6 +33,7 @@ export async function GET(req: NextRequest) {
 
 // POST — check eligibility or approve/deny
 export async function POST(req: NextRequest) {
+  const sb = createClient()
   const body = await req.json()
   const { action } = body
 
@@ -47,7 +49,8 @@ export async function POST(req: NextRequest) {
       const result = await checkPlayerEligibility(
         Number(player_id),
         Number(game_id),
-        Number(event_date_id)
+        Number(event_date_id),
+        sb
       )
       return NextResponse.json(result)
     }
@@ -60,7 +63,7 @@ export async function POST(req: NextRequest) {
           { status: 400 }
         )
       }
-      await approveMultiGame(Number(approval_id), approved_by, approved_by_name)
+      await approveMultiGame(Number(approval_id), approved_by, approved_by_name, sb)
       return NextResponse.json({ approved: true })
     }
 
@@ -69,7 +72,7 @@ export async function POST(req: NextRequest) {
       if (!approval_id) {
         return NextResponse.json({ error: 'approval_id required' }, { status: 400 })
       }
-      await denyMultiGame(Number(approval_id), denied_by ?? 'operator', reason ?? 'Denied by coach')
+      await denyMultiGame(Number(approval_id), denied_by ?? 'operator', reason ?? 'Denied by coach', sb)
       return NextResponse.json({ denied: true })
     }
 

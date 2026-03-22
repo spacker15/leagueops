@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { runRefereeEngine, findAvailableRefs } from '@/lib/engines/referee'
+import { createClient } from '@/supabase/server'
 
 export async function POST(req: NextRequest) {
+  const sb = createClient()
   const body = await req.json()
   const { event_date_id } = body
 
@@ -10,7 +12,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const result = await runRefereeEngine(Number(event_date_id))
+    const result = await runRefereeEngine(Number(event_date_id), sb)
     return NextResponse.json(result)
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 })
@@ -18,6 +20,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
+  const sb = createClient()
   const { searchParams } = new URL(req.url)
   const eventDateId = searchParams.get('event_date_id')
   const gameTime = searchParams.get('game_time')
@@ -34,7 +37,7 @@ export async function GET(req: NextRequest) {
   const excludeIds = excludeRaw ? excludeRaw.split(',').map(Number) : []
 
   try {
-    const available = await findAvailableRefs(Number(eventDateId), gameTime, division, excludeIds)
+    const available = await findAvailableRefs(Number(eventDateId), gameTime, division, excludeIds, sb)
     return NextResponse.json(available)
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 })
