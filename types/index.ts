@@ -378,6 +378,54 @@ export interface LightningEvent {
 
 export type HeatProtocolLevel = 'none' | 'advisory' | 'warning' | 'emergency'
 
+// ============================================================
+// Payments — Registration fee tracking
+// ============================================================
+
+export type PaymentStatus = 'pending' | 'partial' | 'paid' | 'waived' | 'refunded'
+export type PaymentMethod = 'check' | 'cash' | 'bank_transfer' | 'waived' | 'other'
+
+export interface RegistrationFee {
+  id: number
+  event_id: number
+  division: string
+  amount: number
+  currency: string
+  notes: string | null
+  created_at: string
+}
+
+export interface TeamPayment {
+  id: number
+  event_id: number
+  team_id: number | null
+  team_name: string
+  division: string
+  amount_due: number
+  amount_paid: number
+  balance: number
+  status: PaymentStatus
+  payment_method: PaymentMethod | null
+  reference_number: string | null
+  paid_at: string | null
+  notes: string | null
+  recorded_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface PaymentEntry {
+  id: number
+  team_payment_id: number
+  amount: number
+  payment_method: PaymentMethod
+  reference_number: string | null
+  paid_at: string
+  notes: string | null
+  recorded_by: string | null
+  created_at: string
+}
+
 export interface WeatherEngineResult {
   reading: WeatherReading
   alerts: Array<{

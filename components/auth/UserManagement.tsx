@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/supabase/client'
 import { useAuth } from '@/lib/auth'
+import { useApp } from '@/lib/store'
 import { Btn, FormField, SectionHeader } from '@/components/ui'
 import { cn } from '@/lib/utils'
 import toast from 'react-hot-toast'
@@ -22,6 +23,8 @@ interface UserRoleRow {
 
 export function UserManagement() {
   const { userRole: currentRole } = useAuth()
+  const { state } = useApp()
+  const eventId = (state.event as any)?.id ?? 1
   const [users, setUsers]         = useState<UserRoleRow[]>([])
   const [loading, setLoading]     = useState(true)
   const [inviteEmail, setInviteEmail]   = useState('')
@@ -53,8 +56,8 @@ export function UserManagement() {
   async function loadRefVol() {
     const sb = createClient()
     const [{ data: r }, { data: v }] = await Promise.all([
-      sb.from('referees').select('id, name, grade_level').eq('event_id', 1).order('name'),
-      sb.from('volunteers').select('id, name, role').eq('event_id', 1).order('name'),
+      sb.from('referees').select('id, name, grade_level').eq('event_id', eventId).order('name'),
+      sb.from('volunteers').select('id, name, role').eq('event_id', eventId).order('name'),
     ])
     setRefs(r ?? [])
     setVols(v ?? [])
@@ -76,7 +79,7 @@ export function UserManagement() {
         display_name: inviteName || inviteEmail,
         referee_id:   inviteRefId ? Number(inviteRefId) : null,
         volunteer_id: inviteVolId ? Number(inviteVolId) : null,
-        event_id: 1,
+        event_id: eventId,
       }),
     })
 
