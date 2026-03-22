@@ -1,0 +1,5 @@
+.next
+node_modules
+public
+apps/*/node_modules
+apps/*/.next

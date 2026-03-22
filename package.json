@@ -8,7 +8,23 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "db:seed": "npx tsx supabase/seed.ts"
+    "lint:fix": "next lint --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "db:seed": "npx tsx supabase/seed.ts",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx}": [
+      "prettier --write"
+    ],
+    "*.{json,css,md}": [
+      "prettier --write"
+    ]
   },
   "dependencies": {
     "@dnd-kit/core": "^6.1.0",
@@ -27,13 +43,23 @@
   },
   "devDependencies": {
     "@playwright/cli": "^0.1.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
     "@types/node": "^20.14.0",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^6.0.1",
     "autoprefixer": "^10.4.19",
+    "eslint-config-prettier": "^10.1.8",
+    "husky": "^9.1.7",
+    "jsdom": "^29.0.0",
+    "lint-staged": "^16.4.0",
     "postcss": "^8.4.38",
+    "prettier": "^3.8.1",
     "tailwindcss": "^3.4.4",
     "tsx": "^4.15.5",
-    "typescript": "^5.4.5"
+    "typescript": "^5.4.5",
+    "vitest": "^4.1.0"
   }
 }
