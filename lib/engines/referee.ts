@@ -11,7 +11,7 @@
  *   missing_referee      — game has no referee assigned
  */
 
-import { createClient } from '@/supabase/client'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import type {
   Referee,
   RefAssignment,
@@ -83,9 +83,10 @@ export interface RefereeEngineResult {
  * Run the full referee engine for a given event date.
  * Returns detected conflicts and writes them to the DB.
  */
-export async function runRefereeEngine(eventDateId: number): Promise<RefereeEngineResult> {
-  const sb = createClient()
-
+export async function runRefereeEngine(
+  eventDateId: number,
+  sb: SupabaseClient
+): Promise<RefereeEngineResult> {
   // 1. Load all games for this date with their ref assignments
   const { data: games } = await sb
     .from('games')
@@ -302,12 +303,11 @@ export async function runRefereeEngine(eventDateId: number): Promise<RefereeEngi
   }
 
   // ---- Write conflicts to DB (clear stale, insert fresh) ----
-  await clearStaleConflicts(eventDateId, [
-    'ref_double_booked',
-    'ref_unavailable',
-    'max_games_exceeded',
-    'missing_referee',
-  ])
+  await clearStaleConflicts(
+    eventDateId,
+    ['ref_double_booked', 'ref_unavailable', 'max_games_exceeded', 'missing_referee'],
+    sb
+  )
 
   for (const conflict of conflicts) {
     await sb.from('operational_conflicts').insert({
@@ -337,8 +337,11 @@ export async function runRefereeEngine(eventDateId: number): Promise<RefereeEngi
 }
 
 /** Clear existing unresolved conflicts of given types before re-running */
-async function clearStaleConflicts(eventDateId: number, types: ConflictType[]) {
-  const sb = createClient()
+async function clearStaleConflicts(
+  eventDateId: number,
+  types: ConflictType[],
+  sb: SupabaseClient
+) {
   // Get game IDs for this date to scope the delete
   const { data: games } = await sb.from('games').select('id').eq('event_date_id', eventDateId)
 
@@ -372,10 +375,9 @@ export async function findAvailableRefs(
   eventDateId: number,
   gameTime: string,
   division: string,
-  excludeRefIds: number[] = []
+  excludeRefIds: number[] = [],
+  sb: SupabaseClient
 ): Promise<Referee[]> {
-  const sb = createClient()
-
   const { data: eventDate } = await sb
     .from('event_dates')
     .select('date')
