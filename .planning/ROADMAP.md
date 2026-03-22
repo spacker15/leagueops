@@ -12,7 +12,7 @@ created: 2026-03-22
 | Phase | Name                             | Requirements                                                   | UI       | Depends On                |
 | ----- | -------------------------------- | -------------------------------------------------------------- | -------- | ------------------------- |
 | 1     | Engine Client Refactor           | 5/5                                                            | Complete | 2026-03-22                |
-| 2     | Hardcode Removal & Event Context | 2/5 | In Progress|  |
+| 2     | Hardcode Removal & Event Context | 5/5 | Complete   | 2026-03-22 |
 | 3     | API Auth & Validation            | SEC-02, SEC-07, SEC-08                                         | no       | Phase 2                   |
 | 4     | RLS & Database Security          | SEC-01                                                         | no       | Phase 1, Phase 2          |
 | 5     | Event Creation Enhancements      | EVT-01, EVT-02, EVT-03, EVT-04, EVT-05, EVT-06                 | yes      | Phase 3                   |
@@ -54,15 +54,15 @@ created: 2026-03-22
 **Requirements:** SEC-04, SEC-05
 **UI hint:** no
 **Depends on:** Phase 1
-**Plans:** 2/5 plans executed
+**Plans:** 5/5 plans complete
 
 Plans:
 
 - [x] 02-00-PLAN.md — Wave 0: Store behavioral test scaffolding (SEC-04, SEC-05)
 - [x] 02-01-PLAN.md — Engine eventId parameter injection (referee, weather, field, unified, rules)
 - [x] 02-02-PLAN.md — API route hardcode removal (~19 routes, 400 guards)
-- [ ] 02-03-PLAN.md — Store loadAll/realtime dependency fixes (SEC-05)
-- [ ] 02-04-PLAN.md — Component hardcode removal (~18 files, QR slug, portals)
+- [x] 02-03-PLAN.md — Store loadAll/realtime dependency fixes (SEC-05)
+- [x] 02-04-PLAN.md — Component hardcode removal (~18 files, QR slug, portals)
 
 ### Success Criteria
 

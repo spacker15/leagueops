@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: Executing Phase 02
-stopped_at: Completed 02-03-PLAN.md (Store Dep Arrays and Realtime Scoping)
-last_updated: "2026-03-22T22:50:30.319Z"
+stopped_at: Completed 02-04-PLAN.md (Component Hardcode Removal)
+last_updated: "2026-03-22T23:04:42.738Z"
 progress:
   total_phases: 10
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 10
-  completed_plans: 9
+  completed_plans: 10
 ---
 
 # Project State: LeagueOps
@@ -37,8 +37,8 @@ See: .planning/PROJECT.md (updated 2026-03-22)
 
 ## Active Context
 
-**Last session:** 2026-03-22T22:50:30.316Z
-**Stopped at:** Completed 02-03-PLAN.md (Store Dep Arrays and Realtime Scoping)
+**Last session:** 2026-03-22T23:04:42.735Z
+**Stopped at:** Completed 02-04-PLAN.md (Component Hardcode Removal)
 **Plans completed:** 01-01 (Core Engine Refactor) — 7 tasks, 12 files, 19 min; 01-02 (New API Routes for CommandCenter) — 3 tasks, 3 files, 3 min
 
 ## Performance Metrics
@@ -55,6 +55,7 @@ See: .planning/PROJECT.md (updated 2026-03-22)
 | Phase 02-hardcode-removal-event-context P01 | 9 | 2 tasks | 17 files |
 | Phase 02-hardcode-removal-event-context P02 | 3 min | 2 tasks | 17 files |
 | Phase 02-hardcode-removal-event-context P03 | 5 min | 2 tasks | 2 files |
+| Phase 02-hardcode-removal-event-context P04 | 45 min | 3 tasks | 18 files |
 
 ## Decisions Log
 
@@ -79,3 +80,7 @@ See: .planning/PROJECT.md (updated 2026-03-22)
 | 02-03      | currentDateRef pattern prevents reconnect storm -- realtime dep array is [eventId] ONLY, date read from ref |
 | 02-03      | eventId! non-null assertions in callbacks safe -- callbacks only called when app is fully initialized |
 | 02-03      | eventId ?? 0 in context value satisfies ContextValue eventId: number; const eid = eventId in useEffect provides TS narrowing |
+| 02-04      | AppShell does NOT return null when eventId undefined -- passes eventId to children per D-01; individual tabs handle own null guards |
+| 02-04      | RegisterPage uses inner-component Suspense pattern for useSearchParams -- review fix #2 addressed |
+| 02-04      | Portal components use userRole.event_id as portalEventId (referee, volunteer, program_leader portals outside AppProvider) |
+| 02-04      | D-05 QR URL slug fix not applicable -- CheckInTab QR URLs already use token-based /checkin/${token} path, no hardcoded event_id in path |
