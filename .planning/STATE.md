@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-stopped_at: Completed 01-01-PLAN.md (Core Engine Refactor)
-last_updated: "2026-03-22T20:24:25.110Z"
+stopped_at: Completed 01-04-PLAN.md (Client-Side Migration)
+last_updated: "2026-03-22T20:30:49.306Z"
 progress:
   total_phases: 10
   completed_phases: 0
   total_plans: 5
-  completed_plans: 2
+  completed_plans: 4
 ---
 
 # Project State: LeagueOps
@@ -37,8 +37,8 @@ See: .planning/PROJECT.md (updated 2026-03-22)
 
 ## Active Context
 
-**Last session:** 2026-03-22T20:24:25.107Z
-**Stopped at:** Completed 01-01-PLAN.md (Core Engine Refactor)
+**Last session:** 2026-03-22T20:30:21.631Z
+**Stopped at:** Completed 01-04-PLAN.md (Client-Side Migration)
 **Plans completed:** 01-01 (Core Engine Refactor) — 7 tasks, 12 files, 19 min; 01-02 (New API Routes for CommandCenter) — 3 tasks, 3 files, 3 min
 
 ## Performance Metrics
@@ -48,6 +48,8 @@ See: .planning/PROJECT.md (updated 2026-03-22)
 | 01-engine-client-refactor | 01 | 19 min | 7 | 12 |
 | 01-engine-client-refactor | 02 | 3 min | 3 | 3 |
 | Phase 01-engine-client-refactor P01 | 19 | 7 tasks | 12 files |
+| Phase 01-engine-client-refactor P04 | 5 | 2 tasks | 1 files |
+| Phase 01-engine-client-refactor P03 | 2 | 5 tasks | 3 files |
 
 ## Decisions Log
 
@@ -59,3 +61,5 @@ See: .planning/PROJECT.md (updated 2026-03-22)
 | 01-02 | Route shells created in wave 1 with commented engine imports — wire-up deferred to Plan A Task 6 completion |
 | 01-02 | Error format `{ error: string }` with 400/500 status codes matches all existing API routes in the codebase |
 | 01-02 | createClient() always called inside handler body — required by next/headers cookie access pattern |
+| 01-04 | WeatherTab.tsx pure-function imports verified safe — conditionIcon, windDirection, evaluateAlerts, calcHeatIndex, THRESHOLDS require no DB access |
+| 01-04 | CommandCenter.tsx client-to-API migration complete — all engine operations now go through fetch() to API routes |
