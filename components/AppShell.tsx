@@ -25,11 +25,12 @@ import { LeagueSettingsTab } from '@/components/settings/LeagueSettingsTab'
 import { EventSetupTab } from '@/components/settings/EventSetupTab'
 import { QRCodesPanel } from '@/components/auth/QRCodesPanel'
 import { ReportsTab } from '@/components/reports/ReportsTab'
+import { PaymentsTab } from '@/components/payments/PaymentsTab'
 
 export type TabName =
   | 'dashboard' | 'schedule' | 'checkin' | 'rosters' | 'qrcodes'
   | 'refs' | 'conflicts' | 'incidents' | 'weather' | 'parkmap' | 'fields'
-  | 'engine' | 'command' | 'rules' | 'users' | 'programs' | 'settings'
+  | 'engine' | 'command' | 'rules' | 'users' | 'programs' | 'payments' | 'settings'
   | 'reports'
 
 export function AppShell({ onChangeEvent }: { onChangeEvent?: () => void }) {
@@ -47,14 +48,16 @@ export function AppShell({ onChangeEvent }: { onChangeEvent?: () => void }) {
     { id: 'incidents', label: 'Incidents' },
     { id: 'weather',   label: 'Weather' },
     { id: 'parkmap',   label: 'Park Map' },
-    { id: 'fields',    label: 'Fields' },
+    { id: 'fields',    label: 'Fields', adminOnly: true },
     { id: 'command',   label: '⚡ Command' },
     { id: 'engine',    label: 'Sched Engine' },
-    { id: 'rules',     label: 'Rules' },
+    { id: 'rules',     label: 'Rules', adminOnly: true },
     { id: 'users',     label: 'Users', adminOnly: true },
     { id: 'programs',  label: 'Programs', adminOnly: true },
+    { id: 'payments',  label: 'Payments', adminOnly: true },
     { id: 'settings',  label: 'Settings', adminOnly: true },
     { id: 'reports',   label: 'Reports' },
+    { id: 'qrcodes',   label: 'QR Codes', adminOnly: true },
   ]
 
   // Build visible tab list based on role permissions
@@ -109,6 +112,7 @@ export function AppShell({ onChangeEvent }: { onChangeEvent?: () => void }) {
           {activeTab === 'rules'      && <RulesTab />}
           {activeTab === 'users'      && <UserManagement />}
           {activeTab === 'programs'   && <ProgramApprovals />}
+          {activeTab === 'payments'   && <PaymentsTab />}
           {activeTab === 'settings'   && <EventSetupTab />}
           {activeTab === 'reports'    && <ReportsTab />}
         </main>
