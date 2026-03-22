@@ -10,7 +10,7 @@
  *   Free tier: 1,000 calls/day — we cache per 5 minutes per complex
  */
 
-import { createClient } from '@/supabase/client'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
 const EVENT_ID = 1
 const CACHE_MINUTES = 5
@@ -86,10 +86,9 @@ export interface WeatherEngineResult {
 // ─── Main engine function ─────────────────────────────────────
 export async function runWeatherEngine(
   complexId: number,
-  apiKey?: string
+  apiKey: string | undefined,
+  sb: SupabaseClient
 ): Promise<WeatherEngineResult> {
-  const sb = createClient()
-
   // Load complex
   const { data: complex } = await sb.from('complexes').select('*').eq('id', complexId).single()
 
@@ -97,7 +96,9 @@ export async function runWeatherEngine(
 
   // Fetch weather (live or cache)
   let reading: WeatherReading
-  const key = apiKey ?? process.env.NEXT_PUBLIC_OPENWEATHER_KEY ?? ''
+  // Key is always supplied by the API route (server env). The fallback covers
+  // direct test calls only. Never use NEXT_PUBLIC_ prefix — server-only.
+  const key = apiKey ?? process.env.OPENWEATHER_API_KEY ?? ''
 
   if (key && complex.lat && complex.lng) {
     reading = await fetchLiveWeather(complex, key)
@@ -432,8 +433,7 @@ export function getMockWeather(complex: any): WeatherReading {
 }
 
 // ─── Get latest reading for a complex ────────────────────────
-export async function getLatestReading(complexId: number) {
-  const sb = createClient()
+export async function getLatestReading(complexId: number, sb: SupabaseClient) {
   const { data } = await sb
     .from('weather_readings')
     .select('*')
@@ -445,8 +445,7 @@ export async function getLatestReading(complexId: number) {
 }
 
 // ─── Get reading history ──────────────────────────────────────
-export async function getReadingHistory(complexId: number, hours = 6) {
-  const sb = createClient()
+export async function getReadingHistory(complexId: number, hours = 6, sb: SupabaseClient) {
   const since = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString()
   const { data } = await sb
     .from('weather_readings')
@@ -458,8 +457,7 @@ export async function getReadingHistory(complexId: number, hours = 6) {
 }
 
 // ─── Check if lightning delay is still active ────────────────
-export async function checkLightningStatus(complexId: number) {
-  const sb = createClient()
+export async function checkLightningStatus(complexId: number, sb: SupabaseClient) {
   const { data } = await sb
     .from('lightning_events')
     .select('*')
@@ -483,9 +481,7 @@ export async function checkLightningStatus(complexId: number) {
 }
 
 // ─── Lift lightning delay ─────────────────────────────────────
-export async function liftLightningDelay(complexId: number, eventId: number) {
-  const sb = createClient()
-
+export async function liftLightningDelay(complexId: number, eventId: number, sb: SupabaseClient) {
   // Mark event as cleared
   await sb
     .from('lightning_events')
