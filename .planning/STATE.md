@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in_progress
-stopped_at: Completed 01-04-PLAN.md (Client-Side Migration)
-last_updated: "2026-03-22T20:30:49.306Z"
+stopped_at: Completed 01-03-PLAN.md (Existing API Route Updates)
+last_updated: "2026-03-22T20:31:19.286Z"
 progress:
   total_phases: 10
   completed_phases: 0
@@ -37,8 +37,8 @@ See: .planning/PROJECT.md (updated 2026-03-22)
 
 ## Active Context
 
-**Last session:** 2026-03-22T20:30:21.631Z
-**Stopped at:** Completed 01-04-PLAN.md (Client-Side Migration)
+**Last session:** 2026-03-22T20:31:19.283Z
+**Stopped at:** Completed 01-03-PLAN.md (Existing API Route Updates)
 **Plans completed:** 01-01 (Core Engine Refactor) — 7 tasks, 12 files, 19 min; 01-02 (New API Routes for CommandCenter) — 3 tasks, 3 files, 3 min
 
 ## Performance Metrics
@@ -61,5 +61,7 @@ See: .planning/PROJECT.md (updated 2026-03-22)
 | 01-02 | Route shells created in wave 1 with commented engine imports — wire-up deferred to Plan A Task 6 completion |
 | 01-02 | Error format `{ error: string }` with 400/500 status codes matches all existing API routes in the codebase |
 | 01-02 | createClient() always called inside handler body — required by next/headers cookie access pattern |
+| 01-03 | alert_id validated as number in resolve route — matches resolveAlert(alertId: number) engine signature |
+| 01-03 | Tasks 1-4 (existing engine routes) were pre-completed in Plan 01-01 — no additional changes required |
 | 01-04 | WeatherTab.tsx pure-function imports verified safe — conditionIcon, windDirection, evaluateAlerts, calcHeatIndex, THRESHOLDS require no DB access |
 | 01-04 | CommandCenter.tsx client-to-API migration complete — all engine operations now go through fetch() to API routes |
