@@ -148,7 +148,7 @@ export function AppShell({
           {activeTab === 'users' && <UserManagement />}
           {activeTab === 'programs' && <ProgramApprovals />}
           {activeTab === 'payments' && <PaymentsTab />}
-          {activeTab === 'settings' && <EventSetupTab />}
+          {activeTab === 'settings' && <EventSetupTab eventId={(state.event as any)?.id ?? 1} />}
           {activeTab === 'reports' && <ReportsTab />}
         </main>
         <RightPanel onNavigate={setActiveTab} />
