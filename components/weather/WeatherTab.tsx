@@ -49,10 +49,11 @@ export function WeatherTab() {
 
   // Load complexes
   useEffect(() => {
+    if (!state.event?.id) return
     const sb = createClient()
-    sb.from('complexes').select('*').eq('event_id', 1).order('id')
+    sb.from('complexes').select('*').eq('event_id', state.event.id).order('id')
       .then(({ data }) => setComplexes((data as Complex[]) ?? []))
-  }, [])
+  }, [state.event?.id])
 
   // Load active alerts
   const loadAlerts = useCallback(async () => {
@@ -60,7 +61,7 @@ export function WeatherTab() {
     const { data } = await sb
       .from('weather_alerts')
       .select('*')
-      .eq('event_id', 1)
+      .eq('event_id', state.event?.id ?? 1)
       .eq('is_active', true)
       .order('created_at', { ascending: false })
     setActiveAlerts(data ?? [])
@@ -155,7 +156,7 @@ export function WeatherTab() {
     const res = await fetch('/api/lightning', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ complex_id: complexId, action, event_id: 1 }),
+      body: JSON.stringify({ complex_id: complexId, action, event_id: state.event?.id ?? 1 }),
     })
     if (res.ok) {
       if (action === 'trigger') {

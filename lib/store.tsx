@@ -135,8 +135,8 @@ interface ContextValue {
   updateFieldMap: (fieldId: number, x: number, y: number) => void
   updateFieldFull: (fieldId: number, props: Partial<import('@/types').Field>) => void
   updateFieldName: (fieldId: number, name: string) => Promise<void>
-  updateFieldDetails: (fieldId: number, props: { name?: string; number?: string; division?: string }) => Promise<void>
-  addField: (name: string, number: string, division?: string) => Promise<void>
+  updateFieldDetails: (fieldId: number, props: { name?: string; number?: string; division?: string; complex_id?: number | null }) => Promise<void>
+  addField: (name: string, number: string, division?: string, complexId?: number) => Promise<void>
   deleteField: (fieldId: number) => Promise<void>
   eventId: number
 }
@@ -335,8 +335,8 @@ export function AppProvider({ children, eventId = 1 }: { children: React.ReactNo
     if (field) dispatch({ type: 'UPDATE_FIELD', payload: { ...field, name } })
   }, [state.fields])
 
-  const addField = useCallback(async (name: string, number: string, division = '') => {
-    const created = await db.insertField(eventId, name, number, division)
+  const addField = useCallback(async (name: string, number: string, division = '', complexId?: number) => {
+    const created = await db.insertField(eventId, name, number, division, complexId)
     if (created) dispatch({ type: 'ADD_FIELD', payload: created })
   }, [eventId])
 

@@ -44,6 +44,7 @@ export interface Field {
   name: string
   number: string
   division?: string
+  complex_id?: number | null
   map_x: number
   map_y: number
   map_w: number

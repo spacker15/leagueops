@@ -210,19 +210,26 @@ function WeatherRPPanel({ lightningActive, timerM, timerS, alertCount, onNavigat
   alertCount: number
   onNavigate: (tab: any) => void
 }) {
+  const { state } = useApp()
   const [latestReading, setLatestReading] = useState<any>(null)
 
   useEffect(() => {
-    // Load latest reading from complex 1
+    const eventId = state.event?.id
+    if (!eventId) return
     const sb = createClient()
-    sb.from('weather_readings')
-      .select('*')
-      .eq('complex_id', 1)
-      .order('fetched_at', { ascending: false })
-      .limit(1)
-      .single()
-      .then(({ data }) => { if (data) setLatestReading(data) })
-  }, [])
+    // Load complex IDs for this event, then fetch the most recent weather reading
+    sb.from('complexes').select('id').eq('event_id', eventId).then(({ data: cmplx }) => {
+      const ids = (cmplx ?? []).map((c: any) => c.id)
+      if (!ids.length) return
+      sb.from('weather_readings')
+        .select('*')
+        .in('complex_id', ids)
+        .order('fetched_at', { ascending: false })
+        .limit(1)
+        .single()
+        .then(({ data }) => { if (data) setLatestReading(data) })
+    })
+  }, [state.event?.id])
 
   const heatIdx = latestReading?.heat_index_f
   const heatColor = !heatIdx ? 'text-white' :
