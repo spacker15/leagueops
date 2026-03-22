@@ -1,16 +1,23 @@
 ---
-project: LeagueOps
-current_phase: 1
-current_phase_status: not_started
-last_updated: 2026-03-22
+gsd_state_version: 1.0
+milestone: v1.0
+milestone_name: milestone
+status: in_progress
+last_updated: "2026-03-22T20:05:00Z"
+progress:
+  total_phases: 10
+  completed_phases: 0
+  total_plans: 5
+  completed_plans: 1
 ---
 
 # Project State: LeagueOps
 
 ## Project Reference
+
 See: .planning/PROJECT.md (updated 2026-03-22)
 **Core value:** Tournament day operations must work reliably in real time — live scoring, field status, weather alerts, and referee assignments must be accurate and instant so that admins can run events from a single screen.
-**Current focus:** Phase 1
+**Current focus:** Phase 01 — engine-client-refactor
 
 ## Phase Progress
 
@@ -28,7 +35,21 @@ See: .planning/PROJECT.md (updated 2026-03-22)
 | 10 | Responsive Design & Notification Wiring | not_started |
 
 ## Active Context
-(None yet — populated during execution)
+
+**Last session:** 2026-03-22T20:05:00Z
+**Stopped at:** Completed 01-02-PLAN.md (New API Routes for CommandCenter)
+**Plans completed:** 01-02 (New API Routes for CommandCenter) — 3 tasks, 3 files, 3 min
+
+## Performance Metrics
+
+| Phase | Plan | Duration | Tasks | Files |
+|-------|------|----------|-------|-------|
+| 01-engine-client-refactor | 02 | 3 min | 3 | 3 |
 
 ## Decisions Log
-(None yet — populated during execution)
+
+| Phase-Plan | Decision |
+|-----------|----------|
+| 01-02 | Route shells created in wave 1 with commented engine imports — wire-up deferred to Plan A Task 6 completion |
+| 01-02 | Error format `{ error: string }` with 400/500 status codes matches all existing API routes in the codebase |
+| 01-02 | createClient() always called inside handler body — required by next/headers cookie access pattern |
