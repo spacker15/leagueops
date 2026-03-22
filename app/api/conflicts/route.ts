@@ -4,7 +4,7 @@ import { createClient } from '@/supabase/server'
 export async function GET(req: NextRequest) {
   const sb = createClient()
   const { searchParams } = new URL(req.url)
-  const eventId  = searchParams.get('event_id') ?? '1'
+  const eventId = searchParams.get('event_id') ?? '1'
   const resolved = searchParams.get('resolved') ?? 'false'
 
   const { data, error } = await sb
@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-  const sb   = createClient()
+  const sb = createClient()
   const body = await req.json()
   const { id, resolved_by } = body
 
@@ -29,7 +29,7 @@ export async function PATCH(req: NextRequest) {
   const { data, error } = await sb
     .from('operational_conflicts')
     .update({
-      resolved:    true,
+      resolved: true,
       resolved_at: new Date().toISOString(),
       resolved_by: resolved_by ?? 'operator',
     })

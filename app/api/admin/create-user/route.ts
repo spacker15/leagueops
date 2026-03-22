@@ -5,7 +5,9 @@ import { createClient as createAdminClient } from '@supabase/supabase-js'
 export async function POST(req: NextRequest) {
   // Verify requester is admin
   const sb = createServerClient()
-  const { data: { user } } = await sb.auth.getUser()
+  const {
+    data: { user },
+  } = await sb.auth.getUser()
 
   if (!user) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
@@ -49,13 +51,13 @@ export async function POST(req: NextRequest) {
 
   // Create the role record
   const { error: roleError } = await adminSb.from('user_roles').insert({
-    user_id:      newUser.user.id,
+    user_id: newUser.user.id,
     role,
     display_name: display_name ?? email,
-    referee_id:   referee_id ?? null,
+    referee_id: referee_id ?? null,
     volunteer_id: volunteer_id ?? null,
-    event_id:     event_id ?? 1,
-    is_active:    true,
+    event_id: event_id ?? 1,
+    is_active: true,
   })
 
   if (roleError) {
@@ -66,9 +68,9 @@ export async function POST(req: NextRequest) {
 
   // Log it
   await adminSb.from('ops_log').insert({
-    event_id:    event_id ?? 1,
-    message:     `User created: ${email} (${role}) by admin`,
-    log_type:    'info',
+    event_id: event_id ?? 1,
+    message: `User created: ${email} (${role}) by admin`,
+    log_type: 'info',
     occurred_at: new Date().toISOString(),
   })
 

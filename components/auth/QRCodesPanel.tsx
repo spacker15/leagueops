@@ -21,11 +21,11 @@ interface QRToken {
 
 export function QRCodesPanel() {
   const { state, eventId } = useApp()
-  const [tokens, setTokens]     = useState<QRToken[]>([])
-  const [loading, setLoading]   = useState(false)
+  const [tokens, setTokens] = useState<QRToken[]>([])
+  const [loading, setLoading] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [teamFilter, setTeamFilter] = useState('')
-  const [baseUrl, setBaseUrl]   = useState('')
+  const [baseUrl, setBaseUrl] = useState('')
 
   useEffect(() => {
     setBaseUrl(window.location.origin)
@@ -37,19 +37,21 @@ export function QRCodesPanel() {
     setLoading(true)
     const { data } = await sb
       .from('player_qr_tokens')
-      .select(`
+      .select(
+        `
         id, token, player_id,
         player:players(id, name, number,
           team:teams(name, division)
         )
-      `)
+      `
+      )
       .eq('event_id', eventId)
       .order('player_id')
     const mapped: QRToken[] = (data ?? []).map((row: any) => ({
-      id:        row.id,
-      token:     row.token,
+      id: row.id,
+      token: row.token,
       player_id: row.player_id,
-      player:    Array.isArray(row.player) ? row.player[0] : row.player,
+      player: Array.isArray(row.player) ? row.player[0] : row.player,
     }))
     setTokens(mapped)
     setLoading(false)
@@ -60,17 +62,16 @@ export function QRCodesPanel() {
     const sb = createClient()
     // Insert tokens for any players missing them (fetch team IDs first — join filters don't work)
     const { data: eventTeams } = await sb.from('teams').select('id').eq('event_id', eventId)
-    const eventTeamIds = (eventTeams ?? []).map(t => t.id)
+    const eventTeamIds = (eventTeams ?? []).map((t) => t.id)
     const { data: players } = eventTeamIds.length
       ? await sb.from('players').select('id').in('team_id', eventTeamIds)
       : { data: [] }
 
     if (players) {
       for (const p of players) {
-        await sb.from('player_qr_tokens').upsert(
-          { player_id: p.id, event_id: eventId },
-          { onConflict: 'player_id,event_id' }
-        )
+        await sb
+          .from('player_qr_tokens')
+          .upsert({ player_id: p.id, event_id: eventId }, { onConflict: 'player_id,event_id' })
       }
     }
     await loadTokens()
@@ -89,21 +90,27 @@ export function QRCodesPanel() {
 
   async function printQRSheet(teamId?: number) {
     const filtered = teamId
-      ? tokens.filter(t => t.player?.team?.name === state.teams.find(t2 => t2.id === teamId)?.name)
+      ? tokens.filter(
+          (t) => t.player?.team?.name === state.teams.find((t2) => t2.id === teamId)?.name
+        )
       : tokens
 
     // Open a print window with QR codes
     const win = window.open('', '_blank')
     if (!win) return
 
-    const qrItems = filtered.map(t => `
+    const qrItems = filtered
+      .map(
+        (t) => `
       <div class="qr-card">
         <img src="https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(getCheckinUrl(t.token))}" alt="QR" />
         <div class="name">${t.player?.name ?? 'Unknown'}</div>
         <div class="team">${t.player?.team?.name ?? ''} · ${t.player?.team?.division ?? ''}</div>
         ${t.player?.number ? `<div class="num">#${t.player.number}</div>` : ''}
       </div>
-    `).join('')
+    `
+      )
+      .join('')
 
     win.document.write(`
       <!DOCTYPE html>
@@ -133,7 +140,9 @@ export function QRCodesPanel() {
   }
 
   const filtered = teamFilter
-    ? tokens.filter(t => String(state.teams.find(t2 => t2.name === t.player?.team?.name)?.id) === teamFilter)
+    ? tokens.filter(
+        (t) => String(state.teams.find((t2) => t2.name === t.player?.team?.name)?.id) === teamFilter
+      )
     : tokens
 
   return (
@@ -145,12 +154,16 @@ export function QRCodesPanel() {
         <select
           className="bg-surface-card border border-border text-white px-3 py-2 rounded font-cond text-[12px] font-bold outline-none focus:border-blue-400"
           value={teamFilter}
-          onChange={e => setTeamFilter(e.target.value)}
+          onChange={(e) => setTeamFilter(e.target.value)}
         >
           <option value="">All Teams ({tokens.length} players)</option>
-          {state.teams.map(t => {
-            const count = tokens.filter(tok => tok.player?.team?.name === t.name).length
-            return <option key={t.id} value={t.id}>{t.name} ({count})</option>
+          {state.teams.map((t) => {
+            const count = tokens.filter((tok) => tok.player?.team?.name === t.name).length
+            return (
+              <option key={t.id} value={t.id}>
+                {t.name} ({count})
+              </option>
+            )
           })}
         </select>
 
@@ -159,7 +172,11 @@ export function QRCodesPanel() {
           {generating ? 'GENERATING...' : 'GENERATE ALL QR CODES'}
         </Btn>
 
-        <Btn variant="ghost" size="sm" onClick={() => printQRSheet(teamFilter ? Number(teamFilter) : undefined)}>
+        <Btn
+          variant="ghost"
+          size="sm"
+          onClick={() => printQRSheet(teamFilter ? Number(teamFilter) : undefined)}
+        >
           <Printer size={11} className="inline mr-1" />
           PRINT QR SHEET
         </Btn>
@@ -173,9 +190,9 @@ export function QRCodesPanel() {
       <div className="bg-blue-900/15 border border-blue-800/40 rounded-lg p-3 mb-4 text-[11px] font-cond">
         <div className="font-bold text-blue-300 mb-1">HOW QR CHECK-IN WORKS</div>
         <div className="text-muted leading-relaxed">
-          Each player gets a unique QR code. Print and distribute before the tournament.
-          Players scan their code with any phone camera → lands on their check-in page →
-          tap to check in for their game. No app download required.
+          Each player gets a unique QR code. Print and distribute before the tournament. Players
+          scan their code with any phone camera → lands on their check-in page → tap to check in for
+          their game. No app download required.
         </div>
       </div>
 
@@ -185,19 +202,26 @@ export function QRCodesPanel() {
         <div className="text-center py-12">
           <QrCode size={40} className="mx-auto text-muted mb-3" />
           <div className="font-cond font-bold text-muted">NO QR CODES GENERATED YET</div>
-          <div className="font-cond text-[11px] text-muted mt-1">Click GENERATE ALL QR CODES to create them</div>
+          <div className="font-cond text-[11px] text-muted mt-1">
+            Click GENERATE ALL QR CODES to create them
+          </div>
         </div>
       ) : (
         <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-3">
-          {filtered.map(t => (
-            <div key={t.id} className="bg-surface-card border border-border rounded-lg p-3 text-center">
+          {filtered.map((t) => (
+            <div
+              key={t.id}
+              className="bg-surface-card border border-border rounded-lg p-3 text-center"
+            >
               {/* QR code image via free API */}
               <img
                 src={`https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent(getCheckinUrl(t.token))}`}
                 alt={`QR for ${t.player?.name}`}
                 className="w-36 h-36 mx-auto mb-2 rounded"
               />
-              <div className="font-cond font-black text-[13px] text-white leading-tight">{t.player?.name ?? 'Unknown'}</div>
+              <div className="font-cond font-black text-[13px] text-white leading-tight">
+                {t.player?.name ?? 'Unknown'}
+              </div>
               <div className="font-cond text-[10px] text-blue-300">{t.player?.team?.name}</div>
               <div className="font-cond text-[10px] text-muted">{t.player?.team?.division}</div>
               {t.player?.number && (

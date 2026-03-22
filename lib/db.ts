@@ -1,8 +1,22 @@
 import { createClient } from '@/supabase/client'
 import type {
-  Event, EventDate, Field, Team, Player, Game, Referee, RefAssignment,
-  Volunteer, VolAssignment, PlayerCheckin, Incident, MedicalIncident,
-  WeatherAlert, OpsLogEntry, LogType, GameStatus,
+  Event,
+  EventDate,
+  Field,
+  Team,
+  Player,
+  Game,
+  Referee,
+  RefAssignment,
+  Volunteer,
+  VolAssignment,
+  PlayerCheckin,
+  Incident,
+  MedicalIncident,
+  WeatherAlert,
+  OpsLogEntry,
+  LogType,
+  GameStatus,
 } from '@/types'
 
 // ---- Events ----
@@ -25,11 +39,7 @@ export async function getEventDates(eventId: number): Promise<EventDate[]> {
 // ---- Fields ----
 export async function getFields(eventId: number): Promise<Field[]> {
   const sb = createClient()
-  const { data } = await sb
-    .from('fields')
-    .select('*')
-    .eq('event_id', eventId)
-    .order('id')
+  const { data } = await sb.from('fields').select('*').eq('event_id', eventId).order('id')
   return data ?? []
 }
 
@@ -38,10 +48,19 @@ export async function updateFieldMap(fieldId: number, x: number, y: number): Pro
   await sb.from('fields').update({ map_x: x, map_y: y }).eq('id', fieldId)
 }
 
-export async function updateFieldFull(fieldId: number, props: {
-  map_x?: number; map_y?: number; map_w?: number; map_h?: number
-  map_rotation?: number; map_color?: string; map_opacity?: number; map_shape?: string
-}): Promise<void> {
+export async function updateFieldFull(
+  fieldId: number,
+  props: {
+    map_x?: number
+    map_y?: number
+    map_w?: number
+    map_h?: number
+    map_rotation?: number
+    map_color?: string
+    map_opacity?: number
+    map_shape?: string
+  }
+): Promise<void> {
   const sb = createClient()
   await sb.from('fields').update(props).eq('id', fieldId)
 }
@@ -51,17 +70,32 @@ export async function updateFieldName(fieldId: number, name: string): Promise<vo
   await sb.from('fields').update({ name }).eq('id', fieldId)
 }
 
-export async function insertField(eventId: number, name: string, number: string, division = '', complexId?: number): Promise<Field | null> {
+export async function insertField(
+  eventId: number,
+  name: string,
+  number: string,
+  division = '',
+  complexId?: number
+): Promise<Field | null> {
   const sb = createClient()
   const { data } = await sb
     .from('fields')
-    .insert({ event_id: eventId, name, number, division, ...(complexId ? { complex_id: complexId } : {}) })
+    .insert({
+      event_id: eventId,
+      name,
+      number,
+      division,
+      ...(complexId ? { complex_id: complexId } : {}),
+    })
     .select()
     .single()
   return data
 }
 
-export async function updateFieldDetails(fieldId: number, props: { name?: string; number?: string; division?: string; complex_id?: number | null }): Promise<void> {
+export async function updateFieldDetails(
+  fieldId: number,
+  props: { name?: string; number?: string; division?: string; complex_id?: number | null }
+): Promise<void> {
   const sb = createClient()
   await sb.from('fields').update(props).eq('id', fieldId)
 }
@@ -74,11 +108,7 @@ export async function deleteField(fieldId: number): Promise<void> {
 // ---- Teams ----
 export async function getTeams(eventId: number): Promise<Team[]> {
   const sb = createClient()
-  const { data } = await sb
-    .from('teams')
-    .select('*')
-    .eq('event_id', eventId)
-    .order('division')
+  const { data } = await sb.from('teams').select('*').eq('event_id', eventId).order('division')
   return data ?? []
 }
 
@@ -96,7 +126,7 @@ export async function getPlayersByTeam(teamId: number): Promise<Player[]> {
 export async function getPlayersByEvent(eventId: number): Promise<Player[]> {
   const sb = createClient()
   const { data: teams } = await sb.from('teams').select('id').eq('event_id', eventId)
-  const teamIds = (teams ?? []).map(t => t.id)
+  const teamIds = (teams ?? []).map((t) => t.id)
   if (!teamIds.length) return []
   const { data } = await sb
     .from('players')
@@ -106,7 +136,9 @@ export async function getPlayersByEvent(eventId: number): Promise<Player[]> {
   return data ?? []
 }
 
-export async function insertPlayers(players: Omit<Player, 'id' | 'created_at' | 'team'>[]): Promise<number> {
+export async function insertPlayers(
+  players: Omit<Player, 'id' | 'created_at' | 'team'>[]
+): Promise<number> {
   const sb = createClient()
   const { data, error } = await sb.from('players').insert(players).select()
   if (error) throw error
@@ -118,13 +150,15 @@ export async function getGamesByDate(eventId: number, eventDateId: number): Prom
   const sb = createClient()
   const { data } = await sb
     .from('games')
-    .select(`
+    .select(
+      `
       *,
       field:fields(*),
       home_team:teams!games_home_team_id_fkey(*),
       away_team:teams!games_away_team_id_fkey(*),
       event_date:event_dates(*)
-    `)
+    `
+    )
     .eq('event_id', eventId)
     .eq('event_date_id', eventDateId)
     .order('scheduled_time')
@@ -135,13 +169,15 @@ export async function getAllGamesByEvent(eventId: number): Promise<Game[]> {
   const sb = createClient()
   const { data } = await sb
     .from('games')
-    .select(`
+    .select(
+      `
       *,
       field:fields(*),
       home_team:teams!games_home_team_id_fkey(*),
       away_team:teams!games_away_team_id_fkey(*),
       event_date:event_dates(*)
-    `)
+    `
+    )
     .eq('event_id', eventId)
     .order('scheduled_time')
   return (data as Game[]) ?? []
@@ -151,13 +187,15 @@ export async function getGame(gameId: number): Promise<Game | null> {
   const sb = createClient()
   const { data } = await sb
     .from('games')
-    .select(`
+    .select(
+      `
       *,
       field:fields(*),
       home_team:teams!games_home_team_id_fkey(*),
       away_team:teams!games_away_team_id_fkey(*),
       event_date:event_dates(*)
-    `)
+    `
+    )
     .eq('id', gameId)
     .single()
   return data as Game | null
@@ -168,7 +206,11 @@ export async function updateGameStatus(gameId: number, status: GameStatus): Prom
   await sb.from('games').update({ status }).eq('id', gameId)
 }
 
-export async function updateGameScore(gameId: number, homeScore: number, awayScore: number): Promise<void> {
+export async function updateGameScore(
+  gameId: number,
+  homeScore: number,
+  awayScore: number
+): Promise<void> {
   const sb = createClient()
   await sb.from('games').update({ home_score: homeScore, away_score: awayScore }).eq('id', gameId)
 }
@@ -178,7 +220,20 @@ export async function updateGameField(gameId: number, fieldId: number): Promise<
   await sb.from('games').update({ field_id: fieldId }).eq('id', gameId)
 }
 
-export async function insertGame(game: Omit<Game, 'id' | 'created_at' | 'field' | 'home_team' | 'away_team' | 'event_date' | 'referees' | 'volunteers' | 'checkins'>): Promise<Game | null> {
+export async function insertGame(
+  game: Omit<
+    Game,
+    | 'id'
+    | 'created_at'
+    | 'field'
+    | 'home_team'
+    | 'away_team'
+    | 'event_date'
+    | 'referees'
+    | 'volunteers'
+    | 'checkins'
+  >
+): Promise<Game | null> {
   const sb = createClient()
   const { data } = await sb.from('games').insert(game).select().single()
   return data
@@ -207,11 +262,7 @@ export async function resumeAllDelayedGames(eventId: number, eventDateId: number
 // ---- Referees ----
 export async function getReferees(eventId: number): Promise<Referee[]> {
   const sb = createClient()
-  const { data } = await sb
-    .from('referees')
-    .select('*')
-    .eq('event_id', eventId)
-    .order('name')
+  const { data } = await sb.from('referees').select('*').eq('event_id', eventId).order('name')
   return data ?? []
 }
 
@@ -229,7 +280,11 @@ export async function getRefAssignments(gameId: number): Promise<RefAssignment[]
   return data ?? []
 }
 
-export async function assignRef(gameId: number, refereeId: number, role: string = 'Center'): Promise<void> {
+export async function assignRef(
+  gameId: number,
+  refereeId: number,
+  role: string = 'Center'
+): Promise<void> {
   const sb = createClient()
   await sb.from('ref_assignments').upsert({ game_id: gameId, referee_id: refereeId, role })
 }
@@ -242,11 +297,7 @@ export async function removeRefAssignment(gameId: number, refereeId: number): Pr
 // ---- Volunteers ----
 export async function getVolunteers(eventId: number): Promise<Volunteer[]> {
   const sb = createClient()
-  const { data } = await sb
-    .from('volunteers')
-    .select('*')
-    .eq('event_id', eventId)
-    .order('role')
+  const { data } = await sb.from('volunteers').select('*').eq('event_id', eventId).order('role')
   return data ?? []
 }
 
@@ -298,12 +349,14 @@ export async function getPlayerCheckinConflict(
   const sb = createClient()
   const { data } = await sb
     .from('player_checkins')
-    .select('game:games!inner(*, field:fields(*), home_team:teams!games_home_team_id_fkey(*), away_team:teams!games_away_team_id_fkey(*))')
+    .select(
+      'game:games!inner(*, field:fields(*), home_team:teams!games_home_team_id_fkey(*), away_team:teams!games_away_team_id_fkey(*))'
+    )
     .eq('player_id', playerId)
     .neq('game_id', gameId)
   if (!data) return null
-  const conflict = (data as any[]).find((row: any) =>
-    row.game?.scheduled_time === time && row.game?.event_date_id === eventDateId
+  const conflict = (data as any[]).find(
+    (row: any) => row.game?.scheduled_time === time && row.game?.event_date_id === eventDateId
   )
   if (!conflict) return null
   return (conflict.game as Game) ?? null
@@ -320,7 +373,9 @@ export async function getIncidents(eventId: number): Promise<Incident[]> {
   return (data as Incident[]) ?? []
 }
 
-export async function insertIncident(incident: Omit<Incident, 'id' | 'created_at' | 'field' | 'team' | 'game'>): Promise<Incident | null> {
+export async function insertIncident(
+  incident: Omit<Incident, 'id' | 'created_at' | 'field' | 'team' | 'game'>
+): Promise<Incident | null> {
   const sb = createClient()
   const { data } = await sb.from('incidents').insert(incident).select().single()
   return data
@@ -386,7 +441,11 @@ export async function getOpsLog(eventId: number, limit = 50): Promise<OpsLogEntr
   return data ?? []
 }
 
-export async function addOpsLog(eventId: number, message: string, logType: LogType = 'info'): Promise<void> {
+export async function addOpsLog(
+  eventId: number,
+  message: string,
+  logType: LogType = 'info'
+): Promise<void> {
   const sb = createClient()
   await sb.from('ops_log').insert({
     event_id: eventId,
@@ -424,14 +483,17 @@ export async function insertComplex(complex: {
   return data
 }
 
-export async function updateComplex(id: number, updates: Partial<{
-  name: string
-  address: string
-  lat: number
-  lng: number
-  lightning_radius_miles: number
-  notes: string
-}>) {
+export async function updateComplex(
+  id: number,
+  updates: Partial<{
+    name: string
+    address: string
+    lat: number
+    lng: number
+    lightning_radius_miles: number
+    notes: string
+  }>
+) {
   const sb = createClient()
   await sb.from('complexes').update(updates).eq('id', id)
 }
@@ -457,7 +519,7 @@ export async function getActiveFieldBlocks(eventId: number) {
   const sb = createClient()
   const now = new Date().toISOString()
   const { data: fields } = await sb.from('fields').select('id').eq('event_id', eventId)
-  const fieldIds = (fields ?? []).map(f => f.id)
+  const fieldIds = (fields ?? []).map((f) => f.id)
   if (!fieldIds.length) return []
   const { data } = await sb
     .from('field_blocks')
@@ -536,19 +598,18 @@ export async function insertConflict(conflict: {
   resolution_options?: object[]
 }) {
   const sb = createClient()
-  const { data } = await sb
-    .from('operational_conflicts')
-    .insert(conflict)
-    .select()
-    .single()
+  const { data } = await sb.from('operational_conflicts').insert(conflict).select().single()
   return data
 }
 
 export async function resolveConflict(id: number, resolvedBy?: string) {
   const sb = createClient()
-  await sb.from('operational_conflicts').update({
-    resolved: true,
-    resolved_at: new Date().toISOString(),
-    resolved_by: resolvedBy ?? 'operator',
-  }).eq('id', id)
+  await sb
+    .from('operational_conflicts')
+    .update({
+      resolved: true,
+      resolved_at: new Date().toISOString(),
+      resolved_by: resolvedBy ?? 'operator',
+    })
+    .eq('id', id)
 }

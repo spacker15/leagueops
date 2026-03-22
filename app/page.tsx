@@ -20,12 +20,19 @@ export default function Home() {
     return (
       <div className="h-screen flex items-center justify-center" style={{ background: '#020810' }}>
         <div className="text-center">
-          <div className="font-cond text-4xl font-black text-white mb-2 tracking-widest">LEAGUEOPS</div>
-          <div className="font-cond text-sm tracking-widest" style={{ color: '#5a6e9a' }}>LOADING...</div>
+          <div className="font-cond text-4xl font-black text-white mb-2 tracking-widest">
+            LEAGUEOPS
+          </div>
+          <div className="font-cond text-sm tracking-widest" style={{ color: '#5a6e9a' }}>
+            LOADING...
+          </div>
           <div className="mt-4 flex gap-1 justify-center">
-            {[0,1,2].map(i => (
-              <div key={i} className="w-2 h-2 rounded-full bg-red animate-pulse"
-                style={{ animationDelay: `${i * 0.2}s` }} />
+            {[0, 1, 2].map((i) => (
+              <div
+                key={i}
+                className="w-2 h-2 rounded-full bg-red animate-pulse"
+                style={{ animationDelay: `${i * 0.2}s` }}
+              />
             ))}
           </div>
         </div>
@@ -35,7 +42,7 @@ export default function Home() {
 
   if (!user) return <LoginPage />
 
-  if (userRole?.role === 'referee')   return <RefereePortal />
+  if (userRole?.role === 'referee') return <RefereePortal />
   if (userRole?.role === 'volunteer') return <VolunteerPortal />
 
   if (userRole?.role === 'program_leader') {
@@ -47,17 +54,24 @@ export default function Home() {
   if (!user) return <PendingApprovalScreen />
 
   if (!selectedEventId) {
-    return <EventPicker onSelectEvent={(id, isNew) => {
-      setSelectedEventId(id)
-      setIsNewEvent(isNew ?? false)
-    }} />
+    return (
+      <EventPicker
+        onSelectEvent={(id, isNew) => {
+          setSelectedEventId(id)
+          setIsNewEvent(isNew ?? false)
+        }}
+      />
+    )
   }
 
   // Full app with selected event
   return (
     <AppProvider eventId={selectedEventId}>
       <AppShell
-        onChangeEvent={() => { setSelectedEventId(null); setIsNewEvent(false) }}
+        onChangeEvent={() => {
+          setSelectedEventId(null)
+          setIsNewEvent(false)
+        }}
         initialTab={isNewEvent ? 'settings' : 'dashboard'}
       />
     </AppProvider>

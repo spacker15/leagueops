@@ -29,9 +29,10 @@ export async function POST(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   const sb = createClient()
   const { searchParams } = new URL(req.url)
-  const gameId   = searchParams.get('game_id')
+  const gameId = searchParams.get('game_id')
   const refereeId = searchParams.get('referee_id')
-  if (!gameId || !refereeId) return NextResponse.json({ error: 'game_id and referee_id required' }, { status: 400 })
+  if (!gameId || !refereeId)
+    return NextResponse.json({ error: 'game_id and referee_id required' }, { status: 400 })
   const { error } = await sb
     .from('ref_assignments')
     .delete()

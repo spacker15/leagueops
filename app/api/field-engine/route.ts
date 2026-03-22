@@ -13,9 +13,16 @@ export async function POST(req: NextRequest) {
   try {
     if (action === 'resolve') {
       if (!conflict_id || !resolution_action) {
-        return NextResponse.json({ error: 'conflict_id and resolution_action required' }, { status: 400 })
+        return NextResponse.json(
+          { error: 'conflict_id and resolution_action required' },
+          { status: 400 }
+        )
       }
-      const result = await applyResolution(Number(conflict_id), resolution_action, resolution_params ?? {})
+      const result = await applyResolution(
+        Number(conflict_id),
+        resolution_action,
+        resolution_params ?? {}
+      )
       return NextResponse.json(result)
     }
 
@@ -27,7 +34,6 @@ export async function POST(req: NextRequest) {
     // Default: field engine only
     const result = await runFieldConflictEngine(Number(event_date_id))
     return NextResponse.json(result)
-
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 })
   }
@@ -36,8 +42,8 @@ export async function POST(req: NextRequest) {
 export async function GET(req: NextRequest) {
   const sb = createClient()
   const { searchParams } = new URL(req.url)
-  const eventId     = searchParams.get('event_id') ?? '1'
-  const type        = searchParams.get('type') ?? 'open' // 'open' | 'all' | 'history'
+  const eventId = searchParams.get('event_id') ?? '1'
+  const type = searchParams.get('type') ?? 'open' // 'open' | 'all' | 'history'
 
   if (type === 'history') {
     const { data, error } = await sb

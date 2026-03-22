@@ -13,8 +13,13 @@
 
 import { createClient } from '@/supabase/client'
 import type {
-  Referee, RefAssignment, RefereeAvailability,
-  OperationalConflict, ConflictType, ConflictSeverity, ResolutionOption,
+  Referee,
+  RefAssignment,
+  RefereeAvailability,
+  OperationalConflict,
+  ConflictType,
+  ConflictSeverity,
+  ResolutionOption,
 } from '@/types'
 
 const EVENT_ID = 1
@@ -84,19 +89,18 @@ export async function runRefereeEngine(eventDateId: number): Promise<RefereeEngi
   // 1. Load all games for this date with their ref assignments
   const { data: games } = await sb
     .from('games')
-    .select(`
+    .select(
+      `
       id, scheduled_time, division, field_id, status,
       ref_assignments(referee_id, role, referee:referees(*))
-    `)
+    `
+    )
     .eq('event_date_id', eventDateId)
     .neq('status', 'Final')
     .order('scheduled_time')
 
   // 2. Load all referees with their profiles
-  const { data: referees } = await sb
-    .from('referees')
-    .select('*')
-    .eq('event_id', EVENT_ID)
+  const { data: referees } = await sb.from('referees').select('*').eq('event_id', EVENT_ID)
 
   // 3. Load availability for this date
   const { data: eventDate } = await sb
@@ -117,7 +121,10 @@ export async function runRefereeEngine(eventDateId: number): Promise<RefereeEngi
   const conflicts: RefereeConflict[] = []
 
   // ---- Build ref → games map ----
-  const refGameMap = new Map<number, Array<{ gameId: number; startMin: number; endMin: number; division: string }>>()
+  const refGameMap = new Map<
+    number,
+    Array<{ gameId: number; startMin: number; endMin: number; division: string }>
+  >()
 
   for (const game of games) {
     const assignments = (game as any).ref_assignments ?? []
@@ -148,7 +155,11 @@ export async function runRefereeEngine(eventDateId: number): Promise<RefereeEngi
         gameIds: [game.id],
         description: `Game #${game.id} (${game.scheduled_time} · ${game.division}) has no referee assigned`,
         resolutionOptions: [
-          { action: 'assign_referee', label: 'Assign available referee', params: { game_id: game.id } },
+          {
+            action: 'assign_referee',
+            label: 'Assign available referee',
+            params: { game_id: game.id },
+          },
         ],
       })
     }
@@ -156,7 +167,7 @@ export async function runRefereeEngine(eventDateId: number): Promise<RefereeEngi
 
   // ---- Check 2: Double booking & travel buffer ----
   for (const [refId, refGames] of refGameMap.entries()) {
-    const ref = referees.find(r => r.id === refId)
+    const ref = referees.find((r) => r.id === refId)
     if (!ref) continue
 
     const travelBuffer = (ref as any).travel_buffer_min ?? 30
@@ -177,9 +188,21 @@ export async function runRefereeEngine(eventDateId: number): Promise<RefereeEngi
             gameIds: [a.gameId, b.gameId],
             description: `${ref.name} is double-booked: Game #${a.gameId} (${minutesToDisplay(a.startMin)}) overlaps Game #${b.gameId} (${minutesToDisplay(b.startMin)})`,
             resolutionOptions: [
-              { action: 'remove_assignment', label: `Remove from Game #${a.gameId}`, params: { game_id: a.gameId, referee_id: refId } },
-              { action: 'remove_assignment', label: `Remove from Game #${b.gameId}`, params: { game_id: b.gameId, referee_id: refId } },
-              { action: 'find_replacement', label: 'Find available replacement', params: { game_id: b.gameId, time: minutesToDisplay(b.startMin) } },
+              {
+                action: 'remove_assignment',
+                label: `Remove from Game #${a.gameId}`,
+                params: { game_id: a.gameId, referee_id: refId },
+              },
+              {
+                action: 'remove_assignment',
+                label: `Remove from Game #${b.gameId}`,
+                params: { game_id: b.gameId, referee_id: refId },
+              },
+              {
+                action: 'find_replacement',
+                label: 'Find available replacement',
+                params: { game_id: b.gameId, time: minutesToDisplay(b.startMin) },
+              },
             ],
           })
         }
@@ -194,8 +217,16 @@ export async function runRefereeEngine(eventDateId: number): Promise<RefereeEngi
             gameIds: [a.gameId, b.gameId],
             description: `${ref.name} has only ${gap} min between Game #${a.gameId} and #${b.gameId} (needs ${travelBuffer} min travel buffer)`,
             resolutionOptions: [
-              { action: 'find_replacement', label: `Find replacement for Game #${b.gameId}`, params: { game_id: b.gameId } },
-              { action: 'adjust_travel_buffer', label: 'Waive travel buffer (confirm manually)', params: { referee_id: refId } },
+              {
+                action: 'find_replacement',
+                label: `Find replacement for Game #${b.gameId}`,
+                params: { game_id: b.gameId },
+              },
+              {
+                action: 'adjust_travel_buffer',
+                label: 'Waive travel buffer (confirm manually)',
+                params: { referee_id: refId },
+              },
             ],
           })
         }
@@ -211,12 +242,12 @@ export async function runRefereeEngine(eventDateId: number): Promise<RefereeEngi
     }
 
     for (const [refId, refGames] of refGameMap.entries()) {
-      const ref = referees.find(r => r.id === refId)
+      const ref = referees.find((r) => r.id === refId)
       const avail = availMap.get(refId)
       if (!ref || !avail) continue
 
       const availFrom = parseTimeToMinutes(avail.available_from)
-      const availTo   = parseTimeToMinutes(avail.available_to)
+      const availTo = parseTimeToMinutes(avail.available_to)
 
       for (const game of refGames) {
         if (game.startMin < availFrom || game.endMin > availTo) {
@@ -228,8 +259,16 @@ export async function runRefereeEngine(eventDateId: number): Promise<RefereeEngi
             gameIds: [game.gameId],
             description: `${ref.name} is assigned to Game #${game.gameId} at ${minutesToDisplay(game.startMin)} but is only available ${avail.available_from}–${avail.available_to}`,
             resolutionOptions: [
-              { action: 'remove_assignment', label: `Remove ${ref.name} from Game #${game.gameId}`, params: { game_id: game.gameId, referee_id: refId } },
-              { action: 'find_replacement', label: 'Find available replacement', params: { game_id: game.gameId } },
+              {
+                action: 'remove_assignment',
+                label: `Remove ${ref.name} from Game #${game.gameId}`,
+                params: { game_id: game.gameId, referee_id: refId },
+              },
+              {
+                action: 'find_replacement',
+                label: 'Find available replacement',
+                params: { game_id: game.gameId },
+              },
             ],
           })
         }
@@ -239,7 +278,7 @@ export async function runRefereeEngine(eventDateId: number): Promise<RefereeEngi
 
   // ---- Check 4: Max games per day exceeded ----
   for (const [refId, refGames] of refGameMap.entries()) {
-    const ref = referees.find(r => r.id === refId)
+    const ref = referees.find((r) => r.id === refId)
     if (!ref) continue
     const maxGames = (ref as any).max_games_per_day ?? 4
 
@@ -249,17 +288,26 @@ export async function runRefereeEngine(eventDateId: number): Promise<RefereeEngi
         severity: 'warning',
         refereeId: refId,
         refereeName: ref.name,
-        gameIds: refGames.map(g => g.gameId),
+        gameIds: refGames.map((g) => g.gameId),
         description: `${ref.name} is assigned to ${refGames.length} games (max: ${maxGames})`,
         resolutionOptions: [
-          { action: 'find_replacement', label: 'Find replacement for last game', params: { game_id: refGames[refGames.length - 1].gameId } },
+          {
+            action: 'find_replacement',
+            label: 'Find replacement for last game',
+            params: { game_id: refGames[refGames.length - 1].gameId },
+          },
         ],
       })
     }
   }
 
   // ---- Write conflicts to DB (clear stale, insert fresh) ----
-  await clearStaleConflicts(eventDateId, ['ref_double_booked', 'ref_unavailable', 'max_games_exceeded', 'missing_referee'])
+  await clearStaleConflicts(eventDateId, [
+    'ref_double_booked',
+    'ref_unavailable',
+    'max_games_exceeded',
+    'missing_referee',
+  ])
 
   for (const conflict of conflicts) {
     await sb.from('operational_conflicts').insert({
@@ -275,15 +323,16 @@ export async function runRefereeEngine(eventDateId: number): Promise<RefereeEngi
     })
   }
 
-  const criticalCount = conflicts.filter(c => c.severity === 'critical').length
-  const warningCount  = conflicts.filter(c => c.severity === 'warning').length
+  const criticalCount = conflicts.filter((c) => c.severity === 'critical').length
+  const warningCount = conflicts.filter((c) => c.severity === 'warning').length
 
   return {
     conflicts,
     clean: conflicts.length === 0,
-    summary: conflicts.length === 0
-      ? 'All referee assignments clear'
-      : `${criticalCount} critical, ${warningCount} warnings detected`,
+    summary:
+      conflicts.length === 0
+        ? 'All referee assignments clear'
+        : `${criticalCount} critical, ${warningCount} warnings detected`,
   }
 }
 
@@ -291,13 +340,10 @@ export async function runRefereeEngine(eventDateId: number): Promise<RefereeEngi
 async function clearStaleConflicts(eventDateId: number, types: ConflictType[]) {
   const sb = createClient()
   // Get game IDs for this date to scope the delete
-  const { data: games } = await sb
-    .from('games')
-    .select('id')
-    .eq('event_date_id', eventDateId)
+  const { data: games } = await sb.from('games').select('id').eq('event_date_id', eventDateId)
 
   if (!games || games.length === 0) return
-  const gameIds = games.map(g => g.id)
+  const gameIds = games.map((g) => g.id)
 
   // Delete unresolved conflicts that overlap with these game IDs
   const { data: existing } = await sb
@@ -310,8 +356,8 @@ async function clearStaleConflicts(eventDateId: number, types: ConflictType[]) {
   if (!existing) return
 
   const toDelete = existing
-    .filter(c => (c.impacted_game_ids as number[]).some(id => gameIds.includes(id)))
-    .map(c => c.id)
+    .filter((c) => (c.impacted_game_ids as number[]).some((id) => gameIds.includes(id)))
+    .map((c) => c.id)
 
   if (toDelete.length > 0) {
     await sb.from('operational_conflicts').delete().in('id', toDelete)
@@ -345,7 +391,7 @@ export async function findAvailableRefs(
   if (!refs || !eventDate) return []
 
   const gameStart = parseTimeToMinutes(gameTime)
-  const gameEnd   = gameStart + GAME_DURATION_MIN
+  const gameEnd = gameStart + GAME_DURATION_MIN
 
   // Load assignments for this date
   const { data: games } = await sb
@@ -357,7 +403,7 @@ export async function findAvailableRefs(
   const busyMap = new Map<number, Array<{ start: number; end: number }>>()
   for (const game of games ?? []) {
     const start = parseTimeToMinutes(game.scheduled_time)
-    const end   = start + GAME_DURATION_MIN
+    const end = start + GAME_DURATION_MIN
     for (const ra of (game as any).ref_assignments ?? []) {
       if (!busyMap.has(ra.referee_id)) busyMap.set(ra.referee_id, [])
       busyMap.get(ra.referee_id)!.push({ start, end })
@@ -374,11 +420,11 @@ export async function findAvailableRefs(
   for (const a of availability ?? []) {
     availMap.set(a.referee_id, {
       from: parseTimeToMinutes(a.available_from),
-      to:   parseTimeToMinutes(a.available_to),
+      to: parseTimeToMinutes(a.available_to),
     })
   }
 
-  return (refs as Referee[]).filter(ref => {
+  return (refs as Referee[]).filter((ref) => {
     if (excludeRefIds.includes(ref.id)) return false
 
     // Check availability window

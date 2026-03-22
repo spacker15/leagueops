@@ -14,7 +14,12 @@ export type IncidentType =
   | 'Warning'
   | 'Ejection'
 export type VolunteerRole = 'Score Table' | 'Clock' | 'Field Marshal' | 'Operations' | 'Gate'
-export type InjuryType = 'Knee / Leg' | 'Head / Concussion' | 'Ankle / Foot' | 'Arm / Shoulder' | 'General / Unknown'
+export type InjuryType =
+  | 'Knee / Leg'
+  | 'Head / Concussion'
+  | 'Ankle / Foot'
+  | 'Arm / Shoulder'
+  | 'General / Unknown'
 export type MedicalStatus = 'Dispatched' | 'On Site' | 'Transported' | 'Released' | 'Resolved'
 export type LogType = 'info' | 'alert' | 'warn' | 'ok'
 

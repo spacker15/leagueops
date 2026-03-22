@@ -5,10 +5,10 @@ import { useAuth } from '@/lib/auth'
 
 export function LoginPage() {
   const { signIn } = useAuth()
-  const [email, setEmail]       = useState('')
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [error, setError]       = useState('')
-  const [loading, setLoading]   = useState(false)
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -27,15 +27,19 @@ export function LoginPage() {
           <div className="inline-flex items-center gap-3 mb-3">
             <div className="w-10 h-10 bg-red rounded-lg flex items-center justify-center">
               <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
-                <rect x="1" y="1" width="9" height="9" rx="1.5" fill="white" fillOpacity="0.9"/>
-                <rect x="12" y="1" width="9" height="9" rx="1.5" fill="white" fillOpacity="0.9"/>
-                <rect x="1" y="12" width="9" height="9" rx="1.5" fill="white" fillOpacity="0.9"/>
-                <rect x="12" y="12" width="9" height="9" rx="1.5" fill="white" fillOpacity="0.4"/>
+                <rect x="1" y="1" width="9" height="9" rx="1.5" fill="white" fillOpacity="0.9" />
+                <rect x="12" y="1" width="9" height="9" rx="1.5" fill="white" fillOpacity="0.9" />
+                <rect x="1" y="12" width="9" height="9" rx="1.5" fill="white" fillOpacity="0.9" />
+                <rect x="12" y="12" width="9" height="9" rx="1.5" fill="white" fillOpacity="0.4" />
               </svg>
             </div>
-            <span className="font-cond text-3xl font-black tracking-widest text-white">LEAGUEOPS</span>
+            <span className="font-cond text-3xl font-black tracking-widest text-white">
+              LEAGUEOPS
+            </span>
           </div>
-          <div className="font-cond text-sm text-muted tracking-widest">TOURNAMENT COMMAND CENTER</div>
+          <div className="font-cond text-sm text-muted tracking-widest">
+            TOURNAMENT COMMAND CENTER
+          </div>
         </div>
 
         {/* Login card */}
@@ -52,7 +56,7 @@ export function LoginPage() {
               <input
                 type="email"
                 value={email}
-                onChange={e => setEmail(e.target.value)}
+                onChange={(e) => setEmail(e.target.value)}
                 required
                 autoComplete="email"
                 className="w-full bg-surface border border-border text-white px-3 py-2.5 rounded-lg text-[14px] outline-none focus:border-blue-400 transition-colors"
@@ -67,7 +71,7 @@ export function LoginPage() {
               <input
                 type="password"
                 value={password}
-                onChange={e => setPassword(e.target.value)}
+                onChange={(e) => setPassword(e.target.value)}
                 required
                 autoComplete="current-password"
                 className="w-full bg-surface border border-border text-white px-3 py-2.5 rounded-lg text-[14px] outline-none focus:border-blue-400 transition-colors"
@@ -97,11 +101,19 @@ export function LoginPage() {
             </div>
             <div className="space-y-1.5">
               {[
-                { role: 'Admin',        desc: 'Full system access',              color: 'text-red-400' },
-                { role: 'League Admin', desc: 'Schedule, rosters, reports',      color: 'text-blue-300' },
-                { role: 'Referee',      desc: 'Self check-in + game assignments', color: 'text-yellow-400' },
-                { role: 'Volunteer',    desc: 'Self check-in + assignments',      color: 'text-green-400' },
-              ].map(item => (
+                { role: 'Admin', desc: 'Full system access', color: 'text-red-400' },
+                {
+                  role: 'League Admin',
+                  desc: 'Schedule, rosters, reports',
+                  color: 'text-blue-300',
+                },
+                {
+                  role: 'Referee',
+                  desc: 'Self check-in + game assignments',
+                  color: 'text-yellow-400',
+                },
+                { role: 'Volunteer', desc: 'Self check-in + assignments', color: 'text-green-400' },
+              ].map((item) => (
                 <div key={item.role} className="flex items-center justify-between text-[11px]">
                   <span className={`font-cond font-bold ${item.color}`}>{item.role}</span>
                   <span className="text-muted">{item.desc}</span>
@@ -116,9 +128,11 @@ export function LoginPage() {
             Contact your administrator to create an account
           </div>
           <div>
-            <a href="/register"
-              className="font-cond text-[11px] font-bold text-blue-300 hover:text-white transition-colors tracking-wide">
-              Register a Program → 
+            <a
+              href="/register"
+              className="font-cond text-[11px] font-bold text-blue-300 hover:text-white transition-colors tracking-wide"
+            >
+              Register a Program →
             </a>
           </div>
         </div>

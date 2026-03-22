@@ -31,18 +31,18 @@ interface Player {
 
 export function RefereePortal() {
   const { userRole, signOut } = useAuth()
-  const [tab, setTab]             = useState<PortalTab>('checkin')
-  const [ref, setRef]             = useState<any>(null)
-  const [games, setGames]         = useState<AssignedGame[]>([])
+  const [tab, setTab] = useState<PortalTab>('checkin')
+  const [ref, setRef] = useState<any>(null)
+  const [games, setGames] = useState<AssignedGame[]>([])
   const [checkedIn, setCheckedIn] = useState(false)
-  const [loading, setLoading]     = useState(true)
+  const [loading, setLoading] = useState(true)
   const [checkingIn, setCheckingIn] = useState(false)
 
   // Game check-in state
   const [selectedGame, setSelectedGame] = useState<AssignedGame | null>(null)
-  const [homePlayers, setHomePlayers]   = useState<Player[]>([])
-  const [awayPlayers, setAwayPlayers]   = useState<Player[]>([])
-  const [checkins, setCheckins]         = useState<number[]>([]) // checked-in player IDs
+  const [homePlayers, setHomePlayers] = useState<Player[]>([])
+  const [awayPlayers, setAwayPlayers] = useState<Player[]>([])
+  const [checkins, setCheckins] = useState<number[]>([]) // checked-in player IDs
   const [rosterLoading, setRosterLoading] = useState(false)
 
   useEffect(() => {
@@ -53,13 +53,19 @@ export function RefereePortal() {
   async function loadData() {
     const sb = createClient()
     setLoading(true)
-    const { data: refData } = await sb.from('referees').select('*').eq('id', userRole!.referee_id!).single()
+    const { data: refData } = await sb
+      .from('referees')
+      .select('*')
+      .eq('id', userRole!.referee_id!)
+      .single()
     setRef(refData)
     setCheckedIn(refData?.checked_in ?? false)
 
     const { data: assignments } = await sb
       .from('ref_assignments')
-      .select(`role, game:games(id, scheduled_time, division, status, field:fields(name), home_team:teams!games_home_team_id_fkey(id, name), away_team:teams!games_away_team_id_fkey(id, name))`)
+      .select(
+        `role, game:games(id, scheduled_time, division, status, field:fields(name), home_team:teams!games_home_team_id_fkey(id, name), away_team:teams!games_away_team_id_fkey(id, name))`
+      )
       .eq('referee_id', userRole!.referee_id!)
 
     const gameList = (assignments ?? [])
@@ -69,7 +75,7 @@ export function RefereePortal() {
     setGames(gameList)
 
     // Auto-select the current/next live game
-    const liveGame = gameList.find((g: any) => ['Live','Halftime','Starting'].includes(g.status))
+    const liveGame = gameList.find((g: any) => ['Live', 'Halftime', 'Starting'].includes(g.status))
     if (liveGame) setSelectedGame(liveGame)
 
     setLoading(false)
@@ -80,8 +86,16 @@ export function RefereePortal() {
     setRosterLoading(true)
     const sb = createClient()
     const [{ data: home }, { data: away }, { data: ci }] = await Promise.all([
-      sb.from('players').select('id, name, number, position, usa_lacrosse_number').eq('team_id', game.home_team.id).order('name'),
-      sb.from('players').select('id, name, number, position, usa_lacrosse_number').eq('team_id', game.away_team.id).order('name'),
+      sb
+        .from('players')
+        .select('id, name, number, position, usa_lacrosse_number')
+        .eq('team_id', game.home_team.id)
+        .order('name'),
+      sb
+        .from('players')
+        .select('id, name, number, position, usa_lacrosse_number')
+        .eq('team_id', game.away_team.id)
+        .order('name'),
       sb.from('player_checkins').select('player_id').eq('game_id', game.id),
     ])
     setHomePlayers((home as Player[]) ?? [])
@@ -95,12 +109,20 @@ export function RefereePortal() {
     const sb = createClient()
     const isIn = checkins.includes(playerId)
     if (isIn) {
-      await sb.from('player_checkins').delete().eq('game_id', selectedGame.id).eq('player_id', playerId)
-      setCheckins(prev => prev.filter(id => id !== playerId))
+      await sb
+        .from('player_checkins')
+        .delete()
+        .eq('game_id', selectedGame.id)
+        .eq('player_id', playerId)
+      setCheckins((prev) => prev.filter((id) => id !== playerId))
       toast('Player checked out', { icon: '↩' })
     } else {
-      await sb.from('player_checkins').upsert({ game_id: selectedGame.id, player_id: playerId, checked_in_at: new Date().toISOString() })
-      setCheckins(prev => [...prev, playerId])
+      await sb.from('player_checkins').upsert({
+        game_id: selectedGame.id,
+        player_id: playerId,
+        checked_in_at: new Date().toISOString(),
+      })
+      setCheckins((prev) => [...prev, playerId])
       toast.success('Player checked in')
     }
   }
@@ -111,18 +133,29 @@ export function RefereePortal() {
     const sb = createClient()
     const newState = !checkedIn
     await sb.from('referees').update({ checked_in: newState }).eq('id', userRole.referee_id)
-    await sb.from('portal_checkins').insert({ person_type: 'referee', person_id: userRole.referee_id, event_id: 1, checked_in: newState })
-    await sb.from('ops_log').insert({ event_id: 1, message: `Referee ${ref?.name} ${newState ? 'checked in' : 'checked out'} via portal`, log_type: newState ? 'ok' : 'info', occurred_at: new Date().toISOString() })
+    await sb.from('portal_checkins').insert({
+      person_type: 'referee',
+      person_id: userRole.referee_id,
+      event_id: 1,
+      checked_in: newState,
+    })
+    await sb.from('ops_log').insert({
+      event_id: 1,
+      message: `Referee ${ref?.name} ${newState ? 'checked in' : 'checked out'} via portal`,
+      log_type: newState ? 'ok' : 'info',
+      occurred_at: new Date().toISOString(),
+    })
     setCheckedIn(newState)
     setCheckingIn(false)
     toast.success(newState ? '✓ You are checked in!' : 'Checked out')
   }
 
-  if (loading) return (
-    <div className="min-h-screen bg-surface flex items-center justify-center">
-      <div className="font-cond text-muted tracking-widest">LOADING...</div>
-    </div>
-  )
+  if (loading)
+    return (
+      <div className="min-h-screen bg-surface flex items-center justify-center">
+        <div className="font-cond text-muted tracking-widest">LOADING...</div>
+      </div>
+    )
 
   return (
     <div className="min-h-screen bg-surface">
@@ -130,24 +163,37 @@ export function RefereePortal() {
       <div className="bg-navy-dark border-b-2 border-red px-4 py-0 flex items-stretch">
         <div className="flex items-center gap-3 py-3 px-2">
           <div className="font-cond text-lg font-black tracking-widest text-white">LEAGUEOPS</div>
-          <div className="font-cond text-[11px] text-muted tracking-widest border-l border-border pl-3">REFEREE PORTAL</div>
+          <div className="font-cond text-[11px] text-muted tracking-widest border-l border-border pl-3">
+            REFEREE PORTAL
+          </div>
         </div>
         <nav className="flex flex-1 ml-4">
           {[
-            { id: 'checkin',   label: 'My Check-In' },
-            { id: 'games',     label: `Games (${games.length})` },
+            { id: 'checkin', label: 'My Check-In' },
+            { id: 'games', label: `Games (${games.length})` },
             { id: 'approvals', label: 'Approvals' },
-          ].map(t => (
-            <button key={t.id} onClick={() => setTab(t.id as PortalTab)}
-              className={cn('px-4 font-cond text-[12px] font-bold tracking-widest uppercase border-b-2 transition-colors',
-                tab === t.id ? 'border-red text-white' : 'border-transparent text-muted hover:text-white'
-              )}>{t.label}</button>
+          ].map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id as PortalTab)}
+              className={cn(
+                'px-4 font-cond text-[12px] font-bold tracking-widest uppercase border-b-2 transition-colors',
+                tab === t.id
+                  ? 'border-red text-white'
+                  : 'border-transparent text-muted hover:text-white'
+              )}
+            >
+              {t.label}
+            </button>
           ))}
         </nav>
         <div className="flex items-center gap-3 px-4">
           <div className={cn('w-2 h-2 rounded-full', checkedIn ? 'bg-green-400' : 'bg-red-400')} />
           <span className="font-cond text-[11px] text-white">{ref?.name}</span>
-          <button onClick={signOut} className="flex items-center gap-1.5 font-cond text-[11px] text-muted hover:text-white">
+          <button
+            onClick={signOut}
+            className="flex items-center gap-1.5 font-cond text-[11px] text-muted hover:text-white"
+          >
             <LogOut size={13} /> OUT
           </button>
         </div>
@@ -160,16 +206,30 @@ export function RefereePortal() {
             <div className="bg-surface-card border border-border rounded-xl p-6 text-center mb-4">
               <div className="w-16 h-16 rounded-full bg-red-900/30 border-2 border-red-700/50 flex items-center justify-center mx-auto mb-3">
                 <span className="font-cond font-black text-2xl text-red-300">
-                  {ref?.name?.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
+                  {ref?.name
+                    ?.split(' ')
+                    .map((n: string) => n[0])
+                    .join('')
+                    .slice(0, 2)}
                 </span>
               </div>
               <div className="font-cond font-black text-[20px] text-white mb-0.5">{ref?.name}</div>
               <div className="font-cond text-[12px] text-muted mb-4">{ref?.grade_level}</div>
-              <button onClick={handleSelfCheckIn} disabled={checkingIn}
-                className={cn('w-full py-4 rounded-xl font-cond font-black text-[16px] tracking-widest transition-all',
-                  checkedIn ? 'bg-green-700 hover:bg-green-600 text-white' : 'bg-navy hover:bg-navy-light text-white border-2 border-border'
-                )}>
-                {checkingIn ? 'UPDATING...' : checkedIn ? '✓ CHECKED IN — TAP TO CHECK OUT' : 'TAP TO CHECK IN'}
+              <button
+                onClick={handleSelfCheckIn}
+                disabled={checkingIn}
+                className={cn(
+                  'w-full py-4 rounded-xl font-cond font-black text-[16px] tracking-widest transition-all',
+                  checkedIn
+                    ? 'bg-green-700 hover:bg-green-600 text-white'
+                    : 'bg-navy hover:bg-navy-light text-white border-2 border-border'
+                )}
+              >
+                {checkingIn
+                  ? 'UPDATING...'
+                  : checkedIn
+                    ? '✓ CHECKED IN — TAP TO CHECK OUT'
+                    : 'TAP TO CHECK IN'}
               </button>
             </div>
 
@@ -178,27 +238,53 @@ export function RefereePortal() {
               PLAYER CHECK-IN FOR YOUR GAMES
             </div>
             {games.length === 0 ? (
-              <div className="bg-surface-card border border-border rounded-xl p-6 text-center text-muted font-cond">No games assigned</div>
+              <div className="bg-surface-card border border-border rounded-xl p-6 text-center text-muted font-cond">
+                No games assigned
+              </div>
             ) : (
               <div className="space-y-3">
-                {games.map(game => (
-                  <button key={game.id} onClick={() => { loadRoster(game); setTab('games') }}
-                    className={cn('w-full text-left bg-surface-card border rounded-xl p-4 transition-all hover:border-blue-400',
+                {games.map((game) => (
+                  <button
+                    key={game.id}
+                    onClick={() => {
+                      loadRoster(game)
+                      setTab('games')
+                    }}
+                    className={cn(
+                      'w-full text-left bg-surface-card border rounded-xl p-4 transition-all hover:border-blue-400',
                       selectedGame?.id === game.id ? 'border-blue-400' : 'border-border'
-                    )}>
+                    )}
+                  >
                     <div className="flex justify-between items-start mb-1">
                       <div className="flex items-center gap-2">
-                        <span className="font-mono text-[13px] font-bold text-blue-300">{game.scheduled_time}</span>
-                        <span className="font-cond text-[10px] font-bold bg-blue-900/30 text-blue-300 px-1.5 py-0.5 rounded">{game.role}</span>
+                        <span className="font-mono text-[13px] font-bold text-blue-300">
+                          {game.scheduled_time}
+                        </span>
+                        <span className="font-cond text-[10px] font-bold bg-blue-900/30 text-blue-300 px-1.5 py-0.5 rounded">
+                          {game.role}
+                        </span>
                       </div>
-                      <span className={cn('font-cond text-[10px] font-black px-2 py-0.5 rounded',
-                        game.status === 'Live' ? 'badge-live' : game.status === 'Final' ? 'badge-final' : 'badge-scheduled'
-                      )}>{game.status.toUpperCase()}</span>
+                      <span
+                        className={cn(
+                          'font-cond text-[10px] font-black px-2 py-0.5 rounded',
+                          game.status === 'Live'
+                            ? 'badge-live'
+                            : game.status === 'Final'
+                              ? 'badge-final'
+                              : 'badge-scheduled'
+                        )}
+                      >
+                        {game.status.toUpperCase()}
+                      </span>
                     </div>
-                    <div className="font-cond font-black text-[14px] text-white">{game.home_team?.name} vs {game.away_team?.name}</div>
+                    <div className="font-cond font-black text-[14px] text-white">
+                      {game.home_team?.name} vs {game.away_team?.name}
+                    </div>
                     <div className="flex items-center gap-1.5 mt-1">
                       <MapPin size={10} className="text-muted" />
-                      <span className="font-cond text-[11px] text-muted">{game.field?.name} · {game.division}</span>
+                      <span className="font-cond text-[11px] text-muted">
+                        {game.field?.name} · {game.division}
+                      </span>
                     </div>
                   </button>
                 ))}
@@ -212,18 +298,28 @@ export function RefereePortal() {
           <div>
             {/* Game selector */}
             <div className="flex gap-2 mb-4 flex-wrap">
-              {games.map(game => (
-                <button key={game.id} onClick={() => loadRoster(game)}
-                  className={cn('font-cond text-[11px] font-bold px-3 py-2 rounded-lg border transition-colors',
-                    selectedGame?.id === game.id ? 'bg-navy border-blue-400 text-white' : 'bg-surface-card border-border text-muted hover:text-white'
-                  )}>
+              {games.map((game) => (
+                <button
+                  key={game.id}
+                  onClick={() => loadRoster(game)}
+                  className={cn(
+                    'font-cond text-[11px] font-bold px-3 py-2 rounded-lg border transition-colors',
+                    selectedGame?.id === game.id
+                      ? 'bg-navy border-blue-400 text-white'
+                      : 'bg-surface-card border-border text-muted hover:text-white'
+                  )}
+                >
                   {game.scheduled_time} · {game.home_team?.name} vs {game.away_team?.name}
-                  {['Live','Halftime'].includes(game.status) && <span className="ml-1 text-green-400">●</span>}
+                  {['Live', 'Halftime'].includes(game.status) && (
+                    <span className="ml-1 text-green-400">●</span>
+                  )}
                 </button>
               ))}
             </div>
 
-            {rosterLoading && <div className="text-center py-8 text-muted font-cond">LOADING ROSTERS...</div>}
+            {rosterLoading && (
+              <div className="text-center py-8 text-muted font-cond">LOADING ROSTERS...</div>
+            )}
 
             {!rosterLoading && selectedGame && (
               <div className="grid grid-cols-2 gap-4">
@@ -231,32 +327,63 @@ export function RefereePortal() {
                   { label: selectedGame.home_team?.name, players: homePlayers },
                   { label: selectedGame.away_team?.name, players: awayPlayers },
                 ].map(({ label, players }) => (
-                  <div key={label} className="bg-surface-card border border-border rounded-xl overflow-hidden">
+                  <div
+                    key={label}
+                    className="bg-surface-card border border-border rounded-xl overflow-hidden"
+                  >
                     <div className="bg-navy/60 px-3 py-2.5 border-b border-border flex justify-between items-center">
                       <div className="font-cond font-black text-[13px] text-white">{label}</div>
                       <div className="font-cond text-[11px] text-green-400 font-bold">
-                        {players.filter(p => checkins.includes(p.id)).length}/{players.length}
+                        {players.filter((p) => checkins.includes(p.id)).length}/{players.length}
                       </div>
                     </div>
                     {players.length === 0 ? (
-                      <div className="p-4 text-center text-muted font-cond text-[12px]">No roster</div>
+                      <div className="p-4 text-center text-muted font-cond text-[12px]">
+                        No roster
+                      </div>
                     ) : (
                       <div className="divide-y divide-border/30">
-                        {players.map(p => {
+                        {players.map((p) => {
                           const checked = checkins.includes(p.id)
                           return (
-                            <button key={p.id} onClick={() => toggleCheckin(p.id)}
-                              className={cn('w-full flex items-center gap-3 px-3 py-2.5 transition-colors text-left',
-                                checked ? 'bg-green-900/15 hover:bg-green-900/25' : 'hover:bg-white/5'
-                              )}>
-                              <div className={cn('w-8 h-8 rounded-full flex items-center justify-center font-cond font-black text-[12px] flex-shrink-0',
-                                checked ? 'bg-green-700 text-white' : 'bg-navy text-muted'
-                              )}>{p.number ?? '—'}</div>
-                              <div className="flex-1 min-w-0">
-                                <div className={cn('font-cond font-bold text-[12px] leading-tight', checked ? 'text-green-300' : 'text-white')}>{p.name}</div>
-                                {p.usa_lacrosse_number && <div className="font-mono text-[9px] text-muted">USA #{p.usa_lacrosse_number}</div>}
+                            <button
+                              key={p.id}
+                              onClick={() => toggleCheckin(p.id)}
+                              className={cn(
+                                'w-full flex items-center gap-3 px-3 py-2.5 transition-colors text-left',
+                                checked
+                                  ? 'bg-green-900/15 hover:bg-green-900/25'
+                                  : 'hover:bg-white/5'
+                              )}
+                            >
+                              <div
+                                className={cn(
+                                  'w-8 h-8 rounded-full flex items-center justify-center font-cond font-black text-[12px] flex-shrink-0',
+                                  checked ? 'bg-green-700 text-white' : 'bg-navy text-muted'
+                                )}
+                              >
+                                {p.number ?? '—'}
                               </div>
-                              {checked ? <CheckCircle size={14} className="text-green-400 flex-shrink-0" /> : <div className="w-4 h-4 rounded-full border-2 border-border flex-shrink-0" />}
+                              <div className="flex-1 min-w-0">
+                                <div
+                                  className={cn(
+                                    'font-cond font-bold text-[12px] leading-tight',
+                                    checked ? 'text-green-300' : 'text-white'
+                                  )}
+                                >
+                                  {p.name}
+                                </div>
+                                {p.usa_lacrosse_number && (
+                                  <div className="font-mono text-[9px] text-muted">
+                                    USA #{p.usa_lacrosse_number}
+                                  </div>
+                                )}
+                              </div>
+                              {checked ? (
+                                <CheckCircle size={14} className="text-green-400 flex-shrink-0" />
+                              ) : (
+                                <div className="w-4 h-4 rounded-full border-2 border-border flex-shrink-0" />
+                              )}
                             </button>
                           )
                         })}
@@ -277,15 +404,20 @@ export function RefereePortal() {
 }
 
 // ─── Shared approvals panel for ref + volunteer portals ───────
-function ApprovalsPanel({ personName, personType }: {
+function ApprovalsPanel({
+  personName,
+  personType,
+}: {
   personName: string
   personType: 'referee' | 'volunteer'
 }) {
-  const [approvals, setApprovals]   = useState<any[]>([])
-  const [loading, setLoading]       = useState(true)
+  const [approvals, setApprovals] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
   const [approvingId, setApprovingId] = useState<number | null>(null)
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    load()
+  }, [])
 
   async function load() {
     setLoading(true)
@@ -300,16 +432,16 @@ function ApprovalsPanel({ personName, personType }: {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        action:            action,
-        approval_id:       id,
-        approved_by:       personType,
-        approved_by_name:  personName,
-        denied_by:         personName,
-        reason:            'Denied by official',
+        action: action,
+        approval_id: id,
+        approved_by: personType,
+        approved_by_name: personName,
+        denied_by: personName,
+        reason: 'Denied by official',
       }),
     })
     if (res.ok) {
-      setApprovals(prev => prev.filter(a => a.id !== id))
+      setApprovals((prev) => prev.filter((a) => a.id !== id))
     }
     setApprovingId(null)
   }
@@ -318,9 +450,12 @@ function ApprovalsPanel({ personName, personType }: {
 
   return (
     <div>
-      <div className="font-cond font-black text-[13px] tracking-wide mb-1">MULTI-GAME APPROVAL REQUESTS</div>
+      <div className="font-cond font-black text-[13px] tracking-wide mb-1">
+        MULTI-GAME APPROVAL REQUESTS
+      </div>
       <div className="font-cond text-[11px] text-muted mb-4 leading-relaxed">
-        As a {personType}, you can approve or deny multi-game requests on behalf of the opposing team's coach.
+        As a {personType}, you can approve or deny multi-game requests on behalf of the opposing
+        team's coach.
       </div>
 
       {approvals.length === 0 ? (
@@ -330,20 +465,26 @@ function ApprovalsPanel({ personName, personType }: {
         </div>
       ) : (
         <div className="space-y-3">
-          {approvals.map(a => {
+          {approvals.map((a) => {
             const p = a.player
             const team = p?.team as any
             return (
-              <div key={a.id} className="bg-surface-card border border-yellow-800/40 rounded-xl p-4">
+              <div
+                key={a.id}
+                className="bg-surface-card border border-yellow-800/40 rounded-xl p-4"
+              >
                 <div className="flex items-start gap-3 mb-3">
                   <div className="w-10 h-10 rounded-full bg-yellow-900/30 border border-yellow-700/50 flex items-center justify-center font-cond font-black text-yellow-300 flex-shrink-0">
                     {p?.number ?? '?'}
                   </div>
                   <div>
                     <div className="font-cond font-black text-[15px] text-white">{p?.name}</div>
-                    <div className="font-cond text-[11px] text-blue-300">{team?.name} · {team?.division}</div>
+                    <div className="font-cond text-[11px] text-blue-300">
+                      {team?.name} · {team?.division}
+                    </div>
                     <div className="font-cond text-[11px] text-muted mt-0.5">
-                      Playing 2nd game · Opposing team: <span className="text-white">{a.opposing_team_name}</span>
+                      Playing 2nd game · Opposing team:{' '}
+                      <span className="text-white">{a.opposing_team_name}</span>
                     </div>
                   </div>
                 </div>
@@ -351,13 +492,15 @@ function ApprovalsPanel({ personName, personType }: {
                   <button
                     onClick={() => act(a.id, 'approve')}
                     disabled={approvingId === a.id}
-                    className="flex-1 font-cond text-[13px] font-bold py-2.5 rounded-lg bg-green-700 hover:bg-green-600 text-white transition-colors disabled:opacity-50">
+                    className="flex-1 font-cond text-[13px] font-bold py-2.5 rounded-lg bg-green-700 hover:bg-green-600 text-white transition-colors disabled:opacity-50"
+                  >
                     {approvingId === a.id ? '...' : '✓ APPROVE'}
                   </button>
                   <button
                     onClick={() => act(a.id, 'deny')}
                     disabled={approvingId === a.id}
-                    className="flex-1 font-cond text-[13px] font-bold py-2.5 rounded-lg bg-surface-card border border-red-800/50 text-red-400 hover:bg-red-900/20 transition-colors disabled:opacity-50">
+                    className="flex-1 font-cond text-[13px] font-bold py-2.5 rounded-lg bg-surface-card border border-red-800/50 text-red-400 hover:bg-red-900/20 transition-colors disabled:opacity-50"
+                  >
                     ✗ DENY
                   </button>
                 </div>

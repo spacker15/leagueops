@@ -4,7 +4,14 @@ import React, { createContext, useContext, useEffect, useState } from 'react'
 import { createClient } from '@/supabase/client'
 import type { User, Session } from '@supabase/supabase-js'
 
-export type AppRole = 'admin' | 'league_admin' | 'referee' | 'volunteer' | 'player' | 'program_leader' | 'coach'
+export type AppRole =
+  | 'admin'
+  | 'league_admin'
+  | 'referee'
+  | 'volunteer'
+  | 'player'
+  | 'program_leader'
+  | 'coach'
 
 export interface UserRole {
   id: number
@@ -35,10 +42,10 @@ interface AuthContextValue {
 const AuthCtx = createContext<AuthContextValue | null>(null)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser]           = useState<User | null>(null)
-  const [session, setSession]     = useState<Session | null>(null)
-  const [userRole, setUserRole]   = useState<UserRole | null>(null)
-  const [loading, setLoading]     = useState(true)
+  const [user, setUser] = useState<User | null>(null)
+  const [session, setSession] = useState<Session | null>(null)
+  const [userRole, setUserRole] = useState<UserRole | null>(null)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const sb = createClient()
@@ -52,11 +59,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     })
 
     // Listen for auth changes
-    const { data: { subscription } } = sb.auth.onAuthStateChange((_event, session) => {
+    const {
+      data: { subscription },
+    } = sb.auth.onAuthStateChange((_event, session) => {
       setSession(session)
       setUser(session?.user ?? null)
       if (session?.user) loadUserRole(session.user.id)
-      else { setUserRole(null); setLoading(false) }
+      else {
+        setUserRole(null)
+        setLoading(false)
+      }
     })
 
     return () => subscription.unsubscribe()
@@ -72,7 +84,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .order('id')
       .limit(1)
       .single()
-    setUserRole(data as UserRole ?? null)
+    setUserRole((data as UserRole) ?? null)
     setLoading(false)
   }
 
@@ -88,18 +100,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUserRole(null)
   }
 
-  const isAdmin       = userRole?.role === 'admin'
+  const isAdmin = userRole?.role === 'admin'
   const isLeagueAdmin = userRole?.role === 'league_admin'
-  const isReferee     = userRole?.role === 'referee'
-  const isVolunteer   = userRole?.role === 'volunteer'
-  const canManage     = isAdmin || isLeagueAdmin
+  const isReferee = userRole?.role === 'referee'
+  const isVolunteer = userRole?.role === 'volunteer'
+  const canManage = isAdmin || isLeagueAdmin
 
   return (
-    <AuthCtx.Provider value={{
-      user, session, userRole, loading,
-      signIn, signOut,
-      isAdmin, isLeagueAdmin, isReferee, isVolunteer, canManage,
-    }}>
+    <AuthCtx.Provider
+      value={{
+        user,
+        session,
+        userRole,
+        loading,
+        signIn,
+        signOut,
+        isAdmin,
+        isLeagueAdmin,
+        isReferee,
+        isVolunteer,
+        canManage,
+      }}
+    >
       {children}
     </AuthCtx.Provider>
   )

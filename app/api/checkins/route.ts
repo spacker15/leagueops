@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const sb   = createClient()
+  const sb = createClient()
   const body = await req.json()
 
   const { data, error } = await sb
@@ -33,9 +33,10 @@ export async function POST(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   const sb = createClient()
   const { searchParams } = new URL(req.url)
-  const gameId   = searchParams.get('game_id')
+  const gameId = searchParams.get('game_id')
   const playerId = searchParams.get('player_id')
-  if (!gameId || !playerId) return NextResponse.json({ error: 'game_id and player_id required' }, { status: 400 })
+  if (!gameId || !playerId)
+    return NextResponse.json({ error: 'game_id and player_id required' }, { status: 400 })
 
   const { error } = await sb
     .from('player_checkins')

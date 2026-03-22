@@ -17,11 +17,11 @@ export function fmtTime(date: Date = new Date()): string {
 export function statusColor(status: GameStatus): string {
   const map: Record<GameStatus, string> = {
     Scheduled: 'text-blue-300',
-    Starting:  'text-orange-400',
-    Live:      'text-green-400',
-    Halftime:  'text-yellow-400',
-    Final:     'text-muted',
-    Delayed:   'text-red-400',
+    Starting: 'text-orange-400',
+    Live: 'text-green-400',
+    Halftime: 'text-yellow-400',
+    Final: 'text-muted',
+    Delayed: 'text-red-400',
   }
   return map[status] ?? 'text-muted'
 }
@@ -29,20 +29,20 @@ export function statusColor(status: GameStatus): string {
 export function statusBg(status: GameStatus): string {
   const map: Record<GameStatus, string> = {
     Scheduled: 'bg-blue-900/30 text-blue-300',
-    Starting:  'bg-orange-900/30 text-orange-400',
-    Live:      'bg-green-900/30 text-green-400',
-    Halftime:  'bg-yellow-900/30 text-yellow-400',
-    Final:     'bg-gray-800/50 text-gray-400',
-    Delayed:   'bg-red-900/30 text-red-400',
+    Starting: 'bg-orange-900/30 text-orange-400',
+    Live: 'bg-green-900/30 text-green-400',
+    Halftime: 'bg-yellow-900/30 text-yellow-400',
+    Final: 'bg-gray-800/50 text-gray-400',
+    Delayed: 'bg-red-900/30 text-red-400',
   }
   return map[status] ?? 'bg-gray-700 text-gray-300'
 }
 
 export function logTypeColor(type: LogType): string {
   const map: Record<LogType, string> = {
-    info:  'text-gray-300',
-    ok:    'text-green-400',
-    warn:  'text-yellow-400',
+    info: 'text-gray-300',
+    ok: 'text-green-400',
+    warn: 'text-yellow-400',
     alert: 'text-red-400',
   }
   return map[type] ?? 'text-gray-300'
@@ -51,10 +51,10 @@ export function logTypeColor(type: LogType): string {
 export function nextGameStatus(current: GameStatus): GameStatus | null {
   const cycle: Partial<Record<GameStatus, GameStatus>> = {
     Scheduled: 'Starting',
-    Starting:  'Live',
-    Live:      'Halftime',
-    Halftime:  'Live',
-    Delayed:   'Live',
+    Starting: 'Live',
+    Live: 'Halftime',
+    Halftime: 'Live',
+    Delayed: 'Live',
   }
   return cycle[current] ?? null
 }
@@ -62,10 +62,10 @@ export function nextGameStatus(current: GameStatus): GameStatus | null {
 export function nextStatusLabel(current: GameStatus): string {
   const labels: Partial<Record<GameStatus, string>> = {
     Scheduled: 'START',
-    Starting:  'GO LIVE',
-    Live:      'HALFTIME',
-    Halftime:  '2ND HALF',
-    Delayed:   'RESUME',
+    Starting: 'GO LIVE',
+    Live: 'HALFTIME',
+    Halftime: '2ND HALF',
+    Delayed: 'RESUME',
   }
   return labels[current] ?? '—'
 }
@@ -85,9 +85,9 @@ export function parseRosterCSV(text: string) {
     .map((line) => line.split(',').map((c) => c.trim()))
     .filter((cols) => cols.length >= 2 && cols[0] && cols[1])
     .map((cols) => ({
-      team:     cols[0],
-      name:     cols[1],
-      number:   cols[2] ?? '',
+      team: cols[0],
+      name: cols[1],
+      number: cols[2] ?? '',
       position: cols[3] ?? '',
     }))
 }
@@ -126,7 +126,13 @@ export function generateSchedule(input: {
 
   const [sh, sm] = startTime.split(':').map(Number)
   let slotMin = sh * 60 + sm
-  const schedule: Array<{ time: string; field: string; home: string; away: string; division: string }> = []
+  const schedule: Array<{
+    time: string
+    field: string
+    home: string
+    away: string
+    division: string
+  }> = []
   let fieldIdx = 0
   const teamLastGame: Record<string, number> = {}
   const maxGames = gamesPerTeam * teams.length
@@ -148,7 +154,13 @@ export function generateSchedule(input: {
     const dhr = hr > 12 ? hr - 12 : hr === 0 ? 12 : hr
     const timeStr = `${dhr}:${mn.toString().padStart(2, '0')} ${ampm}`
 
-    schedule.push({ time: timeStr, field: fields[fieldIdx % fields.length], home, away, division: div })
+    schedule.push({
+      time: timeStr,
+      field: fields[fieldIdx % fields.length],
+      home,
+      away,
+      division: div,
+    })
     teamLastGame[home] = slotMin
     teamLastGame[away] = slotMin
     fieldIdx++

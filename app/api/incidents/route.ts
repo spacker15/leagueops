@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const sb   = createClient()
+  const sb = createClient()
   const body = await req.json()
 
   const { data, error } = await sb

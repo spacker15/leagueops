@@ -5,7 +5,7 @@ export async function GET(req: NextRequest) {
   const sb = createClient()
   const { searchParams } = new URL(req.url)
   const eventId = searchParams.get('event_id') ?? '1'
-  const limit   = parseInt(searchParams.get('limit') ?? '50')
+  const limit = parseInt(searchParams.get('limit') ?? '50')
 
   const { data, error } = await sb
     .from('ops_log')
@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const sb   = createClient()
+  const sb = createClient()
   const body = await req.json()
 
   const { data, error } = await sb

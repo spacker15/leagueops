@@ -5,7 +5,7 @@ import { invalidateRulesCache } from '@/lib/engines/rules'
 export async function GET(req: NextRequest) {
   const sb = createClient()
   const { searchParams } = new URL(req.url)
-  const eventId  = searchParams.get('event_id') ?? '1'
+  const eventId = searchParams.get('event_id') ?? '1'
   const category = searchParams.get('category')
 
   let query = sb
@@ -46,8 +46,8 @@ export async function PATCH(req: NextRequest) {
     .update({
       rule_value,
       is_override: true,
-      updated_at:  new Date().toISOString(),
-      updated_by:  changed_by,
+      updated_at: new Date().toISOString(),
+      updated_by: changed_by,
     })
     .eq('id', id)
     .select()
@@ -57,19 +57,19 @@ export async function PATCH(req: NextRequest) {
 
   // Audit log
   await sb.from('rule_changes').insert({
-    event_id:   1,
-    rule_id:    id,
-    rule_key:   current.rule_key,
-    old_value:  current.rule_value,
-    new_value:  rule_value,
+    event_id: 1,
+    rule_id: id,
+    rule_key: current.rule_key,
+    old_value: current.rule_value,
+    new_value: rule_value,
     changed_by,
     changed_at: new Date().toISOString(),
   })
 
   await sb.from('ops_log').insert({
-    event_id:    1,
-    message:     `Rule updated: ${current.category}.${current.rule_key} → "${rule_value}" (was "${current.rule_value}")`,
-    log_type:    'warn',
+    event_id: 1,
+    message: `Rule updated: ${current.category}.${current.rule_key} → "${rule_value}" (was "${current.rule_value}")`,
+    log_type: 'warn',
     occurred_at: new Date().toISOString(),
   })
 
@@ -91,25 +91,29 @@ export async function POST(req: NextRequest) {
 
     if (!current) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-    await sb.from('event_rules').update({
-      rule_value:  current.default_value,
-      is_override: false,
-      updated_at:  new Date().toISOString(),
-      updated_by:  'reset',
-    }).eq('id', id)
+    await sb
+      .from('event_rules')
+      .update({
+        rule_value: current.default_value,
+        is_override: false,
+        updated_at: new Date().toISOString(),
+        updated_by: 'reset',
+      })
+      .eq('id', id)
 
     await sb.from('rule_changes').insert({
-      event_id, rule_id: id,
-      rule_key:   current.rule_key,
-      old_value:  current.rule_value,
-      new_value:  current.default_value,
+      event_id,
+      rule_id: id,
+      rule_key: current.rule_key,
+      old_value: current.rule_value,
+      new_value: current.default_value,
       changed_by: 'reset',
     })
 
     await sb.from('ops_log').insert({
       event_id,
-      message:     `Rule reset: ${current.category}.${current.rule_key} → "${current.default_value}"`,
-      log_type:    'info',
+      message: `Rule reset: ${current.category}.${current.rule_key} → "${current.default_value}"`,
+      log_type: 'info',
       occurred_at: new Date().toISOString(),
     })
 
@@ -126,17 +130,20 @@ export async function POST(req: NextRequest) {
 
     if (overrides && overrides.length > 0) {
       for (const rule of overrides) {
-        await sb.from('event_rules').update({
-          rule_value:  rule.default_value,
-          is_override: false,
-          updated_at:  new Date().toISOString(),
-          updated_by:  'reset',
-        }).eq('id', rule.id)
+        await sb
+          .from('event_rules')
+          .update({
+            rule_value: rule.default_value,
+            is_override: false,
+            updated_at: new Date().toISOString(),
+            updated_by: 'reset',
+          })
+          .eq('id', rule.id)
       }
       await sb.from('ops_log').insert({
         event_id,
-        message:     `All rules reset to defaults (${overrides.length} rules restored)`,
-        log_type:    'info',
+        message: `All rules reset to defaults (${overrides.length} rules restored)`,
+        log_type: 'info',
         occurred_at: new Date().toISOString(),
       })
     }

@@ -25,10 +25,7 @@ export async function POST(req: NextRequest) {
   // Support bulk insert (array) or single insert
   const payload = Array.isArray(body) ? body : [body]
 
-  const { data, error } = await sb
-    .from('players')
-    .insert(payload)
-    .select()
+  const { data, error } = await sb.from('players').insert(payload).select()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data, { status: 201 })

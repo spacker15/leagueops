@@ -18,11 +18,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const sb = createClient()
   const body = await req.json()
-  const { data, error } = await sb
-    .from('team_payments')
-    .insert(body)
-    .select()
-    .single()
+  const { data, error } = await sb.from('team_payments').insert(body).select().single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data, { status: 201 })
 }
