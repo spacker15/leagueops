@@ -9,18 +9,18 @@ created: 2026-03-22
 
 ## Overview
 
-| Phase | Name | Requirements | UI | Depends On |
-|-------|------|-------------|----|------------|
-| 1 | Engine Client Refactor | 5/5 | Complete   | 2026-03-22 |
-| 2 | Hardcode Removal & Event Context | SEC-04, SEC-05 | no | Phase 1 |
-| 3 | API Auth & Validation | SEC-02, SEC-07, SEC-08 | no | Phase 2 |
-| 4 | RLS & Database Security | SEC-01 | no | Phase 1, Phase 2 |
-| 5 | Event Creation Enhancements | EVT-01, EVT-02, EVT-03, EVT-04, EVT-05, EVT-06 | yes | Phase 3 |
-| 6 | Registration Flow Enhancements | REG-01, REG-02, REG-03, REG-04, REG-05, REG-06, REG-07, REG-08 | yes | Phase 2, Phase 4 |
-| 7 | Notification Infrastructure | NOT-01, NOT-05, NOT-06, NOT-07, NOT-08 | yes | Phase 1, Phase 4 |
-| 8 | Schedule Change Request Workflow | SCR-01, SCR-02, SCR-03, SCR-04, SCR-05, SCR-06, SCR-07, SCR-08 | yes | Phase 6, Phase 7 |
-| 9 | Public Results Site | PUB-01, PUB-02, PUB-03, PUB-04, PUB-05, PUB-06, PUB-07, PUB-08 | yes | Phase 4 |
-| 10 | Responsive Design | MOB-01, MOB-02, MOB-03, MOB-04, NOT-02, NOT-03, NOT-04 | yes | Phase 7, Phase 8, Phase 9 |
+| Phase | Name                             | Requirements                                                   | UI       | Depends On                |
+| ----- | -------------------------------- | -------------------------------------------------------------- | -------- | ------------------------- |
+| 1     | Engine Client Refactor           | 5/5                                                            | Complete | 2026-03-22                |
+| 2     | Hardcode Removal & Event Context | SEC-04, SEC-05                                                 | no       | Phase 1                   |
+| 3     | API Auth & Validation            | SEC-02, SEC-07, SEC-08                                         | no       | Phase 2                   |
+| 4     | RLS & Database Security          | SEC-01                                                         | no       | Phase 1, Phase 2          |
+| 5     | Event Creation Enhancements      | EVT-01, EVT-02, EVT-03, EVT-04, EVT-05, EVT-06                 | yes      | Phase 3                   |
+| 6     | Registration Flow Enhancements   | REG-01, REG-02, REG-03, REG-04, REG-05, REG-06, REG-07, REG-08 | yes      | Phase 2, Phase 4          |
+| 7     | Notification Infrastructure      | NOT-01, NOT-05, NOT-06, NOT-07, NOT-08                         | yes      | Phase 1, Phase 4          |
+| 8     | Schedule Change Request Workflow | SCR-01, SCR-02, SCR-03, SCR-04, SCR-05, SCR-06, SCR-07, SCR-08 | yes      | Phase 6, Phase 7          |
+| 9     | Public Results Site              | PUB-01, PUB-02, PUB-03, PUB-04, PUB-05, PUB-06, PUB-07, PUB-08 | yes      | Phase 4                   |
+| 10    | Responsive Design                | MOB-01, MOB-02, MOB-03, MOB-04, NOT-02, NOT-03, NOT-04         | yes      | Phase 7, Phase 8, Phase 9 |
 
 ---
 
@@ -32,6 +32,7 @@ created: 2026-03-22
 **Depends on:** none
 
 ### Success Criteria
+
 1. All five engine modules (`referee.ts`, `weather.ts`, `field.ts`, `eligibility.ts`, `unified.ts`) accept a `SupabaseClient` parameter and do not import `@/supabase/client`.
 2. Calling any engine from an API route returns actual data rows (not empty array) when a valid JWT is present.
 3. The OpenWeather API key is no longer prefixed `NEXT_PUBLIC_` and does not appear in any client bundle.
@@ -39,6 +40,7 @@ created: 2026-03-22
 5. No existing API route behavior changes from a user-facing perspective.
 
 ### Scope Notes
+
 - Pure refactor — no schema changes, no new UI.
 - SEC-06 is bundled here because it follows the same server-side pattern: move key to `WEATHER_API_KEY`, update all server-side references.
 - Do not touch RLS yet — that is Phase 4. The engine refactor is a prerequisite for RLS being safe to enable.
@@ -52,8 +54,17 @@ created: 2026-03-22
 **Requirements:** SEC-04, SEC-05
 **UI hint:** no
 **Depends on:** Phase 1
+**Plans:** 4 plans
+
+Plans:
+
+- [ ] 02-01-PLAN.md — Engine eventId parameter injection (referee, weather, field, unified, rules)
+- [ ] 02-02-PLAN.md — API route hardcode removal (~19 routes, 400 guards)
+- [ ] 02-03-PLAN.md — Store loadAll/realtime dependency fixes (SEC-05)
+- [ ] 02-04-PLAN.md — Component hardcode removal (~18 files, QR slug, portals)
 
 ### Success Criteria
+
 1. No `event_id = 1`, `eventId = 1`, or `?? 1` constant fallbacks remain in engines, components, or API routes (verified by grep).
 2. Switching from Event A to Event B in the UI shows Event B data within one render cycle — no stale data bleed from the previous event.
 3. `loadAll` in `lib/store.tsx` includes `eventId` in its dependency array; no ESLint exhaustive-deps warning on that hook.
@@ -62,6 +73,7 @@ created: 2026-03-22
 6. Switching events with no assigned role shows an empty / access-denied state rather than Event 1 data.
 
 ### Scope Notes
+
 - This phase touches the most files (~60 locations). Work incrementally by group: engines first, then API routes, then components.
 - Replace every `?? 1` fallback with a loading guard (spinner or null render) — never with a different constant.
 - SEC-05 (realtime subscription scoping) is included here because the subscription filter depends on having dynamic event context working.
@@ -77,6 +89,7 @@ created: 2026-03-22
 **Depends on:** Phase 2
 
 ### Success Criteria
+
 1. Every API route that writes data (POST/PATCH/DELETE) calls `auth.getUser()` and returns `401` for unauthenticated requests.
 2. Intentionally public routes (`/api/join`, `/api/checkins`, `/api/public-results/*`) are explicitly excluded from auth guards and documented in a comment.
 3. All request bodies parsed with Zod schemas — malformed requests return `400` with a machine-readable error, not a 500.
@@ -84,6 +97,7 @@ created: 2026-03-22
 5. An expired or invalid JWT returns a consistent `401` error (not a silent empty result) due to `persistSession: false` behavior being handled explicitly.
 
 ### Scope Notes
+
 - Categorize all routes first before modifying any: write, read, public, engine-trigger. One route category at a time to avoid regressions.
 - SEC-07 (Zod validation) and SEC-08 (rate limiting) are bundled here — they share the same "touch every route" effort with SEC-02.
 - Upstash Redis free tier: 10k requests/day. Apply rate limiting only to engine-trigger routes and public endpoints, not to authenticated write routes.
@@ -99,6 +113,7 @@ created: 2026-03-22
 **Depends on:** Phase 1, Phase 2
 
 ### Success Criteria
+
 1. `user_event_ids()` `SECURITY DEFINER` function exists in production and returns the correct set of event IDs for each user.
 2. All event-owned tables enforce `event_id IN (SELECT user_event_ids())` on reads and writes — verified by querying as a user with access to Event A, confirming Event B rows are invisible.
 3. Sensitive tables (`ops_alerts`, `ops_log`, `user_roles`) have no anon policy — anonymous reads return zero rows.
@@ -106,6 +121,7 @@ created: 2026-03-22
 5. RLS migration was applied to a Supabase branch and smoke-tested before production promotion.
 
 ### Scope Notes
+
 - Must apply after Phase 1 (engine client fix) and Phase 2 (event context fix) — enabling RLS before those are done causes silent empty-result bugs.
 - Apply RLS in three layers: authenticated reads first, then write restrictions, then anon policies.
 - The anon read policies here unblock Phase 9 (public results site) — Phase 9 depends on Phase 4 for this reason.
@@ -121,6 +137,7 @@ created: 2026-03-22
 **Depends on:** Phase 3
 
 ### Success Criteria
+
 1. Admin can type a venue name in the event creation form and see autocomplete suggestions sourced from the Google Maps Places API.
 2. Selecting a venue saves `lat`, `lng`, `address`, and `place_id` to the event record — not just a text string.
 3. The Google Maps API key is never present in any client-side bundle; all calls route through `/api/maps/autocomplete` and `/api/maps/geocode`.
@@ -129,6 +146,7 @@ created: 2026-03-22
 6. Registration link/QR includes the event slug for direct routing — scanning routes to the correct event's registration wizard.
 
 ### Scope Notes
+
 - `@vis.gl/react-google-maps ^1.4.0` is the approved Maps package. Add it only in Phase 5.
 - `qrcode.react ^3.x` is the approved QR package — add it here (also used in Phase 9).
 - EVT-03 (server-side API key proxy) is a prerequisite sub-task within this phase, not a separate phase.
@@ -145,6 +163,7 @@ created: 2026-03-22
 **Depends on:** Phase 2, Phase 4
 
 ### Success Criteria
+
 1. Admin can set `registration_opens_at` and `registration_closes_at` on an event; the system enforces these dates — the registration wizard blocks access outside the window.
 2. Program leader can select per-team availability (all dates or specific dates) during registration; selections are saved to `team_registrations.available_date_ids`.
 3. Program leader can add coaches directly to a team with name, email, phone, and certifications within the registration wizard.
@@ -155,6 +174,7 @@ created: 2026-03-22
 8. Program leader can add multiple teams in a single registration session without re-entering program information.
 
 ### Scope Notes
+
 - Schema additions: `coaches`, `coach_teams`, `coach_invites` tables; `available_date_ids JSONB` on `team_registrations`; `registration_opens_at`/`registration_closes_at` on `events`.
 - Coach self-registration link follows the same pattern as `app/join/[token]/` — create `app/coach/[token]/page.tsx`.
 - `lib/engines/coach-conflicts.ts` is a pure TypeScript engine with no UI dependency — write it early in this phase.
@@ -172,6 +192,7 @@ created: 2026-03-22
 **Depends on:** Phase 1, Phase 4
 
 ### Success Criteria
+
 1. `notification_queue`, `notification_preferences`, and `notification_log` tables exist and are RLS-protected.
 2. A Supabase Edge Function `process-notifications` is triggered by Database Webhook on `notification_queue` inserts — it resolves recipients, checks preferences, fans out to channels, and writes to `notification_log`.
 3. Resend sends a test email to a real inbox within 30 seconds of a `notification_queue` row being inserted.
@@ -181,6 +202,7 @@ created: 2026-03-22
 7. A hard cap of N SMS messages per event per hour is enforced (prevents notification storms).
 
 ### Scope Notes
+
 - NOT-02 (weather alerts), NOT-03 (schedule change notifications), and NOT-04 (admin alerts) are delivery triggers — they are wired in Phase 10 once the notification tables and Edge Function are in place. They are NOT in scope for this phase.
 - VAPID key generation for web push must happen before deploying `sw.js` — generate once and store in Supabase secrets.
 - Email templates use `@react-email/components` + `react-email ^3.x` (add in this phase).
@@ -197,6 +219,7 @@ created: 2026-03-22
 **Depends on:** Phase 6, Phase 7
 
 ### Success Criteria
+
 1. Coach or program leader can open `ScheduleChangeRequestModal`, select affected game(s), choose a reason and cancel vs reschedule, and submit — a `schedule_change_requests` row is created in `pending` state.
 2. Admin sees incoming requests in `ScheduleChangeRequestsTab` and can move them to `under_review`, `approved`, or `denied`.
 3. When admin approves a request, the system queries field + team + referee availability simultaneously and returns available alternative slots within 5 seconds.
@@ -206,6 +229,7 @@ created: 2026-03-22
 7. A request cannot be approved if the field engine still shows a conflict on the proposed slot (field engine resolved bug must be fixed — see Phase 1).
 
 ### Scope Notes
+
 - Single state machine route: `PATCH /api/schedule-change-requests/[id]/route.ts` validates legal state transitions by role.
 - Slot suggestion engine: `lib/engines/schedule-change.ts` — pure TypeScript, no DB required to write the logic. Can be written and unit tested before the DB migration lands.
 - Slot assignment must be a Supabase RPC (PostgreSQL transaction) — multi-step API calls will cause double-bookings under concurrent use.
@@ -223,6 +247,7 @@ created: 2026-03-22
 **Depends on:** Phase 4
 
 ### Success Criteria
+
 1. Parents can navigate to the public results site and view live game scores, team schedule, and division standings without creating an account.
 2. Three schedule views are available: by team, by field, and by time slot — all usable on a phone screen without horizontal scrolling.
 3. Division standings display win/loss records sourced from a PostgreSQL view (not computed client-side).
@@ -233,6 +258,7 @@ created: 2026-03-22
 8. The public site does not expose `ops_alerts`, `user_roles`, or `ops_log` data — verified by attempting anonymous queries against those tables.
 
 ### Scope Notes
+
 - Phase 4 (RLS with anon policies on public tables) is a hard dependency — the public site will return empty data without it.
 - Do not open a per-visitor Realtime WebSocket for full-page updates — Supabase free tier caps at 200 concurrent connections. Reserve Realtime for in-progress game score rows only.
 - Player names and roster data must NOT appear on the public site (COPPA / youth privacy).
@@ -250,6 +276,7 @@ created: 2026-03-22
 **Depends on:** Phase 7, Phase 8, Phase 9
 
 ### Success Criteria
+
 1. Dashboard, Schedule, and Check-In views render without horizontal scrolling on a 375px-wide phone screen.
 2. RightPanel converts to a bottom drawer on mobile — slides up from the bottom with a handle, does not overlap the nav.
 3. Drag-drop referee assignment works via touch on iOS Safari and Chrome for Android (`@dnd-kit` TouchSensor configured).
@@ -259,10 +286,12 @@ created: 2026-03-22
 7. Admin receives in-app and email alerts for referee no-shows, registration deadline warnings, and ops issues surfaced by the unified engine.
 
 ### Scope Notes
+
 - MOB-01 through MOB-04 use Tailwind responsive prefixes (`sm:`, `md:`) — no new UI libraries.
 - `@dnd-kit` already includes `TouchSensor` — configure it in the existing referee assignment drag-drop setup.
 - NOT-02, NOT-03, NOT-04 are notification triggers (not new infrastructure) — they wire `notification_queue` writes into existing engine outputs and workflow state transitions. The notification infrastructure (Phase 7) must be complete first.
 - This is the final polish and integration phase. All major features are functional after Phase 9; Phase 10 is about field usability and closing the notification loop.
 
 ---
-*Last updated: 2026-03-22*
+
+_Last updated: 2026-03-22_
