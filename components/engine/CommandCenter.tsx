@@ -441,6 +441,7 @@ export function CommandCenter() {
                   games={fieldGames}
                   liveGame={liveGame}
                   fieldAlerts={fieldAlerts}
+                  eventId={eventId}
                 />
               )
             })}
@@ -712,11 +713,13 @@ function FieldCard({
   games,
   liveGame,
   fieldAlerts,
+  eventId,
 }: {
   field: any
   games: any[]
   liveGame: any
   fieldAlerts: OpsAlert[]
+  eventId: number
 }) {
   const [expanded, setExpanded] = useState(false)
   const hasCritical = fieldAlerts.some((a) => a.severity === 'critical')

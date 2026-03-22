@@ -551,7 +551,7 @@ function QuickRescheduleBtn({ game, onRescheduled }: { game: any; onRescheduled:
   const [open, setOpen] = useState(false)
   const [time, setTime] = useState('')
   const [field, setField] = useState('')
-  const { state } = useApp()
+  const { state, eventId } = useApp()
 
   async function save() {
     const sb = createClient()
