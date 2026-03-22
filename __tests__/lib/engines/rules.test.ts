@@ -7,7 +7,7 @@ describe('rules engine', () => {
 
   beforeEach(() => {
     mockSb = makeMockSb()
-    invalidateRulesCache() // clear cache between tests
+    invalidateRulesCache() // clear all event caches between tests
   })
 
   it('loadRules resolves with empty array when DB returns no rows', async () => {
@@ -93,11 +93,35 @@ describe('rules engine', () => {
     const callsAfterFirst = (mockSb.from as ReturnType<typeof vi.fn>).mock.calls.length
 
     // Invalidate and call again — should fetch from DB again
-    invalidateRulesCache()
+    invalidateRulesCache(1)
     await getRules(1, mockSb)
     const callsAfterSecond = (mockSb.from as ReturnType<typeof vi.fn>).mock.calls.length
 
     expect(callsAfterSecond).toBeGreaterThan(callsAfterFirst)
+  })
+
+  it('cache returns correct rules per event (cross-event isolation)', async () => {
+    const rulesEvent1 = [{ category: 'scheduling', rule_key: 'game_duration_min', rule_value: '60' }]
+    const rulesEvent2 = [{ category: 'scheduling', rule_key: 'game_duration_min', rule_value: '90' }]
+
+    ;(mockSb.from as ReturnType<typeof vi.fn>)
+      .mockReturnValueOnce(makeChain({ data: rulesEvent1, error: null })) // event 1
+      .mockReturnValueOnce(makeChain({ data: rulesEvent2, error: null })) // event 2
+
+    // Load rules for event 1
+    const map1 = await getRules(1, mockSb)
+    // Load rules for event 2
+    const map2 = await getRules(2, mockSb)
+
+    // Event 1 cache is not contaminated by event 2 data
+    expect(map1['scheduling.game_duration_min']).toBe('60')
+    expect(map2['scheduling.game_duration_min']).toBe('90')
+
+    // Calling event 1 again should use cache (no additional DB call)
+    const callsBefore = (mockSb.from as ReturnType<typeof vi.fn>).mock.calls.length
+    await getRules(1, mockSb)
+    const callsAfter = (mockSb.from as ReturnType<typeof vi.fn>).mock.calls.length
+    expect(callsAfter).toBe(callsBefore)
   })
 
   it('updateRule calls event_rules and rule_changes tables', async () => {
@@ -109,7 +133,7 @@ describe('rules engine', () => {
       .mockReturnValueOnce(makeChain({ data: null, error: null })) // insert rule_changes
       .mockReturnValueOnce(makeChain({ data: null, error: null })) // insert ops_log
 
-    await updateRule(1, 'new_value', 'admin', mockSb)
+    await updateRule(1, 'new_value', 'admin', 1, mockSb)
 
     const calledTables = (mockSb.from as ReturnType<typeof vi.fn>).mock.calls.map(
       (call: unknown[]) => call[0]
