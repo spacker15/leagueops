@@ -112,7 +112,56 @@ Explicitly excluded. Documented to prevent scope creep.
 
 | REQ-ID | Phase | Status |
 |--------|-------|--------|
-| (filled by roadmap) | | |
+| SEC-01 | 4 — RLS & Database Security | not_started |
+| SEC-02 | 3 — API Auth & Validation | not_started |
+| SEC-03 | 1 — Engine Client Refactor | not_started |
+| SEC-04 | 2 — Hardcode Removal & Event Context | not_started |
+| SEC-05 | 2 — Hardcode Removal & Event Context | not_started |
+| SEC-06 | 1 — Engine Client Refactor | not_started |
+| SEC-07 | 3 — API Auth & Validation | not_started |
+| SEC-08 | 3 — API Auth & Validation | not_started |
+| EVT-01 | 5 — Event Creation Enhancements | not_started |
+| EVT-02 | 5 — Event Creation Enhancements | not_started |
+| EVT-03 | 5 — Event Creation Enhancements | not_started |
+| EVT-04 | 5 — Event Creation Enhancements | not_started |
+| EVT-05 | 5 — Event Creation Enhancements | not_started |
+| EVT-06 | 5 — Event Creation Enhancements | not_started |
+| REG-01 | 6 — Registration Flow Enhancements | not_started |
+| REG-02 | 6 — Registration Flow Enhancements | not_started |
+| REG-03 | 6 — Registration Flow Enhancements | not_started |
+| REG-04 | 6 — Registration Flow Enhancements | not_started |
+| REG-05 | 6 — Registration Flow Enhancements | not_started |
+| REG-06 | 6 — Registration Flow Enhancements | not_started |
+| REG-07 | 6 — Registration Flow Enhancements | not_started |
+| REG-08 | 6 — Registration Flow Enhancements | not_started |
+| SCR-01 | 8 — Schedule Change Request Workflow | not_started |
+| SCR-02 | 8 — Schedule Change Request Workflow | not_started |
+| SCR-03 | 8 — Schedule Change Request Workflow | not_started |
+| SCR-04 | 8 — Schedule Change Request Workflow | not_started |
+| SCR-05 | 8 — Schedule Change Request Workflow | not_started |
+| SCR-06 | 8 — Schedule Change Request Workflow | not_started |
+| SCR-07 | 8 — Schedule Change Request Workflow | not_started |
+| SCR-08 | 8 — Schedule Change Request Workflow | not_started |
+| PUB-01 | 9 — Public Results Site | not_started |
+| PUB-02 | 9 — Public Results Site | not_started |
+| PUB-03 | 9 — Public Results Site | not_started |
+| PUB-04 | 9 — Public Results Site | not_started |
+| PUB-05 | 9 — Public Results Site | not_started |
+| PUB-06 | 9 — Public Results Site | not_started |
+| PUB-07 | 9 — Public Results Site | not_started |
+| PUB-08 | 9 — Public Results Site | not_started |
+| NOT-01 | 7 — Notification Infrastructure | not_started |
+| NOT-02 | 10 — Responsive Design & Notification Wiring | not_started |
+| NOT-03 | 10 — Responsive Design & Notification Wiring | not_started |
+| NOT-04 | 10 — Responsive Design & Notification Wiring | not_started |
+| NOT-05 | 7 — Notification Infrastructure | not_started |
+| NOT-06 | 7 — Notification Infrastructure | not_started |
+| NOT-07 | 7 — Notification Infrastructure | not_started |
+| NOT-08 | 7 — Notification Infrastructure | not_started |
+| MOB-01 | 10 — Responsive Design & Notification Wiring | not_started |
+| MOB-02 | 10 — Responsive Design & Notification Wiring | not_started |
+| MOB-03 | 10 — Responsive Design & Notification Wiring | not_started |
+| MOB-04 | 10 — Responsive Design & Notification Wiring | not_started |
 
 ---
-*Last updated: 2026-03-22 after initialization*
+*Last updated: 2026-03-22 after roadmap creation — traceability section populated*
