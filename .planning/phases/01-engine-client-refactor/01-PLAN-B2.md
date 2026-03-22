@@ -1,0 +1,247 @@
+---
+phase: 1
+plan: B2
+title: "Existing API Route Updates"
+wave: 2
+depends_on: ["A"]
+requirements: ["SEC-03"]
+files_modified:
+  - "app/api/referee-engine/route.ts"
+  - "app/api/field-engine/route.ts"
+  - "app/api/weather-engine/route.ts"
+  - "app/api/eligibility/route.ts"
+  - "app/api/unified-engine/route.ts"
+  - "app/api/unified-engine/resolve/route.ts"
+  - "app/api/shift-handoff/route.ts"
+autonomous: true
+estimated_tasks: 5
+---
+
+# Plan B2: Existing API Route Updates
+
+## Goal
+
+Update the 4 existing engine API routes to pass a server-side Supabase client to the refactored engine functions, and complete the wire-up of the 3 new routes created in Plan B1 by removing their TODO placeholders.
+
+## Review Feedback Addressed
+
+- **HIGH — Plan A + B wave 1 parallelism is fragile**: This plan is wave 2 and explicitly `depends_on: ["A"]`. It must not begin until Plan A's engine signature changes are complete. The existing routes will fail type-check if touched before Plan A, because they call engine functions whose signatures now require `sb`.
+- **MEDIUM — New API routes lack error handling specification**: The wire-up of the 3 new routes (Plan B1) in Task 5 follows the same `{ error: string }` pattern established in B1, with status codes `400` (validation) and `500` (engine errors). This plan verifies and confirms the pattern is consistent.
+
+---
+
+## Tasks
+
+<task id="1">
+<title>Update app/api/referee-engine/route.ts — pass sb to engine calls</title>
+<read_first>
+- app/api/referee-engine/route.ts
+- lib/engines/referee.ts (refactored in Plan A Task 2)
+- supabase/server.ts
+</read_first>
+<instructions>
+The referee-engine route currently calls `runRefereeEngine(...)` and `findAvailableRefs(...)` without passing a Supabase client. After Plan A Task 2, both functions require `sb` as the last parameter.
+
+1. Ensure the route imports `createClient` from `@/supabase/server`:
+   ```typescript
+   import { createClient } from '@/supabase/server'
+   ```
+
+2. In the POST handler (which calls `runRefereeEngine`):
+   - Add `const sb = createClient()` at the top of the handler body
+   - Update the engine call: `runRefereeEngine(Number(event_date_id), sb)`
+
+3. In the GET handler (which calls `findAvailableRefs`, if present):
+   - Add `const sb = createClient()` at the top of the handler body
+   - Update the engine call: `findAvailableRefs(eventDateId, gameTime, division, excludeRefIds, sb)`
+
+4. Remove any now-unused `createClient` import from `@/supabase/client` if present.
+
+5. Run `npm run type-check` and confirm no errors in this file.
+
+**Note on `createClient()` placement:** Always call `createClient()` as the first statement inside the handler function body — not at module level and not inside a nested callback. This satisfies the `next/headers` `cookies()` requirement (must be called within request scope).
+</instructions>
+<acceptance_criteria>
+- [ ] `app/api/referee-engine/route.ts` imports `createClient` from `@/supabase/server`
+- [ ] POST handler calls `const sb = createClient()` inside the handler body
+- [ ] `runRefereeEngine(Number(event_date_id), sb)` is called with `sb` as last arg
+- [ ] `findAvailableRefs(...)` call (if in this route) also passes `sb`
+- [ ] No import from `@/supabase/client` remains
+- [ ] `npm run type-check` passes
+</acceptance_criteria>
+</task>
+
+<task id="2">
+<title>Update app/api/field-engine/route.ts — pass sb to engine calls</title>
+<read_first>
+- app/api/field-engine/route.ts
+- lib/engines/field.ts (refactored in Plan A Task 3)
+- supabase/server.ts
+</read_first>
+<instructions>
+The field-engine route calls `runFieldConflictEngine`, `runFullConflictScan`, and `applyResolution`. The GET handler also has the resolved-conflicts bug fix already applied in Plan A Task 3.
+
+1. Ensure the route imports `createClient` from `@/supabase/server` (it already does per the research — verify and update if needed).
+
+2. In the POST handler:
+   - Add `const sb = createClient()` at the top
+   - Update all engine calls:
+     - `runFieldConflictEngine(Number(event_date_id), sb)`
+     - `runFullConflictScan(Number(event_date_id), sb)`
+     - `applyResolution(conflictId, action, params, sb)`
+
+3. In the GET handler:
+   - Add `const sb = createClient()` at the top
+   - The GET handler queries `operational_conflicts` directly (not through an engine function) but uses `sb` for the query — ensure `sb` is created here too.
+   - Verify the resolved-conflicts bug fix from Plan A Task 3 is present.
+
+4. Remove any unused `createClient` import from `@/supabase/client`.
+
+5. Run `npm run type-check`.
+</instructions>
+<acceptance_criteria>
+- [ ] All 3 engine calls in `field-engine/route.ts` pass `sb` as last arg
+- [ ] Both POST and GET handlers call `const sb = createClient()` inside the handler body
+- [ ] No import from `@/supabase/client` remains
+- [ ] Resolved-conflicts bug fix is present (verified from Plan A Task 3)
+- [ ] `npm run type-check` passes
+</acceptance_criteria>
+</task>
+
+<task id="3">
+<title>Update app/api/weather-engine/route.ts — pass sb to engine calls</title>
+<read_first>
+- app/api/weather-engine/route.ts
+- lib/engines/weather.ts (refactored in Plan A Task 4)
+- supabase/server.ts
+</read_first>
+<instructions>
+The weather-engine route calls `runWeatherEngine`, `getLatestReading`, and `getReadingHistory`. All three now require `sb`.
+
+1. Ensure import: `import { createClient } from '@/supabase/server'`
+
+2. In the POST handler:
+   - Add `const sb = createClient()` at the top
+   - The route already passes `process.env.OPENWEATHER_API_KEY` as the `apiKey` arg — verify this is correct
+   - Update call: `runWeatherEngine(Number(complex_id), api_key ?? process.env.OPENWEATHER_API_KEY, sb)`
+
+3. In any GET handler for reading history or latest reading:
+   - Add `const sb = createClient()` at the top
+   - Update calls: `getLatestReading(complexId, sb)`, `getReadingHistory(complexId, hours, sb)`
+
+4. Run `npm run type-check`.
+</instructions>
+<acceptance_criteria>
+- [ ] All weather engine calls pass `sb` as last arg
+- [ ] `process.env.OPENWEATHER_API_KEY` (server-only name) is used, not `NEXT_PUBLIC_OPENWEATHER_KEY`
+- [ ] `const sb = createClient()` called inside each handler body
+- [ ] No import from `@/supabase/client` remains
+- [ ] `npm run type-check` passes
+</acceptance_criteria>
+</task>
+
+<task id="4">
+<title>Update app/api/eligibility/route.ts — pass sb to engine calls</title>
+<read_first>
+- app/api/eligibility/route.ts
+- lib/engines/eligibility.ts (refactored in Plan A Task 5)
+- supabase/server.ts
+</read_first>
+<instructions>
+The eligibility route has an unused `createClient` import from `@/supabase/server` (noted in research). This is the task that makes it used.
+
+1. Confirm import: `import { createClient } from '@/supabase/server'` is present (it should be unused per research).
+
+2. In each handler (POST, etc.):
+   - Add `const sb = createClient()` at the top of the handler body
+   - Update all engine calls to pass `sb`:
+     - `checkPlayerEligibility(playerId, gameId, eventDateId, sb)`
+     - `approveMultiGame(approvalId, approvedBy, approvedByName, sb)`
+     - `denyMultiGame(approvalId, deniedBy, reason, sb)`
+     - `getPendingApprovals(gameId, sb)`
+     - `getAllPendingApprovals(eventId, sb)`
+
+3. Remove any remaining import from `@/supabase/client` if present.
+
+4. Run `npm run type-check`.
+</instructions>
+<acceptance_criteria>
+- [ ] All eligibility engine calls in the route pass `sb` as last arg
+- [ ] `const sb = createClient()` called inside each handler body
+- [ ] Previously unused `createClient` import is now used
+- [ ] `npm run type-check` passes
+</acceptance_criteria>
+</task>
+
+<task id="5">
+<title>Wire Plan B1 routes — replace TODO placeholders with real engine calls</title>
+<read_first>
+- app/api/unified-engine/route.ts (created in Plan B1)
+- app/api/unified-engine/resolve/route.ts (created in Plan B1)
+- app/api/shift-handoff/route.ts (created in Plan B1)
+- lib/engines/unified.ts (refactored in Plan A Task 6)
+</read_first>
+<instructions>
+Plan B1 created 3 new routes with TODO placeholders. Now that Plan A Task 6 is complete, replace the stubs with real engine calls.
+
+**In `app/api/unified-engine/route.ts`:**
+1. Uncomment: `import { runUnifiedEngine } from '@/lib/engines/unified'`
+2. Replace placeholder return with:
+   ```typescript
+   const sb = createClient()
+   const result = await runUnifiedEngine(event_date_id, sb)
+   return NextResponse.json(result)
+   ```
+3. Remove the TODO comment.
+
+**In `app/api/unified-engine/resolve/route.ts`:**
+4. Uncomment: `import { resolveAlert } from '@/lib/engines/unified'`
+5. Replace placeholder return with:
+   ```typescript
+   const sb = createClient()
+   await resolveAlert(alert_id, resolved_by, note ?? undefined, sb)
+   return NextResponse.json({ success: true })
+   ```
+6. Remove the TODO comment.
+
+**In `app/api/shift-handoff/route.ts`:**
+7. Uncomment: `import { generateShiftHandoff } from '@/lib/engines/unified'`
+8. Replace placeholder return with:
+   ```typescript
+   const sb = createClient()
+   const result = await generateShiftHandoff(created_by, sb)
+   return NextResponse.json(result)
+   ```
+9. Remove the TODO comment.
+
+**Verify all 3 routes:**
+- Each still validates request body fields and returns `{ error: string }` with `400` for missing/invalid fields
+- Each still wraps the engine call in `try/catch` and returns `{ error: string }` with `500` on engine errors
+- `createClient()` is called inside the handler body (not before the validation checks, and not at module level)
+- Run `npm run type-check`.
+</instructions>
+<acceptance_criteria>
+- [ ] All 3 routes have no TODO placeholder comments remaining
+- [ ] `runUnifiedEngine`, `resolveAlert`, `generateShiftHandoff` are imported and called with `sb`
+- [ ] Error handling (`{ error: string }` + status codes) is preserved from Plan B1
+- [ ] `npm run type-check` passes for all 3 files
+</acceptance_criteria>
+</task>
+
+---
+
+## Verification
+
+- [ ] All 4 existing engine routes pass `sb` to every engine function call
+- [ ] All 3 new routes (from B1) have TODO placeholders replaced with real engine calls
+- [ ] No route file imports from `@/supabase/client`
+- [ ] Every handler creates `const sb = createClient()` inside the handler body
+- [ ] `npm run type-check` passes across the entire project
+- [ ] Manual test: POST to `/api/referee-engine` with a valid `event_date_id` returns actual data (not empty array) when authenticated
+
+## Must-Haves
+
+- `createClient()` is always called inside the handler function body — never at module level
+- All engine calls pass `sb` as the last argument (matching the signatures from Plan A)
+- Error response format `{ error: string }` is consistent across all routes
+- No import from `@/supabase/client` remains in any API route touched by this plan

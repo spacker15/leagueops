@@ -20,94 +20,128 @@ estimated_tasks: 7
 # Plan A: Core Engine Refactor
 
 ## Goal
-Refactor all 6 engine modules to accept an injected `SupabaseClient` parameter, remove all browser client imports, fix the field-engine resolved bug, and move the OpenWeather API key to a server-only environment variable.
+
+Refactor all 6 engine modules to accept an injected `SupabaseClient` parameter, remove all browser client imports, fix the field-engine resolved-conflicts bug, and move the OpenWeather API key to a server-only environment variable.
+
+## Review Feedback Addressed
+
+- **MEDIUM — `createClient()` from `supabase/server` may require `cookies()`**: Verified and documented in Task 1. `supabase/server.ts` calls `cookies()` from `next/headers` — this means `createClient()` must be called **inside** a Route Handler function body, never at module level. All tasks follow this pattern: engines receive an already-created `sb`; they never call `createClient()` themselves.
+- **MEDIUM — `unified.ts` restructuring needs more detail**: Task 6 has explicit sub-steps for removing `fetch('/api/...')` calls and replacing them with direct function imports, with explicit handling of the response shape difference.
+- **LOW — Rules cache comment**: Task 1 notes that on Vercel serverless (per-invocation execution model), the module-level `_cache` is effectively request-scoped — a new cold-start gives an empty cache. The comment is added for Phase 2 multi-event context, not because the cache causes cross-request pollution today.
+
+---
 
 ## Tasks
 
 <task id="1">
-<title>Refactor rules.ts — inject SupabaseClient, remove browser client import</title>
+<title>Refactor rules.ts — inject SupabaseClient, document server.ts pattern</title>
 <read_first>
 - lib/engines/rules.ts
 - supabase/server.ts
 - supabase/client.ts
 </read_first>
 <instructions>
-`rules.ts` must be refactored first because `field.ts` depends on it. Steps:
+**Before starting, understand the server client pattern (applies to all Plan A tasks):**
 
-1. Remove the import: `import { createClient } from '@/supabase/client'`
-2. Add the type import at the top of the file: `import type { SupabaseClient } from '@supabase/supabase-js'`
-3. Update every function signature that currently calls `createClient()` internally:
-   - `loadRules(eventId: number)` → `loadRules(eventId: number, sb: SupabaseClient)`
-   - `getRules(eventId: number)` → `getRules(eventId: number, sb: SupabaseClient)`
-   - `updateRule(id: string, newValue: string, changedBy: string)` → `updateRule(id: string, newValue: string, changedBy: string, sb: SupabaseClient)`
-   - `resetRule(id: string)` → `resetRule(id: string, sb: SupabaseClient)`
-   - `resetAllRules(eventId: number)` → `resetAllRules(eventId: number, sb: SupabaseClient)`
-4. Inside each of those functions, remove the line `const sb = createClient()` (or however it is currently named — the internal `createClient()` call). Use the injected `sb` parameter for all Supabase operations.
-5. The pure getter functions (`invalidateRulesCache`, `getRule`, `getRuleNum`, `getRuleBool`, `getWeatherThresholds`, `getRefereeRules`, `getSchedulingRules`) delegate to `getRules`. Update `getSchedulingRules` and `getWeatherThresholds` and `getRefereeRules` to accept and pass through `sb: SupabaseClient` to `getRules`. Update `getRules` to call `loadRules(eventId, sb)` instead of `loadRules(eventId)`.
-6. Add a comment above the module-level cache variables (`_cache`, `_cacheTime`) noting: `// TODO Phase 2: key cache by eventId — module-level cache causes cross-event pollution when multi-event support is enabled`
-7. Confirm zero remaining references to `createClient` in this file.
+`supabase/server.ts` exports `createClient()` which internally calls `cookies()` from `next/headers`. This means:
+- `createClient()` **must** be called inside a Route Handler function body (not at module level, not in a closure that captures across requests).
+- Engines must never call `createClient()` themselves — they receive an already-created `sb` as a parameter.
+- The injected `sb` is request-scoped by design.
+
+**Serverless cache note:** `rules.ts` has module-level `_cache` and `_cacheTime` variables. On Vercel serverless, each function invocation is isolated — the module reloads on cold start, so `_cache` is effectively per-invocation (request-scoped) in production. The cache provides no cross-request benefit in serverless. Add a comment documenting this so Phase 2 multi-event work understands the actual behavior. Do NOT remove the cache in this phase.
+
+**Refactoring steps:**
+
+1. Remove `import { createClient } from '@/supabase/client'` from the top of `rules.ts`.
+2. Add `import type { SupabaseClient } from '@supabase/supabase-js'` at the top.
+3. Update all exported and internal functions that currently call `createClient()` to instead accept `sb: SupabaseClient` as a parameter:
+   - `loadRules(eventId: number, sb: SupabaseClient)`
+   - `getRules(eventId: number, sb: SupabaseClient)`
+   - `updateRule(id: string, newValue: string, changedBy: string, sb: SupabaseClient)`
+   - `resetRule(id: string, sb: SupabaseClient)`
+   - `resetAllRules(eventId: number, sb: SupabaseClient)`
+4. For pure accessor functions (`invalidateRulesCache`, `getRule`, `getRuleNum`, `getRuleBool`, `getWeatherThresholds`, `getRefereeRules`, `getSchedulingRules`): these call `getRules()` internally. Since `getRules` now requires `sb`, the accessors must also accept `sb: SupabaseClient` and pass it through to `getRules(eventId, sb)`.
+5. Remove each `const sb = createClient()` line inside function bodies and use the parameter `sb` instead.
+6. Add the following comment block above the `_cache` declaration:
+   ```typescript
+   // Cache note: _cache is module-level. On Vercel serverless, each invocation
+   // is isolated — _cache is effectively request-scoped (cold start = empty).
+   // The TTL-based refresh logic is retained for consistency and for local dev
+   // where the module persists across requests. Phase 2 must key this cache by
+   // eventId to support multi-event workspaces correctly.
+   ```
+7. Run `npm run type-check` — fix all type errors before proceeding.
 </instructions>
 <acceptance_criteria>
-- [ ] `import { createClient } from '@/supabase/client'` is gone from `rules.ts`
-- [ ] `import type { SupabaseClient } from '@supabase/supabase-js'` is present
-- [ ] `loadRules`, `getRules`, `updateRule`, `resetRule`, `resetAllRules` each have `sb: SupabaseClient` as a parameter
-- [ ] `getSchedulingRules`, `getWeatherThresholds`, `getRefereeRules` each have `sb: SupabaseClient` as a parameter and pass it to `getRules`
-- [ ] No internal `createClient()` calls remain
-- [ ] Cache TODO comment is present
-- [ ] `npm run type-check` passes
+- [ ] `rules.ts` has no import from `@/supabase/client`
+- [ ] All functions that previously called `createClient()` now accept `sb: SupabaseClient` as a parameter
+- [ ] `getSchedulingRules(sb)` signature is updated (required for field.ts Task 3)
+- [ ] Cache comment added above `_cache` declaration
+- [ ] `npm run type-check` passes with no errors in `rules.ts`
 </acceptance_criteria>
 </task>
 
 <task id="2">
-<title>Refactor referee.ts — inject SupabaseClient, remove browser client import</title>
+<title>Refactor referee.ts — inject SupabaseClient</title>
 <read_first>
 - lib/engines/referee.ts
+- supabase/server.ts
 </read_first>
 <instructions>
-`referee.ts` is standalone with no cross-engine dependencies. Steps:
+`referee.ts` has three internal client instantiations: `runRefereeEngine`, `clearStaleConflicts` (private), and `findAvailableRefs`. All three must receive `sb` via parameter injection.
 
-1. Remove: `import { createClient } from '@/supabase/client'`
-2. Add: `import type { SupabaseClient } from '@supabase/supabase-js'`
-3. The private internal function `clearStaleConflicts(eventDateId, types)` currently calls `createClient()`. Change its signature to `clearStaleConflicts(eventDateId: number, types: string[], sb: SupabaseClient)` and remove the internal `createClient()` call.
-4. `runRefereeEngine(eventDateId)` → `runRefereeEngine(eventDateId: number, sb: SupabaseClient)`. Remove the internal `createClient()` call. Pass `sb` to `clearStaleConflicts(...)` calls within this function.
-5. `findAvailableRefs(eventDateId, gameTime, division, excludeRefIds)` → add `sb: SupabaseClient` as the last parameter. Remove the internal `createClient()` call.
-6. Remove the module-level `EVENT_ID = 1` constant if it exists. Any remaining hardcoded `event_id: 1` values are noted but NOT changed in Phase 1 (Phase 2 handles hardcode removal).
-7. Confirm zero remaining `createClient` references.
+1. Remove `import { createClient } from '@/supabase/client'`.
+2. Add `import type { SupabaseClient } from '@supabase/supabase-js'`.
+3. Update exported function signatures:
+   - `runRefereeEngine(eventDateId: number, sb: SupabaseClient): Promise<RefereeEngineResult>`
+   - `findAvailableRefs(eventDateId: number, gameTime: string, division: string, excludeRefIds: number[], sb: SupabaseClient): Promise<...>`
+4. Update the private function signature:
+   - `clearStaleConflicts(eventDateId: number, types: string[], sb: SupabaseClient): Promise<void>`
+5. Remove each `const sb = createClient()` line inside function bodies.
+6. Update the call to `clearStaleConflicts(...)` inside `runRefereeEngine` to pass `sb` as the final argument.
+7. Run `npm run type-check` — fix all type errors.
 </instructions>
 <acceptance_criteria>
-- [ ] `import { createClient } from '@/supabase/client'` is gone from `referee.ts`
-- [ ] `import type { SupabaseClient } from '@supabase/supabase-js'` is present
-- [ ] `runRefereeEngine(eventDateId, sb)` signature is correct
-- [ ] `findAvailableRefs(eventDateId, gameTime, division, excludeRefIds, sb)` signature is correct
-- [ ] `clearStaleConflicts` accepts and uses `sb` parameter
-- [ ] No internal `createClient()` calls remain
-- [ ] `npm run type-check` passes
+- [ ] `referee.ts` has no import from `@/supabase/client`
+- [ ] `runRefereeEngine` and `findAvailableRefs` accept `sb: SupabaseClient` as the last parameter
+- [ ] `clearStaleConflicts` private function also accepts and uses `sb`
+- [ ] `npm run type-check` passes with no errors in `referee.ts`
 </acceptance_criteria>
 </task>
 
 <task id="3">
-<title>Refactor field.ts — inject SupabaseClient, remove browser client import, fix resolved bug</title>
+<title>Refactor field.ts — inject SupabaseClient + fix resolved-conflicts bug</title>
 <read_first>
 - lib/engines/field.ts
 - app/api/field-engine/route.ts
+- lib/engines/rules.ts (already refactored in Task 1)
 </read_first>
 <instructions>
-`field.ts` depends on `rules.ts` (already refactored in Task 1). This task also fixes the resolved-conflicts bug. Steps:
+`field.ts` has four internal client instantiations and a cross-engine dependency on `rules.ts`. It also contains the resolved-conflicts bug in the API route.
 
-**Engine refactor:**
-1. Remove: `import { createClient } from '@/supabase/client'`
-2. Add: `import type { SupabaseClient } from '@supabase/supabase-js'`
-3. The private `clearStaleFieldConflicts(eventDateId)` → `clearStaleFieldConflicts(eventDateId: number, sb: SupabaseClient)`. Remove its internal `createClient()` call.
-4. `runFieldConflictEngine(eventDateId)` → `runFieldConflictEngine(eventDateId: number, sb: SupabaseClient)`. Remove internal `createClient()`. Pass `sb` to `clearStaleFieldConflicts`. The call to `getSchedulingRules()` must become `getSchedulingRules(sb)` (rules engine now requires `sb`).
-5. `applyResolution(conflictId, action, params)` → add `sb: SupabaseClient` as last parameter. Remove internal `createClient()`.
-6. `runFullConflictScan(eventDateId)` → add `sb: SupabaseClient` as last parameter. Remove internal `createClient()`. Pass `sb` down to any internal helpers.
-7. Remove the module-level `EVENT_ID = 1` constant reference (leave hardcoded event_id values in DB queries for Phase 2 to fix — do not change query logic).
+**Part 1 — Engine refactor:**
 
-**Bug fix (in `app/api/field-engine/route.ts`):**
-8. Find the GET handler. Locate the line with `.eq('resolved', type === 'all' ? false : false)`. Replace the entire query construction for the open/all case with a conditional filter:
+1. Remove `import { createClient } from '@/supabase/client'`.
+2. Add `import type { SupabaseClient } from '@supabase/supabase-js'`.
+3. Update all exported and private function signatures:
+   - `runFieldConflictEngine(eventDateId: number, sb: SupabaseClient): Promise<FieldEngineResult>`
+   - `applyResolution(conflictId: string, action: string, params: Record<string, unknown>, sb: SupabaseClient): Promise<void>`
+   - `runFullConflictScan(eventDateId: number, sb: SupabaseClient): Promise<FieldEngineResult>`
+   - `clearStaleFieldConflicts(eventDateId: number, sb: SupabaseClient): Promise<void>` (private)
+4. Remove each `const sb = createClient()` inside function bodies.
+5. The call to `getSchedulingRules(sb)` inside `runFieldConflictEngine` must pass the injected `sb` — verify the call site passes `sb` after Task 1's signature change.
+6. Run `npm run type-check`.
 
+**Part 2 — Fix resolved-conflicts bug in the API route:**
+
+In `app/api/field-engine/route.ts`, locate the GET handler. Find the query with:
 ```typescript
-let query = sb
+.eq('resolved', type === 'all' ? false : false)
+```
+
+Replace the entire query block with a conditional approach:
+```typescript
+const query = sb
   .from('operational_conflicts')
   .select('*')
   .eq('event_id', eventId)
@@ -116,197 +150,253 @@ let query = sb
   .order('created_at', { ascending: false })
 
 if (type !== 'all') {
-  query = query.eq('resolved', false)
+  query.eq('resolved', false)
 }
 
-const { data, error } = await query
+const { data: conflicts, error: conflictsError } = await query
 ```
 
-Adjust variable names to match the existing code style in the file. The key fix is: when `type === 'all'`, do NOT apply the `resolved = false` filter.
+This ensures:
+- `type === 'open'` (default): filters `resolved = false` (correct)
+- `type === 'all'`: no resolved filter — returns all conflicts including resolved (correct)
+- `type === 'history'`: already handled by the engine run history branch above this code
 </instructions>
 <acceptance_criteria>
-- [ ] `import { createClient } from '@/supabase/client'` is gone from `field.ts`
-- [ ] `import type { SupabaseClient } from '@supabase/supabase-js'` is present
-- [ ] `runFieldConflictEngine(eventDateId, sb)` signature is correct
-- [ ] `applyResolution(conflictId, action, params, sb)` signature is correct
-- [ ] `runFullConflictScan(eventDateId, sb)` signature is correct
-- [ ] `clearStaleFieldConflicts(eventDateId, sb)` accepts and uses `sb` parameter
-- [ ] `getSchedulingRules(sb)` call passes through the injected client
-- [ ] In `app/api/field-engine/route.ts` GET handler: `type === 'all'` returns all conflicts (no resolved filter); `type === 'open'` still filters `resolved = false`
-- [ ] The double-`false` ternary bug is gone
-- [ ] `npm run type-check` passes
+- [ ] `field.ts` has no import from `@/supabase/client`
+- [ ] All four functions (including `clearStaleFieldConflicts`) accept `sb: SupabaseClient`
+- [ ] `getSchedulingRules(sb)` call passes the injected `sb`
+- [ ] `app/api/field-engine/route.ts` GET handler no longer has `.eq('resolved', type === 'all' ? false : false)`
+- [ ] `type === 'all'` correctly returns all conflicts; `type === 'open'` returns only unresolved
+- [ ] `npm run type-check` passes with no errors in `field.ts` or `field-engine/route.ts`
 </acceptance_criteria>
 </task>
 
 <task id="4">
-<title>Refactor weather.ts — inject SupabaseClient, move OpenWeather key to server-only (SEC-06)</title>
+<title>Refactor weather.ts — inject SupabaseClient + rename OpenWeather key</title>
 <read_first>
 - lib/engines/weather.ts
 - app/api/weather-engine/route.ts
 </read_first>
 <instructions>
-`weather.ts` is standalone. This task also satisfies SEC-06 (OpenWeather key migration). Steps:
+`weather.ts` has five functions with DB access (`runWeatherEngine`, `getLatestReading`, `getReadingHistory`, `checkLightningStatus`, `liftLightningDelay`). The remaining exported functions are pure (no DB, no injection needed).
 
-**Engine refactor:**
-1. Remove: `import { createClient } from '@/supabase/client'`
-2. Add: `import type { SupabaseClient } from '@supabase/supabase-js'`
-3. The functions that use Supabase: `runWeatherEngine`, `getLatestReading`, `getReadingHistory`, `checkLightningStatus`, `liftLightningDelay`. Each currently calls `createClient()` internally.
-   - `runWeatherEngine(complexId, apiKey?)` → `runWeatherEngine(complexId: number, sb: SupabaseClient, apiKey?: string)`
-   - `getLatestReading(complexId)` → `getLatestReading(complexId: number, sb: SupabaseClient)`
-   - `getReadingHistory(complexId, hours)` → `getReadingHistory(complexId: number, hours: number, sb: SupabaseClient)`
-   - `checkLightningStatus(complexId)` → `checkLightningStatus(complexId: number, sb: SupabaseClient)`
-   - `liftLightningDelay(complexId, eventId)` → `liftLightningDelay(complexId: number, eventId: number, sb: SupabaseClient)`
-4. Remove the internal `createClient()` call from each of these functions. Use the injected `sb`.
-5. The pure functions (`evaluateAlerts`, `calcHeatIndex`, `getMockWeather`, `windDirection`, `conditionIcon`) have no DB access — leave their signatures unchanged.
+**Part 1 — Engine refactor:**
 
-**OpenWeather key migration (SEC-06):**
-6. Find the line in `runWeatherEngine` that reads: `const key = apiKey ?? process.env.NEXT_PUBLIC_OPENWEATHER_KEY ?? ''`
-7. Change it to: `const key = apiKey ?? process.env.OPENWEATHER_API_KEY ?? ''`
-8. Remove any other references to `NEXT_PUBLIC_OPENWEATHER_KEY` in the file (grep the file to be sure — there should be only one).
+1. Remove `import { createClient } from '@/supabase/client'`.
+2. Add `import type { SupabaseClient } from '@supabase/supabase-js'`.
+3. Update signatures for DB-accessing functions:
+   - `runWeatherEngine(complexId: number, apiKey?: string, sb: SupabaseClient): Promise<WeatherEngineResult>`
+   - `getLatestReading(complexId: number, sb: SupabaseClient): Promise<WeatherReading | null>`
+   - `getReadingHistory(complexId: number, hours: number, sb: SupabaseClient): Promise<WeatherReading[]>`
+   - `checkLightningStatus(complexId: number, sb: SupabaseClient): Promise<boolean>`
+   - `liftLightningDelay(complexId: number, eventId: number, sb: SupabaseClient): Promise<void>`
+4. Remove each `const sb = createClient()` inside function bodies.
+5. Do NOT add `sb` to pure functions: `evaluateAlerts`, `calcHeatIndex`, `getMockWeather`, `windDirection`, `conditionIcon`. These remain unchanged.
 
-**Environment variable note (document in code comment):**
-9. Add a comment above the key line: `// Server-only: OPENWEATHER_API_KEY must be set in Vercel env and .env.local (not NEXT_PUBLIC_*)`
+**Part 2 — OpenWeather key rename (SEC-06):**
 
-**Do not touch:**
-- `evaluateAlerts`, `calcHeatIndex`, `getMockWeather`, `windDirection`, `conditionIcon` — leave as-is
-- The `apiKey` parameter on `runWeatherEngine` stays (enables testability without env var)
+6. In `weather.ts`, find the line:
+   ```typescript
+   const key = apiKey ?? process.env.NEXT_PUBLIC_OPENWEATHER_KEY ?? ''
+   ```
+   Change to:
+   ```typescript
+   const key = apiKey ?? process.env.OPENWEATHER_API_KEY ?? ''
+   ```
+7. Verify `app/api/weather-engine/route.ts` already passes `process.env.OPENWEATHER_API_KEY` as the `apiKey` argument to `runWeatherEngine`. If not, update it.
+8. Add a comment in `weather.ts` above the key line:
+   ```typescript
+   // Key is always supplied by the API route (server env). The fallback covers
+   // direct test calls only. Never use NEXT_PUBLIC_ prefix — server-only.
+   ```
+9. Add a note to `.env.local` if it exists: add `OPENWEATHER_API_KEY=<your-key>` and comment out or remove `NEXT_PUBLIC_OPENWEATHER_KEY`. Also update the Vercel project environment variables (add `OPENWEATHER_API_KEY`, remove `NEXT_PUBLIC_OPENWEATHER_KEY`).
+10. Run `npm run type-check`.
 </instructions>
 <acceptance_criteria>
-- [ ] `import { createClient } from '@/supabase/client'` is gone from `weather.ts`
-- [ ] `import type { SupabaseClient } from '@supabase/supabase-js'` is present
-- [ ] `runWeatherEngine(complexId, sb, apiKey?)` signature is correct
-- [ ] `getLatestReading`, `getReadingHistory`, `checkLightningStatus`, `liftLightningDelay` all have `sb: SupabaseClient` parameter
+- [ ] `weather.ts` has no import from `@/supabase/client`
+- [ ] All 5 DB-accessing functions accept `sb: SupabaseClient`
+- [ ] Pure functions (`evaluateAlerts`, `calcHeatIndex`, `getMockWeather`, `windDirection`, `conditionIcon`) are unchanged
 - [ ] `NEXT_PUBLIC_OPENWEATHER_KEY` does not appear anywhere in `weather.ts`
-- [ ] `process.env.OPENWEATHER_API_KEY` is used as the env var fallback
-- [ ] Pure functions are untouched
-- [ ] `npm run type-check` passes
+- [ ] `OPENWEATHER_API_KEY` (server-only name) is used in `weather.ts`
+- [ ] `npm run type-check` passes with no errors in `weather.ts`
 </acceptance_criteria>
 </task>
 
 <task id="5">
-<title>Refactor eligibility.ts — inject SupabaseClient, remove browser client import</title>
+<title>Refactor eligibility.ts — inject SupabaseClient</title>
 <read_first>
 - lib/engines/eligibility.ts
+- app/api/eligibility/route.ts
 </read_first>
 <instructions>
-`eligibility.ts` is standalone with no cross-engine dependencies. Steps:
+`eligibility.ts` is standalone with no cross-engine dependencies. Each exported function calls `createClient()` independently.
 
-1. Remove: `import { createClient } from '@/supabase/client'`
-2. Add: `import type { SupabaseClient } from '@supabase/supabase-js'`
-3. Each exported function currently calls `createClient()` at its top. Update each signature:
-   - `checkPlayerEligibility(playerId, gameId, eventDateId)` → add `sb: SupabaseClient` as last parameter
-   - `approveMultiGame(approvalId, approvedBy, approvedByName)` → add `sb: SupabaseClient` as last parameter
-   - `denyMultiGame(approvalId, deniedBy, reason)` → add `sb: SupabaseClient` as last parameter
-   - `getPendingApprovals(gameId)` → add `sb: SupabaseClient` as last parameter
-   - `getAllPendingApprovals(eventId)` → add `sb: SupabaseClient` as last parameter
-4. Inside each function, remove the `createClient()` call and use the injected `sb`.
-5. Confirm no module-level `EVENT_ID` constant. If present, leave it (Phase 2 handles removal).
-6. Confirm zero remaining `createClient` references.
+1. Remove `import { createClient } from '@/supabase/client'`.
+2. Add `import type { SupabaseClient } from '@supabase/supabase-js'`.
+3. Update all exported function signatures to accept `sb: SupabaseClient` as the last parameter:
+   - `checkPlayerEligibility(playerId: number, gameId: number, eventDateId: number, sb: SupabaseClient)`
+   - `approveMultiGame(approvalId: string, approvedBy: string, approvedByName: string, sb: SupabaseClient)`
+   - `denyMultiGame(approvalId: string, deniedBy: string, reason: string, sb: SupabaseClient)`
+   - `getPendingApprovals(gameId: number, sb: SupabaseClient)`
+   - `getAllPendingApprovals(eventId: number, sb: SupabaseClient)`
+4. Remove each `const sb = createClient()` inside function bodies.
+5. Note: `app/api/eligibility/route.ts` has an unused `createClient` import from `@/supabase/server` — this import will become used once the route passes `sb` to engine calls. Do not remove it from the route yet (that is Plan B2 Task 4).
+6. Run `npm run type-check`.
 </instructions>
 <acceptance_criteria>
-- [ ] `import { createClient } from '@/supabase/client'` is gone from `eligibility.ts`
-- [ ] `import type { SupabaseClient } from '@supabase/supabase-js'` is present
-- [ ] All 5 exported functions have `sb: SupabaseClient` as a parameter
-- [ ] No internal `createClient()` calls remain
-- [ ] `npm run type-check` passes
+- [ ] `eligibility.ts` has no import from `@/supabase/client`
+- [ ] All 5 exported functions accept `sb: SupabaseClient` as last parameter
+- [ ] `npm run type-check` passes with no errors in `eligibility.ts`
 </acceptance_criteria>
 </task>
 
 <task id="6">
-<title>Refactor unified.ts — inject SupabaseClient, replace fetch() with direct function calls</title>
+<title>Refactor unified.ts — inject SupabaseClient + replace fetch() with direct function calls</title>
 <read_first>
 - lib/engines/unified.ts
-- lib/engines/referee.ts
-- lib/engines/field.ts
-- lib/engines/weather.ts
+- lib/engines/referee.ts (Task 2 — already refactored)
+- lib/engines/field.ts (Task 3 — already refactored)
+- lib/engines/weather.ts (Task 4 — already refactored)
 </read_first>
 <instructions>
-`unified.ts` is the most complex engine to refactor because it currently uses `fetch('/api/...')` relative URL calls, which only work in a browser context. These must be replaced with direct function calls.
+`unified.ts` is the most complex engine. It currently calls sub-engines via `fetch('/api/referee-engine', ...)` with relative URLs — a pattern that only works in a browser. These must be replaced with direct function imports and calls. The engine also calls `createClient()` multiple times directly.
 
-1. Remove: `import { createClient } from '@/supabase/client'`
-2. Add: `import type { SupabaseClient } from '@supabase/supabase-js'`
-3. Add imports for the sub-engine functions that `runUnifiedEngine` will now call directly:
+**Step-by-step sub-tasks:**
+
+**Step A — Add imports, remove browser client:**
+1. Remove `import { createClient } from '@/supabase/client'`.
+2. Add `import type { SupabaseClient } from '@supabase/supabase-js'`.
+3. Add direct engine imports:
    ```typescript
    import { runRefereeEngine } from '@/lib/engines/referee'
    import { runFieldConflictEngine } from '@/lib/engines/field'
    import { runWeatherEngine } from '@/lib/engines/weather'
    ```
-4. Update exported function signatures:
-   - `runUnifiedEngine(eventDateId)` → `runUnifiedEngine(eventDateId: number, sb: SupabaseClient)`
-   - `resolveAlert(alertId, resolvedBy, note?)` → `resolveAlert(alertId: string, resolvedBy: string, note: string | undefined, sb: SupabaseClient)`
-   - `generateShiftHandoff(createdBy)` → `generateShiftHandoff(createdBy: string, sb: SupabaseClient)`
-5. Update the private function `applyResolutionAction(action, params)` → `applyResolutionAction(action: string, params: any, sb: SupabaseClient)`. Remove its internal `createClient()` call.
-6. Inside `runUnifiedEngine`, replace the three `fetch('/api/referee-engine', ...)`, `fetch('/api/field-engine', ...)`, `fetch('/api/weather-engine', ...)` calls with direct function calls:
+
+**Step B — Replace fetch('/api/referee-engine') with direct call:**
+4. Locate the block inside `runUnifiedEngine` that does:
    ```typescript
-   // Replace: const refResp = await fetch('/api/referee-engine', { method: 'POST', body: JSON.stringify({ event_date_id: eventDateId }) })
-   // With:
-   const refResult = await runRefereeEngine(eventDateId, sb)
-
-   // Replace: const fieldResp = await fetch('/api/field-engine', { method: 'POST', ... })
-   // With:
-   const fieldResult = await runFieldConflictEngine(eventDateId, sb)
-
-   // Replace: const weatherResp = await fetch('/api/weather-engine', { method: 'POST', ... })
-   // With: (pass the API key from env — unified engine runs server-side)
-   const weatherResult = await runWeatherEngine(complexId, sb, process.env.OPENWEATHER_API_KEY)
+   const refResponse = await fetch('/api/referee-engine', { method: 'POST', ... })
+   const refData = await refResponse.json()
    ```
-   Adjust variable names and the result-processing logic to match the actual return shapes of each engine function (check the return types from the already-refactored engine files).
-7. Remove all remaining internal `createClient()` calls in `runUnifiedEngine`, `resolveAlert`, `generateShiftHandoff`, and `applyResolutionAction`.
-8. Any `event_id: 1` hardcodes within `runUnifiedEngine` DB writes — leave them (Phase 2). Note them with a `// TODO Phase 2: replace with dynamic eventId` comment.
-9. Confirm zero remaining `createClient` references.
+5. Replace it with:
+   ```typescript
+   const refData = await runRefereeEngine(eventDateId, sb)
+   ```
+   Note: the return value is now the engine result directly, not a `Response` object. Remove any `.json()` call and any response-status checks — instead check `refData` directly. Handle errors with `try/catch` (see Gotcha #6 in CLAUDE.md — use explicit `try/catch`, not `.catch()` chains).
+
+**Step C — Replace fetch('/api/field-engine') with direct call:**
+6. Locate the block that does:
+   ```typescript
+   const fieldResponse = await fetch('/api/field-engine', { method: 'POST', ... })
+   const fieldData = await fieldResponse.json()
+   ```
+7. Replace it with:
+   ```typescript
+   const fieldData = await runFieldConflictEngine(eventDateId, sb)
+   ```
+   Remove the `.json()` call and HTTP response status checks.
+
+**Step D — Replace fetch('/api/weather-engine') with direct call (if present):**
+8. Locate any weather engine `fetch` call and replace with:
+   ```typescript
+   const weatherData = await runWeatherEngine(complexId, process.env.OPENWEATHER_API_KEY, sb)
+   ```
+   If `complexId` is not available in `runUnifiedEngine`'s scope, retain the fetch pattern for weather only and document why (weather requires a `complexId` that unified may not have at this stage). Either way, update the comment to document the decision.
+
+**Step E — Inject sb into remaining direct DB calls:**
+9. Update exported function signatures:
+   - `runUnifiedEngine(eventDateId: number, sb: SupabaseClient): Promise<UnifiedEngineResult>`
+   - `resolveAlert(alertId: string, resolvedBy: string, note: string | undefined, sb: SupabaseClient): Promise<void>`
+   - `generateShiftHandoff(createdBy: string, sb: SupabaseClient): Promise<ShiftHandoff>`
+10. Update private function signature:
+    - `applyResolutionAction(action: string, params: Record<string, unknown>, sb: SupabaseClient): Promise<void>`
+11. Remove all `const sb = createClient()` inside function bodies.
+12. Update internal call from `runUnifiedEngine` to `applyResolutionAction(...)` to pass `sb`.
+
+**Step F — Verify and type-check:**
+13. Run `npm run type-check`. Fix all errors.
+14. Confirm `unified.ts` has zero references to `@/supabase/client`, `fetch('/api/`, or `createClient()`.
 </instructions>
 <acceptance_criteria>
-- [ ] `import { createClient } from '@/supabase/client'` is gone from `unified.ts`
-- [ ] `import type { SupabaseClient } from '@supabase/supabase-js'` is present
-- [ ] `runRefereeEngine`, `runFieldConflictEngine`, `runWeatherEngine` are imported directly (no `fetch` calls to those routes)
-- [ ] `runUnifiedEngine(eventDateId, sb)` calls sub-engines with the injected `sb`
-- [ ] `resolveAlert(alertId, resolvedBy, note, sb)` signature is correct
-- [ ] `generateShiftHandoff(createdBy, sb)` signature is correct
-- [ ] `applyResolutionAction` accepts and uses `sb`
-- [ ] No relative `fetch('/api/...')` calls remain for sub-engine orchestration
-- [ ] No internal `createClient()` calls remain
-- [ ] `npm run type-check` passes
+- [ ] `unified.ts` has no import from `@/supabase/client`
+- [ ] `unified.ts` has no `fetch('/api/referee-engine', ...)` or `fetch('/api/field-engine', ...)` calls
+- [ ] Sub-engine functions (`runRefereeEngine`, `runFieldConflictEngine`) are imported and called directly with `sb` passed through
+- [ ] All exported functions (`runUnifiedEngine`, `resolveAlert`, `generateShiftHandoff`) accept `sb: SupabaseClient`
+- [ ] Private `applyResolutionAction` accepts `sb: SupabaseClient`
+- [ ] Error handling uses `try/catch` (not `.catch()` chains) around sub-engine calls
+- [ ] `npm run type-check` passes with no errors in `unified.ts`
 </acceptance_criteria>
 </task>
 
 <task id="7">
-<title>Verify environment variable rename and confirm no NEXT_PUBLIC_OPENWEATHER_KEY remains in codebase</title>
+<title>Verification grep — confirm no browser client imports remain in engines</title>
 <read_first>
-- app/api/weather-engine/route.ts
+- lib/engines/rules.ts
+- lib/engines/referee.ts
+- lib/engines/field.ts
+- lib/engines/weather.ts
+- lib/engines/eligibility.ts
+- lib/engines/unified.ts
 </read_first>
 <instructions>
-After Tasks 1–6, verify the full OpenWeather key migration is clean:
+Run verification checks to confirm all engine files are clean:
 
-1. Search the entire codebase for `NEXT_PUBLIC_OPENWEATHER_KEY`:
-   - Use grep or your search tool on `**/*.ts`, `**/*.tsx`, `**/*.js`, `**/*.env*`
-   - The result must be zero matches (or only in `.env.local` as a comment noting it is deprecated)
-2. Confirm `app/api/weather-engine/route.ts` passes `process.env.OPENWEATHER_API_KEY` to `runWeatherEngine`. The research notes this route already uses the new key name — verify it still does after the refactor.
-3. Open `.env.local` (if it exists). If `NEXT_PUBLIC_OPENWEATHER_KEY` is present, add `OPENWEATHER_API_KEY=<same value>` and add a comment: `# NEXT_PUBLIC_OPENWEATHER_KEY is deprecated — remove after confirming OPENWEATHER_API_KEY works`. Do NOT remove the old key yet (leave both during transition).
-4. Add a code comment in `app/api/weather-engine/route.ts` if not already present: `// OPENWEATHER_API_KEY is server-only — do not use NEXT_PUBLIC_ prefix`
-5. Run `npm run type-check` to confirm no TypeScript errors across all modified files.
-6. Run `npm run lint` to confirm no lint errors.
+1. Grep for remaining browser client imports across all engine files:
+   ```bash
+   grep -r "from '@/supabase/client'" lib/engines/
+   ```
+   Expected: zero results. If any appear, fix them before marking this plan complete.
+
+2. Grep for remaining `NEXT_PUBLIC_OPENWEATHER_KEY`:
+   ```bash
+   grep -r "NEXT_PUBLIC_OPENWEATHER_KEY" lib/ app/
+   ```
+   Expected: zero results.
+
+3. Grep for remaining `fetch('/api/` inside engine files:
+   ```bash
+   grep -rn "fetch('/api/" lib/engines/
+   ```
+   Expected: zero results (or a documented exception with comment if weather engine fetch was retained).
+
+4. Run full type-check:
+   ```bash
+   npm run type-check
+   ```
+   Expected: passes with zero errors (ignoring pre-existing errors in files not touched by this plan, if any exist).
+
+5. Run existing tests:
+   ```bash
+   npm run test
+   ```
+   Expected: existing `__tests__/lib/utils.test.ts` still passes.
 </instructions>
 <acceptance_criteria>
-- [ ] Zero occurrences of `NEXT_PUBLIC_OPENWEATHER_KEY` in any `.ts` or `.tsx` file
-- [ ] `app/api/weather-engine/route.ts` uses `process.env.OPENWEATHER_API_KEY`
-- [ ] `.env.local` (if present) has `OPENWEATHER_API_KEY` defined
-- [ ] `npm run type-check` passes with zero errors
-- [ ] `npm run lint` passes with zero errors
+- [ ] `grep -r "from '@/supabase/client'" lib/engines/` returns zero results
+- [ ] `grep -r "NEXT_PUBLIC_OPENWEATHER_KEY" lib/ app/` returns zero results
+- [ ] `grep -rn "fetch('/api/" lib/engines/` returns zero results (or only documented exceptions)
+- [ ] `npm run type-check` passes
+- [ ] `npm run test` passes (existing tests unaffected)
 </acceptance_criteria>
 </task>
 
+---
+
 ## Verification
-- [ ] Run `grep -r "from '@/supabase/client'" lib/engines/` — must return zero results
-- [ ] Run `grep -r "NEXT_PUBLIC_OPENWEATHER_KEY" .` — must return zero results in `.ts`/`.tsx` files
-- [ ] Run `npm run type-check` — zero errors
-- [ ] Run `npm run lint` — zero errors
-- [ ] All 6 engine files have `import type { SupabaseClient } from '@supabase/supabase-js'`
-- [ ] The field-engine GET route no longer has `.eq('resolved', type === 'all' ? false : false)`
-- [ ] `unified.ts` has no `fetch('/api/referee-engine'...)`, `fetch('/api/field-engine'...)`, or `fetch('/api/weather-engine'...)` calls
+
+- [ ] All 6 engine files have zero imports from `@/supabase/client`
+- [ ] All exported engine functions accept `sb: SupabaseClient` as a parameter
+- [ ] `NEXT_PUBLIC_OPENWEATHER_KEY` does not appear in any engine or API route file
+- [ ] Field-engine resolved-conflicts bug is fixed (`type === 'all'` returns all conflicts)
+- [ ] `unified.ts` calls sub-engines via direct function imports, not `fetch('/api/...')`
+- [ ] `npm run type-check` passes
+- [ ] `npm run test` passes
 
 ## Must-Haves
-- All 6 engines (`rules.ts`, `referee.ts`, `field.ts`, `weather.ts`, `eligibility.ts`, `unified.ts`) export functions that accept `sb: SupabaseClient` and contain zero `createClient()` calls
-- `NEXT_PUBLIC_OPENWEATHER_KEY` is eliminated from all TypeScript source files
-- The field engine resolved-conflicts bug (`type === 'all' ? false : false`) is fixed in the route handler
-- `unified.ts` calls sub-engines via direct function imports, not `fetch('/api/...')`
-- TypeScript strict-mode type-check passes after all changes
+
+- No engine file may import from `@/supabase/client` after this plan completes
+- `createClient()` from `supabase/server.ts` is never called inside engine files — only in API route handler bodies
+- `OPENWEATHER_API_KEY` (not `NEXT_PUBLIC_`) is the only env var name used in `weather.ts`
+- The field-engine `type === 'all' ? false : false` bug is eliminated
+- `unified.ts` does not use `fetch('/api/...')` for sub-engine orchestration

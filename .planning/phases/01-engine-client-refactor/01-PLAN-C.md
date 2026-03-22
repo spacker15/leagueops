@@ -3,215 +3,161 @@ phase: 1
 plan: C
 title: "Client-Side Migration"
 wave: 2
-depends_on: ["A", "B"]
+depends_on: ["A", "B1", "B2"]
 requirements: ["SEC-03"]
 files_modified:
   - "components/engine/CommandCenter.tsx"
 autonomous: true
-estimated_tasks: 3
+estimated_tasks: 2
 ---
 
 # Plan C: Client-Side Migration
 
 ## Goal
-Update `CommandCenter.tsx` to call the new API routes instead of importing engine functions directly, and verify no other client-side code imports DB-accessing engine functions.
 
-## Context
-This plan runs in wave 2, after Plans A and B are complete and all tests pass. The three new API routes created in Plan B (`/api/unified-engine`, `/api/unified-engine/resolve`, `/api/shift-handoff`) are the targets for CommandCenter's `fetch` calls.
+Remove all direct engine imports from `CommandCenter.tsx` and replace them with `fetch` calls to the 3 new API routes created in Plans B1 and B2.
+
+## Review Feedback Addressed
+
+This plan has no direct review concerns to address. It depends on A (engines refactored), B1 (routes created), and B2 (routes wired). The wave 2 placement is correct — `CommandCenter.tsx` can only be updated after the API routes it will call are fully functional.
+
+---
 
 ## Tasks
 
 <task id="1">
-<title>Update CommandCenter.tsx — replace direct engine imports with API route fetch calls</title>
+<title>Replace direct engine imports in CommandCenter.tsx with API fetch calls</title>
 <read_first>
 - components/engine/CommandCenter.tsx
-- app/api/unified-engine/route.ts
-- app/api/unified-engine/resolve/route.ts
-- app/api/shift-handoff/route.ts
+- app/api/unified-engine/route.ts (Plan B1/B2)
+- app/api/unified-engine/resolve/route.ts (Plan B1/B2)
+- app/api/shift-handoff/route.ts (Plan B1/B2)
+- lib/engines/unified.ts (refactored in Plan A Task 6 — for type reference only)
 </read_first>
 <instructions>
-`CommandCenter.tsx` is a `'use client'` component that currently imports and calls `runUnifiedEngine`, `resolveAlert`, and `generateShiftHandoff` directly from `@/lib/engines/unified`. These engine functions now require a server-side Supabase client and cannot be called from client code. Replace each with a `fetch` call to the corresponding API route.
+`CommandCenter.tsx` currently imports and calls `runUnifiedEngine`, `resolveAlert`, and `generateShiftHandoff` directly from `@/lib/engines/unified`. After Plan A, these functions require a server-side `sb` parameter — they can no longer be called from a client component.
 
-**Step 1: Remove the engine imports**
-Find and remove:
+**Step 1 — Identify all engine imports:**
+Remove the following imports (or the specific named imports from the barrel):
 ```typescript
 import { runUnifiedEngine, resolveAlert, generateShiftHandoff } from '@/lib/engines/unified'
-// or however it is structured — may be separate named imports on one line
 ```
-Keep any `type` imports from `@/lib/engines/unified` (e.g., `import type { OpsAlert } from '@/lib/engines/unified'`) — type-only imports are fine in client components since they are erased at compile time.
+Keep any `type` imports that are still needed for TypeScript (e.g., `import type { OpsAlert } from '@/lib/engines/unified'`).
 
-**Step 2: Replace runUnifiedEngine call**
-Find the call site (research notes it is around line 141). Replace with a `fetch`:
+**Step 2 — Replace `runUnifiedEngine(eventDateId)` call:**
+Find the call site at approximately line 141 (check the actual line number). Replace:
 ```typescript
-// Before:
 const result = await runUnifiedEngine(eventDateId)
-
-// After:
-const resp = await fetch('/api/unified-engine', {
+```
+With:
+```typescript
+const response = await fetch('/api/unified-engine', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({ event_date_id: eventDateId }),
 })
-if (!resp.ok) throw new Error('Failed to run unified engine')
-const result = await resp.json()
+if (!response.ok) {
+  const { error } = await response.json()
+  throw new Error(error ?? 'Engine run failed')
+}
+const result = await response.json()
 ```
-Use the same variable name (`result`) so that downstream code that processes `result` does not need to change.
 
-**Step 3: Replace resolveAlert call**
-Find the call site (research notes it is around line 161). Replace with:
+**Step 3 — Replace `resolveAlert(alertId, resolvedBy, note)` call:**
+Find the call site at approximately line 161. Replace:
 ```typescript
-// Before:
 await resolveAlert(alertId, resolvedBy, note)
-
-// After:
-const resp = await fetch('/api/unified-engine/resolve', {
+```
+With:
+```typescript
+const response = await fetch('/api/unified-engine/resolve', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({ alert_id: alertId, resolved_by: resolvedBy, note }),
 })
-if (!resp.ok) throw new Error('Failed to resolve alert')
+if (!response.ok) {
+  const { error } = await response.json()
+  throw new Error(error ?? 'Resolve failed')
+}
 ```
 
-**Step 4: Replace generateShiftHandoff call**
-Find the call site (research notes it is around line 173). Replace with:
+**Step 4 — Replace `generateShiftHandoff(createdBy)` call:**
+Find the call site at approximately line 173. Replace:
 ```typescript
-// Before:
 const handoff = await generateShiftHandoff(createdBy)
-
-// After:
-const resp = await fetch('/api/shift-handoff', {
+```
+With:
+```typescript
+const response = await fetch('/api/shift-handoff', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({ created_by: createdBy }),
 })
-if (!resp.ok) throw new Error('Failed to generate shift handoff')
-const handoff = await resp.json()
-```
-
-**Step 5: Wrap each fetch call in try/catch**
-Each of the three blocks above should be wrapped in `try/catch` (per CLAUDE.md Gotcha #6) and show `toast.error(...)` on failure:
-```typescript
-try {
-  // fetch call here
-} catch (err) {
-  toast.error('Could not run engine — check console')
-  console.error(err)
+if (!response.ok) {
+  const { error } = await response.json()
+  throw new Error(error ?? 'Shift handoff failed')
 }
+const handoff = await response.json()
 ```
-Use the existing `toast` import (from `react-hot-toast`) — it should already be in the file.
 
-**Step 6: Verify call site line numbers**
-The line numbers in the research (141, 161, 173) are approximate. Read the actual file before editing to locate the exact call sites. Do not blindly edit line 141 — find the actual function call by name.
+**Step 5 — Error handling:**
+All `fetch` calls above are inside `try/catch` blocks (the component already uses `try/catch` or toast.error patterns per CLAUDE.md). Verify each call is within an appropriate `try/catch` and that errors are surfaced via `toast.error(...)`.
+
+**Step 6 — Verify remaining imports:**
+After removing function imports, check whether `CommandCenter.tsx` still imports types from `@/lib/engines/unified` (e.g., `type OpsAlert`). Type-only imports (`import type { OpsAlert }`) are safe to keep — types are erased at build time and don't create browser-bundle exposure. Do NOT move type imports to API responses unless there's a concrete reason.
+
+**Step 7 — Run type-check:**
+```bash
+npm run type-check
+```
+Ensure no errors in `CommandCenter.tsx`.
 </instructions>
 <acceptance_criteria>
-- [ ] `import { runUnifiedEngine, resolveAlert, generateShiftHandoff }` (or any runtime import of these) is absent from `CommandCenter.tsx`
-- [ ] `import type { OpsAlert }` (or other type-only imports) from `@/lib/engines/unified` may remain if present — they are compile-time only
-- [ ] `runUnifiedEngine` call is replaced with `fetch('/api/unified-engine', ...)`
-- [ ] `resolveAlert` call is replaced with `fetch('/api/unified-engine/resolve', ...)`
-- [ ] `generateShiftHandoff` call is replaced with `fetch('/api/shift-handoff', ...)`
-- [ ] Each fetch call is wrapped in `try/catch` with `toast.error(...)` on failure
-- [ ] `npm run type-check` passes
-- [ ] `npm run lint` passes
+- [ ] `CommandCenter.tsx` has no non-type imports from `@/lib/engines/unified`
+- [ ] `runUnifiedEngine` is called via `fetch('/api/unified-engine', ...)`
+- [ ] `resolveAlert` is called via `fetch('/api/unified-engine/resolve', ...)`
+- [ ] `generateShiftHandoff` is called via `fetch('/api/shift-handoff', ...)`
+- [ ] All fetch calls check `response.ok` and throw/surface errors appropriately
+- [ ] Type-only imports (`import type { OpsAlert }`) are retained if still needed
+- [ ] `npm run type-check` passes with no errors in `CommandCenter.tsx`
 </acceptance_criteria>
 </task>
 
 <task id="2">
-<title>Verify no other client-side files import DB-accessing engine functions</title>
+<title>Verify WeatherTab.tsx pure-function imports are still valid</title>
 <read_first>
 - components/weather/WeatherTab.tsx
+- lib/engines/weather.ts (refactored in Plan A Task 4)
 </read_first>
 <instructions>
-The research identified two client-side files that import from engine modules:
-1. `CommandCenter.tsx` — fixed in Task 1
-2. `WeatherTab.tsx` — imports only pure helper functions (`conditionIcon`, `windDirection`, `evaluateAlerts`, `calcHeatIndex`, `THRESHOLDS`) and types, which are safe to import from client code (no DB access)
+`WeatherTab.tsx` imports pure functions (`conditionIcon`, `windDirection`, `evaluateAlerts`, `calcHeatIndex`, `THRESHOLDS`) and types from `@/lib/engines/weather`. Per the research and Plan A Task 4, these functions are unchanged — they have no DB access and do not need `sb`.
 
-This task confirms the full picture is clean.
-
-**Step 1: Search for all engine imports in client components**
-Search the codebase for files that:
-- Import from `@/lib/engines/*`
-- Are `'use client'` components or client-only files (`lib/store.tsx`, `lib/auth.tsx`, etc.)
-
-Run these searches:
-- `grep -r "from '@/lib/engines/" components/` — list every component that imports any engine
-- `grep -r "from '@/lib/engines/" lib/` — check store and auth
-
-**Step 2: Evaluate each result**
-For each file found:
-- If it imports ONLY pure functions and types from `weather.ts` (e.g., `evaluateAlerts`, `calcHeatIndex`, `conditionIcon`, `windDirection`, `THRESHOLDS`) or type-only imports — this is acceptable. Leave it.
-- If it imports any DB-accessing function (`runRefereeEngine`, `runFieldConflictEngine`, `runWeatherEngine`, `getLatestReading`, `getReadingHistory`, `checkLightningStatus`, `liftLightningDelay`, `runUnifiedEngine`, `resolveAlert`, `generateShiftHandoff`, `checkPlayerEligibility`, etc.) — this must be removed and redirected to an API route call. Fix it following the same pattern as Task 1.
-
-**Step 3: Document results**
-If no additional problem imports are found, note: "Verified: no other client-side files import DB-accessing engine functions." If additional fixes were made, list the files and what was changed.
-
-**Step 4: Confirm store.tsx is clean**
-The research confirmed `lib/store.tsx` has no direct engine imports. Verify by checking the file — search for `from '@/lib/engines'`. Must return zero results.
+Verify:
+1. Open `WeatherTab.tsx` and confirm it only imports the pure functions and types listed above.
+2. Confirm none of the imported items are DB-accessing functions (e.g., `runWeatherEngine`, `getLatestReading`, etc.).
+3. If any DB-accessing function is imported in `WeatherTab.tsx`, replace it with a `fetch` call to `/api/weather-engine` following the same pattern as Task 1.
+4. If only pure functions are imported (expected), no changes are needed — document this as verified.
+5. Run `npm run type-check`.
 </instructions>
 <acceptance_criteria>
-- [ ] Search of `components/` for `from '@/lib/engines/'` shows only `WeatherTab.tsx` (pure functions only)
-- [ ] Search of `lib/` for `from '@/lib/engines/'` returns zero results
-- [ ] `lib/store.tsx` has no engine imports
-- [ ] Any additional problem imports found are fixed (or documented as none found)
-- [ ] `npm run type-check` passes
+- [ ] `WeatherTab.tsx` imports only pure (no-DB) functions from `@/lib/engines/weather`
+- [ ] No DB-accessing weather engine functions are called directly from `WeatherTab.tsx`
+- [ ] `npm run type-check` passes with no errors in `WeatherTab.tsx`
 </acceptance_criteria>
 </task>
 
-<task id="3">
-<title>Smoke-test CommandCenter API calls in development</title>
-<read_first>
-- components/engine/CommandCenter.tsx
-- app/api/unified-engine/route.ts
-</read_first>
-<instructions>
-After the client-side migration, confirm the end-to-end flow works in the development server. This task is a manual verification step.
-
-**Step 1: Start the dev server**
-```bash
-npm run dev
-```
-
-**Step 2: Open the app and navigate to the Command Center tab**
-The Command tab is in the main app navigation (tab id: `command`).
-
-**Step 3: Trigger the unified engine run**
-Click the "Run Engine" button (or whatever the trigger is in `CommandCenter.tsx`). Observe:
-- No JavaScript console errors of the form: `TypeError: Cannot call createClient in browser context` or similar
-- The network tab shows a POST to `/api/unified-engine` (not a direct function call error)
-- The response returns 200 with a JSON body (may have empty alerts array if no event data exists)
-
-**Step 4: Confirm no "createClient from browser" errors**
-The symptom of the pre-refactor bug was that engines called `createClient()` from the browser, which returned a client without a valid server session — queries returned empty arrays. After refactor, the POST to `/api/unified-engine` should hit the server-side route.
-
-**Step 5: Check browser console**
-Confirm zero errors referencing:
-- `@/lib/engines/unified` imports
-- `createClient` in browser context
-- Any `fetch` relative URL resolution failures
-
-If any errors appear, diagnose and fix before marking this task complete. Common issues:
-- Missing `'use client'` on a component that uses hooks
-- Wrong JSON field name in the fetch body (e.g., `eventDateId` vs `event_date_id`)
-- Route not found (check file path is exactly `app/api/unified-engine/route.ts`)
-</instructions>
-<acceptance_criteria>
-- [ ] Dev server starts without build errors
-- [ ] Navigating to Command Center tab does not throw runtime errors
-- [ ] Triggering engine run results in a POST to `/api/unified-engine` (visible in network tab)
-- [ ] No console errors referencing engine imports or `createClient` in browser context
-- [ ] Response from `/api/unified-engine` is a valid JSON object (even if alerts array is empty)
-</acceptance_criteria>
-</task>
+---
 
 ## Verification
-- [ ] `grep -r "from '@/lib/engines/unified'" components/` returns only type-only imports (if any) — no runtime function imports
-- [ ] `grep -r "runUnifiedEngine\|resolveAlert\|generateShiftHandoff" components/` — must return zero results (runtime calls are gone)
-- [ ] `grep -r "from '@/lib/engines/" lib/store.tsx` — returns zero results
+
+- [ ] `CommandCenter.tsx` has zero non-type imports from `@/lib/engines/*`
+- [ ] All 3 engine operations in `CommandCenter.tsx` go through API routes
+- [ ] `WeatherTab.tsx` pure function imports verified as safe (no DB exposure)
 - [ ] `npm run type-check` passes
-- [ ] `npm run build` completes without errors
-- [ ] Dev server smoke test confirms CommandCenter engine trigger works end-to-end
+- [ ] Manual test: CommandCenter can trigger a unified engine run (POST to `/api/unified-engine`) and receive results
 
 ## Must-Haves
-- `CommandCenter.tsx` contains zero runtime imports of DB-accessing engine functions
-- All three CommandCenter engine operations route through API calls (`/api/unified-engine`, `/api/unified-engine/resolve`, `/api/shift-handoff`)
-- No other client component or library file imports DB-accessing engine functions
-- The app builds and the CommandCenter tab renders without runtime errors
+
+- No engine function that requires a server-side Supabase client may be imported in any `'use client'` component
+- Type-only imports from engine files are permitted (they are erased at build time)
+- Error responses from fetch calls must be surfaced to the user via `toast.error(...)` — silent failures are not acceptable

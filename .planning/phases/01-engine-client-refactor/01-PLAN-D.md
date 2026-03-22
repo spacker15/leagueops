@@ -12,6 +12,7 @@ files_modified:
   - "__tests__/lib/engines/weather.test.ts"
   - "__tests__/lib/engines/eligibility.test.ts"
   - "__tests__/lib/engines/unified.test.ts"
+  - "__tests__/app/api/referee-engine.integration.test.ts"
 autonomous: true
 estimated_tasks: 7
 ---
@@ -19,505 +20,427 @@ estimated_tasks: 7
 # Plan D: Engine Unit Tests
 
 ## Goal
-Write unit tests for all 6 engine modules using a mocked Supabase client, following the existing Vitest conventions in the project.
 
-## Context
-This plan runs in wave 2, after Plan A is complete. The injection refactor (Plan A) is the enabler: engines now accept `sb` as a parameter, so tests can pass a mock instead of calling the real DB. Tests run in parallel with Plan C.
+Write unit tests for all 6 refactored engine modules using a mocked Supabase client, plus one integration-style test that verifies the API route correctly creates a server client and passes it to the engine function.
 
-Tests live at: `__tests__/lib/engines/<engine>.test.ts` (mirrors source structure, per CLAUDE.md conventions).
+## Review Feedback Addressed
 
-## Shared Mock Pattern
-Every test file in this plan uses the same chainable Supabase mock. Define it once at the top of each test file (do not share across files — keep each test file self-contained).
+- **LOW — Add integration test**: Task 7 adds an integration-style test for the referee-engine route. It imports the route handler directly, mocks `createClient` from `@/supabase/server`, and verifies that the handler passes the mocked client to `runRefereeEngine`. This catches wiring errors (e.g., route forgetting to pass `sb`) without requiring a real DB.
+- **LOW — Plan D mock pattern doesn't cover `.then()` correctly**: The `makeChain` helper is updated to correctly handle both array-returning queries (resolve `{ data: [...], error: null }`) and `.single()` queries (resolve `{ data: {...}, error: null }`). The `then` property resolves the array form by default; `.single()` resolves with the single-row form.
 
-```typescript
-import { vi, describe, it, expect, beforeEach } from 'vitest'
-
-function makeChain(result: { data?: unknown; error?: unknown }) {
-  const chain: Record<string, unknown> = {}
-  const methods = ['select', 'insert', 'update', 'delete', 'upsert', 'eq', 'neq',
-                   'in', 'gte', 'lte', 'is', 'order', 'limit', 'not', 'or']
-  for (const m of methods) {
-    chain[m] = () => chain
-  }
-  chain['single'] = () => Promise.resolve(result)
-  chain['then'] = (fn: (v: typeof result) => unknown) => Promise.resolve(result).then(fn)
-  return chain as any
-}
-
-function makeMockSb(result: { data?: unknown; error?: unknown } = { data: [], error: null }) {
-  return { from: vi.fn(() => makeChain(result)) }
-}
-```
-
-Use `makeMockSb()` to create a fresh mock in each test. For tests that need different results per table, set up `vi.fn().mockReturnValueOnce(...)` on `sb.from`.
+---
 
 ## Tasks
 
 <task id="1">
-<title>Write unit tests for rules.ts</title>
+<title>Create shared mock Supabase client helper</title>
 <read_first>
-- lib/engines/rules.ts
 - vitest.config.ts
 - vitest.setup.ts
 - __tests__/lib/utils.test.ts
 </read_first>
 <instructions>
-Create `__tests__/lib/engines/rules.test.ts`. Read the existing test file (`utils.test.ts`) first to understand the test file structure and import style.
+Before writing engine tests, create a shared mock helper that all engine test files can import. This avoids duplicating the chainable mock builder in every test file.
 
-Cover the following:
+Create `__tests__/lib/engines/_mockSb.ts`:
 
-**1. loadRules — happy path**
 ```typescript
-it('loadRules returns parsed rules from DB', async () => {
-  const mockRules = [
-    { category: 'weather', key: 'heat_advisory_hi', value: '95', id: '1', event_id: 1 },
-    { category: 'weather', key: 'heat_warning_hi', value: '103', id: '2', event_id: 1 },
-  ]
-  const sb = makeMockSb({ data: mockRules, error: null })
-  const result = await loadRules(1, sb as any)
-  expect(sb.from).toHaveBeenCalledWith('event_rules')
-  expect(result).toHaveProperty('weather.heat_advisory_hi', '95')
-})
+import { vi } from 'vitest'
+import type { SupabaseClient } from '@supabase/supabase-js'
+
+/**
+ * Creates a chainable Supabase query mock.
+ * - Default result is { data: [], error: null } (array query result)
+ * - .single() resolves with { data: null, error: null } by default
+ *
+ * Override by providing a result object:
+ *   makeChain({ data: [{ id: 1 }], error: null })
+ *   makeChain({ data: null, error: { message: 'not found' } })
+ */
+export function makeChain(result: { data?: unknown; error?: unknown } = { data: [], error: null }) {
+  const resolved = { data: result.data ?? [], error: result.error ?? null }
+  const singleResolved = { data: Array.isArray(resolved.data) ? (resolved.data[0] ?? null) : resolved.data, error: resolved.error }
+
+  const chain: Record<string, unknown> = {
+    select: () => chain,
+    insert: () => chain,
+    update: () => chain,
+    delete: () => chain,
+    upsert: () => chain,
+    eq: () => chain,
+    neq: () => chain,
+    in: () => chain,
+    gte: () => chain,
+    lte: () => chain,
+    gt: () => chain,
+    lt: () => chain,
+    is: () => chain,
+    not: () => chain,
+    or: () => chain,
+    order: () => chain,
+    limit: () => chain,
+    range: () => chain,
+    // .single() returns single-row shape
+    single: () => Promise.resolve(singleResolved),
+    // Awaiting the chain directly (array query) resolves with array shape
+    then: (resolve: (v: unknown) => unknown) => Promise.resolve(resolved).then(resolve),
+    catch: (reject: (e: unknown) => unknown) => Promise.resolve(resolved).catch(reject),
+    finally: (fn: () => void) => Promise.resolve(resolved).finally(fn),
+  }
+  return chain
+}
+
+/**
+ * Creates a mock SupabaseClient.
+ * Pass a default chain result; override per test with mockReturnValueOnce:
+ *
+ *   mockSb.from.mockReturnValueOnce(makeChain({ data: [{ id: 1 }], error: null }))
+ */
+export function makeMockSb(defaultResult: { data?: unknown; error?: unknown } = { data: [], error: null }) {
+  return {
+    from: vi.fn(() => makeChain(defaultResult)),
+    rpc: vi.fn(() => Promise.resolve({ data: null, error: null })),
+    auth: {
+      getUser: vi.fn(() => Promise.resolve({ data: { user: null }, error: null })),
+    },
+  } as unknown as SupabaseClient
+}
 ```
 
-**2. loadRules — DB error returns empty object**
-```typescript
-it('loadRules returns empty object on DB error', async () => {
-  const sb = makeMockSb({ data: null, error: { message: 'db error' } })
-  const result = await loadRules(1, sb as any)
-  expect(result).toEqual({})
-})
-```
-
-**3. getRules — cache behavior**
-Test that calling `getRules` twice in quick succession only calls `sb.from` once (cache hit). Then call `invalidateRulesCache()` and call `getRules` again — `sb.from` should be called a second time.
-```typescript
-it('getRules uses cache for repeated calls', async () => {
-  invalidateRulesCache()
-  const sb = makeMockSb({ data: [], error: null })
-  await getRules(1, sb as any)
-  await getRules(1, sb as any)
-  expect(sb.from).toHaveBeenCalledTimes(1)
-})
-```
-
-**4. getRule — returns fallback when key not in cache**
-```typescript
-it('getRule returns fallback when key missing', async () => {
-  invalidateRulesCache()
-  const sb = makeMockSb({ data: [], error: null })
-  const val = await getRule('weather', 'nonexistent_key', 'default_val', sb as any)
-  // Adjust signature if getRule is synchronous — check actual implementation
-  expect(val).toBe('default_val')
-})
-```
-Note: if `getRule` is synchronous (reads from the in-memory cache), call `getRules(1, sb as any)` first to warm the cache, then call `getRule` synchronously.
-
-**5. updateRule — calls correct table and field**
-```typescript
-it('updateRule calls event_rules with correct id', async () => {
-  const sb = makeMockSb({ data: null, error: null })
-  await updateRule('rule-id-1', 'new_value', 'user-123', sb as any)
-  expect(sb.from).toHaveBeenCalledWith('event_rules')
-})
-```
-
-Read the actual `rules.ts` implementation carefully to ensure mock result shapes match what the code expects. Adjust test data accordingly.
+This helper:
+- `makeChain({ data: [...] })` — for queries that return arrays (most engine queries)
+- `makeChain({ data: {...} })` — for single-row results (use with `.single()`)
+- `makeMockSb()` — factory for the full mock client, with `from` trackable via `vi.fn()`
+- Correctly handles both `.then()` (awaited chain = array result) and `.single()` (single row)
 </instructions>
 <acceptance_criteria>
-- [ ] `__tests__/lib/engines/rules.test.ts` exists
-- [ ] At least 5 test cases covering happy path, error path, cache behavior, fallback, and DB write
-- [ ] `npm run test` passes with all new tests green
-- [ ] No real Supabase calls made (all DB access goes through mock `sb`)
+- [ ] `__tests__/lib/engines/_mockSb.ts` exists
+- [ ] `makeChain` correctly resolves array result when awaited directly
+- [ ] `makeChain` correctly resolves single-row result when `.single()` is called
+- [ ] `makeMockSb` returns a `SupabaseClient`-compatible object with `from` as a `vi.fn()`
+- [ ] File imports cleanly in test files without TypeScript errors
 </acceptance_criteria>
 </task>
 
 <task id="2">
-<title>Write unit tests for referee.ts</title>
+<title>Write rules.ts unit tests</title>
 <read_first>
-- lib/engines/referee.ts
+- lib/engines/rules.ts (refactored in Plan A Task 1)
+- __tests__/lib/engines/_mockSb.ts (Task 1)
 </read_first>
 <instructions>
-Create `__tests__/lib/engines/referee.test.ts`.
+Create `__tests__/lib/engines/rules.test.ts`.
 
-Cover the following:
+Tests to write:
 
-**1. runRefereeEngine — happy path with no conflicts**
-Mock `sb.from` to return empty conflict data. Verify the function returns a result object (not throws) and `sb.from` was called with `'operational_conflicts'` (or whatever tables the engine queries — check the source).
+1. **`loadRules` happy path**: Mock `sb.from('rules_config').select()` to return an array of rule rows. Verify `loadRules(eventId, sb)` resolves without throwing.
 
-**2. runRefereeEngine — detects double-booking conflict**
-Build mock game data where the same referee is assigned to two overlapping games. Pass this data through the engine logic. The engine should write a conflict row. Verify `sb.from` is called with the conflicts insert table.
+2. **`loadRules` empty result**: Mock `sb.from` to return `{ data: [], error: null }`. Verify `loadRules` returns without throwing and cache is set to an empty object (or default state).
 
-Note: the engine may fetch data in multiple steps. Use `vi.fn().mockReturnValueOnce(makeChain({ data: refData, error: null })).mockReturnValueOnce(makeChain({ data: gamesData, error: null }))` to return different results for sequential `sb.from` calls.
+3. **`getRules` uses cache on second call**: Call `loadRules(eventId, sb)` once, then call `getRules(eventId, sb)` immediately after. Mock `from` to fail on the second call. Verify `getRules` uses the cached value and does not call `from` again.
 
-**3. runRefereeEngine — empty games returns no conflicts**
+4. **`updateRule` calls correct table**: Mock `sb.from` to return success. Call `updateRule(id, value, changedBy, sb)`. Verify `sb.from` was called with `'rules_config'` (or whichever table the engine writes to).
+
+5. **`invalidateRulesCache` clears cache**: Call `invalidateRulesCache()`. Then verify that calling `getRules` triggers a fresh DB fetch (mock `from` to succeed on second call).
+
 ```typescript
-it('returns empty conflicts when no games exist', async () => {
-  const sb = makeMockSb({ data: [], error: null })
-  const result = await runRefereeEngine(1, sb as any)
-  expect(result).toBeDefined()
-  // result.conflicts should be empty or result should have a conflicts/alerts key
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { makeMockSb, makeChain } from './_mockSb'
+import { loadRules, getRules, updateRule, invalidateRulesCache } from '@/lib/engines/rules'
+
+describe('rules engine', () => {
+  let mockSb: ReturnType<typeof makeMockSb>
+
+  beforeEach(() => {
+    mockSb = makeMockSb()
+    invalidateRulesCache() // clear cache between tests
+  })
+
+  it('loadRules resolves with empty cache when DB returns no rows', async () => {
+    await expect(loadRules(1, mockSb)).resolves.not.toThrow()
+  })
+
+  // ... additional tests
 })
 ```
-
-**4. findAvailableRefs — returns refs not in exclude list**
-Build mock referee data with 3 referees. Call `findAvailableRefs` with `excludeRefIds` containing 1 of them. Verify the result does not include the excluded ref (or verify the query filters are applied — check by inspecting `sb.from` call arguments).
-
-**5. clearStaleConflicts — calls delete on correct table**
-If `clearStaleConflicts` is exported (or testable via side-effects from `runRefereeEngine`), verify it calls `sb.from('operational_conflicts')`.
-
-Read `referee.ts` carefully to understand the exact return type and table names before writing assertions.
 </instructions>
 <acceptance_criteria>
-- [ ] `__tests__/lib/engines/referee.test.ts` exists
-- [ ] At least 4 test cases covering happy path, conflict detection, empty data, and available-refs filtering
-- [ ] `npm run test` passes with all new tests green
-- [ ] No real Supabase calls made
+- [ ] `__tests__/lib/engines/rules.test.ts` exists with at least 4 test cases
+- [ ] All tests pass with `npm run test`
+- [ ] No real DB calls — only mocked `sb` used
+- [ ] Cache behavior is tested (populate then verify no re-fetch)
 </acceptance_criteria>
 </task>
 
 <task id="3">
-<title>Write unit tests for field.ts</title>
+<title>Write referee.ts unit tests</title>
 <read_first>
-- lib/engines/field.ts
-- lib/engines/rules.ts
+- lib/engines/referee.ts (refactored in Plan A Task 2)
+- __tests__/lib/engines/_mockSb.ts (Task 1)
 </read_first>
 <instructions>
-Create `__tests__/lib/engines/field.test.ts`. Note: `field.ts` imports `getSchedulingRules` from `rules.ts`. The mock `sb` you pass to `runFieldConflictEngine` will be passed down to `getSchedulingRules` — mock it to return empty rules so the field engine does not fail on rules loading.
+Create `__tests__/lib/engines/referee.test.ts`.
 
-**1. runFieldConflictEngine — happy path no conflicts**
+Tests to write:
+
+1. **`runRefereeEngine` happy path**: Mock `sb.from` to return sample referees and game data. Verify the result has the expected shape (e.g., `{ conflicts: [...], ... }`).
+
+2. **`runRefereeEngine` empty data guard**: Mock `sb.from` to return `{ data: [], error: null }` for all calls. Verify the engine returns a safe default (e.g., `{ conflicts: [] }` or equivalent) without throwing.
+
+3. **`runRefereeEngine` calls correct tables**: Verify `sb.from` was called with the referee and games table names. Use `expect(mockSb.from).toHaveBeenCalledWith('referees')` (adjust to actual table name).
+
+4. **`findAvailableRefs` returns filtered refs**: Mock `sb.from` to return a set of referee rows. Verify `findAvailableRefs` excludes refs in `excludeRefIds`.
+
+5. **`findAvailableRefs` empty result**: Mock `sb.from` to return `{ data: [], error: null }`. Verify the function returns an empty array without throwing.
+
 ```typescript
-it('returns no conflicts when fields are clear', async () => {
-  const sb = makeMockSb({ data: [], error: null })
-  const result = await runFieldConflictEngine(1, sb as any)
-  expect(result).toBeDefined()
-})
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { makeMockSb, makeChain } from './_mockSb'
+import { runRefereeEngine, findAvailableRefs } from '@/lib/engines/referee'
 ```
-
-**2. runFieldConflictEngine — detects field overlap**
-Build mock game data where two games are scheduled on the same field at the same time. Verify the engine detects an overlap. The engine should insert a conflict row — verify `sb.from` is called with the conflicts table for an insert.
-
-**3. applyResolution — marks conflict resolved**
-```typescript
-it('applyResolution updates conflict to resolved', async () => {
-  const sb = makeMockSb({ data: null, error: null })
-  await applyResolution('conflict-id-1', 'reschedule', {}, sb as any)
-  expect(sb.from).toHaveBeenCalledWith('operational_conflicts')
-})
-```
-
-**4. runFullConflictScan — calls field engine and returns results**
-```typescript
-it('runFullConflictScan returns a result', async () => {
-  const sb = makeMockSb({ data: [], error: null })
-  const result = await runFullConflictScan(1, sb as any)
-  expect(result).toBeDefined()
-})
-```
-
-**5. Resolved bug regression test**
-This test documents that the resolved bug is fixed at the engine level (the route-level fix is in the GET handler, but ensure the engine itself does not filter resolved conflicts when `type === 'all'` is passed if applicable).
-
-Read `field.ts` carefully. The overlap detection logic has time math — test it with clearly overlapping times (e.g., `09:00–10:00` and `09:30–10:30` on the same field) vs non-overlapping times (`09:00–10:00` and `10:00–11:00`).
 </instructions>
 <acceptance_criteria>
-- [ ] `__tests__/lib/engines/field.test.ts` exists
-- [ ] At least 4 test cases covering no-conflicts, overlap detection, applyResolution, and fullScan
-- [ ] `npm run test` passes with all new tests green
-- [ ] No real Supabase calls made
+- [ ] `__tests__/lib/engines/referee.test.ts` exists with at least 4 test cases
+- [ ] Happy path and empty data guard are both tested
+- [ ] `findAvailableRefs` exclusion logic is tested
+- [ ] All tests pass with `npm run test`
 </acceptance_criteria>
 </task>
 
 <task id="4">
-<title>Write unit tests for weather.ts — pure functions and DB functions</title>
+<title>Write field.ts and weather.ts unit tests</title>
 <read_first>
-- lib/engines/weather.ts
+- lib/engines/field.ts (refactored in Plan A Task 3)
+- lib/engines/weather.ts (refactored in Plan A Task 4)
+- __tests__/lib/engines/_mockSb.ts (Task 1)
 </read_first>
 <instructions>
-Create `__tests__/lib/engines/weather.test.ts`. This engine has the most testable pure functions — many tests require no mocking at all.
+Create two test files.
 
-**Pure function tests (no mock needed):**
+**`__tests__/lib/engines/field.test.ts`:**
 
-**1. calcHeatIndex — known values**
-```typescript
-it('calcHeatIndex returns correct heat index at 95°F / 50% humidity', () => {
-  const hi = calcHeatIndex(95, 50)
-  expect(hi).toBeGreaterThan(95)  // heat index > temp at high humidity
-  expect(hi).toBeLessThan(120)
-})
+1. **`runFieldConflictEngine` happy path**: Mock DB returns with sample field and game data. Verify result shape.
+2. **`runFieldConflictEngine` empty data**: Mock returns `{ data: [], error: null }`. Verify no throw.
+3. **Resolved-conflicts behavior**: Verify that the GET handler fix (from Plan A Task 3) applies correctly — this is tested in the API route integration test (Task 7), not here. Instead, test that `runFullConflictScan` calls the correct table.
+4. **`applyResolution` calls correct table**: Mock `sb.from` to return success. Call `applyResolution(id, 'action', {}, mockSb)`. Verify `mockSb.from` was called with the operational_conflicts table.
 
-it('calcHeatIndex returns temp when humidity is very low', () => {
-  const hi = calcHeatIndex(80, 10)
-  expect(hi).toBeCloseTo(80, 0)  // low humidity → HI ≈ temp
-})
-```
+**`__tests__/lib/engines/weather.test.ts`:**
 
-**2. evaluateAlerts — lightning codes trigger alert**
-```typescript
-it('evaluateAlerts returns lightning alert for code 200', () => {
-  const reading = { conditions_code: 200, temp_f: 75, humidity: 60, wind_mph: 10 }
-  const alerts = evaluateAlerts(reading as any)
-  expect(alerts.some(a => a.type === 'lightning')).toBe(true)
-})
+1. **Pure functions — `calcHeatIndex`**: No mock needed. Test with known input/output pairs:
+   - `calcHeatIndex(100, 50)` should return approximately `118` (Rothfusz equation result)
+   - `calcHeatIndex(70, 30)` should return a value below `80`
 
-it('evaluateAlerts returns heat warning at 103°F heat index', () => {
-  // Craft a reading that produces HI >= 103
-  const reading = { conditions_code: 800, temp_f: 100, humidity: 80, wind_mph: 5 }
-  const alerts = evaluateAlerts(reading as any)
-  expect(alerts.some(a => a.type === 'heat')).toBe(true)
-})
+2. **Pure functions — `evaluateAlerts`**: No mock needed. Test with sample weather readings:
+   - A reading with `temp_f = 113` triggers a heat emergency alert
+   - A reading with `wind_speed = 45` triggers a wind suspension alert
+   - A reading with `conditions_code = 210` (lightning) triggers a lightning alert
 
-it('evaluateAlerts returns no alerts for clear mild conditions', () => {
-  const reading = { conditions_code: 800, temp_f: 70, humidity: 40, wind_mph: 10 }
-  const alerts = evaluateAlerts(reading as any)
-  expect(alerts).toHaveLength(0)
-})
-```
+3. **Pure functions — `windDirection`**: Test cardinal direction strings for known degree values.
 
-**3. windDirection — cardinal direction from degrees**
-```typescript
-it('windDirection returns N for 0 degrees', () => {
-  expect(windDirection(0)).toBe('N')
-})
-it('windDirection returns S for 180 degrees', () => {
-  expect(windDirection(180)).toBe('S')
-})
-```
+4. **`runWeatherEngine` happy path**: Mock `sb.from` to return a sample weather reading. Verify the engine resolves without throwing.
 
-**4. conditionIcon — returns string for known codes**
-```typescript
-it('conditionIcon returns a non-empty string for code 800', () => {
-  expect(conditionIcon(800)).toBeTruthy()
-})
-```
-
-**DB-accessing function tests (mock required):**
-
-**5. runWeatherEngine — happy path**
-```typescript
-it('runWeatherEngine returns a result object', async () => {
-  const sb = makeMockSb({ data: null, error: null })
-  const result = await runWeatherEngine(1, sb as any, 'test-api-key')
-  expect(result).toBeDefined()
-})
-```
-
-**6. getLatestReading — queries correct table**
-```typescript
-it('getLatestReading queries weather_readings table', async () => {
-  const mockReading = { id: 1, complex_id: 1, temp_f: 72, recorded_at: new Date().toISOString() }
-  const sb = makeMockSb({ data: mockReading, error: null })
-  await getLatestReading(1, sb as any)
-  expect(sb.from).toHaveBeenCalledWith('weather_readings')
-})
-```
-
-Read `weather.ts` to confirm table names and alert type strings before writing assertions.
+5. **`runWeatherEngine` no API key**: Verify behavior when `apiKey` is `undefined` and `process.env.OPENWEATHER_API_KEY` is undefined (should use mock data or return gracefully).
 </instructions>
 <acceptance_criteria>
-- [ ] `__tests__/lib/engines/weather.test.ts` exists
-- [ ] At least 8 test cases — pure function tests (no mock) and DB function tests (with mock)
-- [ ] `calcHeatIndex`, `evaluateAlerts`, `windDirection`, `conditionIcon` tested without any mocking
-- [ ] `runWeatherEngine` and `getLatestReading` tested with mock `sb`
-- [ ] `npm run test` passes with all new tests green
+- [ ] `__tests__/lib/engines/field.test.ts` exists with at least 3 test cases
+- [ ] `__tests__/lib/engines/weather.test.ts` exists with at least 5 test cases
+- [ ] Pure functions (`calcHeatIndex`, `evaluateAlerts`, `windDirection`) tested without mocks
+- [ ] `evaluateAlerts` threshold tests cover heat, wind, and lightning
+- [ ] All tests pass with `npm run test`
 </acceptance_criteria>
 </task>
 
 <task id="5">
-<title>Write unit tests for eligibility.ts</title>
+<title>Write eligibility.ts unit tests</title>
 <read_first>
-- lib/engines/eligibility.ts
+- lib/engines/eligibility.ts (refactored in Plan A Task 5)
+- __tests__/lib/engines/_mockSb.ts (Task 1)
 </read_first>
 <instructions>
 Create `__tests__/lib/engines/eligibility.test.ts`.
 
-**1. checkPlayerEligibility — eligible player returns true/approved**
-Build mock data for a player with no multi-game approval needed. Verify the function returns the expected result shape.
+Tests to write:
 
-**2. checkPlayerEligibility — player with pending approval returns pending status**
-Build mock data where a player has a multi-game approval in pending state. Verify the result reflects the pending status.
+1. **`checkPlayerEligibility` happy path**: Mock `sb.from` to return a player row and a game row with matching division. Verify result indicates eligibility.
 
-**3. getPendingApprovals — returns list from DB**
+2. **`checkPlayerEligibility` ineligible case**: Mock `sb.from` to return a player row with a different division than the game. Verify result indicates ineligibility.
+
+3. **`checkPlayerEligibility` player not found**: Mock `sb.from` to return `{ data: null, error: null }` for the player fetch. Verify the function handles the null case without throwing.
+
+4. **`getPendingApprovals` returns empty array when no rows**: Mock `sb.from` to return `{ data: [], error: null }`. Verify `getPendingApprovals(gameId, mockSb)` returns `[]`.
+
+5. **`approveMultiGame` calls correct table**: Mock `sb.from` to return success. Call `approveMultiGame(approvalId, approvedBy, approvedByName, mockSb)`. Verify `mockSb.from` was called with the approvals table name.
+
 ```typescript
-it('getPendingApprovals queries multi_game_approvals table', async () => {
-  const mockApprovals = [{ id: '1', player_id: 'p1', game_id: 'g1', status: 'pending' }]
-  const sb = makeMockSb({ data: mockApprovals, error: null })
-  const result = await getPendingApprovals('game-id', sb as any)
-  expect(sb.from).toHaveBeenCalledWith('multi_game_approvals')
-  expect(result).toHaveLength(1)
-})
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { makeMockSb, makeChain } from './_mockSb'
+import { checkPlayerEligibility, getPendingApprovals, approveMultiGame } from '@/lib/engines/eligibility'
 ```
-
-**4. approveMultiGame — calls update on correct table**
-```typescript
-it('approveMultiGame updates approval status to approved', async () => {
-  const sb = makeMockSb({ data: null, error: null })
-  await approveMultiGame('approval-id', 'admin-id', 'Admin Name', sb as any)
-  expect(sb.from).toHaveBeenCalledWith('multi_game_approvals')
-})
-```
-
-**5. getAllPendingApprovals — returns all pending for event**
-```typescript
-it('getAllPendingApprovals queries by event_id', async () => {
-  const sb = makeMockSb({ data: [], error: null })
-  const result = await getAllPendingApprovals(1, sb as any)
-  expect(Array.isArray(result)).toBe(true)
-})
-```
-
-Read `eligibility.ts` to confirm the actual table names (`multi_game_approvals` or similar) and return types before writing assertions.
 </instructions>
 <acceptance_criteria>
-- [ ] `__tests__/lib/engines/eligibility.test.ts` exists
-- [ ] At least 4 test cases covering eligibility check, pending approvals, approve action, and get-all
-- [ ] `npm run test` passes with all new tests green
-- [ ] No real Supabase calls made
+- [ ] `__tests__/lib/engines/eligibility.test.ts` exists with at least 4 test cases
+- [ ] Eligible, ineligible, and player-not-found cases are covered
+- [ ] All tests pass with `npm run test`
 </acceptance_criteria>
 </task>
 
 <task id="6">
-<title>Write unit tests for unified.ts</title>
+<title>Write unified.ts unit tests</title>
 <read_first>
-- lib/engines/unified.ts
-- lib/engines/referee.ts
-- lib/engines/field.ts
-- lib/engines/weather.ts
+- lib/engines/unified.ts (refactored in Plan A Task 6)
+- __tests__/lib/engines/_mockSb.ts (Task 1)
 </read_first>
 <instructions>
-Create `__tests__/lib/engines/unified.test.ts`. `unified.ts` is the most complex — it calls three sub-engines directly after Plan A. In tests, those sub-engines will also receive the mock `sb` via unified's pass-through.
+Create `__tests__/lib/engines/unified.test.ts`.
 
-**Strategy for mocking sub-engine calls:**
-Since `unified.ts` now calls `runRefereeEngine`, `runFieldConflictEngine`, and `runWeatherEngine` directly (not via fetch), you can either:
-- Pass a mock `sb` that returns appropriate mock data for all sub-engine queries (preferred — tests real integration)
-- Use `vi.mock('@/lib/engines/referee', ...)` etc. to stub sub-engines (simpler but less realistic)
-
-Use `vi.mock` for sub-engines in unified tests to keep tests focused on unified's own logic (ops_alerts writes, result aggregation). This is the pragmatic choice.
+Unified engine now calls sub-engines directly (not via fetch). The sub-engine imports must be mocked in these tests so the unified engine tests don't depend on sub-engine DB calls.
 
 ```typescript
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { makeMockSb } from './_mockSb'
+
+// Mock sub-engine modules so unified.test.ts doesn't depend on DB
 vi.mock('@/lib/engines/referee', () => ({
-  runRefereeEngine: vi.fn().mockResolvedValue({ conflicts: [], alerts: [] }),
+  runRefereeEngine: vi.fn().mockResolvedValue({ conflicts: [] }),
 }))
 vi.mock('@/lib/engines/field', () => ({
-  runFieldConflictEngine: vi.fn().mockResolvedValue({ conflicts: [], alerts: [] }),
+  runFieldConflictEngine: vi.fn().mockResolvedValue({ conflicts: [] }),
 }))
 vi.mock('@/lib/engines/weather', () => ({
-  runWeatherEngine: vi.fn().mockResolvedValue({ alerts: [], reading: null }),
+  runWeatherEngine: vi.fn().mockResolvedValue({ alerts: [] }),
 }))
+
+import { runUnifiedEngine, resolveAlert, generateShiftHandoff } from '@/lib/engines/unified'
+import { runRefereeEngine } from '@/lib/engines/referee'
+import { runFieldConflictEngine } from '@/lib/engines/field'
 ```
 
-**Tests:**
+Tests to write:
 
-**1. runUnifiedEngine — happy path, no alerts**
-```typescript
-it('runUnifiedEngine returns result when all sub-engines return no alerts', async () => {
-  const sb = makeMockSb({ data: [], error: null })
-  const result = await runUnifiedEngine(1, sb as any)
-  expect(result).toBeDefined()
-})
-```
+1. **`runUnifiedEngine` calls sub-engines**: Verify `runRefereeEngine` and `runFieldConflictEngine` mocks are called with the correct `eventDateId` and the `sb` passed to `runUnifiedEngine`.
 
-**2. runUnifiedEngine — calls all three sub-engines**
-```typescript
-it('runUnifiedEngine calls referee, field, and weather engines', async () => {
-  const { runRefereeEngine } = await import('@/lib/engines/referee')
-  const { runFieldConflictEngine } = await import('@/lib/engines/field')
-  const { runWeatherEngine } = await import('@/lib/engines/weather')
-  const sb = makeMockSb({ data: [], error: null })
-  await runUnifiedEngine(1, sb as any)
-  expect(runRefereeEngine).toHaveBeenCalledWith(1, sb)
-  expect(runFieldConflictEngine).toHaveBeenCalledWith(1, sb)
-  expect(runWeatherEngine).toHaveBeenCalled()
-})
-```
+2. **`runUnifiedEngine` aggregates results**: Verify the return value contains the expected aggregated structure (ops alerts, conflict counts, etc.).
 
-**3. resolveAlert — updates alert in DB**
-```typescript
-it('resolveAlert updates ops_alerts table', async () => {
-  const sb = makeMockSb({ data: null, error: null })
-  await resolveAlert('alert-id', 'user-id', 'resolved manually', sb as any)
-  expect(sb.from).toHaveBeenCalledWith('ops_alerts')
-})
-```
+3. **`runUnifiedEngine` sub-engine failure is handled**: Mock `runRefereeEngine` to throw. Verify `runUnifiedEngine` catches the error and either returns a partial result or re-throws with a useful message (not a silent empty result).
 
-**4. generateShiftHandoff — returns handoff document**
-```typescript
-it('generateShiftHandoff returns a result', async () => {
-  const sb = makeMockSb({ data: [], error: null })
-  const result = await generateShiftHandoff('admin-user-id', sb as any)
-  expect(result).toBeDefined()
-})
-```
+4. **`resolveAlert` calls correct table**: Mock `sb.from` to return success. Call `resolveAlert(alertId, resolvedBy, undefined, mockSb)`. Verify `mockSb.from` was called with the ops_alerts table.
 
-Read `unified.ts` to confirm exact table names used for `ops_alerts` writes and the result shape of `runUnifiedEngine` before finalizing assertions.
+5. **`generateShiftHandoff` returns expected shape**: Mock `sb.from` to return sample data. Verify the returned object has the expected handoff fields.
 </instructions>
 <acceptance_criteria>
-- [ ] `__tests__/lib/engines/unified.test.ts` exists
-- [ ] Sub-engine modules are mocked with `vi.mock` in the unified test file
-- [ ] At least 4 test cases: happy path, all three sub-engines called, resolveAlert, generateShiftHandoff
-- [ ] `npm run test` passes with all new tests green
-- [ ] No real Supabase calls or HTTP fetch calls made
+- [ ] `__tests__/lib/engines/unified.test.ts` exists with at least 4 test cases
+- [ ] Sub-engine modules are mocked with `vi.mock()`
+- [ ] `runUnifiedEngine` is verified to pass `sb` to sub-engine calls
+- [ ] Error propagation from sub-engine failures is tested
+- [ ] All tests pass with `npm run test`
 </acceptance_criteria>
 </task>
 
 <task id="7">
-<title>Run full test suite and confirm all tests pass</title>
+<title>Write integration test — referee-engine route wiring</title>
 <read_first>
-- vitest.config.ts
+- app/api/referee-engine/route.ts (updated in Plan B2 Task 1)
+- lib/engines/referee.ts (refactored in Plan A Task 2)
+- __tests__/lib/engines/_mockSb.ts (Task 1)
 </read_first>
 <instructions>
-After creating all 6 test files, run the complete test suite and ensure everything is green.
+Create `__tests__/app/api/referee-engine.integration.test.ts`.
 
-**Step 1: Run all tests**
-```bash
-npm run test
+This test imports the route handler directly and mocks only `createClient` from `@/supabase/server`. It verifies that:
+1. The route handler creates a server client
+2. The route handler passes that client to `runRefereeEngine`
+3. The handler returns the engine result as JSON
+
+This is an integration-style test (not a full HTTP integration test — it calls the handler function directly). It catches the specific class of wiring error where the route forgets to pass `sb` to the engine.
+
+```typescript
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { makeMockSb } from '../lib/engines/_mockSb'
+
+// Mock the server client factory
+const mockSb = makeMockSb({ data: [], error: null })
+vi.mock('@/supabase/server', () => ({
+  createClient: vi.fn(() => mockSb),
+}))
+
+// Mock the engine function to capture what arguments it receives
+const mockRunRefereeEngine = vi.fn().mockResolvedValue({ conflicts: [], alerts_written: 0 })
+vi.mock('@/lib/engines/referee', () => ({
+  runRefereeEngine: mockRunRefereeEngine,
+  findAvailableRefs: vi.fn().mockResolvedValue([]),
+}))
+
+import { POST } from '@/app/api/referee-engine/route'
+import { createClient } from '@/supabase/server'
+
+describe('POST /api/referee-engine — route wiring', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('creates a server client and passes it to runRefereeEngine', async () => {
+    const request = new Request('http://localhost/api/referee-engine', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event_date_id: 42 }),
+    })
+
+    const response = await POST(request)
+    const data = await response.json()
+
+    // Verify createClient was called (route created a server client)
+    expect(createClient).toHaveBeenCalledOnce()
+
+    // Verify runRefereeEngine was called with the correct eventDateId and the mock sb
+    expect(mockRunRefereeEngine).toHaveBeenCalledWith(42, mockSb)
+
+    // Verify the response contains the engine result
+    expect(response.status).toBe(200)
+    expect(data).toMatchObject({ conflicts: [], alerts_written: 0 })
+  })
+
+  it('returns 400 when event_date_id is missing', async () => {
+    const request = new Request('http://localhost/api/referee-engine', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    })
+
+    const response = await POST(request)
+    expect(response.status).toBe(400)
+    const data = await response.json()
+    expect(data).toHaveProperty('error')
+  })
+})
 ```
 
-**Step 2: If any test fails, diagnose and fix**
-Common failure causes:
-- Mock chain missing a method the engine calls (add the method to `makeChain`)
-- Engine function signature mismatch (test calling old signature — update to new signature from Plan A)
-- `vi.mock` hoisting issue (ensure `vi.mock` calls are at the top of the file, before imports)
-- Table name in assertion does not match actual table name in engine — read the engine source carefully
-- `single()` vs `then()` resolution — the engine may use `.single()` for some queries and direct promise resolution for others. Ensure `makeChain` handles both.
-
-**Step 3: Run type-check**
-```bash
-npm run type-check
-```
-
-**Step 4: Run lint**
-```bash
-npm run lint
-```
-
-All three must pass cleanly before this task is complete.
-
-**Step 5: Run test coverage (optional)**
-```bash
-npm run test:coverage
-```
-Note coverage numbers for the engine files. These are informational — no coverage threshold is required for Phase 1.
+**Note on test environment:** The `Request` constructor used here is the Web API `Request`. Vitest with `jsdom` environment should have this available. If not, add `global.Request = Request` in the test or adjust the test environment. Check `vitest.config.ts` for the current `environment` setting.
 </instructions>
 <acceptance_criteria>
-- [ ] `npm run test` — all tests pass, zero failures
-- [ ] `npm run type-check` — zero errors
-- [ ] `npm run lint` — zero errors
-- [ ] All 6 new test files appear in the test output
-- [ ] At least 1 test per engine is explicitly verified in the output (not skipped)
+- [ ] `__tests__/app/api/referee-engine.integration.test.ts` exists
+- [ ] Test verifies `createClient` is called exactly once per request
+- [ ] Test verifies `runRefereeEngine` is called with the mock `sb` (not a different client)
+- [ ] Test verifies `runRefereeEngine` receives the correct `event_date_id` from the request body
+- [ ] Missing `event_date_id` returns `400` with `{ error: string }`
+- [ ] All tests pass with `npm run test`
 </acceptance_criteria>
 </task>
 
+---
+
 ## Verification
-- [ ] `ls __tests__/lib/engines/` shows 6 test files: `rules.test.ts`, `referee.test.ts`, `field.test.ts`, `weather.test.ts`, `eligibility.test.ts`, `unified.test.ts`
-- [ ] `npm run test` passes with all 6 test files green
-- [ ] No test file imports `@/supabase/client` — all DB interaction goes through mock `sb`
-- [ ] Pure functions in `weather.ts` (`calcHeatIndex`, `evaluateAlerts`, `windDirection`, `conditionIcon`) are tested without any mock
-- [ ] `vi.mock` is used in `unified.test.ts` to stub sub-engine calls
+
+- [ ] 7 test files created: 6 unit tests (one per engine) + 1 integration test
+- [ ] Shared `_mockSb.ts` helper used consistently across all engine tests
+- [ ] All pure functions (`calcHeatIndex`, `evaluateAlerts`, `windDirection`, `conditionIcon`) tested without mocks
+- [ ] Sub-engine calls inside `unified.ts` are mocked so tests don't cascade
+- [ ] Integration test verifies route → engine wiring (createClient called, sb passed through)
+- [ ] `npm run test` passes — all new tests green, existing `utils.test.ts` still passes
+- [ ] `npm run test:coverage` shows meaningful coverage on all 6 engine modules
 
 ## Must-Haves
-- All 6 test files exist and all tests pass (`npm run test` is green)
-- Tests use the mock `sb` injection pattern — zero real Supabase calls
-- Weather pure functions are tested with direct inputs (no mock) — these are the highest-confidence tests
-- Unified engine tests use `vi.mock` to stub sub-engines so unified's own logic is isolated
-- Test file structure follows `__tests__/lib/engines/<engine>.test.ts` naming convention
+
+- No test file makes real Supabase DB calls — all DB interactions are mocked via `makeMockSb`
+- The integration test (Task 7) must verify `sb` is passed through (not just that the engine is called)
+- Pure function tests for `evaluateAlerts` must cover all three alert thresholds: heat, wind, lightning
+- The `_mockSb.ts` helper correctly handles both awaited-chain (array) and `.single()` (single-row) query patterns
