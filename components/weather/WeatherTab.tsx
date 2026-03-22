@@ -57,15 +57,16 @@ export function WeatherTab() {
 
   // Load active alerts
   const loadAlerts = useCallback(async () => {
+    if (!state.event?.id) return
     const sb = createClient()
     const { data } = await sb
       .from('weather_alerts')
       .select('*')
-      .eq('event_id', state.event?.id ?? 1)
+      .eq('event_id', state.event.id)
       .eq('is_active', true)
       .order('created_at', { ascending: false })
     setActiveAlerts(data ?? [])
-  }, [])
+  }, [state.event?.id])
 
   useEffect(() => { loadAlerts() }, [loadAlerts])
 

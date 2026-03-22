@@ -56,6 +56,14 @@ export function EventPicker({ onSelectEvent }: Props) {
   const [copySettings, setCopySettings]   = useState(true)   // fields + rules
   const [copyRefsVols, setCopyRefsVols]   = useState(true)   // referees + volunteers
 
+  // Primary complex (required on creation)
+  const [complexName, setComplexName]       = useState('')
+  const [complexAddress, setComplexAddress] = useState('')
+
+  // Additional copy categories
+  const [copyTeams, setCopyTeams]           = useState(false)
+  const [copyComplexes, setCopyComplexes]   = useState(false)
+
   useEffect(() => { loadEvents() }, [])
 
   async function loadEvents() {
@@ -87,6 +95,9 @@ export function EventPicker({ onSelectEvent }: Props) {
       toast.error('Name, location, and dates required')
       return
     }
+    if (!complexName.trim()) {
+      toast.error('Primary complex name is required'); return
+    }
     setStep(2)
   }
 
@@ -96,6 +107,8 @@ export function EventPicker({ onSelectEvent }: Props) {
     setNewName(''); setNewLocation(''); setNewStart(''); setNewEnd('')
     setNewSport('Lacrosse'); setNewType('tournament')
     setCopySourceId(null); setCopySettings(true); setCopyRefsVols(true)
+    setComplexName(''); setComplexAddress('')
+    setCopyTeams(false); setCopyComplexes(false)
   }
 
   async function createEvent() {
@@ -138,6 +151,13 @@ export function EventPicker({ onSelectEvent }: Props) {
       is_active:    true,
     }, { onConflict: 'user_id,event_id' })
 
+    // Create the primary complex
+    await sb.from('complexes').insert({
+      event_id: newEventId,
+      name:     complexName.trim(),
+      address:  complexAddress.trim() || null,
+    })
+
     // ── Copy from source event if selected ──────────────────────────────────
     if (copySourceId) {
       const jobs: (() => Promise<void>)[] = []
@@ -172,9 +192,44 @@ export function EventPicker({ onSelectEvent }: Props) {
         })
       }
 
+      if (copyTeams) {
+        jobs.push(async () => {
+          const { data } = await sb.from('teams')
+            .select('name,division,age_group,coach_name,coach_email')
+            .eq('event_id', copySourceId)
+          if (data?.length) await sb.from('teams').insert(data.map(t => ({ ...t, event_id: newEventId })))
+        })
+      }
+
+      if (copyComplexes) {
+        jobs.push(async () => {
+          const { data: srcComplexes } = await sb.from('complexes').select('*').eq('event_id', copySourceId)
+          for (const c of srcComplexes ?? []) {
+            const { data: newC } = await sb.from('complexes').insert({
+              event_id: newEventId, name: c.name, address: c.address,
+              lat: c.lat, lng: c.lng, lightning_radius_miles: c.lightning_radius_miles,
+            }).select().single()
+            if (newC) {
+              const { data: srcFields } = await sb.from('fields').select('*').eq('complex_id', c.id)
+              if (srcFields?.length) {
+                await sb.from('fields').insert(srcFields.map(f => ({
+                  event_id: newEventId, name: f.name, number: f.number,
+                  division: f.division, complex_id: (newC as any).id,
+                })))
+              }
+            }
+          }
+        })
+      }
+
       await Promise.all(jobs.map(j => j()))
 
-      const what = [copySettings && 'settings', copyRefsVols && 'refs & volunteers'].filter(Boolean).join(' and ')
+      const what = [
+        copySettings && 'fields & settings',
+        copyRefsVols && 'refs & volunteers',
+        copyTeams && 'teams',
+        copyComplexes && 'complexes',
+      ].filter(Boolean).join(', ')
       toast.success(`${newName} created with ${what} copied!`)
     } else {
       toast.success(`${newName} created!`)
@@ -238,7 +293,6 @@ export function EventPicker({ onSelectEvent }: Props) {
         {/* ── Create wizard ─────────────────────────────────────────────────── */}
         {showForm && (
           <div className="bg-[#081428] border border-[#1a2d50] rounded-2xl p-6 mb-6">
-
             {/* Step indicator */}
             <div className="flex items-center gap-3 mb-6">
               {[{ n: 1, label: 'Event Details' }, { n: 2, label: 'Copy Options' }].map(({ n, label }) => (
@@ -294,6 +348,27 @@ export function EventPicker({ onSelectEvent }: Props) {
                     <input type="date" className={inp} value={newEnd} onChange={e => setNewEnd(e.target.value)} />
                   </div>
                 </div>
+
+                {/* ── Primary Complex ── */}
+                <div className="mt-5 pt-4 border-t border-[#1a2d50]">
+                  <div className="font-cond text-[11px] font-black tracking-[.12em] text-[#5a6e9a] uppercase mb-3">
+                    Primary Complex *
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="col-span-2">
+                      <label className={lbl}>Complex Name *</label>
+                      <input className={inp} value={complexName} onChange={e => setComplexName(e.target.value)}
+                        placeholder="e.g. Riverside Sports Complex" />
+                    </div>
+                    <div className="col-span-2">
+                      <label className={lbl}>Address (optional — used for weather)</label>
+                      <input className={inp} value={complexAddress} onChange={e => setComplexAddress(e.target.value)}
+                        placeholder="e.g. 1234 Park Blvd, Jacksonville, FL 32099" />
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-[#5a6e9a] mt-1.5">You can add more complexes and fields from Settings → Map after creation.</p>
+                </div>
+
                 <div className="flex gap-3 mt-5 pt-4 border-t border-[#1a2d50]">
                   <button onClick={resetForm}
                     className="font-cond text-[12px] text-[#5a6e9a] hover:text-white px-4 py-2 transition-colors">
@@ -394,6 +469,34 @@ export function EventPicker({ onSelectEvent }: Props) {
                           </div>
                           <div className="font-cond text-[10px] text-[#5a6e9a] mt-0.5">
                             Copies the ref pool and volunteer roster — check-in status starts fresh
+                          </div>
+                        </div>
+                      </label>
+                      <label className="flex items-start gap-3 cursor-pointer group">
+                        <input type="checkbox" className="accent-blue-500 mt-0.5 flex-shrink-0"
+                          checked={copyTeams}
+                          onChange={e => setCopyTeams(e.target.checked)} />
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <Users size={12} className="text-blue-400" />
+                            <span className="font-cond text-[12px] font-black text-white">Teams</span>
+                          </div>
+                          <div className="font-cond text-[10px] text-[#5a6e9a] mt-0.5">
+                            Copies team names and divisions
+                          </div>
+                        </div>
+                      </label>
+                      <label className="flex items-start gap-3 cursor-pointer group">
+                        <input type="checkbox" className="accent-blue-500 mt-0.5 flex-shrink-0"
+                          checked={copyComplexes}
+                          onChange={e => setCopyComplexes(e.target.checked)} />
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <MapPin size={12} className="text-blue-400" />
+                            <span className="font-cond text-[12px] font-black text-white">Complexes & Fields</span>
+                          </div>
+                          <div className="font-cond text-[10px] text-[#5a6e9a] mt-0.5">
+                            Copies all complexes and their fields (in addition to the primary complex above)
                           </div>
                         </div>
                       </label>

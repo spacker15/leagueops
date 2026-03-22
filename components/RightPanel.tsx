@@ -111,30 +111,33 @@ export function RightPanel({ onNavigate }: Props) {
 
 // ─── Conflict Panel ──────────────────────────────────────────
 function ConflictPanel({ onNavigate }: { onNavigate: (tab: TabName) => void }) {
+  const { state } = useApp()
   const [conflicts, setConflicts] = useState<OperationalConflict[]>([])
+  const eventId = state.event?.id
 
   useEffect(() => {
+    if (!eventId) return
     const sb = createClient()
-    sb.from('operational_conflicts')
-      .select('*')
-      .eq('event_id', 1)
-      .eq('resolved', false)
-      .order('severity', { ascending: false })
-      .limit(5)
-      .then(({ data }) => setConflicts((data as OperationalConflict[]) ?? []))
+
+    function fetchConflicts() {
+      sb.from('operational_conflicts')
+        .select('*')
+        .eq('event_id', eventId)
+        .eq('resolved', false)
+        .order('severity', { ascending: false })
+        .limit(5)
+        .then(({ data }) => setConflicts((data as OperationalConflict[]) ?? []))
+    }
+
+    fetchConflicts()
 
     // Realtime subscription
-    const sub = sb.channel('rp-conflicts')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'operational_conflicts' }, () => {
-        sb.from('operational_conflicts')
-          .select('*').eq('event_id', 1).eq('resolved', false)
-          .order('severity', { ascending: false }).limit(5)
-          .then(({ data }) => setConflicts((data as OperationalConflict[]) ?? []))
-      })
+    const sub = sb.channel(`rp-conflicts-${eventId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'operational_conflicts' }, fetchConflicts)
       .subscribe()
 
     return () => { sb.removeChannel(sub) }
-  }, [])
+  }, [eventId])
 
   const critical = conflicts.filter(c => c.severity === 'critical').length
   const warning  = conflicts.filter(c => c.severity === 'warning').length
