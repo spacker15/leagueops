@@ -24,7 +24,6 @@ interface UserRoleRow {
 export function UserManagement() {
   const { userRole: currentRole } = useAuth()
   const { state, eventId } = useApp()
-  if (!eventId) return null
   const [users, setUsers] = useState<UserRoleRow[]>([])
   const [loading, setLoading] = useState(true)
   const [inviteEmail, setInviteEmail] = useState('')
@@ -41,6 +40,8 @@ export function UserManagement() {
     loadUsers()
     loadRefVol()
   }, [])
+
+  if (!eventId) return null
 
   async function loadUsers() {
     const sb = createClient()

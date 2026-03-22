@@ -10,7 +10,6 @@ import type { GeneratedGame } from '@/types'
 
 export function EngineTab() {
   const { state, addGame, currentDate, eventId } = useApp()
-  if (!eventId) return null
 
   const [engDivision, setEngDivision] = useState('U14')
   const [teamInput, setTeamInput] = useState('')
@@ -24,6 +23,8 @@ export function EngineTab() {
   )
   const [generated, setGenerated] = useState<GeneratedGame[] | null>(null)
   const [importing, setImporting] = useState(false)
+
+  if (!eventId) return null
 
   function addTeam() {
     const name = teamInput.trim()

@@ -297,7 +297,6 @@ function DroppableFieldHeader({
 // ─── Main component ──────────────────────────────────────────
 export function RefsTab() {
   const { state, toggleRefCheckin, toggleVolCheckin, currentDate, eventId } = useApp()
-  if (!eventId) return null
   const [subTab, setSubTab] = useState<SubTab>('board')
   const [assignments, setAssignments] = useState<Assignment[]>([])
   const [blockAssignments, setBlockAssignments] = useState<BlockAssignment[]>([])
@@ -377,6 +376,8 @@ export function RefsTab() {
   useEffect(() => {
     loadConflicts()
   }, [loadConflicts])
+
+  if (!eventId) return null
 
   // Parse dragging id → person info
   function parseDragId(id: string) {

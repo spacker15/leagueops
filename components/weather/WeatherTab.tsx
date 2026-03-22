@@ -51,7 +51,6 @@ interface Complex {
 
 export function WeatherTab() {
   const { state, triggerLightning, liftLightning, eventId } = useApp()
-  if (!eventId) return null
   const [subTab, setSubTab] = useState<SubTab>('overview')
   const [complexes, setComplexes] = useState<Complex[]>([])
   const [readings, setReadings] = useState<Record<number, WeatherReading>>({})
@@ -231,6 +230,8 @@ export function WeatherTab() {
       setHistory(data)
     }
   }
+
+  if (!eventId) return null
 
   const delayedGames = state.games.filter((g) => g.status === 'Delayed')
   const anyLightning = Object.values(lightningStatus).some((s) => s.active)

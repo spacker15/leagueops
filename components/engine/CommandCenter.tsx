@@ -57,12 +57,6 @@ export function CommandCenter() {
   const feedRef = useRef<HTMLDivElement>(null)
   const feedPausedRef = useRef(false)
 
-  if (!eventId) return null
-  if (!currentDate) return null // D-02: guard before deriving eventDateId
-  const eventDateId = currentDate.id
-
-  const approverName = userRole?.display_name ?? 'Staff'
-
   const loadAlerts = useCallback(async () => {
     const sb = createClient()
     const query = sb.from('ops_alerts').select('*').eq('event_id', eventId)
@@ -206,6 +200,12 @@ export function CommandCenter() {
     }
     setGeneratingHandoff(false)
   }
+
+  if (!eventId) return null
+  if (!currentDate) return null // D-02: guard before deriving eventDateId
+  const eventDateId = currentDate.id
+
+  const approverName = userRole?.display_name ?? 'Staff'
 
   const criticals = alerts.filter((a) => a.severity === 'critical' && !a.resolved)
   const warnings = alerts.filter((a) => a.severity === 'warning' && !a.resolved)

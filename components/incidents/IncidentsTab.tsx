@@ -29,7 +29,6 @@ const TRAINERS = ['Sarah Mitchell (AT)', 'Tom Guerrero (AT)', '911 / EMS']
 
 export function IncidentsTab() {
   const { state, logIncident, dispatchTrainer, updateMedicalStatus, eventId } = useApp()
-  if (!eventId) return null
 
   // Incident form
   const [incType, setIncType] = useState<IncidentType>('Player Injury')
@@ -97,6 +96,8 @@ export function IncidentsTab() {
     if (!incTeam) return rosterPlayers
     return rosterPlayers
   }, [rosterPlayers, incTeam])
+
+  if (!eventId) return null
 
   function getPersonName(): string {
     if (incPersonMode === 'freeform') return incPersonFree.trim()

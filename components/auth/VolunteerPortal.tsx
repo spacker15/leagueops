@@ -30,7 +30,6 @@ interface Player {
 export function VolunteerPortal() {
   const { userRole, signOut } = useAuth()
   const portalEventId = userRole?.event_id
-  if (!portalEventId) return null
   const [tab, setTab] = useState<PortalTab>('checkin')
   const [vol, setVol] = useState<any>(null)
   const [games, setGames] = useState<AssignedGame[]>([])
@@ -46,7 +45,7 @@ export function VolunteerPortal() {
   const [rosterLoading, setRosterLoading] = useState(false)
 
   useEffect(() => {
-    if (!userRole?.volunteer_id) return
+    if (!portalEventId || !userRole?.volunteer_id) return
     loadData()
   }, [userRole])
 
@@ -144,6 +143,8 @@ export function VolunteerPortal() {
     setCheckingIn(false)
     toast.success(newState ? '✓ You are checked in!' : 'Checked out')
   }
+
+  if (!portalEventId) return null
 
   if (loading)
     return (

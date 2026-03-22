@@ -78,15 +78,6 @@ function RegisterPageInner() {
   const searchParams = useSearchParams()
   const eventIdParam = searchParams.get('event_id')
   const eventId = eventIdParam ? Number(eventIdParam) : null
-  if (!eventId) {
-    return (
-      <div className="min-h-screen bg-surface flex items-center justify-center">
-        <div className="text-center text-red-400 p-8 font-cond">
-          No event specified. Please use a valid registration link.
-        </div>
-      </div>
-    )
-  }
 
   const { signIn, user } = useAuth()
   const fileRef = useRef<HTMLInputElement>(null)
@@ -165,6 +156,16 @@ function RegisterPageInner() {
   useEffect(() => {
     if (user && !prefillLoaded) loadPrefill()
   }, [user])
+
+  if (!eventId) {
+    return (
+      <div className="min-h-screen bg-surface flex items-center justify-center">
+        <div className="text-center text-red-400 p-8 font-cond">
+          No event specified. Please use a valid registration link.
+        </div>
+      </div>
+    )
+  }
 
   async function loadPrefill() {
     try {

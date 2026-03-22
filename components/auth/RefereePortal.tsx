@@ -32,7 +32,6 @@ interface Player {
 export function RefereePortal() {
   const { userRole, signOut } = useAuth()
   const portalEventId = userRole?.event_id
-  if (!portalEventId) return null
   const [tab, setTab] = useState<PortalTab>('checkin')
   const [ref, setRef] = useState<any>(null)
   const [games, setGames] = useState<AssignedGame[]>([])
@@ -48,7 +47,7 @@ export function RefereePortal() {
   const [rosterLoading, setRosterLoading] = useState(false)
 
   useEffect(() => {
-    if (!userRole?.referee_id) return
+    if (!portalEventId || !userRole?.referee_id) return
     loadData()
   }, [userRole])
 
@@ -151,6 +150,8 @@ export function RefereePortal() {
     setCheckingIn(false)
     toast.success(newState ? '✓ You are checked in!' : 'Checked out')
   }
+
+  if (!portalEventId) return null
 
   if (loading)
     return (

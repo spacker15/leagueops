@@ -26,7 +26,6 @@ interface FieldConflict extends OperationalConflict {
 
 export function ScheduleTab() {
   const { state, updateGameStatus, addGame, currentDate, eventId } = useApp()
-  if (!eventId) return null
   const [viewMode, setViewMode] = useState<ViewMode>('board')
   const [fieldFilter, setFieldFilter] = useState('')
   const [divFilter, setDivFilter] = useState('')
@@ -46,6 +45,7 @@ export function ScheduleTab() {
   const [agTime, setAgTime] = useState('08:00')
 
   const loadConflicts = useCallback(async () => {
+    if (!eventId) return
     const res = await fetch(`/api/field-engine?event_id=${eventId}`)
     if (res.ok) {
       const data = await res.json()
@@ -202,6 +202,8 @@ export function ScheduleTab() {
       }))
       .filter((fc) => fc.games.length > 0)
   }, [state.fields, filtered])
+
+  if (!eventId) return null
 
   const divisions = [...new Set(state.teams.map((t) => t.division))].sort()
   const criticalCount = conflicts.filter((c) => c.severity === 'critical').length

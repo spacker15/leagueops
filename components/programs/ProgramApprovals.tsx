@@ -45,7 +45,6 @@ type FilterStatus = 'pending' | 'approved' | 'rejected' | 'all'
 export function ProgramApprovals() {
   const { user } = useAuth()
   const { eventId } = useApp()
-  if (!eventId) return null
   const [programs, setPrograms] = useState<Program[]>([])
   const [teamRegs, setTeamRegs] = useState<TeamReg[]>([])
   const [filter, setFilter] = useState<FilterStatus>('pending')
@@ -73,6 +72,8 @@ export function ProgramApprovals() {
   useEffect(() => {
     load()
   }, [load])
+
+  if (!eventId) return null
 
   async function approveProgram(prog: Program) {
     setActionId(prog.id)

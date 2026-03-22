@@ -355,7 +355,6 @@ function AddTeamPaymentModal({ eventId, fees, teams, onClose, onSaved }: AddTeam
 // ─── Main Tab ───────────────────────────────────────────────────────────────
 export function PaymentsTab() {
   const { state, eventId } = useApp()
-  if (!eventId) return null
   const [subTab, setSubTab] = useState<SubTab>('overview')
   const [fees, setFees] = useState<RegistrationFee[]>([])
   const [payments, setPayments] = useState<TeamPayment[]>([])
@@ -396,6 +395,8 @@ export function PaymentsTab() {
       .then((r) => (r.ok ? r.json() : []))
       .then(setHistory)
   }, [subTab, eventId])
+
+  if (!eventId) return null
 
   // Load payment entries for a specific team_payment
   async function loadTeamHistory(tpId: number) {

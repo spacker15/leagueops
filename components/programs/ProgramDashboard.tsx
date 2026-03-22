@@ -60,7 +60,6 @@ type Tab = 'overview' | 'teams' | 'rosters' | 'register'
 export function ProgramDashboard() {
   const { userRole, signOut } = useAuth()
   const portalEventId = userRole?.event_id
-  if (!portalEventId) return null
   const [program, setProgram] = useState<Program | null>(null)
   const [teamRegs, setTeamRegs] = useState<TeamReg[]>([])
   const [teams, setTeams] = useState<any[]>([])
@@ -81,6 +80,8 @@ export function ProgramDashboard() {
   useEffect(() => {
     loadData()
   }, [userRole])
+
+  if (!portalEventId) return null
 
   async function loadData() {
     if (!userRole?.program_id) return

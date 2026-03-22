@@ -71,7 +71,6 @@ async function ensureTokens(playerIds: number[], eventId: number): Promise<Recor
 
 export function CheckInTab() {
   const { state, eventId } = useApp()
-  if (!eventId) return null
   const { userRole } = useAuth()
 
   const [tab, setTab] = useState<Tab>('game')
@@ -214,6 +213,8 @@ export function CheckInTab() {
       sb.removeChannel(sub)
     }
   }, [selectedGameId, loadAllApprovals])
+
+  if (!eventId) return null
 
   async function togglePlayer(player: PlayerWithExtras) {
     if (!selectedGameId || !selectedGame) return
