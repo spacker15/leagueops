@@ -36,7 +36,7 @@ describe('POST /api/referee-engine — route wiring', () => {
     const request = new Request('http://localhost/api/referee-engine', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ event_date_id: 42 }),
+      body: JSON.stringify({ event_date_id: 42, event_id: 1 }),
     })
 
     const response = await POST(request as any)
@@ -45,8 +45,8 @@ describe('POST /api/referee-engine — route wiring', () => {
     // Verify createClient was called (route created a server client)
     expect(createClient).toHaveBeenCalledOnce()
 
-    // Verify runRefereeEngine was called with the correct eventDateId and the mock sb
-    expect(runRefereeEngine).toHaveBeenCalledWith(42, mockSb)
+    // Verify runRefereeEngine was called with eventDateId, eventId, and the mock sb
+    expect(runRefereeEngine).toHaveBeenCalledWith(42, 1, mockSb)
 
     // Verify the response contains the engine result
     expect(response.status).toBe(200)
@@ -74,7 +74,7 @@ describe('POST /api/referee-engine — route wiring', () => {
     const request = new Request('http://localhost/api/referee-engine', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ event_date_id: 1 }),
+      body: JSON.stringify({ event_date_id: 1, event_id: 1 }),
     })
 
     const response = await POST(request as any)
