@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Ready to plan
-stopped_at: Phase 2 context gathered
-last_updated: '2026-03-22T20:53:16.209Z'
+status: Executing Phase 02
+stopped_at: Completed 02-00-PLAN.md (Store Behavioral Test Scaffold)
+last_updated: "2026-03-22T22:24:43.018Z"
 progress:
   total_phases: 10
   completed_phases: 1
-  total_plans: 5
-  completed_plans: 5
+  total_plans: 10
+  completed_plans: 6
 ---
 
 # Project State: LeagueOps
@@ -18,7 +18,7 @@ progress:
 
 See: .planning/PROJECT.md (updated 2026-03-22)
 **Core value:** Tournament day operations must work reliably in real time — live scoring, field status, weather alerts, and referee assignments must be accurate and instant so that admins can run events from a single screen.
-**Current focus:** Phase 01 — engine-client-refactor
+**Current focus:** Phase 02 — Hardcode Removal & Event Context
 
 ## Phase Progress
 
@@ -37,8 +37,8 @@ See: .planning/PROJECT.md (updated 2026-03-22)
 
 ## Active Context
 
-**Last session:** 2026-03-22T20:53:16.206Z
-**Stopped at:** Phase 2 context gathered
+**Last session:** 2026-03-22T22:24:43.015Z
+**Stopped at:** Completed 02-00-PLAN.md (Store Behavioral Test Scaffold)
 **Plans completed:** 01-01 (Core Engine Refactor) — 7 tasks, 12 files, 19 min; 01-02 (New API Routes for CommandCenter) — 3 tasks, 3 files, 3 min
 
 ## Performance Metrics
@@ -51,6 +51,7 @@ See: .planning/PROJECT.md (updated 2026-03-22)
 | Phase 01-engine-client-refactor P04 | 5    | 2 tasks  | 1 files  |
 | Phase 01-engine-client-refactor P03 | 2    | 5 tasks  | 3 files  |
 | Phase 01-engine-client-refactor P05 | 7    | 7 tasks  | 9 files  |
+| Phase 02-hardcode-removal-event-context P00 | 2 | 1 tasks | 1 files |
 
 ## Decisions Log
 
@@ -68,3 +69,4 @@ See: .planning/PROJECT.md (updated 2026-03-22)
 | 01-04      | CommandCenter.tsx client-to-API migration complete — all engine operations now go through fetch() to API routes                                    |
 | 01-05      | Shared \_mockSb.ts excluded from vitest via \_mock\*.ts glob pattern in exclude array to prevent no-suite error                                    |
 | 01-05      | Integration test uses inline vi.fn() in vi.mock() factory to avoid Vitest hoisting-before-initialization errors                                    |
+| 02-00      | All 4 store test cases use test.fails() -- suite stays green while documenting broken dep arrays and missing realtime filters that Plan 03 will fix |
