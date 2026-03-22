@@ -1,6 +1,6 @@
 # Phase 2: Hardcode Removal & Event Context - Research
 
-**Researched:** 2026-03-22
+**Researched:** 2026-03-22 (re-research with codebase scan)
 **Domain:** React Context propagation, Supabase Realtime subscription scoping, Next.js 14 App Router event plumbing
 **Confidence:** HIGH
 
@@ -28,6 +28,7 @@
 ### Deferred Ideas (OUT OF SCOPE)
 
 None — discussion stayed within phase scope.
+
 </user_constraints>
 
 ---
@@ -38,8 +39,8 @@ None — discussion stayed within phase scope.
 
 | ID     | Description                                                                                                      | Research Support                                                                                  |
 | ------ | ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| SEC-04 | All hardcoded `event_id = 1` references (~60 locations) replaced with dynamic event_id from context/props/params | Full inventory in CONCERNS.md §2; `useApp()` already exposes `eventId`; patterns documented below |
-| SEC-05 | Real-time subscriptions scoped to current event_id                                                               | Supabase Realtime `filter` option documented; teardown/resubscribe pattern verified in store.tsx  |
+| SEC-04 | All hardcoded `event_id = 1` references (~60 locations) replaced with dynamic event_id from context/props/params | Full inventory below; `useApp()` already exposes `eventId`; `UserRole.event_id` verified in types |
+| SEC-05 | Real-time subscriptions scoped to current event_id                                                               | Supabase Realtime `filter` option verified; teardown/resubscribe pattern documented in store.tsx  |
 
 </phase_requirements>
 
@@ -47,13 +48,13 @@ None — discussion stayed within phase scope.
 
 ## Summary
 
-Phase 2 is a systematic refactor across ~60 locations that removes every `event_id = 1` hardcode and replaces it with the dynamic `eventId` value already flowing through `AppProvider`. The `eventId` is correctly propagated from the URL slug in `app/page.tsx` down through `AppProvider` — the problem is that dozens of engine functions, API routes, components, and portal pages ignore it and hardcode `1` instead.
+Phase 2 is a systematic refactor across **~93 hardcoded lines** (verified by grep) spanning five engine files, 17 API route files, the store, and 18 component files. Phase 1 completed the Supabase client injection into engine entry points — engines now accept `SupabaseClient` as a parameter — but every engine still uses a module-level `const EVENT_ID = 1` constant for all its internal queries. Phase 2 must add `eventId: number` as a required function parameter to replace those constants.
 
-The work divides cleanly into four layers that must be addressed in dependency order: (1) engine constants (`EVENT_ID = 1` in `referee.ts`, `weather.ts`, `field.ts`), (2) `unified.ts` internal hardcodes, (3) API routes that fall back to `?? '1'` in query params and hardcode `event_id: 1` in inserts, and (4) UI components. The store layer (`lib/store.tsx`) gets a targeted fix: add `eventId` to both the `loadAll` effect and the realtime `useEffect` dependency arrays, and rebuild the realtime channel on `eventId` change with per-table event filters.
+The `eventId` already flows correctly from the URL slug at `app/page.tsx` through `AppProvider` to `useApp()`. The problem is that `AppProvider` defaults to `eventId = 1` (masking missing context), `loadAll` has `[]` as its dependency array (so it never re-runs on event switch), and the realtime `useEffect` has `[currentDate]` dependencies only (so subscriptions are never re-scoped). Fixing these three issues in `lib/store.tsx` is the highest-leverage single change in the phase.
 
-Note that Phase 1 completed the engine client injection refactor (engines now accept `SupabaseClient` as a parameter). This means engines no longer hardcode the Supabase client — but they still hardcode `EVENT_ID = 1` as a module-level constant used internally for their own queries. Phase 2 must replace those constants with function parameters.
+Components outside `AppProvider` — `RefereePortal`, `VolunteerPortal`, `ProgramDashboard`, and `RegisterPage` — cannot use `useApp()`. Confirmed: `UserRole` interface in `lib/auth.tsx` already includes `event_id: number | null`, and `loadUserRole` uses `select('*')` so the field is populated. Portal components derive `event_id` from `useAuth().userRole.event_id`. `RegisterPage` and `ProgramDashboard` are public/program-leader flows where event scoping must come from a query param or the user's role record.
 
-**Primary recommendation:** Add `eventId: number` as a required parameter to every engine entry-point function. Pass `eventId` from the API route (which receives it from request params) down into the engine. This follows the same injection pattern established for the Supabase client in Phase 1.
+**Primary recommendation:** Add `eventId: number` as a required parameter to every engine entry-point function. Pass `eventId` from the API route (received from request params) into the engine. This mirrors the client injection pattern from Phase 1.
 
 ---
 
@@ -80,224 +81,238 @@ This phase uses no new libraries. All work is within the existing stack.
 ```
 app/page.tsx
   selectedEventId (useState<number | null>)
-  └─ <AppProvider eventId={selectedEventId}>    ← already wired
-       └─ lib/store.tsx: AppProvider({ eventId = 1 })
+  └─ <AppProvider eventId={selectedEventId}>    ← already wired (line 69)
+       └─ lib/store.tsx: AppProvider({ eventId = 1 })  ← default is the bug
             └─ useApp() exposes: { eventId, state, actions }
 ```
 
-The `eventId = 1` default in `AppProvider` props signature is the root of the problem — it masks missing event context at render time. With D-01 decided (null-render guard), components that need `eventId` should return `null` before render if `!eventId`.
+The `eventId = 1` default in `AppProvider` props signature (line 202 of `lib/store.tsx`) masks missing event context at render time. Per D-01, the default must be removed — components guard with `if (!eventId) return null`.
 
-### Pattern 1: Engine Function Parameter (Engines Layer)
+### Pattern 1: Engine Function Parameter (Layer 1 — Engines)
 
 **What:** Replace the module-level `const EVENT_ID = 1` constant with a function parameter on each engine entry point.
 
-**When to use:** All three engines with the constant: `referee.ts`, `weather.ts`, `field.ts`. Also `unified.ts` internal hardcodes.
+**Applies to:** `referee.ts`, `field.ts`, `weather.ts`, `unified.ts`, `rules.ts`
+
+**Current signature (referee.ts line 86):**
+```typescript
+export async function runRefereeEngine(
+  eventDateId: number,
+  sb: SupabaseClient
+): Promise<RefereeEngineResult>
+```
+
+**Target signature:**
+```typescript
+export async function runRefereeEngine(
+  eventDateId: number,
+  eventId: number,  // ← new required param
+  sb: SupabaseClient
+): Promise<RefereeEngineResult>
+```
+
+**Rules engine special case:** `rules.ts` has a cache (`_cache`) keyed globally — not per-eventId. The Phase 2 plan must change the cache key to include `eventId` so switching events invalidates stale rules. The convenience functions (`getWeatherThresholds`, `getRefereeRules`, `getSchedulingRules`, `getRule`, `getRuleNum`, `getRuleBool`) currently call `getRules(EVENT_ID, sb)` internally and must be updated to accept and pass `eventId`. `field.ts` calls `getSchedulingRules(sb)` at line 86 — this must become `getSchedulingRules(eventId, sb)` once the signature is updated.
+
+**API route caller update (referee-engine, field-engine, unified-engine):**
+```typescript
+// app/api/referee-engine/route.ts POST handler — after fix
+const { event_date_id, event_id } = body
+if (!event_date_id || !event_id) {
+  return NextResponse.json({ error: 'event_date_id and event_id required' }, { status: 400 })
+}
+const result = await runRefereeEngine(Number(event_date_id), Number(event_id), sb)
+```
+
+**Note:** `weather-engine/route.ts` already does not pass `event_id` to `runWeatherEngine` — it only passes `complexId` and `apiKey`. The weather engine's event scoping is internal (uses `EVENT_ID`). `event_id` must be added to the route body and passed as a new parameter.
+
+### Pattern 2: API Route — Replace `?? '1'` with 400 Guard (Layer 2 — API Routes)
+
+**What:** All 17 affected API route files use `searchParams.get('event_id') ?? '1'` or `event_id ?? 1` from the request body. Replace with a required param and 400 guard.
 
 **Before:**
-
 ```typescript
-// lib/engines/referee.ts
-const EVENT_ID = 1
-
-export async function runRefereeEngine(eventDateId: number, sb: SupabaseClient) {
-  // uses EVENT_ID internally
-  await sb.from('operational_conflicts').delete().eq('event_id', EVENT_ID)
-}
-```
-
-**After:**
-
-```typescript
-export async function runRefereeEngine(eventDateId: number, eventId: number, sb: SupabaseClient) {
-  await sb.from('operational_conflicts').delete().eq('event_id', eventId)
-}
-```
-
-**Caller update (API route):**
-
-```typescript
-// app/api/referee-engine/route.ts
-const eventId = Number(searchParams.get('event_id') ?? '0')
-if (!eventId) return NextResponse.json({ error: 'event_id required' }, { status: 400 })
-await runRefereeEngine(eventDateId, eventId, sb)
-```
-
-### Pattern 2: API Route — Replace `?? '1'` with 400 Guard
-
-**What:** API routes already extract `event_id` from query params as `?? '1'`. Remove the fallback and return 400 if not provided.
-
-**When to use:** All routes that are called from the admin app (not public routes like `join`, `checkin`).
-
-**Before:**
-
-```typescript
-// app/api/fields/route.ts
 const eventId = searchParams.get('event_id') ?? '1'
 ```
 
 **After:**
-
 ```typescript
 const eventId = searchParams.get('event_id')
 if (!eventId) return NextResponse.json({ error: 'event_id required' }, { status: 400 })
 ```
 
-**Exception — Routes that should NOT require event_id:**
+**Body-param variant (lightning, rules, admin/create-user):**
+```typescript
+// lightning route — body contains event_id
+const { complex_id, event_id } = body
+if (!event_id) return NextResponse.json({ error: 'event_id required' }, { status: 400 })
+```
 
-- `app/api/join/route.ts` — public self-registration via token (Phase 3)
-- `app/api/auth/check-email/route.ts` — public (Phase 3)
-- `app/api/admin/create-user/route.ts` — already authenticated; `event_id` comes from request body
+**Routes that must NOT require event_id:**
+- `app/api/join/route.ts` — public self-registration via token
+- `app/api/auth/check-email/route.ts` — public
 
-### Pattern 3: Store loadAll Dependency Fix (SEC-04 + SEC-05)
+**rules/route.ts special case (lines 60, 70, 83):** Has three literal `event_id: 1` inserts in the POST/PUT handlers and `const { action, id, event_id = 1 } = body`. The body destructure default must become required.
 
-**What:** Add `eventId` to the `loadAll` `useEffect` dependency array so switching events re-fetches all data. Also rebuild the realtime channel with event-scoped filters when `eventId` changes.
+### Pattern 3: Store loadAll and Realtime Dependency Fixes (Layer 3 — Store)
 
-**Current broken state (verified in lib/store.tsx lines 210-289):**
+**Current broken state (lib/store.tsx verified):**
 
 ```typescript
+// loadAll effect — line 253
 useEffect(() => {
   async function loadAll() { ... }  // closes over eventId via closure
   loadAll()
 }, [])  // ← eventId missing — never re-runs on event switch
 
+// Games reload on date change — line 262
+useEffect(() => {
+  if (!currentDate) return
+  db.getGamesByDate(eventId, currentDate.id).then(...)
+}, [currentDate])  // ← eventId missing
+
+// Realtime — line 289
 useEffect(() => {
   const sub = sb.channel('leagueops-realtime')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'ops_log' }, ...)
     // no filter — receives ALL events' changes
-  ...
 }, [currentDate])  // ← eventId missing
+
+// addLog — line 302-304
+const addLog = useCallback(async (message: string, type: LogType = 'info') => {
+  await db.addOpsLog(eventId, message, type)
+}, [])  // ← eventId missing from deps
 ```
 
 **Fixed pattern:**
-
 ```typescript
-// loadAll effect
+// loadAll — add eventId to dep array and null guard
 useEffect(() => {
   if (!eventId) return  // D-01: null guard
   async function loadAll() { ... }
   loadAll()
-}, [eventId])  // ← re-runs when event switches
+}, [eventId])
 
-// realtime effect — teardown and recreate channel with filter
+// Games reload — add eventId to dep array
 useEffect(() => {
-  if (!eventId) return  // D-01: null guard
+  if (!currentDate) return
+  db.getGamesByDate(eventId, currentDate.id).then(...)
+}, [currentDate, eventId])
+
+// Realtime — teardown/recreate channel with event filter (D-03, D-04)
+useEffect(() => {
+  if (!eventId) return
   const sb = createClient()
   const filter = `event_id=eq.${eventId}`
   const sub = sb
     .channel('leagueops-realtime')
-    .on('postgres_changes', {
-      event: '*', schema: 'public', table: 'ops_log',
-      filter,
-    }, ...)
-    .on('postgres_changes', {
-      event: '*', schema: 'public', table: 'incidents',
-      filter,
-    }, ...)
-    .on('postgres_changes', {
-      event: '*', schema: 'public', table: 'games',
-      filter,
-    }, ...)
-    .on('postgres_changes', {
-      event: '*', schema: 'public', table: 'medical_incidents',
-      filter,
-    }, ...)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'ops_log', filter }, ...)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'incidents', filter }, ...)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'games', filter }, ...)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'medical_incidents', filter }, ...)
     .subscribe()
   return () => { sb.removeChannel(sub) }
-}, [eventId, currentDate])  // ← teardown/resubscribe on event change
+}, [eventId, currentDate])
+
+// addLog — add eventId to dep array
+const addLog = useCallback(async (message: string, type: LogType = 'info') => {
+  await db.addOpsLog(eventId, message, type)
+}, [eventId])
 ```
 
-**Critical note on Supabase Realtime filters:** The `filter` option on `postgres_changes` uses Supabase's PostgREST filter syntax: `'column=operator.value'`. For equality: `'event_id=eq.5'`. This requires the column to be indexed (which `event_id` is in all affected tables). The `filter` parameter is passed inside the event config object, not as a separate argument.
+**Additional useCallback dep array fixes needed in store.tsx:**
+- `refreshGames` — uses `eventId` and `currentDate` — already has `[currentDate]`; add `eventId`
+- `triggerLightning` — uses `eventId` (line 421) — dep array must include `eventId`
+- `liftLightning` — uses `eventId` (line 438, 445) — dep array must include `eventId`
+- `addField` — already correctly has `[eventId]` (line 485) — no change needed
 
-Supabase Realtime subscription filters were introduced in Supabase JS v2. The project uses `^2.99.2` — this feature is available. Confidence: HIGH (verified against Supabase JS v2 documentation patterns).
+### Pattern 4: Component — useApp() eventId with null guard (Layer 4 — Components)
 
-### Pattern 4: Component — useApp() eventId with null guard (D-01)
-
-**What:** Components that make direct Supabase calls (bypassing the store) must pull `eventId` from `useApp()` and guard on it.
-
-**When to use:** Any component that calls `createClient()` directly and hardcodes `event_id: 1`.
-
-**Before:**
-
-```typescript
-// components/incidents/IncidentsTab.tsx line 125
-await logIncident({
-  event_id: 1,
-  ...
-})
-```
-
-**After:**
+**What:** Components inside `AppProvider` that hardcode `event_id: 1` must pull `eventId` from `useApp()` and guard on it.
 
 ```typescript
 const { eventId } = useApp()
-if (!eventId) return null  // D-01 guard — component-level
+if (!eventId) return null  // D-01 guard
 
-await logIncident({
-  event_id: eventId,
-  ...
-})
+// All event_id usages become: eventId
+await logIncident({ event_id: eventId, ... })
 ```
 
-**Note:** `logIncident` is a store action that already calls `db.insertIncident(incident)` — so the `event_id` field on the incident payload comes from the component, not the store. The component must supply the correct value.
+### Pattern 5: Portal/Pre-Provider Components — userRole.event_id
 
-### Pattern 5: QR Code URL — Slug-based (D-05)
+**Applies to:** `RefereePortal.tsx`, `VolunteerPortal.tsx`, `ProgramDashboard.tsx`
 
-**What:** `CheckInTab.tsx` generates QR codes with hardcoded `event_id=1` in the URL. Replace with event slug.
-
-**Current (CheckInTab.tsx line 59, 191):**
+These components are rendered from `app/page.tsx` **before** `AppProvider` wraps. Calling `useApp()` inside them will throw. Confirmed solution: `UserRole` interface in `lib/auth.tsx` already includes `event_id: number | null` and `loadUserRole` uses `select('*')` — the field is populated.
 
 ```typescript
-.upsert({ player_id: id, event_id: 1 }, ...)
-// URL: `/checkin/1/${token}` (hardcoded)
-```
-
-**After:**
-
-- The `AppProvider`/`useApp()` already exposes `state.event` which has a `slug` field (it's loaded as part of `db.getEvent(eventId)`)
-- Use `state.event?.slug` for the URL segment
-- For the `player_qr_tokens` upsert: use `eventId` from `useApp()`
-- QR URL pattern: `/checkin/${state.event?.slug}/${token}` (D-05)
-
-**Guard:** If `!state.event?.slug`, the QR generation button should be disabled or return null.
-
-### Pattern 6: Portal Components (RefereePortal, VolunteerPortal)
-
-These components (`components/auth/RefereePortal.tsx`, `components/auth/VolunteerPortal.tsx`) create direct Supabase calls with `event_id: 1`. However, these portal components are rendered outside the `AppProvider` context — they are rendered from `app/page.tsx` before an event is selected.
-
-**Resolution:** These portals need the event_id passed from a different source. The `userRole` object loaded by `useAuth()` already contains the user's event association via the `user_roles` table. The portals should derive `event_id` from `userRole.event_id` rather than `useApp()`.
-
-```typescript
-// RefereePortal: derive from userRole
 const { userRole } = useAuth()
-const portalEventId = userRole?.event_id // field exists in user_roles table
-if (!portalEventId) return null
+const portalEventId = userRole?.event_id
+if (!portalEventId) return null  // D-01 guard
 
 // Replace: event_id: 1
 // With:    event_id: portalEventId
 ```
 
-**IMPORTANT:** This pattern must be verified against the `user_roles` schema. The `UserRole` interface in `types/index.ts` must include an `event_id` field for this to work without a cast.
+### Pattern 6: RegisterPage and ProgramDashboard — No App Context
 
-### Pattern 7: AppShell `(state.event as any)?.id ?? 1` — Type Fix (CONCERNS.md §18)
+**RegisterPage** (`components/auth/RegisterPage.tsx`) is rendered from `app/register/page.tsx` — outside both `AuthProvider` and `AppProvider` in a separate URL route. It currently hardcodes `event_id: 1` in five places (lines 133, 139, 460, 472, 499). This is a public program registration flow. Resolution: `RegisterPage` must read `event_id` from the URL query string (`?event_id=X`) using `useSearchParams()`. The `app/register/page.tsx` currently passes no props, so it relies entirely on implicit hardcoding.
 
-Components like `AppShell.tsx` use `(state.event as any)?.id ?? 1`. Since `state.event` is typed as `Event | null` and the `Event` interface should have `id: number`, this is a type-system problem. The cast and fallback must both be removed:
+**ProgramDashboard** (`components/programs/ProgramDashboard.tsx`) is rendered for `program_leader` role users at line 50 of `app/page.tsx` — also outside `AppProvider`. It hardcodes `event_id: 1` at line 124. Like portals, it can derive from `userRole.event_id`.
+
+### Pattern 7: AppShell and UserManagement — Type Fix
 
 ```typescript
-// Before:
+// Before (AppShell.tsx line 151):
 <EventSetupTab eventId={(state.event as any)?.id ?? 1} />
 
-// After:
+// After — use eventId from useApp():
 const { eventId } = useApp()
 if (!eventId) return null
 <EventSetupTab eventId={eventId} />
 ```
 
+```typescript
+// Before (UserManagement.tsx line 27):
+const eventId = (state.event as any)?.id ?? 1
+
+// After:
+const { eventId } = useApp()
+if (!eventId) return null
+```
+
+### Pattern 8: WeatherTab Lightning Trigger
+
+```typescript
+// Before (WeatherTab.tsx line 194):
+body: JSON.stringify({ complex_id: complexId, action, event_id: state.event?.id ?? 1 })
+
+// After:
+const { eventId } = useApp()
+if (!eventId) return null
+body: JSON.stringify({ complex_id: complexId, action, event_id: eventId })
+```
+
+### Pattern 9: QR Code URL — Slug-based (D-05)
+
+```typescript
+// In CheckInTab.tsx ensureTokens function
+const { state, eventId } = useApp()
+const eventSlug = state.event?.slug
+if (!eventId || !eventSlug) return {}
+
+// Token upsert: replace event_id: 1
+.upsert({ player_id: id, event_id: eventId }, { onConflict: 'player_id,event_id' })
+
+// QR URL uses slug, not numeric ID (D-05)
+const qrUrl = `${window.location.origin}/checkin/${eventSlug}/${token}`
+```
+
 ### Anti-Patterns to Avoid
 
-- **Do not use `eventId ?? 1` as a fallback anywhere.** Per D-02, every occurrence must become a null-render guard.
-- **Do not add `eventId` to the AppProvider default parameter.** The existing `eventId = 1` default should be removed from the function signature; the prop becomes required.
-- **Do not filter realtime subscriptions by `currentDate` alone.** The realtime `useEffect` currently depends on `[currentDate]` — if you only add `eventId` to the listener but keep the old dep array, the realtime channel won't resubscribe on event change if `currentDate` happens to be the same index.
-- **Do not close over stale eventId in useCallback actions.** Actions like `addLog`, `refreshGames` use `useCallback` with `[]` dependencies — they must include `eventId` in their dep arrays or they will log to the wrong event after a switch.
+- **Never use `eventId ?? 1` as a fallback anywhere.** Per D-02, every `?? 1` must become a null-render guard.
+- **Do not remove `eventId` from `AppProvider` prop type without updating callers.** The prop is `eventId?: number` — after removing the default, make it required and update `app/page.tsx` call.
+- **Do not forget the games reload useEffect dep array.** Lines 257-262 in `store.tsx` also close over `eventId` and have a missing dep.
+- **Do not leave realtime subscriptions with only `currentDate` in dep array.** The `[currentDate]` array means the channel never resubscribes when `eventId` changes if `currentDate` index stays the same.
+- **Rules cache keyed globally breaks multi-event.** The `_cache` in `rules.ts` is a single flat map. Must be changed to `_cacheByEvent: Record<number, Record<string, string>>` and keyed by `eventId`.
 
 ---
 
@@ -308,6 +323,99 @@ if (!eventId) return null
 | Realtime filter syntax    | Custom filter string builder     | Supabase's built-in `filter` option on `.on()`                      | Supabase validates and evaluates server-side      |
 | Event context propagation | Redux/Zustand/additional context | `useApp()` — already in place                                       | AppProvider already accepts and exposes `eventId` |
 | Slug-to-ID resolution     | New API route                    | `state.event` already loaded by `db.getEvent(eventId)` in `loadAll` | The slug is on the event record already in state  |
+| Portal event context      | New context provider             | `useAuth().userRole.event_id` — already populated                   | `UserRole.event_id: number \| null` confirmed     |
+
+---
+
+## Hardcode Inventory (Verified by Grep — 2026-03-22)
+
+Total hardcoded lines found: **~93** across 41 files (engines + routes + store + components).
+
+### Layer 1: Engine Constants (5 files, ~44 hardcoded lines)
+
+All five engines use `const EVENT_ID = 1` at module level. Phase 1 injected `SupabaseClient` but did NOT add `eventId` to function signatures.
+
+| File                     | Hardcode Count | Entry Point(s) to Update                                   | Internal uses to replace       |
+| ------------------------ | -------------- | ----------------------------------------------------------- | ------------------------------ |
+| `lib/engines/referee.ts` | 5              | `runRefereeEngine(eventDateId, sb)` → add `eventId`         | All `.eq('event_id', EVENT_ID)` |
+| `lib/engines/field.ts`   | 11             | `runFieldConflictEngine(eventDateId, sb)` → add `eventId`  | All `.eq('event_id', EVENT_ID)` |
+| `lib/engines/weather.ts` | 7              | `runWeatherEngine(complexId, apiKey, sb)` → add `eventId`  | All `.eq('event_id', EVENT_ID)` |
+| `lib/engines/unified.ts` | 9              | `runUnifiedEngine(eventDateId, sb)` → add `eventId`; `resolveAlert(alertId, resolvedBy, note, sb)` → add `eventId` | All literal `event_id: 1` |
+| `lib/engines/rules.ts`   | 12             | `getRules`, `getRule`, `getRuleNum`, `getRuleBool`, `getWeatherThresholds`, `getRefereeRules`, `getSchedulingRules` → add `eventId`; change cache key | All `getRules(EVENT_ID, sb)` calls |
+
+**Rules cache fix required:**
+```typescript
+// Before: single global cache
+let _cache: Record<string, string> | null = null
+
+// After: keyed by eventId
+const _cacheByEvent: Map<number, { map: Record<string, string>; time: number }> = new Map()
+```
+
+### Layer 2: API Routes (17 files, ~24 hardcoded lines)
+
+Two patterns: (a) `searchParams.get('event_id') ?? '1'` → require with 400 guard; (b) `event_id ?? 1` in body → require in body.
+
+Engine routes also need `event_id` added to their call forwarding:
+
+| File                                   | Count | Pattern                           | Special Notes                             |
+| -------------------------------------- | ----- | --------------------------------- | ----------------------------------------- |
+| `app/api/referee-engine/route.ts`      | 0\*   | POST body needs `event_id`        | \*No fallback but must pass `eventId` to engine |
+| `app/api/field-engine/route.ts`        | 1     | GET: `?? '1'`; POST needs `event_id` | POST body needs `event_id` for engine call |
+| `app/api/weather-engine/route.ts`      | 0\*   | POST body needs `event_id`        | \*No fallback but engine needs `eventId` |
+| `app/api/unified-engine/route.ts`      | 0\*   | POST body needs `event_id`        | \*No fallback but engine needs `eventId` |
+| `app/api/rules/route.ts`               | 4     | GET: `?? '1'`; POST: 3 literal inserts | `const { ..., event_id = 1 } = body` default |
+| `app/api/lightning/route.ts`           | 5     | Body: `event_id ?? 1` × 5        | Uses `event_id` in 5 places               |
+| `app/api/admin/create-user/route.ts`   | 2     | Body: `event_id ?? 1` × 2        |                                           |
+| `app/api/conflicts/route.ts`           | 1     | GET: `?? '1'`                    |                                           |
+| `app/api/eligibility/route.ts`         | 1     | GET: `?? '1'`                    |                                           |
+| `app/api/fields/route.ts`              | 1     | GET: `?? '1'`                    |                                           |
+| `app/api/incidents/route.ts`           | 1     | GET: `?? '1'`                    |                                           |
+| `app/api/medical/route.ts`             | 1     | GET: `?? '1'`                    |                                           |
+| `app/api/ops-log/route.ts`             | 1     | GET: `?? '1'`                    |                                           |
+| `app/api/referees/route.ts`            | 1     | GET: `?? '1'`                    |                                           |
+| `app/api/registration-fees/route.ts`   | 1     | GET: `?? '1'`                    |                                           |
+| `app/api/rules/changes/route.ts`       | 1     | GET: `?? '1'`                    |                                           |
+| `app/api/team-payments/route.ts`       | 1     | GET: `?? '1'`                    |                                           |
+| `app/api/teams/route.ts`               | 1     | GET: `?? '1'`                    |                                           |
+| `app/api/volunteers/route.ts`          | 1     | GET: `?? '1'`                    |                                           |
+| `app/api/weather/route.ts`             | 1     | GET: `?? '1'`                    |                                           |
+
+### Layer 3: Store/Realtime (lib/store.tsx — 1 default + 4 missing deps)
+
+| Location                                                    | Fix                                          |
+| ----------------------------------------------------------- | -------------------------------------------- |
+| `AppProvider` signature `eventId = 1` (line 202)            | Remove default — makes prop required         |
+| `loadAll` useEffect dep array `[]` (line 253)               | Add `eventId`; add null guard                |
+| Games reload useEffect dep array `[currentDate]` (line 262) | Add `eventId`                                |
+| Realtime useEffect dep array `[currentDate]` (line 289)     | Add `eventId`; add per-table filters         |
+| `addLog` useCallback dep array `[]` (line 304)              | Add `eventId`                                |
+| `refreshGames` useCallback dep array `[currentDate]` (line 314) | Add `eventId`                          |
+| `triggerLightning` useCallback (line 419)                   | Add `eventId` to dep array                   |
+| `liftLightning` useCallback (line 436)                      | Add `eventId` to dep array                   |
+
+### Layer 4: Components (18 files, ~44 hardcoded lines)
+
+| File                                         | Count | Context Source          | Notes                                           |
+| -------------------------------------------- | ----- | ----------------------- | ----------------------------------------------- |
+| `components/engine/CommandCenter.tsx`        | 5     | `useApp()`              | `eventDateId ?? 1` (line 61) + 4 event_id refs  |
+| `components/programs/ProgramApprovals.tsx`   | 6     | `useApp()`              | Direct Supabase calls in admin component        |
+| `components/auth/RegisterPage.tsx`           | 5     | `useSearchParams()`     | Public flow — read `event_id` from URL query    |
+| `components/programs/RegistrationConfig.tsx` | 4     | `useApp()`              | Direct Supabase calls                           |
+| `components/auth/RefereePortal.tsx`          | 3     | `userRole.event_id`     | Outside AppProvider — no useApp()               |
+| `components/auth/VolunteerPortal.tsx`        | 3     | `userRole.event_id`     | Outside AppProvider — no useApp()               |
+| `components/schedule/ScheduleTab.tsx`        | 3     | `useApp()`              | `addGame` payload + fetch URL                   |
+| `components/rules/RulesTab.tsx`              | 3     | `useApp()`              | All fetch URLs hardcode `event_id=1`            |
+| `components/checkin/CheckInTab.tsx`          | 2     | `useApp()`              | QR token upsert (D-05) + eligibility fetch      |
+| `components/incidents/IncidentsTab.tsx`      | 2     | `useApp()`              | `logIncident` payload + `dispatchTrainer`       |
+| `components/programs/ProgramDashboard.tsx`   | 1     | `userRole.event_id`     | Outside AppProvider — program leader view       |
+| `components/engine/EngineTab.tsx`            | 1     | `useApp()`              | `event_id: 1` in ops_log insert                 |
+| `components/payments/PaymentsTab.tsx`        | 1     | `useApp()`              | `state.event?.id ?? 1` pattern                  |
+| `components/AppShell.tsx`                    | 1     | `useApp()`              | `(state.event as any)?.id ?? 1` cast            |
+| `components/auth/UserManagement.tsx`         | 1     | `useApp()`              | `(state.event as any)?.id ?? 1` cast            |
+| `components/refs/RefsTab.tsx`                | 1     | `useApp()`              |                                                 |
+| `components/settings/LeagueSettingsTab.tsx`  | 1     | `useApp()`              | `ops_log` insert                                |
+| `components/weather/WeatherTab.tsx`          | 1     | `useApp()`              | Lightning body `state.event?.id ?? 1`           |
 
 ---
 
@@ -315,59 +423,59 @@ if (!eventId) return null
 
 ### Pitfall 1: Missing eventId in useCallback Dependency Arrays
 
-**What goes wrong:** After fixing the `loadAll` and realtime `useEffect` dependencies, actions like `addLog`, `refreshGames`, `toggleRefCheckin` etc. close over `eventId` in their `useCallback` bodies but do not list it as a dependency. If `eventId` changes, these actions silently operate against the old event.
+**What goes wrong:** After fixing the `loadAll` and realtime `useEffect` dependencies, actions like `addLog`, `refreshGames`, `triggerLightning`, `liftLightning` close over `eventId` in their `useCallback` bodies but do not list it as a dependency. If `eventId` changes, these actions silently operate against the old event.
 
-**Why it happens:** `useCallback(fn, [])` with an empty dep array captures `eventId` at mount time only.
+**Why it happens:** `useCallback(fn, [])` or `useCallback(fn, [currentDate])` captures `eventId` at creation time only.
 
-**How to avoid:** Every `useCallback` in `lib/store.tsx` that uses `eventId` must include it in the dependency array. Run `npm run lint` — ESLint's `exhaustive-deps` rule will flag these if eslint-plugin-react-hooks is configured (it is via `eslint-config-next`).
+**How to avoid:** Every `useCallback` in `lib/store.tsx` that references `eventId` must include it in the dependency array. Run `npm run lint` — ESLint's `exhaustive-deps` rule will flag these.
 
-**Warning signs:** ESLint `react-hooks/exhaustive-deps` warnings on useCallback/useEffect bodies that reference `eventId`.
+**Warning signs:** ESLint `react-hooks/exhaustive-deps` warnings on useCallback/useEffect bodies.
 
 ### Pitfall 2: Realtime Channel Name Collision
 
-**What goes wrong:** When `eventId` changes, the old channel is removed via `sb.removeChannel(sub)` in the cleanup. If a new channel is created with the same name `'leagueops-realtime'` before the old one is fully torn down, Supabase may complain or deduplicate the subscription.
+**What goes wrong:** When `eventId` changes, the old channel is removed via `sb.removeChannel(sub)` in the cleanup, then a new channel with the same name `'leagueops-realtime'` is created. If the client hasn't fully processed the removal before creating the new one, Supabase may warn about duplicate channels.
 
-**Why it happens:** Supabase client reuses channel names across the same client instance.
+**Why it happens:** React runs cleanup synchronously before the new effect, so ordering is correct. However, the Supabase `removeChannel` is async internally.
 
-**How to avoid:** The cleanup function runs synchronously before the new effect, so ordering is correct. However, consider using `'leagueops-realtime'` as-is (not `leagueops-realtime-${eventId}`) since the channel is fully torn down before recreation. If collision issues arise, use the event-scoped name.
+**How to avoid:** The default behavior (using the same channel name) is safe in practice because React cleanup runs before the new effect. If issues arise, use `leagueops-realtime-${eventId}` as the channel name for clear isolation.
 
 **Warning signs:** Console warnings from Supabase about duplicate channels; realtime events not arriving after event switch.
 
 ### Pitfall 3: Portal Components Have No AppProvider
 
-**What goes wrong:** `RefereePortal` and `VolunteerPortal` are rendered from `app/page.tsx` BEFORE an event is selected (before `AppProvider` wraps). Calling `useApp()` inside them will throw: `"useApp must be used within AppProvider"`.
+**What goes wrong:** `RefereePortal`, `VolunteerPortal`, and `ProgramDashboard` are rendered from `app/page.tsx` BEFORE `AppProvider` wraps. Calling `useApp()` inside them throws: `"useApp must be used within AppProvider"`.
 
-**Why it happens:** These portals serve referees/volunteers who are scoped to a specific event, but `AppProvider` only wraps the admin shell.
-
-**How to avoid:** Source `event_id` from `useAuth().userRole.event_id` rather than `useApp()`. Verify the `UserRole` type includes `event_id` — check `types/index.ts` before writing portal code.
+**Confirmed safe solution:** `UserRole.event_id: number | null` is populated via `loadUserRole`'s `select('*')`. Use `userRole?.event_id` from `useAuth()` in these components.
 
 **Warning signs:** Runtime error "useApp must be used within AppProvider" on referee/volunteer login.
 
-### Pitfall 4: API Route Callers Must Send event_id
+### Pitfall 4: API Route Callers Must Send event_id After Routes Are Fixed
 
-**What goes wrong:** When API routes are changed from `?? '1'` to returning 400 if missing, any component that calls those routes without an `event_id` query param will silently start getting errors.
+**What goes wrong:** When API routes change from `?? '1'` fallbacks to 400 guards, any component calling those routes without an `event_id` param will get 400 errors.
 
-**Why it happens:** Components that call `/api/field-engine?event_id=1` or `/api/conflicts?event_id=1` hardcode the query param — after the component fix, the param becomes dynamic. If the component fix is done in a different plan wave than the API route fix, there is a window where callers send `event_id=1` to routes that now require it. This is acceptable — the `1` is still being removed from components in the same phase.
+**How to avoid:** Fix API routes and the component callers in the same phase (they are). Sequence API route fixes after component fixes within each plan wave, or accept temporary 400s during incremental rollout knowing the fix is in progress.
 
-**How to avoid:** Fix components and API routes in the same phase (they are). The API route changes (remove `?? '1'`) should happen AFTER the component changes that supply the correct `event_id` in the call. Alternatively, keep the 400 guard to prevent silent fallback while accepting `1` only temporarily from unfixed callers.
+### Pitfall 5: Rules Cache Keyed Globally Serves Wrong Event
 
-**Warning signs:** 400 errors from API routes during incremental rollout within the phase.
+**What goes wrong:** `lib/engines/rules.ts` has `let _cache: Record<string, string> | null = null` — a single global cache for all events. If Event A is loaded, then a request comes in for Event B, the cache returns Event A's rules.
 
-### Pitfall 5: ScheduleTab addGame Uses Hardcoded event_id in Payload
+**Why it happens:** The cache was designed for single-event use. On Vercel serverless this is less severe (request isolation), but in local dev it causes cross-event contamination.
 
-**What goes wrong:** `ScheduleTab.tsx` calls `addGame({ event_id: 1, ... })` — this is a store action call, not a direct DB call. The store action passes the payload directly to `db.insertGame(game)`. The `event_id` in the payload must match the current event.
+**How to avoid:** Change cache to `Map<number, { map: Record<string, string>; time: number }>` keyed by `eventId`.
 
-**Why it happens:** The `addGame` action accepts the full game object from the component — the component is responsible for providing the correct `event_id`.
+### Pitfall 6: RegisterPage Has No App Context — Needs URL Query Param
 
-**How to avoid:** Components that call store actions passing entity payloads must use `eventId` from `useApp()` in the payload, not hardcode it.
+**What goes wrong:** `RegisterPage` lives at `/register` with no event selection flow upstream. It hardcodes `event_id: 1` in 5 places.
 
-### Pitfall 6: Unified Engine Receives eventId via sb but Hardcodes Internally
+**Context source:** `RegisterPage` must read `eventId` from the URL query string via `useSearchParams()`. Callers (registration links) must include `?event_id=X` in the URL. If `event_id` is absent from the URL, the component should display an error or disabled state rather than defaulting to 1.
 
-**What goes wrong:** `unified.ts`'s `runUnifiedEngine(eventDateId, sb)` already receives `sb` but its internal queries for `ops_alerts`, `ops_log` hardcode `event_id: 1`. Phase 1 fixed the client injection — Phase 2 must add `eventId` as a third parameter.
+**Warning signs:** Programs registering to the wrong event.
 
-**Why it happens:** Phase 1 only addressed client injection, not event scoping.
+### Pitfall 7: unified.ts Receives eventId but Sub-Engines Also Need It
 
-**How to avoid:** In Plan A (engines), add `eventId: number` as a required parameter to `runUnifiedEngine`, `resolveAlert`, and internal helpers.
+**What goes wrong:** When `runUnifiedEngine` gets `eventId` as a parameter and calls `runRefereeEngine(eventDateId, sb)` and `runFieldConflictEngine(eventDateId, sb)`, those sub-engine calls also need `eventId`. The fix must cascade — both the unified engine signature and all its internal engine calls must be updated together.
+
+**How to avoid:** In Plan A (engines layer), fix all five engines in one plan so the chain is consistent. Don't fix unified.ts without also fixing its engine callees.
 
 ---
 
@@ -379,16 +487,13 @@ Verified patterns from code reading:
 
 ```typescript
 // Verified pattern — Supabase JS v2 postgres_changes with filter
+// Source: store.tsx pattern + Supabase JS v2 docs (filter param)
+const filter = `event_id=eq.${eventId}`
 const sub = sb
   .channel('leagueops-realtime')
   .on(
     'postgres_changes',
-    {
-      event: '*',
-      schema: 'public',
-      table: 'games',
-      filter: `event_id=eq.${eventId}`, // SEC-05
-    },
+    { event: '*', schema: 'public', table: 'games', filter },
     () => {
       if (currentDate)
         db.getGamesByDate(eventId, currentDate.id).then((d) =>
@@ -420,9 +525,18 @@ useEffect(() => {
 ### Component Null Guard (D-01)
 
 ```typescript
-// At the top of any component that needs eventId
+// At the top of any component that needs eventId (inside AppProvider)
 const { state, eventId } = useApp()
 if (!eventId) return null // D-01: no spinner, app shell stays visible
+```
+
+### Portal Null Guard (Outside AppProvider)
+
+```typescript
+// At the top of RefereePortal / VolunteerPortal / ProgramDashboard
+const { userRole } = useAuth()
+const portalEventId = userRole?.event_id
+if (!portalEventId) return null // D-01 guard
 ```
 
 ### Event Slug for QR URL (D-05)
@@ -451,91 +565,53 @@ export async function runRefereeEngine(
 }
 ```
 
+### Rules Cache Keyed by eventId
+
+```typescript
+// lib/engines/rules.ts — after Phase 2
+const _cacheByEvent = new Map<number, { map: Record<string, string>; time: number }>()
+const CACHE_TTL_MS = 30_000
+
+export async function getRules(eventId: number, sb: SupabaseClient): Promise<Record<string, string>> {
+  const now = Date.now()
+  const cached = _cacheByEvent.get(eventId)
+  if (cached && now - cached.time < CACHE_TTL_MS) return cached.map
+  const rules = await loadRules(eventId, sb)
+  const map: Record<string, string> = {}
+  for (const r of rules) map[`${r.category}.${r.rule_key}`] = r.rule_value
+  _cacheByEvent.set(eventId, { map, time: now })
+  return map
+}
+
+export function invalidateRulesCache(eventId?: number) {
+  if (eventId !== undefined) _cacheByEvent.delete(eventId)
+  else _cacheByEvent.clear()
+}
+```
+
 ---
 
-## Hardcode Inventory Summary
+## State of the Art
 
-Based on verified code reading of CONCERNS.md §2 and direct file inspection:
-
-### Layer 1: Engine Constants (highest priority — feed all other layers)
-
-| File                     | Current                                        | Fix                                                               |
-| ------------------------ | ---------------------------------------------- | ----------------------------------------------------------------- |
-| `lib/engines/referee.ts` | `const EVENT_ID = 1` (line 25)                 | Add `eventId: number` param to `runRefereeEngine`                 |
-| `lib/engines/weather.ts` | `const EVENT_ID = 1` (line 15)                 | Add `eventId: number` param to weather engine entry points        |
-| `lib/engines/field.ts`   | `const EVENT_ID = 1` (line 19)                 | Add `eventId: number` param to `runFieldConflictEngine`           |
-| `lib/engines/unified.ts` | `event_id: 1` at lines 74, 107, 127, 175, 195+ | Add `eventId: number` param to `runUnifiedEngine`, `resolveAlert` |
-
-### Layer 2: API Routes (~15 occurrences)
-
-Two patterns: (a) `searchParams.get('event_id') ?? '1'` → require param with 400 guard; (b) `event_id: 1` literal inserts → use parsed `eventId` from request.
-
-| File                                 | Occurrences          | Pattern                      |
-| ------------------------------------ | -------------------- | ---------------------------- |
-| `app/api/rules/route.ts`             | 3 literal inserts    | Use eventId from params/body |
-| `app/api/lightning/route.ts`         | 5 (`?? 1` fallbacks) | Require in body, 400 guard   |
-| `app/api/admin/create-user/route.ts` | 2 (`?? 1` in body)   | Require in body              |
-| `app/api/conflicts/route.ts`         | 1 (`?? '1'`)         | 400 guard                    |
-| `app/api/eligibility/route.ts`       | 1 (`?? '1'`)         | 400 guard                    |
-| `app/api/field-engine/route.ts`      | 1 (`?? '1'`)         | 400 guard                    |
-| `app/api/fields/route.ts`            | 1 (`?? '1'`)         | 400 guard                    |
-| `app/api/incidents/route.ts`         | 1 (`?? '1'`)         | 400 guard                    |
-| `app/api/medical/route.ts`           | 1 (`?? '1'`)         | 400 guard                    |
-| `app/api/ops-log/route.ts`           | 1 (`?? '1'`)         | 400 guard                    |
-| `app/api/referees/route.ts`          | 1 (`?? '1'`)         | 400 guard                    |
-| `app/api/registration-fees/route.ts` | 1 (`?? '1'`)         | 400 guard                    |
-| `app/api/rules/changes/route.ts`     | 1 (`?? '1'`)         | 400 guard                    |
-| `app/api/team-payments/route.ts`     | 1 (`?? '1'`)         | 400 guard                    |
-| `app/api/teams/route.ts`             | 1 (`?? '1'`)         | 400 guard                    |
-| `app/api/volunteers/route.ts`        | 1 (`?? '1'`)         | 400 guard                    |
-| `app/api/weather/route.ts`           | 1 (`?? '1'`)         | 400 guard                    |
-
-### Layer 3: Store/Realtime (lib/store.tsx)
-
-| Location                                                           | Fix                                  |
-| ------------------------------------------------------------------ | ------------------------------------ |
-| `loadAll` useEffect dep array `[]` (line 253)                      | Add `eventId`                        |
-| `currentDate` games useEffect dep array `[currentDate]` (line 262) | Add `eventId`                        |
-| Realtime useEffect dep array `[currentDate]` (line 289)            | Add `eventId`, add per-table filters |
-| `addLog` useCallback dep array `[]` (line 304)                     | Add `eventId`                        |
-| All other `useCallback` closures over `eventId`                    | Add `eventId` where used             |
-
-### Layer 4: Components (~25+ occurrences)
-
-| File                                         | Occurrences | Notes                                                             |
-| -------------------------------------------- | ----------- | ----------------------------------------------------------------- |
-| `components/engine/CommandCenter.tsx`        | 4           | `ops_alerts`, `ops_log` queries; 3 subscriptions also need filter |
-| `components/checkin/CheckInTab.tsx`          | 2           | QR token upsert + eligibility fetch with `event_id=1`             |
-| `components/incidents/IncidentsTab.tsx`      | 2           | `logIncident` and `dispatchTrainer` payloads                      |
-| `components/auth/RefereePortal.tsx`          | 3           | Derives from `userRole.event_id` (no AppProvider)                 |
-| `components/auth/VolunteerPortal.tsx`        | 2           | Derives from `userRole.event_id` (no AppProvider)                 |
-| `components/auth/RegisterPage.tsx`           | 4+          | Pre-AppProvider; derives from query/token context                 |
-| `components/programs/ProgramApprovals.tsx`   | 4           | Uses `useApp()` context — straightforward                         |
-| `components/programs/RegistrationConfig.tsx` | 2           | Direct Supabase queries                                           |
-| `components/schedule/ScheduleTab.tsx`        | 3           | `addGame` payload + `fetch('/api/field-engine?event_id=1')`       |
-| `components/refs/RefsTab.tsx`                | 1           |                                                                   |
-| `components/settings/LeagueSettingsTab.tsx`  | 1           | `ops_log` insert                                                  |
-| `components/AppShell.tsx`                    | 1           | `(state.event as any)?.id ?? 1` cast                              |
-| `components/auth/UserManagement.tsx`         | 1           | Same `as any` pattern                                             |
+| Old Approach | Current Approach | When Changed | Impact |
+|--------------|------------------|--------------|--------|
+| Engine imports browser client directly | Engine accepts `SupabaseClient` parameter | Phase 1 (complete) | Server-safe calls |
+| `event_id: 1` hardcode everywhere | Dynamic `eventId` from context/params | Phase 2 (this phase) | Multi-event isolation |
+| Global rules cache | Per-event cache keyed by eventId | Phase 2 (this phase) | Correct rule isolation |
 
 ---
 
 ## Open Questions
 
-1. **Does `UserRole` type include `event_id`?**
-   - What we know: `user_roles` table is queried by `loadUserRole()` in `lib/auth.tsx`; the `UserRole` interface is in `types/index.ts`
-   - What's unclear: Whether the fetched `user_roles` row includes `event_id` in the SELECT, and whether `UserRole` interface has it
-   - Recommendation: Read `types/index.ts` and `lib/auth.tsx` before writing portal fixes; if missing, add the field to both
+1. **RegisterPage event_id source**
+   - What we know: `RegisterPage` lives at `/register` with no upstream event context. It hardcodes `event_id: 1` in 5 places. `app/register/page.tsx` passes no props.
+   - What's unclear: Who generates the registration link — is `?event_id=X` already appended by the admin, or does it need a slug-based approach like `/register?event=slug`?
+   - Recommendation: Read how `EventPicker` generates registration links before implementing `RegisterPage` changes. Default implementation: `useSearchParams()` to read `event_id`; show an error message if missing.
 
-2. **RegisterPage event context**
-   - What we know: `RegisterPage` at `app/register/page.tsx` is outside `AppProvider` and `app/page.tsx`'s event-selection flow; it has multiple `event_id: 1` hardcodes
-   - What's unclear: Where `RegisterPage` gets its event context — presumably from a URL param or query string
-   - Recommendation: Read `app/register/page.tsx` at the start of the components plan; this may require receiving `event_id` from a query param rather than from `useApp()`
-
-3. **CommandCenter subscription filters for `ops_alerts`**
-   - What we know: `CommandCenter.tsx` opens three subscriptions (`cmd-alerts`, `cmd-feed`, `cmd-games`) outside the store, with no event filter
-   - What's unclear: Whether `ops_alerts` table has `event_id` column (it does — seen in CONCERNS.md §2 and unified.ts)
-   - Recommendation: Add `filter: \`event_id=eq.${eventId}\``to`cmd-alerts`and`cmd-feed` subscriptions in CommandCenter
+2. **CommandCenter eventDateId ?? 1 (line 61)**
+   - What we know: `const eventDateId = currentDate?.id ?? 1` at line 61 of `CommandCenter.tsx` is a `?? 1` fallback that must become a null guard per D-02.
+   - What's unclear: Whether `CommandCenter` should show empty state when `currentDate` is null, or if it should be guarded by parent rendering logic.
+   - Recommendation: Convert to `if (!currentDate) return null` at the top of the component, consistent with D-01.
 
 ---
 
@@ -558,25 +634,26 @@ Step 2.6: SKIPPED — This phase is purely code and configuration changes. No ne
 
 ### Phase Requirements → Test Map
 
-| Req ID | Behavior                                                        | Test Type                    | Automated Command                                         | File Exists?                           |
-| ------ | --------------------------------------------------------------- | ---------------------------- | --------------------------------------------------------- | -------------------------------------- |
-| SEC-04 | Engine functions reject `EVENT_ID = 1` constant — use parameter | unit                         | `npm run test -- __tests__/lib/engines/`                  | Yes (Phase 1 created all engine tests) |
-| SEC-04 | `loadAll` re-fires when `eventId` prop changes                  | unit (React Testing Library) | `npm run test -- __tests__/lib/store.test.tsx`            | No — Wave 0 gap                        |
-| SEC-04 | grep assertion: no `event_id.*1` or `?? 1` remains              | smoke (grep in CI)           | `grep -r "event_id.*: 1\|?? 1" lib/ components/ app/api/` | N/A — manual verification              |
-| SEC-05 | Realtime subscription includes `filter: 'event_id=eq.N'`        | unit                         | `npm run test -- __tests__/lib/store.test.tsx`            | No — Wave 0 gap                        |
-| SEC-05 | Realtime channel torn down and recreated when eventId changes   | unit (React Testing Library) | `npm run test -- __tests__/lib/store.test.tsx`            | No — Wave 0 gap                        |
+| Req ID | Behavior                                                              | Test Type                    | Automated Command                                                                        | File Exists? |
+| ------ | --------------------------------------------------------------------- | ---------------------------- | ---------------------------------------------------------------------------------------- | ------------ |
+| SEC-04 | Engine functions accept `eventId` param and use it (not EVENT_ID)     | unit                         | `npm run test -- __tests__/lib/engines/`                                                 | Yes — need updating to pass `eventId` arg |
+| SEC-04 | `loadAll` re-fires when `eventId` prop changes                        | unit (React Testing Library) | `npm run test -- __tests__/lib/store.test.tsx`                                           | No — Wave 0 gap |
+| SEC-04 | grep assertion: no `event_id.*: 1` or `?? 1` remains                 | smoke (grep in CI)           | `grep -r "event_id.*: 1\|?? 1" lib/ components/ app/api/`                               | N/A — manual |
+| SEC-05 | Realtime subscription includes `filter: 'event_id=eq.N'`             | unit                         | `npm run test -- __tests__/lib/store.test.tsx`                                           | No — Wave 0 gap |
+| SEC-05 | Realtime channel torn down and recreated when eventId changes         | unit (React Testing Library) | `npm run test -- __tests__/lib/store.test.tsx`                                           | No — Wave 0 gap |
+| SEC-04 | Rules cache returns correct rules per event, not cross-event          | unit                         | `npm run test -- __tests__/lib/engines/rules.test.ts`                                   | Yes — need new test cases |
 
 ### Sampling Rate
 
 - **Per task commit:** `npm run test -- __tests__/lib/engines/`
 - **Per wave merge:** `npm run test`
-- **Phase gate:** Full suite green + grep verifies no `?? 1` or `event_id: 1` literal remains
+- **Phase gate:** Full suite green + grep verifies no `?? 1` or `event_id: 1` literal remains in engines/components/routes
 
 ### Wave 0 Gaps
 
 - [ ] `__tests__/lib/store.test.tsx` — covers SEC-04 (loadAll re-fires on eventId change) and SEC-05 (realtime filter and teardown behavior)
 
-_(Existing engine test files from Phase 1 already exist and will be updated to pass `eventId` param in test calls — not a new file, an update.)_
+Existing engine test files (`referee.test.ts`, `field.test.ts`, `weather.test.ts`, `unified.test.ts`, `rules.test.ts`) call engines with the current 2-arg signature. After the engine signature change, all test call sites must add `eventId` as the second argument before `sb`. This is an update to existing files, not new files.
 
 ---
 
@@ -587,9 +664,9 @@ _(Existing engine test files from Phase 1 already exist and will be updated to p
 - **TypeScript strict mode:** Explicit types on all function signatures and interfaces
 - **Import style:** `import * as db from '@/lib/db'` for database layer; `import type { ... }` for type-only imports
 - **Naming:** `useCallback` dep arrays must be explicit — ESLint `exhaustive-deps` will fire
-- **Multi-event scoping rule (already in CLAUDE.md):** "Every Supabase query must be scoped with `.eq('event_id', eventId)`. Never hardcode `event_id: 1` in new code."
+- **Multi-event scoping rule (CLAUDE.md):** "Every Supabase query must be scoped with `.eq('event_id', eventId)`. Never hardcode `event_id: 1` in new code."
 - **No new third-party libraries** unless budget/free-tier compliant
-- **AppProvider already accepts `eventId?: number` defaulting to `1` for backward compatibility — this default must be removed or made explicit** (noted in CONTEXT.md code_context)
+- **`AppProvider` currently defaults `eventId = 1` — this default must be removed as part of this phase**
 
 ---
 
@@ -597,11 +674,12 @@ _(Existing engine test files from Phase 1 already exist and will be updated to p
 
 ### Primary (HIGH confidence)
 
-- Direct code reading: `lib/store.tsx`, `lib/engines/referee.ts`, `lib/engines/field.ts`, `lib/engines/weather.ts`, `lib/engines/unified.ts`
-- Direct code reading: `components/engine/CommandCenter.tsx`, `components/checkin/CheckInTab.tsx`, `components/incidents/IncidentsTab.tsx`
-- Direct code reading: `app/api/lightning/route.ts`, `app/api/rules/route.ts`
-- `.planning/codebase/CONCERNS.md` — canonical hardcode inventory with line numbers
-- `.planning/codebase/ARCHITECTURE.md` — data flow and provider structure
+- Direct code reading: `lib/store.tsx` (lines 195-510 verified)
+- Direct code reading: `lib/engines/referee.ts`, `field.ts`, `weather.ts`, `unified.ts`, `rules.ts`
+- Direct code reading: `lib/auth.tsx` — `UserRole.event_id: number | null` confirmed at line 19
+- Direct code reading: `app/page.tsx` — AppProvider wiring confirmed at line 69
+- Direct code reading: `components/auth/RegisterPage.tsx`, `components/auth/RefereePortal.tsx`, `components/auth/VolunteerPortal.tsx`, `components/programs/ProgramDashboard.tsx`
+- Direct grep: hardcode inventory counts verified on 2026-03-22
 - `.planning/phases/02-hardcode-removal-event-context/02-CONTEXT.md` — all decisions
 
 ### Secondary (MEDIUM confidence)
@@ -619,10 +697,11 @@ _(Existing engine test files from Phase 1 already exist and will be updated to p
 
 **Confidence breakdown:**
 
-- Hardcode inventory: HIGH — verified by direct file reading + CONCERNS.md line numbers
+- Hardcode inventory: HIGH — verified by direct grep scan of actual codebase (2026-03-22)
 - Architecture patterns: HIGH — verified against actual code (store.tsx, app/page.tsx)
-- Realtime filter syntax: HIGH — Supabase JS v2 is in use, filter option is documented
-- Portal event_id source: MEDIUM — `UserRole.event_id` field needs type verification before implementation
+- Realtime filter syntax: HIGH — Supabase JS v2 is in use, filter option is in active use pattern
+- Portal event_id source: HIGH — `UserRole.event_id: number | null` confirmed in `lib/auth.tsx` line 19
+- RegisterPage event source: MEDIUM — URL query param is the logical source; registration link generation flow not fully traced
 
 **Research date:** 2026-03-22
 **Valid until:** 2026-04-22 (stable stack, no fast-moving dependencies)
