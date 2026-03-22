@@ -5,7 +5,6 @@ import { useApp } from '@/lib/store'
 import { useAuth } from '@/lib/auth'
 import { createClient } from '@/supabase/client'
 import { cn } from '@/lib/utils'
-import { runUnifiedEngine, resolveAlert, generateShiftHandoff } from '@/lib/engines/unified'
 import type { OpsAlert } from '@/lib/engines/unified'
 import toast from 'react-hot-toast'
 import {
@@ -138,8 +137,16 @@ export function CommandCenter() {
   async function handleRunAll() {
     setRunning(true)
     try {
-      const sb = createClient()
-      const result = await runUnifiedEngine(eventDateId, sb)
+      const response = await fetch('/api/unified-engine', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event_date_id: eventDateId }),
+      })
+      if (!response.ok) {
+        const { error } = await response.json()
+        throw new Error(error ?? 'Engine run failed')
+      }
+      const result = await response.json()
       setRunResult(result)
       setLastRun(new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }))
       await loadAlerts()
@@ -159,8 +166,15 @@ export function CommandCenter() {
   async function handleResolve(alertId: number, note?: string) {
     setResolvingId(alertId)
     try {
-      const sb = createClient()
-      await resolveAlert(alertId, approverName, note, sb)
+      const response = await fetch('/api/unified-engine/resolve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ alert_id: alertId, resolved_by: approverName, note }),
+      })
+      if (!response.ok) {
+        const { error } = await response.json()
+        throw new Error(error ?? 'Resolve failed')
+      }
       toast.success('Resolved')
       await loadAlerts()
     } catch (err: any) {
@@ -172,9 +186,17 @@ export function CommandCenter() {
   async function handleGenerateHandoff() {
     setGeneratingHandoff(true)
     try {
-      const sb = createClient()
-      const summary = await generateShiftHandoff(approverName, sb)
-      setHandoff(summary)
+      const response = await fetch('/api/shift-handoff', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ created_by: approverName }),
+      })
+      if (!response.ok) {
+        const { error } = await response.json()
+        throw new Error(error ?? 'Shift handoff failed')
+      }
+      const handoffData = await response.json()
+      setHandoff(handoffData.summary ?? handoffData)
       toast.success('Shift handoff generated')
     } catch (err: any) {
       toast.error(err.message)
