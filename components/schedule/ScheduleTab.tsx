@@ -25,7 +25,8 @@ interface FieldConflict extends OperationalConflict {
 }
 
 export function ScheduleTab() {
-  const { state, updateGameStatus, addGame, currentDate } = useApp()
+  const { state, updateGameStatus, addGame, currentDate, eventId } = useApp()
+  if (!eventId) return null
   const [viewMode, setViewMode] = useState<ViewMode>('board')
   const [fieldFilter, setFieldFilter] = useState('')
   const [divFilter, setDivFilter] = useState('')
@@ -45,7 +46,7 @@ export function ScheduleTab() {
   const [agTime, setAgTime] = useState('08:00')
 
   const loadConflicts = useCallback(async () => {
-    const res = await fetch('/api/field-engine?event_id=1')
+    const res = await fetch(`/api/field-engine?event_id=${eventId}`)
     if (res.ok) {
       const data = await res.json()
       setConflicts(data as FieldConflict[])
@@ -174,7 +175,7 @@ export function ScheduleTab() {
     const dh = h > 12 ? h - 12 : h === 0 ? 12 : h
     const timeStr = `${dh}:${m.toString().padStart(2, '0')} ${ampm}`
     await addGame({
-      event_id: 1,
+      event_id: eventId,
       event_date_id: currentDate.id,
       field_id: Number(agField),
       home_team_id: Number(agHome),
@@ -572,7 +573,7 @@ function QuickRescheduleBtn({ game, onRescheduled }: { game: any; onRescheduled:
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        event_id: 1,
+        event_id: eventId,
         message: `Game #${game.id} rescheduled: ${Object.entries(updates)
           .map(([k, v]) => `${k}=${v}`)
           .join(', ')}`,

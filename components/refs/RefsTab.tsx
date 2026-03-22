@@ -296,7 +296,8 @@ function DroppableFieldHeader({
 
 // ─── Main component ──────────────────────────────────────────
 export function RefsTab() {
-  const { state, toggleRefCheckin, toggleVolCheckin, currentDate } = useApp()
+  const { state, toggleRefCheckin, toggleVolCheckin, currentDate, eventId } = useApp()
+  if (!eventId) return null
   const [subTab, setSubTab] = useState<SubTab>('board')
   const [assignments, setAssignments] = useState<Assignment[]>([])
   const [blockAssignments, setBlockAssignments] = useState<BlockAssignment[]>([])
@@ -609,7 +610,7 @@ export function RefsTab() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        event_id: 1,
+        event_id: eventId,
         message: `${personName} (${selectedRole}) assigned → ${roleModal.targetName}`,
         log_type: 'ok',
       }),
@@ -732,8 +733,6 @@ export function RefsTab() {
   }
 
   async function copyInviteLink(type: 'referee' | 'volunteer') {
-    const eventId = (state.event as any)?.id
-    if (!eventId) return
     setCopyingInvite(type)
     const sb = createClient()
     const token = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2)

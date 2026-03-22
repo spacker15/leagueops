@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useApp } from '@/lib/store'
 import { cn } from '@/lib/utils'
 import { Btn } from '@/components/ui'
 import toast from 'react-hot-toast'
@@ -107,6 +108,7 @@ const CATEGORY_META: Record<
 }
 
 export function RulesTab() {
+  const { eventId } = useApp()
   const [rules, setRules] = useState<EventRule[]>([])
   const [changes, setChanges] = useState<RuleChange[]>([])
   const [category, setCategory] = useState<Category>('all')
@@ -119,9 +121,10 @@ export function RulesTab() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set(Object.keys(CATEGORY_META)))
 
   const loadRules = useCallback(async () => {
+    if (!eventId) return
     setLoading(true)
     try {
-      const res = await fetch('/api/rules?event_id=1')
+      const res = await fetch(`/api/rules?event_id=${eventId}`)
       const data = await res.json()
       setRules(data as EventRule[])
       // Init edit values
@@ -136,8 +139,9 @@ export function RulesTab() {
   }, [])
 
   const loadChanges = useCallback(async () => {
+    if (!eventId) return
     try {
-      const res = await fetch('/api/rules/changes?event_id=1&limit=30')
+      const res = await fetch(`/api/rules/changes?event_id=${eventId}&limit=30`)
       const data = await res.json()
       setChanges(data as RuleChange[])
     } catch {}
@@ -216,7 +220,7 @@ export function RulesTab() {
     const res = await fetch('/api/rules', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'reset_all', event_id: 1 }),
+      body: JSON.stringify({ action: 'reset_all', event_id: eventId }),
     })
     const data = await res.json()
     await loadRules()

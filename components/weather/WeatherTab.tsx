@@ -50,7 +50,8 @@ interface Complex {
 }
 
 export function WeatherTab() {
-  const { state, triggerLightning, liftLightning } = useApp()
+  const { state, triggerLightning, liftLightning, eventId } = useApp()
+  if (!eventId) return null
   const [subTab, setSubTab] = useState<SubTab>('overview')
   const [complexes, setComplexes] = useState<Complex[]>([])
   const [readings, setReadings] = useState<Record<number, WeatherReading>>({})
@@ -191,7 +192,7 @@ export function WeatherTab() {
     const res = await fetch('/api/lightning', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ complex_id: complexId, action, event_id: state.event?.id ?? 1 }),
+      body: JSON.stringify({ complex_id: complexId, action, event_id: eventId }),
     })
     if (res.ok) {
       if (action === 'trigger') {

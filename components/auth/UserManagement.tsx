@@ -23,8 +23,8 @@ interface UserRoleRow {
 
 export function UserManagement() {
   const { userRole: currentRole } = useAuth()
-  const { state } = useApp()
-  const eventId = (state.event as any)?.id ?? 1
+  const { state, eventId } = useApp()
+  if (!eventId) return null
   const [users, setUsers] = useState<UserRoleRow[]>([])
   const [loading, setLoading] = useState(true)
   const [inviteEmail, setInviteEmail] = useState('')

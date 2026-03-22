@@ -28,7 +28,8 @@ const INJURY_TYPES: InjuryType[] = [
 const TRAINERS = ['Sarah Mitchell (AT)', 'Tom Guerrero (AT)', '911 / EMS']
 
 export function IncidentsTab() {
-  const { state, logIncident, dispatchTrainer, updateMedicalStatus } = useApp()
+  const { state, logIncident, dispatchTrainer, updateMedicalStatus, eventId } = useApp()
+  if (!eventId) return null
 
   // Incident form
   const [incType, setIncType] = useState<IncidentType>('Player Injury')
@@ -122,7 +123,7 @@ export function IncidentsTab() {
       return
     }
     await logIncident({
-      event_id: 1,
+      event_id: eventId,
       game_id: incGame ? Number(incGame) : null,
       field_id: incField ? Number(incField) : null,
       team_id: incTeam ? Number(incTeam) : null,
@@ -144,7 +145,7 @@ export function IncidentsTab() {
       return
     }
     await dispatchTrainer({
-      event_id: 1,
+      event_id: eventId,
       game_id: incGame ? Number(incGame) : null,
       field_id: trField ? Number(trField) : null,
       player_name: playerName,

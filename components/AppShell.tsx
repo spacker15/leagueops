@@ -56,7 +56,7 @@ export function AppShell({
   initialTab?: TabName
 }) {
   const [activeTab, setActiveTab] = useState<TabName>(initialTab ?? 'dashboard')
-  const { state } = useApp()
+  const { state, eventId } = useApp()
   const { userRole, signOut, isAdmin } = useAuth()
 
   const ALL_TABS: { id: TabName; label: string; adminOnly?: boolean }[] = [
@@ -82,7 +82,7 @@ export function AppShell({
   ]
 
   // Build visible tab list based on role permissions
-  const rolePerms: Record<string, string[]> = (state.event as any)?.role_permissions ?? {}
+  const rolePerms: Record<string, string[]> = state.event?.role_permissions ?? {}
   const TABS = ALL_TABS.filter((t) => {
     if (t.adminOnly) return isAdmin
     if (isAdmin) return true
@@ -148,7 +148,7 @@ export function AppShell({
           {activeTab === 'users' && <UserManagement />}
           {activeTab === 'programs' && <ProgramApprovals />}
           {activeTab === 'payments' && <PaymentsTab />}
-          {activeTab === 'settings' && <EventSetupTab eventId={(state.event as any)?.id ?? 1} />}
+          {activeTab === 'settings' && <EventSetupTab eventId={eventId} />}
           {activeTab === 'reports' && <ReportsTab />}
         </main>
         <RightPanel onNavigate={setActiveTab} />
