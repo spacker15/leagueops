@@ -3,6 +3,7 @@ import { runFieldConflictEngine, runFullConflictScan, applyResolution } from '@/
 import { createClient } from '@/supabase/server'
 
 export async function POST(req: NextRequest) {
+  const sb = createClient()
   const body = await req.json()
   const { action, event_date_id, conflict_id, resolution_action, resolution_params } = body
 
@@ -21,18 +22,19 @@ export async function POST(req: NextRequest) {
       const result = await applyResolution(
         Number(conflict_id),
         resolution_action,
-        resolution_params ?? {}
+        resolution_params ?? {},
+        sb
       )
       return NextResponse.json(result)
     }
 
     if (action === 'full') {
-      const result = await runFullConflictScan(Number(event_date_id))
+      const result = await runFullConflictScan(Number(event_date_id), sb)
       return NextResponse.json(result)
     }
 
     // Default: field engine only
-    const result = await runFieldConflictEngine(Number(event_date_id))
+    const result = await runFieldConflictEngine(Number(event_date_id), sb)
     return NextResponse.json(result)
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 })
@@ -56,15 +58,20 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(data)
   }
 
-  // Field-related open conflicts
-  const { data, error } = await sb
+  // Field-related conflicts — filtered by type
+  const query = sb
     .from('operational_conflicts')
     .select('*')
     .eq('event_id', eventId)
-    .eq('resolved', type === 'all' ? false : false)
     .in('conflict_type', ['field_overlap', 'field_blocked', 'schedule_cascade', 'missing_referee'])
     .order('severity', { ascending: false })
     .order('created_at', { ascending: false })
+
+  if (type !== 'all') {
+    query.eq('resolved', false)
+  }
+
+  const { data, error } = await query
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data)

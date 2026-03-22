@@ -13,7 +13,7 @@
  * Resolution options are structured so the UI can act on them directly.
  */
 
-import { createClient } from '@/supabase/client'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { getSchedulingRules } from '@/lib/engines/rules'
 
 const EVENT_ID = 1
@@ -76,12 +76,14 @@ function minutesToDisplay(minutes: number): string {
 }
 
 // ─── Main engine ──────────────────────────────────────────────
-export async function runFieldConflictEngine(eventDateId: number): Promise<FieldEngineResult> {
+export async function runFieldConflictEngine(
+  eventDateId: number,
+  sb: SupabaseClient
+): Promise<FieldEngineResult> {
   const startTime = Date.now()
-  const sb = createClient()
 
   // Load rules
-  const rules = await getSchedulingRules()
+  const rules = await getSchedulingRules(sb)
   const gameDuration = rules.game_duration_min
   const bufferMin = rules.buffer_min
   const overlapTol = 0 // from rules — overlap_tolerance_min
@@ -382,7 +384,7 @@ export async function runFieldConflictEngine(eventDateId: number): Promise<Field
   }
 
   // ── Clear stale conflicts and write new ones ──────────────
-  await clearStaleFieldConflicts(eventDateId)
+  await clearStaleFieldConflicts(eventDateId, sb)
 
   for (const conflict of conflicts) {
     await sb.from('operational_conflicts').insert({
@@ -423,8 +425,7 @@ export async function runFieldConflictEngine(eventDateId: number): Promise<Field
 }
 
 // ─── Clear stale field conflicts before re-run ───────────────
-async function clearStaleFieldConflicts(eventDateId: number) {
-  const sb = createClient()
+async function clearStaleFieldConflicts(eventDateId: number, sb: SupabaseClient) {
   const { data: games } = await sb.from('games').select('id').eq('event_date_id', eventDateId)
 
   if (!games || games.length === 0) return
@@ -452,10 +453,9 @@ async function clearStaleFieldConflicts(eventDateId: number) {
 export async function applyResolution(
   conflictId: number,
   action: string,
-  params: Record<string, unknown>
+  params: Record<string, unknown>,
+  sb: SupabaseClient
 ): Promise<{ success: boolean; message: string }> {
-  const sb = createClient()
-
   try {
     switch (action) {
       case 'reschedule_game': {
@@ -564,9 +564,8 @@ export async function applyResolution(
 }
 
 // ─── Run both engines together ────────────────────────────────
-export async function runFullConflictScan(eventDateId: number) {
-  const sb = createClient()
-  const [fieldResult] = await Promise.all([runFieldConflictEngine(eventDateId)])
+export async function runFullConflictScan(eventDateId: number, sb: SupabaseClient) {
+  const [fieldResult] = await Promise.all([runFieldConflictEngine(eventDateId, sb)])
 
   await sb.from('conflict_engine_runs').insert({
     event_id: EVENT_ID,
