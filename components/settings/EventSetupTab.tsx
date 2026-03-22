@@ -214,7 +214,7 @@ const DEFAULT_EVENT: Omit<EventData, 'id'> = {
   secondary_color: '#D62828',
 }
 
-export function EventSetupTab() {
+export function EventSetupTab({ eventId }: { eventId: number }) {
   const fileRef = useRef<HTMLInputElement>(null)
   const mapFileRef = useRef<HTMLInputElement>(null)
   const [loading, setLoading] = useState(true)
@@ -245,7 +245,7 @@ export function EventSetupTab() {
 
   useEffect(() => {
     loadEvent()
-  }, [])
+  }, [eventId])
 
   async function loadComplexes(eventId: number) {
     const data = await db.getComplexes(eventId)
@@ -254,7 +254,7 @@ export function EventSetupTab() {
 
   async function loadEvent() {
     const sb = createClient()
-    const { data } = await sb.from('events').select('*').eq('id', 1).single()
+    const { data } = await sb.from('events').select('*').eq('id', eventId).single()
     if (data && (data as any).name) {
       const d = data as any
       setEvent({
@@ -356,7 +356,7 @@ export function EventSetupTab() {
     let finalPhoto = mapPhotoUrl
     if (mapPhotoFile) {
       const ext = mapPhotoFile.name.split('.').pop() ?? 'jpg'
-      const path = `events/1/park-photo.${ext}`
+      const path = `events/${eventId}/park-photo.${ext}`
       const { error } = await sb.storage
         .from('program-assets')
         .upload(path, mapPhotoFile, { upsert: true, contentType: mapPhotoFile.type })
@@ -377,7 +377,7 @@ export function EventSetupTab() {
         google_maps_embed: embedCode || null,
         park_name: event.park_name || null,
       })
-      .eq('id', 1)
+      .eq('id', eventId)
     if (error) toast.error(error.message)
     else toast.success('Map settings saved')
     setMapSaving(false)
@@ -453,7 +453,10 @@ export function EventSetupTab() {
   async function savePermissions() {
     setPermSaving(true)
     const sb = createClient()
-    const { error } = await sb.from('events').update({ role_permissions: rolePerms }).eq('id', 1)
+    const { error } = await sb
+      .from('events')
+      .update({ role_permissions: rolePerms })
+      .eq('id', eventId)
     if (error) toast.error(error.message)
     else toast.success('Permissions saved')
     setPermSaving(false)
@@ -491,9 +494,9 @@ export function EventSetupTab() {
         start_date: event.start_date,
         end_date: event.end_date,
         time_zone: event.time_zone,
-        status: 'draft',
+        status: event.status,
       })
-      .eq('id', 1)
+      .eq('id', eventId)
     if (error) {
       toast.error(error.message)
       setSaving(false)
@@ -513,10 +516,14 @@ export function EventSetupTab() {
       const ext = logoFile.name.split('.').pop() ?? 'png'
       const { error: upErr } = await sb.storage
         .from('program-assets')
-        .upload(`events/1/logo.${ext}`, logoFile, { upsert: true, contentType: logoFile.type })
+        .upload(`events/${eventId}/logo.${ext}`, logoFile, {
+          upsert: true,
+          contentType: logoFile.type,
+        })
       if (!upErr) {
-        finalLogoUrl = sb.storage.from('program-assets').getPublicUrl(`events/1/logo.${ext}`)
-          .data.publicUrl
+        finalLogoUrl = sb.storage
+          .from('program-assets')
+          .getPublicUrl(`events/${eventId}/logo.${ext}`).data.publicUrl
         setLogoFile(null)
       }
     }
@@ -586,7 +593,7 @@ export function EventSetupTab() {
         logo_url: finalLogoUrl,
         updated_at: new Date().toISOString(),
       })
-      .eq('id', 1)
+      .eq('id', eventId)
 
     if (error) toast.error(error.message)
     else {
