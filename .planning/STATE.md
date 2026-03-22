@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: Executing Phase 02
-stopped_at: Completed 02-02-PLAN.md (API Route Hardcode Removal)
-last_updated: "2026-03-22T22:45:00Z"
+stopped_at: Completed 02-03-PLAN.md (Store Dep Arrays and Realtime Scoping)
+last_updated: "2026-03-22T22:50:30.319Z"
 progress:
   total_phases: 10
   completed_phases: 1
   total_plans: 10
-  completed_plans: 8
+  completed_plans: 9
 ---
 
 # Project State: LeagueOps
@@ -37,8 +37,8 @@ See: .planning/PROJECT.md (updated 2026-03-22)
 
 ## Active Context
 
-**Last session:** 2026-03-22T22:38:02.447Z
-**Stopped at:** Completed 02-01-PLAN.md (Engine eventId Parameterization)
+**Last session:** 2026-03-22T22:50:30.316Z
+**Stopped at:** Completed 02-03-PLAN.md (Store Dep Arrays and Realtime Scoping)
 **Plans completed:** 01-01 (Core Engine Refactor) — 7 tasks, 12 files, 19 min; 01-02 (New API Routes for CommandCenter) — 3 tasks, 3 files, 3 min
 
 ## Performance Metrics
@@ -54,6 +54,7 @@ See: .planning/PROJECT.md (updated 2026-03-22)
 | Phase 02-hardcode-removal-event-context P00 | 2 | 1 tasks | 1 files |
 | Phase 02-hardcode-removal-event-context P01 | 9 | 2 tasks | 17 files |
 | Phase 02-hardcode-removal-event-context P02 | 3 min | 2 tasks | 17 files |
+| Phase 02-hardcode-removal-event-context P03 | 5 min | 2 tasks | 2 files |
 
 ## Decisions Log
 
@@ -75,3 +76,6 @@ See: .planning/PROJECT.md (updated 2026-03-22)
 | 02-02      | Engine routes (referee, weather, unified) were already updated in Plan 01 -- only field-engine GET needed the ?? '1' fix |
 | 02-02      | invalidateRulesCache called in 3 locations: PATCH update, POST reset_one, POST reset_all -- ensures cache eviction on every mutation path |
 | 02-02      | eligibility GET uses scoped event_id guards per code path -- allPending requires it, gameId path does not |
+| 02-03      | currentDateRef pattern prevents reconnect storm -- realtime dep array is [eventId] ONLY, date read from ref |
+| 02-03      | eventId! non-null assertions in callbacks safe -- callbacks only called when app is fully initialized |
+| 02-03      | eventId ?? 0 in context value satisfies ContextValue eventId: number; const eid = eventId in useEffect provides TS narrowing |
