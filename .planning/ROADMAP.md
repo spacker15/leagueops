@@ -149,7 +149,7 @@ Plans:
 - [x] 05-01-PLAN.md — Foundation: migration, types, package install, route fix, VenueAutocompleteInput component
 - [x] 05-02-PLAN.md — Wire VenueAutocompleteInput into EventPicker + EventSetupTab
 - [ ] 05-03-PLAN.md — Sharing tab with registration link, QR code, and share buttons
-- [ ] 05-04-PLAN.md — Registration route placeholder in apps/public-results (/e/[slug]/register)
+- [x] 05-04-PLAN.md — Registration route placeholder in apps/public-results (/e/[slug]/register)
 
 ### Success Criteria
 
