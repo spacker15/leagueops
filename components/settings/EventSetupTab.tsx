@@ -254,9 +254,15 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
     Record<number, { start_time: string; end_time: string; is_active: boolean }>
   >({})
   const [gameDaysSaving, setGameDaysSaving] = useState(false)
+  // Divisions state (general tab)
+  const [divisions, setDivisions] = useState<{ id: number; name: string; age_group: string; gender: string; sort_order: number; is_active: boolean; max_teams: number | null }[]>([])
+  const [newDiv, setNewDiv] = useState({ name: '', age_group: '', gender: 'Coed' })
+  const [addingDiv, setAddingDiv] = useState(false)
+  const [divSaving, setDivSaving] = useState(false)
 
   useEffect(() => {
     loadEvent()
+    if (eventId) loadDivisions()
   }, [eventId])
 
   // Load division names and timing overrides when schedule tab is active
@@ -636,6 +642,56 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
     toast.success(`${event.name} created!`)
     setHasEvent(true)
     setSaving(false)
+  }
+
+  async function loadDivisions() {
+    const sb = createClient()
+    const { data } = await sb
+      .from('registration_divisions')
+      .select('*')
+      .eq('event_id', eventId)
+      .order('sort_order')
+    setDivisions((data as any[]) ?? [])
+  }
+
+  async function addDivision() {
+    if (!newDiv.name.trim()) return
+    setDivSaving(true)
+    const sb = createClient()
+    const { error } = await sb.from('registration_divisions').insert({
+      event_id: eventId,
+      name: newDiv.name.trim(),
+      age_group: newDiv.age_group.trim() || null,
+      gender: newDiv.gender,
+      sort_order: divisions.length + 1,
+      is_active: true,
+    })
+    if (error) toast.error(error.message)
+    else {
+      toast.success('Division added')
+      setNewDiv({ name: '', age_group: '', gender: 'Coed' })
+      setAddingDiv(false)
+      loadDivisions()
+      loadDivisionTimings()
+    }
+    setDivSaving(false)
+  }
+
+  async function removeDivision(id: number) {
+    const sb = createClient()
+    const { error } = await sb.from('registration_divisions').delete().eq('id', id)
+    if (error) toast.error(error.message)
+    else {
+      toast.success('Division removed')
+      loadDivisions()
+      loadDivisionTimings()
+    }
+  }
+
+  async function toggleDivisionActive(id: number, active: boolean) {
+    const sb = createClient()
+    await sb.from('registration_divisions').update({ is_active: active }).eq('id', id)
+    loadDivisions()
   }
 
   async function saveSettings() {
@@ -1273,6 +1329,106 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                     placeholder="Home"
                   />
                 </div>
+              </div>
+            </Card>
+
+            {/* ── DIVISIONS ── */}
+            <Card title="Divisions" icon={<Sliders size={14} />}>
+              <div className="space-y-2">
+                {divisions.length === 0 && !addingDiv && (
+                  <p className="text-[11px] text-muted font-cond">No divisions configured yet.</p>
+                )}
+                {divisions.map((d) => (
+                  <div
+                    key={d.id}
+                    className="flex items-center justify-between bg-[#040e24] border border-[#1a2d50] rounded-lg px-3 py-2"
+                  >
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => toggleDivisionActive(d.id, !d.is_active)}
+                        className={cn(
+                          'w-3 h-3 rounded-full border-2 transition-colors',
+                          d.is_active ? 'bg-green-400 border-green-400' : 'bg-transparent border-[#5a6e9a]'
+                        )}
+                        title={d.is_active ? 'Active — click to deactivate' : 'Inactive — click to activate'}
+                      />
+                      <span className={cn('font-cond text-[12px] font-bold', d.is_active ? 'text-white' : 'text-muted')}>
+                        {d.name}
+                      </span>
+                      {d.age_group && (
+                        <span className="font-cond text-[10px] text-muted">{d.age_group}</span>
+                      )}
+                      {d.gender && d.gender !== 'Coed' && (
+                        <span className="font-cond text-[10px] text-blue-300">{d.gender}</span>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => removeDivision(d.id)}
+                      className="text-[#5a6e9a] hover:text-red-400 transition-colors text-[10px] font-cond font-bold"
+                    >
+                      REMOVE
+                    </button>
+                  </div>
+                ))}
+
+                {addingDiv ? (
+                  <div className="bg-[#040e24] border border-[#1a2d50] rounded-lg p-3 space-y-2">
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <label className={lbl}>Division Name *</label>
+                        <input
+                          className={inp}
+                          value={newDiv.name}
+                          onChange={(e) => setNewDiv({ ...newDiv, name: e.target.value })}
+                          placeholder="e.g. 14U Boys"
+                        />
+                      </div>
+                      <div>
+                        <label className={lbl}>Age Group</label>
+                        <input
+                          className={inp}
+                          value={newDiv.age_group}
+                          onChange={(e) => setNewDiv({ ...newDiv, age_group: e.target.value })}
+                          placeholder="e.g. U14, U12"
+                        />
+                      </div>
+                      <div>
+                        <label className={lbl}>Gender</label>
+                        <select
+                          className={inp}
+                          value={newDiv.gender}
+                          onChange={(e) => setNewDiv({ ...newDiv, gender: e.target.value })}
+                        >
+                          <option value="Coed">Coed</option>
+                          <option value="Boys">Boys</option>
+                          <option value="Girls">Girls</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={addDivision}
+                        disabled={divSaving || !newDiv.name.trim()}
+                        className="font-cond text-[10px] font-bold tracking-wider text-white bg-navy px-3 py-1.5 rounded hover:bg-navy-light transition-colors disabled:opacity-40"
+                      >
+                        {divSaving ? 'SAVING...' : 'ADD DIVISION'}
+                      </button>
+                      <button
+                        onClick={() => { setAddingDiv(false); setNewDiv({ name: '', age_group: '', gender: 'Coed' }) }}
+                        className="font-cond text-[10px] font-bold tracking-wider text-muted px-3 py-1.5 rounded hover:text-white transition-colors"
+                      >
+                        CANCEL
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setAddingDiv(true)}
+                    className="font-cond text-[10px] font-bold tracking-wider text-blue-300 hover:text-white transition-colors"
+                  >
+                    + ADD DIVISION
+                  </button>
+                )}
               </div>
             </Card>
           </div>
