@@ -25,6 +25,8 @@ import {
   Lock,
   Pencil,
   Check,
+  Shield,
+  ChevronDown,
 } from 'lucide-react'
 import * as db from '@/lib/db'
 import type { Complex } from '@/types'
@@ -33,6 +35,7 @@ type SetupStep = 'sport' | 'type' | 'details' | 'done'
 type SettingsTab =
   | 'general'
   | 'schedule'
+  | 'rules'
   | 'public'
   | 'scoring'
   | 'advanced'
@@ -259,6 +262,12 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
   const [newDiv, setNewDiv] = useState({ name: '', age_group: '', gender: 'Coed', color: '#0B3D91' })
   const [addingDiv, setAddingDiv] = useState(false)
   const [divSaving, setDivSaving] = useState(false)
+  // Rules tab state
+  const [rules, setRules] = useState<any[]>([])
+  const [rulesLoading, setRulesLoading] = useState(false)
+  const [expandedRule, setExpandedRule] = useState<number | null>(null)
+  const [showAddRule, setShowAddRule] = useState(false)
+  const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     loadEvent()
@@ -274,6 +283,70 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
       }
     }
   }, [settingsTab, eventId])
+
+  // Load rules when rules tab is active
+  useEffect(() => {
+    if (settingsTab === 'rules' && eventId) {
+      loadRules()
+    }
+  }, [settingsTab, eventId])
+
+  async function loadRules() {
+    if (!eventId) return
+    setRulesLoading(true)
+    try {
+      const res = await fetch(`/api/schedule-rules?event_id=${eventId}`)
+      const json = await res.json()
+      setRules(json.rules ?? [])
+    } catch {
+      toast.error('Failed to load rules')
+    } finally {
+      setRulesLoading(false)
+    }
+  }
+
+  async function toggleRuleEnabled(ruleId: number, enabled: boolean) {
+    try {
+      const res = await fetch('/api/schedule-rules', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: ruleId, enabled }),
+      })
+      if (!res.ok) throw new Error('Failed to update rule')
+      setRules(prev => prev.map(r => r.id === ruleId ? { ...r, enabled } : r))
+      toast.success(`Rule ${enabled ? 'enabled' : 'disabled'}`)
+    } catch {
+      toast.error('Failed to toggle rule')
+    }
+  }
+
+  async function deleteRule(ruleId: number) {
+    try {
+      const res = await fetch(`/api/schedule-rules?id=${ruleId}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error('Failed to delete rule')
+      setRules(prev => prev.filter(r => r.id !== ruleId))
+      toast.success('Rule deleted')
+    } catch {
+      toast.error('Failed to delete rule')
+    }
+  }
+
+  async function addRule(ruleData: any) {
+    try {
+      const res = await fetch('/api/schedule-rules', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event_id: eventId, ...ruleData }),
+      })
+      if (!res.ok) throw new Error('Failed to create rule')
+      const json = await res.json()
+      setRules(prev => [...prev, json.rule])
+      setShowAddRule(false)
+      toast.success('Rule created')
+    } catch {
+      toast.error('Failed to create rule')
+    }
+  }
 
   async function loadDivisionTimings() {
     const sb = createClient()
@@ -1023,6 +1096,7 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
   const SETTINGS_TABS: { id: SettingsTab; label: string; icon: React.ReactNode }[] = [
     { id: 'general', label: 'General', icon: <Settings size={13} /> },
     { id: 'schedule', label: 'Schedule', icon: <Calendar size={13} /> },
+    { id: 'rules', label: 'Rules', icon: <Shield size={13} /> },
     { id: 'public', label: 'Public', icon: <Globe size={13} /> },
     { id: 'scoring', label: 'Scoring', icon: <BarChart2 size={13} /> },
     { id: 'advanced', label: 'Advanced', icon: <Sliders size={13} /> },
@@ -1779,6 +1853,187 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                   )}
                 </div>
               </Card>
+            )}
+          </div>
+        )}
+
+        {/* ── RULES ── */}
+        {settingsTab === 'rules' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className={sectionHdr}>
+                <Shield size={14} /> Schedule Rules
+              </div>
+              <button
+                onClick={() => setShowAddRule(true)}
+                className="flex items-center gap-1.5 font-cond font-black text-[11px] tracking-[.1em] px-4 py-2 rounded-lg bg-red hover:bg-red/80 text-white transition-colors"
+              >
+                <Plus size={12} /> ADD RULE
+              </button>
+            </div>
+
+            {rulesLoading ? (
+              <div className="text-center py-8 text-muted font-cond text-[12px]">Loading rules...</div>
+            ) : rules.length === 0 ? (
+              <div className="text-center py-8 text-muted font-cond text-[12px]">
+                No schedule rules configured. Click "Add Rule" to create one.
+              </div>
+            ) : (
+              (() => {
+                const CATEGORIES = ['global', 'division', 'program', 'team', 'weekly', 'season'] as const
+                const grouped = CATEGORIES.map(cat => ({
+                  category: cat,
+                  rules: rules.filter(r => r.category === cat),
+                })).filter(g => g.rules.length > 0)
+
+                return grouped.map(({ category, rules: catRules }) => (
+                  <div key={category} className="bg-[#081428] border border-[#1a2d50] rounded-xl overflow-hidden">
+                    <button
+                      onClick={() => setCollapsedCategories(prev => {
+                        const next = new Set(prev)
+                        if (next.has(category)) next.delete(category)
+                        else next.add(category)
+                        return next
+                      })}
+                      className="w-full flex items-center justify-between px-5 py-3 border-b border-[#1a2d50] hover:bg-[#0c1a35] transition-colors"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Shield size={13} className="text-muted" />
+                        <span className="font-cond text-[11px] font-black tracking-[.12em] text-white uppercase">
+                          {category}
+                        </span>
+                        <span className="font-cond text-[10px] text-muted">
+                          {catRules.length} rule{catRules.length !== 1 ? 's' : ''}
+                        </span>
+                      </div>
+                      <ChevronDown
+                        size={14}
+                        className={cn(
+                          'text-muted transition-transform',
+                          collapsedCategories.has(category) ? '-rotate-90' : ''
+                        )}
+                      />
+                    </button>
+
+                    {!collapsedCategories.has(category) && (
+                      <div className="divide-y divide-[#1a2d50]">
+                        {catRules.map((rule) => (
+                          <div key={rule.id}>
+                            <div
+                              className="flex items-center gap-3 px-5 py-2.5 hover:bg-[#0c1a35] cursor-pointer transition-colors"
+                              onClick={() => setExpandedRule(expandedRule === rule.id ? null : rule.id)}
+                            >
+                              {/* Enable toggle */}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  toggleRuleEnabled(rule.id, !rule.enabled)
+                                }}
+                                className={cn(
+                                  'w-8 h-4 rounded-full transition-colors flex-shrink-0 relative',
+                                  rule.enabled ? 'bg-green-600' : 'bg-gray-700'
+                                )}
+                              >
+                                <span
+                                  className={cn(
+                                    'absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all',
+                                    rule.enabled ? 'left-4' : 'left-0.5'
+                                  )}
+                                />
+                              </button>
+
+                              {/* Rule name */}
+                              <span className={cn(
+                                'font-cond text-[12px] font-bold flex-1 min-w-0 truncate',
+                                rule.enabled ? 'text-white' : 'text-muted'
+                              )}>
+                                {rule.rule_name}
+                              </span>
+
+                              {/* Category badge */}
+                              <span className="font-cond text-[9px] font-bold tracking-wider px-2 py-0.5 rounded bg-[#1a2d50] text-muted uppercase flex-shrink-0">
+                                {rule.category}
+                              </span>
+
+                              {/* Enforcement badge */}
+                              <span className={cn(
+                                'font-cond text-[9px] font-bold tracking-wider px-2 py-0.5 rounded uppercase flex-shrink-0',
+                                rule.enforcement === 'hard' ? 'bg-red-900/40 text-red-400' :
+                                rule.enforcement === 'soft' ? 'bg-yellow-900/40 text-yellow-400' :
+                                'bg-gray-800 text-gray-400'
+                              )}>
+                                {rule.enforcement}
+                              </span>
+
+                              {/* Priority */}
+                              <span className="font-cond text-[10px] text-muted w-6 text-right flex-shrink-0">
+                                P{rule.priority}
+                              </span>
+
+                              {/* Delete */}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  if (confirm(`Delete rule "${rule.rule_name}"?`)) deleteRule(rule.id)
+                                }}
+                                className="text-muted hover:text-red-400 transition-colors flex-shrink-0"
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </div>
+
+                            {/* Expanded details */}
+                            {expandedRule === rule.id && (
+                              <div className="px-5 pb-3 pt-1 bg-[#060f20] space-y-2">
+                                <div className="grid grid-cols-2 gap-3">
+                                  <div>
+                                    <div className={lbl}>Rule Type</div>
+                                    <div className="text-[12px] text-white">{rule.rule_type}</div>
+                                  </div>
+                                  <div>
+                                    <div className={lbl}>Action</div>
+                                    <div className="text-[12px] text-white">{rule.action}</div>
+                                  </div>
+                                </div>
+                                {rule.conditions && Object.keys(rule.conditions).length > 0 && (
+                                  <div>
+                                    <div className={lbl}>Conditions</div>
+                                    <pre className="text-[10px] text-gray-400 bg-[#081428] rounded p-2 overflow-auto max-h-32 font-mono">
+                                      {JSON.stringify(rule.conditions, null, 2)}
+                                    </pre>
+                                  </div>
+                                )}
+                                {rule.action_params && Object.keys(rule.action_params).length > 0 && (
+                                  <div>
+                                    <div className={lbl}>Action Params</div>
+                                    <pre className="text-[10px] text-gray-400 bg-[#081428] rounded p-2 overflow-auto max-h-32 font-mono">
+                                      {JSON.stringify(rule.action_params, null, 2)}
+                                    </pre>
+                                  </div>
+                                )}
+                                {rule.notes && (
+                                  <div>
+                                    <div className={lbl}>Notes</div>
+                                    <div className="text-[11px] text-gray-400">{rule.notes}</div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))
+              })()
+            )}
+
+            {/* Add Rule Form */}
+            {showAddRule && (
+              <AddRuleForm
+                onSubmit={addRule}
+                onCancel={() => setShowAddRule(false)}
+              />
             )}
           </div>
         )}
@@ -2788,5 +3043,196 @@ function RefRequirementsCard({
         </button>
       </div>
     </Card>
+  )
+}
+
+// ── Add Rule Form ───────────────────────────────────────────────
+
+const RULE_TYPES = ['constraint', 'preference', 'override', 'forced_matchup'] as const
+const RULE_CATEGORIES = ['global', 'division', 'program', 'team', 'weekly', 'season'] as const
+const RULE_ACTIONS = ['block', 'allow', 'force', 'warn', 'set_param'] as const
+const RULE_ENFORCEMENTS = ['hard', 'soft', 'info'] as const
+
+function AddRuleForm({ onSubmit, onCancel }: { onSubmit: (data: any) => void; onCancel: () => void }) {
+  const [form, setForm] = useState({
+    rule_name: '',
+    rule_type: 'constraint' as string,
+    category: 'global' as string,
+    action: 'block' as string,
+    enforcement: 'hard' as string,
+    priority: 50,
+    conditions: '{}',
+    action_params: '{}',
+    notes: '',
+    enabled: true,
+  })
+
+  function handleSubmit() {
+    if (!form.rule_name.trim()) {
+      toast.error('Rule name is required')
+      return
+    }
+    let conditions: any, action_params: any
+    try {
+      conditions = JSON.parse(form.conditions)
+    } catch {
+      toast.error('Invalid JSON in conditions')
+      return
+    }
+    try {
+      action_params = JSON.parse(form.action_params)
+    } catch {
+      toast.error('Invalid JSON in action_params')
+      return
+    }
+    onSubmit({
+      rule_name: form.rule_name,
+      rule_type: form.rule_type,
+      category: form.category,
+      action: form.action,
+      enforcement: form.enforcement,
+      priority: form.priority,
+      conditions,
+      action_params,
+      notes: form.notes || null,
+      enabled: form.enabled,
+    })
+  }
+
+  const formInp =
+    'w-full bg-[#081428] border border-[#1a2d50] text-white px-3 py-2 rounded-lg text-[13px] outline-none focus:border-blue-400 transition-colors'
+  const formLbl =
+    'font-cond text-[10px] font-black tracking-[.12em] text-[#5a6e9a] uppercase block mb-1.5'
+
+  return (
+    <div className="bg-[#081428] border border-[#1a2d50] rounded-xl overflow-hidden">
+      <div className="flex items-center justify-between px-5 py-3 border-b border-[#1a2d50]">
+        <span className="font-cond text-[11px] font-black tracking-[.12em] text-white uppercase">
+          New Rule
+        </span>
+        <button onClick={onCancel} className="text-muted hover:text-white">
+          <X size={14} />
+        </button>
+      </div>
+      <div className="p-5 space-y-4">
+        <div>
+          <label className={formLbl}>Rule Name</label>
+          <input
+            className={formInp}
+            value={form.rule_name}
+            onChange={(e) => setForm(f => ({ ...f, rule_name: e.target.value }))}
+            placeholder="e.g. No back-to-back games"
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className={formLbl}>Rule Type</label>
+            <select
+              className={formInp}
+              value={form.rule_type}
+              onChange={(e) => setForm(f => ({ ...f, rule_type: e.target.value }))}
+            >
+              {RULE_TYPES.map(t => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className={formLbl}>Category</label>
+            <select
+              className={formInp}
+              value={form.category}
+              onChange={(e) => setForm(f => ({ ...f, category: e.target.value }))}
+            >
+              {RULE_CATEGORIES.map(c => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-3 gap-4">
+          <div>
+            <label className={formLbl}>Action</label>
+            <select
+              className={formInp}
+              value={form.action}
+              onChange={(e) => setForm(f => ({ ...f, action: e.target.value }))}
+            >
+              {RULE_ACTIONS.map(a => (
+                <option key={a} value={a}>{a}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className={formLbl}>Enforcement</label>
+            <select
+              className={formInp}
+              value={form.enforcement}
+              onChange={(e) => setForm(f => ({ ...f, enforcement: e.target.value }))}
+            >
+              {RULE_ENFORCEMENTS.map(e => (
+                <option key={e} value={e}>{e}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className={formLbl}>Priority</label>
+            <input
+              type="number"
+              className={formInp}
+              value={form.priority}
+              onChange={(e) => setForm(f => ({ ...f, priority: parseInt(e.target.value) || 0 }))}
+            />
+          </div>
+        </div>
+
+        <div>
+          <label className={formLbl}>Conditions (JSON)</label>
+          <textarea
+            className={cn(formInp, 'font-mono text-[11px] h-20 resize-y')}
+            value={form.conditions}
+            onChange={(e) => setForm(f => ({ ...f, conditions: e.target.value }))}
+            placeholder='{"type": "same_division_only"}'
+          />
+        </div>
+
+        <div>
+          <label className={formLbl}>Action Params (JSON)</label>
+          <textarea
+            className={cn(formInp, 'font-mono text-[11px] h-20 resize-y')}
+            value={form.action_params}
+            onChange={(e) => setForm(f => ({ ...f, action_params: e.target.value }))}
+            placeholder='{}'
+          />
+        </div>
+
+        <div>
+          <label className={formLbl}>Notes</label>
+          <input
+            className={formInp}
+            value={form.notes}
+            onChange={(e) => setForm(f => ({ ...f, notes: e.target.value }))}
+            placeholder="Optional notes"
+          />
+        </div>
+
+        <div className="flex items-center justify-end gap-3 pt-2">
+          <button
+            onClick={onCancel}
+            className="font-cond font-black text-[11px] tracking-[.1em] px-4 py-2 rounded-lg border border-[#1a2d50] text-muted hover:text-white transition-colors"
+          >
+            CANCEL
+          </button>
+          <button
+            onClick={handleSubmit}
+            className="font-cond font-black text-[11px] tracking-[.1em] px-5 py-2 rounded-lg bg-red hover:bg-red/80 text-white transition-colors"
+          >
+            CREATE RULE
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }

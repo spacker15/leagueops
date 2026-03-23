@@ -5,9 +5,18 @@
  * Assigns games to time slots across available fields and event dates.
  * Detects scheduling conflicts (field double-booking, team double-booking,
  * insufficient rest).
+ *
+ * Uses the rule evaluator module (schedule-rules.ts) to apply configurable
+ * schedule rules during matchup generation and slot assignment.
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import {
+  loadScheduleRules, loadWeeklyOverrides, loadTeamProgramMap,
+  evaluateMatchupRules, evaluateSlotRules, getEffectiveTiming,
+  getForcedMatchups, getSkippedDates,
+  type ScheduleRule, type ScheduleContext, type PlacedGame, type TeamInfo
+} from './schedule-rules'
 
 // ─── Types ────────────────────────────────────────────────────
 
@@ -40,6 +49,7 @@ export interface GenerateResult {
   fieldCount: number
   dateCount: number
   divisionCount: number
+  auditRunId: string
 }
 
 export interface ConflictResult {
@@ -92,12 +102,34 @@ function generateRoundRobinPairs(teamIds: number[]): [number, number][] {
   return pairs
 }
 
+// ─── Audit entry type ─────────────────────────────────────────
+
+interface AuditEntry {
+  event_id: number
+  run_id: string
+  log_type: string
+  severity: string
+  home_team_id: number | null
+  away_team_id: number | null
+  division: string | null
+  event_date_id?: number | null
+  field_id?: number | null
+  scheduled_time?: string | null
+  rule_id: number | null
+  rule_name: string
+  message: string
+  metadata: Record<string, unknown>
+}
+
 // ─── Main: Generate Schedule ─────────────────────────────────
 
 export async function generateSchedule(
   eventId: number,
   sb: SupabaseClient
 ): Promise<GenerateResult> {
+  const runId = crypto.randomUUID()
+  const auditEntries: AuditEntry[] = []
+
   // 1. Load teams grouped by division
   const { data: teams, error: teamsErr } = await sb
     .from('teams')
@@ -109,10 +141,23 @@ export async function generateSchedule(
   if (teamsErr) throw new Error(`Failed to load teams: ${teamsErr.message}`)
   if (!teams || teams.length === 0) throw new Error('No teams found for this event')
 
+  // Load program_teams mapping
+  const teamProgramMap = await loadTeamProgramMap(eventId, sb)
+
   const divisionMap = new Map<string, number[]>()
   for (const t of teams) {
     if (!divisionMap.has(t.division)) divisionMap.set(t.division, [])
     divisionMap.get(t.division)!.push(t.id)
+  }
+
+  // Build team info map for rule context
+  const teamInfoMap = new Map<number, TeamInfo>()
+  for (const t of teams) {
+    const prog = teamProgramMap.get(t.id)
+    teamInfoMap.set(t.id, {
+      id: t.id, name: t.name, division: t.division,
+      program_id: prog?.id ?? null, program_name: prog?.name ?? null,
+    })
   }
 
   // 2. Load fields and their division assignments
@@ -145,6 +190,12 @@ export async function generateSchedule(
     return allowed.has(division)
   }
 
+  // Build field name lookup
+  const fieldNameMap = new Map<number, string>()
+  for (const f of fields) {
+    fieldNameMap.set(f.id, f.name)
+  }
+
   // 3. Load event dates
   const { data: eventDates, error: datesErr } = await sb
     .from('event_dates')
@@ -169,6 +220,30 @@ export async function generateSchedule(
   const gameGuarantee = event.game_guarantee || 0 // min games per team
   const totalSlotMinutes = slotDuration + buffer
 
+  // Load division timing overrides (table exists but was never used)
+  const { data: divTimings } = await sb
+    .from('division_timing')
+    .select('division_name, schedule_increment, time_between_games')
+    .eq('event_id', eventId)
+
+  const divTimingMap = new Map<string, { increment: number; buffer: number }>()
+  for (const dt of (divTimings ?? []) as any[]) {
+    if (dt.schedule_increment || dt.time_between_games) {
+      divTimingMap.set(dt.division_name, {
+        increment: dt.schedule_increment ?? slotDuration,
+        buffer: dt.time_between_games ?? buffer,
+      })
+    }
+  }
+
+  // Load schedule rules and weekly overrides
+  const scheduleRules = await loadScheduleRules(eventId, sb)
+  const weeklyOverrides = await loadWeeklyOverrides(eventId, sb)
+  const skippedDates = getSkippedDates(scheduleRules, weeklyOverrides)
+
+  // Filter out skipped dates
+  const activeDates = eventDates.filter(ed => !skippedDates.has(ed.date))
+
   // 5. Load season_game_days for start/end times (if available)
   const { data: gameDays } = await sb
     .from('season_game_days')
@@ -190,6 +265,24 @@ export async function generateSchedule(
         })
       }
     }
+  }
+
+  // Compute week numbers for dates (week 1 = first event date week)
+  const dateWeekMap = new Map<string, number>()
+  if (activeDates.length > 0) {
+    const firstDate = new Date(activeDates[0].date + 'T12:00:00')
+    for (const ed of activeDates) {
+      const d = new Date(ed.date + 'T12:00:00')
+      const diffMs = d.getTime() - firstDate.getTime()
+      const weekNum = Math.floor(diffMs / (7 * 24 * 60 * 60 * 1000)) + 1
+      dateWeekMap.set(ed.date, weekNum)
+    }
+  }
+
+  // Build eventDateId -> date string map
+  const dateIdToDate = new Map<number, string>()
+  for (const ed of activeDates) {
+    dateIdToDate.set(ed.id, ed.date)
   }
 
   // 6. Generate round-robin matchups within each division
@@ -222,21 +315,56 @@ export async function generateSchedule(
 
   if (allMatchups.length === 0) throw new Error('No matchups generated — need at least 2 teams per division')
 
+  // Filter matchups through rule evaluator
+  const filteredMatchups = allMatchups.filter(matchup => {
+    const homeTeam = teamInfoMap.get(matchup.home)
+    const awayTeam = teamInfoMap.get(matchup.away)
+    if (!homeTeam || !awayTeam) return true
+
+    const ctx: ScheduleContext = {
+      homeTeam, awayTeam,
+      slot: { eventDateId: 0, fieldId: 0, fieldName: '', timeMinutes: 0, weekNumber: 0, date: '' },
+      placedGames: [],
+      teamGameCounts: new Map(),
+      teamDayGameCounts: new Map(),
+      teamLastGameEnd: new Map(),
+      matchupHistory: new Map(),
+      skippedDates: new Set(),
+      teamProgramMap,
+    }
+
+    const result = evaluateMatchupRules(scheduleRules, ctx)
+    if (!result.allowed) {
+      auditEntries.push({
+        event_id: eventId, run_id: runId, log_type: 'matchup_blocked', severity: 'info',
+        home_team_id: matchup.home, away_team_id: matchup.away, division: matchup.division,
+        rule_id: result.blockingRule?.id ?? null, rule_name: result.blockingRule?.rule_name ?? '',
+        message: result.evaluations.find(e => !e.passed)?.reason ?? 'Blocked by rule',
+        metadata: {},
+      })
+    }
+    return result.allowed
+  })
+
   // 7. Assign games to time slots on available fields across dates
 
   // Build time slot grid: for each date, for each field, generate available slots
   interface TimeSlot {
     eventDateId: number
     fieldId: number
+    fieldName: string
     timeMinutes: number
+    weekNumber: number
+    date: string
   }
 
   const slots: TimeSlot[] = []
 
-  for (const ed of eventDates) {
+  for (const ed of activeDates) {
     // Determine day of week for this date
     const dateObj = new Date(ed.date + 'T12:00:00') // noon to avoid timezone edge
     const dow = dateObj.getDay() // 0=Sun
+    const weekNum = dateWeekMap.get(ed.date) ?? 1
 
     let startMin: number
     let endMin: number
@@ -257,7 +385,10 @@ export async function generateSchedule(
         slots.push({
           eventDateId: ed.id,
           fieldId: field.id,
+          fieldName: field.name,
           timeMinutes: t,
+          weekNumber: weekNum,
+          date: ed.date,
         })
         t += totalSlotMinutes
       }
@@ -265,12 +396,19 @@ export async function generateSchedule(
   }
 
   if (slots.length === 0) throw new Error('No time slots available — check event dates and schedule settings')
-  if (slots.length < allMatchups.length) {
+  if (slots.length < filteredMatchups.length) {
     throw new Error(
-      `Not enough time slots (${slots.length}) for all matchups (${allMatchups.length}). ` +
+      `Not enough time slots (${slots.length}) for all matchups (${filteredMatchups.length}). ` +
       `Add more event dates, fields, or adjust schedule increment.`
     )
   }
+
+  // Track state for rule evaluation during slot assignment
+  const teamGameCounts = new Map<number, number>()
+  const teamDayGameCounts = new Map<string, number>()
+  const teamLastGameEnd = new Map<string, number>()
+  const matchupHistory = new Map<string, number[]>()
+  const placedGames: PlacedGame[] = []
 
   // Track usage per team per date-time to avoid team double-booking
   // Key: `${teamId}-${eventDateId}-${timeMinutes}`
@@ -279,10 +417,12 @@ export async function generateSchedule(
   const games: ScheduleGame[] = []
   const slotIdx = 0
 
-  for (const matchup of allMatchups) {
+  for (const matchup of filteredMatchups) {
     // Find the next available slot where neither team is already playing
     let assigned = false
     const startSearch = slotIdx
+    const homeTeam = teamInfoMap.get(matchup.home)
+    const awayTeam = teamInfoMap.get(matchup.away)
 
     for (let attempts = 0; attempts < slots.length; attempts++) {
       const si = (startSearch + attempts) % slots.length
@@ -295,8 +435,47 @@ export async function generateSchedule(
       if (!fieldAllowsDivision(slot.fieldId, matchup.division)) continue
 
       if (!teamSlotUsed.has(homeKey) && !teamSlotUsed.has(awayKey)) {
+        // Evaluate slot rules if we have team info
+        if (homeTeam && awayTeam) {
+          const ctx: ScheduleContext = {
+            homeTeam, awayTeam,
+            slot: {
+              eventDateId: slot.eventDateId,
+              fieldId: slot.fieldId,
+              fieldName: slot.fieldName,
+              timeMinutes: slot.timeMinutes,
+              weekNumber: slot.weekNumber,
+              date: slot.date,
+            },
+            placedGames,
+            teamGameCounts,
+            teamDayGameCounts,
+            teamLastGameEnd,
+            matchupHistory,
+            skippedDates: new Set(),
+            teamProgramMap,
+          }
+
+          const slotResult = evaluateSlotRules(scheduleRules, ctx)
+          if (!slotResult.allowed) {
+            auditEntries.push({
+              event_id: eventId, run_id: runId, log_type: 'slot_skipped', severity: 'info',
+              home_team_id: matchup.home, away_team_id: matchup.away, division: matchup.division,
+              event_date_id: slot.eventDateId, field_id: slot.fieldId,
+              scheduled_time: minutesToDisplay(slot.timeMinutes),
+              rule_id: slotResult.blockingRule?.id ?? null,
+              rule_name: slotResult.blockingRule?.rule_name ?? '',
+              message: slotResult.evaluations.find(e => !e.passed)?.reason ?? 'Blocked by slot rule',
+              metadata: {},
+            })
+            continue // Skip this slot, try the next one
+          }
+        }
+
         teamSlotUsed.add(homeKey)
         teamSlotUsed.add(awayKey)
+
+        const scheduledTime = minutesToDisplay(slot.timeMinutes)
 
         games.push({
           event_id: eventId,
@@ -305,15 +484,64 @@ export async function generateSchedule(
           home_team_id: matchup.home,
           away_team_id: matchup.away,
           division: matchup.division,
-          scheduled_time: minutesToDisplay(slot.timeMinutes),
+          scheduled_time: scheduledTime,
           status: 'Scheduled',
           home_score: 0,
           away_score: 0,
           notes: null,
         })
 
-        // Mark this slot as used (field perspective) by advancing past it
-        // Remove from available pool
+        // Update tracking state for subsequent rule evaluations
+        const gameDuration = getEffectiveTiming(
+          matchup.division, scheduleRules, divTimingMap,
+          { slotDuration, buffer }
+        ).increment
+        const gameEndTime = slot.timeMinutes + gameDuration
+
+        teamGameCounts.set(matchup.home, (teamGameCounts.get(matchup.home) ?? 0) + 1)
+        teamGameCounts.set(matchup.away, (teamGameCounts.get(matchup.away) ?? 0) + 1)
+
+        const homeDayKey = `${matchup.home}-${slot.eventDateId}`
+        const awayDayKey = `${matchup.away}-${slot.eventDateId}`
+        teamDayGameCounts.set(homeDayKey, (teamDayGameCounts.get(homeDayKey) ?? 0) + 1)
+        teamDayGameCounts.set(awayDayKey, (teamDayGameCounts.get(awayDayKey) ?? 0) + 1)
+
+        // Track last game end time (keep the latest)
+        const prevHomeEnd = teamLastGameEnd.get(homeDayKey)
+        if (prevHomeEnd === undefined || gameEndTime > prevHomeEnd) {
+          teamLastGameEnd.set(homeDayKey, gameEndTime)
+        }
+        const prevAwayEnd = teamLastGameEnd.get(awayDayKey)
+        if (prevAwayEnd === undefined || gameEndTime > prevAwayEnd) {
+          teamLastGameEnd.set(awayDayKey, gameEndTime)
+        }
+
+        const matchKey = `${Math.min(matchup.home, matchup.away)}-${Math.max(matchup.home, matchup.away)}`
+        if (!matchupHistory.has(matchKey)) matchupHistory.set(matchKey, [])
+        matchupHistory.get(matchKey)!.push(slot.weekNumber)
+
+        placedGames.push({
+          event_date_id: slot.eventDateId,
+          field_id: slot.fieldId,
+          home_team_id: matchup.home,
+          away_team_id: matchup.away,
+          division: matchup.division,
+          scheduled_time: scheduledTime,
+          timeMinutes: slot.timeMinutes,
+          weekNumber: slot.weekNumber,
+        })
+
+        auditEntries.push({
+          event_id: eventId, run_id: runId, log_type: 'matchup_placed', severity: 'info',
+          home_team_id: matchup.home, away_team_id: matchup.away, division: matchup.division,
+          event_date_id: slot.eventDateId, field_id: slot.fieldId,
+          scheduled_time: scheduledTime,
+          rule_id: null, rule_name: '',
+          message: `Placed ${homeTeam?.name ?? matchup.home} vs ${awayTeam?.name ?? matchup.away}`,
+          metadata: { weekNumber: slot.weekNumber },
+        })
+
+        // Mark this slot as used (field perspective) by removing from available pool
         slots.splice(si, 1)
         assigned = true
         break
@@ -324,6 +552,7 @@ export async function generateSchedule(
       // Could not find a conflict-free slot — place anyway in next open field slot
       if (slots.length > 0) {
         const slot = slots.shift()!
+
         games.push({
           event_id: eventId,
           event_date_id: slot.eventDateId,
@@ -337,7 +566,26 @@ export async function generateSchedule(
           away_score: 0,
           notes: null,
         })
+
+        auditEntries.push({
+          event_id: eventId, run_id: runId, log_type: 'matchup_placed', severity: 'warn',
+          home_team_id: matchup.home, away_team_id: matchup.away, division: matchup.division,
+          event_date_id: slot.eventDateId, field_id: slot.fieldId,
+          scheduled_time: minutesToDisplay(slot.timeMinutes),
+          rule_id: null, rule_name: '',
+          message: `Force-placed (no conflict-free slot found): ${homeTeam?.name ?? matchup.home} vs ${awayTeam?.name ?? matchup.away}`,
+          metadata: { forced: true, weekNumber: slot.weekNumber },
+        })
       }
+    }
+  }
+
+  // Batch insert audit entries
+  if (auditEntries.length > 0) {
+    // Insert in batches of 500 to avoid payload limits
+    for (let i = 0; i < auditEntries.length; i += 500) {
+      const batch = auditEntries.slice(i, i + 500)
+      await sb.from('schedule_audit_log').insert(batch)
     }
   }
 
@@ -346,8 +594,9 @@ export async function generateSchedule(
     totalMatchups: allMatchups.length,
     teamCount: teams.length,
     fieldCount: fields.length,
-    dateCount: eventDates.length,
+    dateCount: activeDates.length,
     divisionCount: divisionMap.size,
+    auditRunId: runId,
   }
 }
 
@@ -380,6 +629,14 @@ export async function detectConflicts(
 
   const gameDuration = event?.schedule_increment || 60
   const minRest = (event?.schedule_increment || 60) + (event?.time_between_games || 0)
+
+  // Load rules for enhanced conflict descriptions
+  let scheduleRules: ScheduleRule[] = []
+  try {
+    scheduleRules = await loadScheduleRules(eventId, sb)
+  } catch {
+    // Rules are optional for conflict detection — continue without them
+  }
 
   const conflicts: ScheduleConflict[] = []
 
@@ -456,6 +713,14 @@ export async function detectConflicts(
   }
 
   // ── Check 3: Insufficient rest ─────────────────────────────
+  // Check rule-based min_rest if available, otherwise use event default
+  let ruleMinRest = minRest
+  const minRestRule = scheduleRules.find(r => (r.conditions as any).type === 'min_rest')
+  if (minRestRule) {
+    const ruleMinutes = (minRestRule.conditions as any).minutes as number | undefined
+    if (ruleMinutes) ruleMinRest = ruleMinutes
+  }
+
   const seenRestConflicts = new Set<string>()
   for (const [, group] of byDateTeam.entries()) {
     if (group.length < 2) continue
@@ -470,7 +735,7 @@ export async function detectConflicts(
       const rest = bStart - aEnd
 
       // Not overlapping but rest is under minimum
-      if (rest >= 0 && rest < minRest) {
+      if (rest >= 0 && rest < ruleMinRest) {
         const conflictKey = `rest-${Math.min(a.id, b.id)}-${Math.max(a.id, b.id)}`
         if (seenRestConflicts.has(conflictKey)) continue
         seenRestConflicts.add(conflictKey)
@@ -478,9 +743,9 @@ export async function detectConflicts(
         conflicts.push({
           type: 'insufficient_rest',
           severity: 'warning',
-          description: `Only ${rest} min rest between Game #${a.id} (${a.scheduled_time}) and Game #${b.id} (${b.scheduled_time}) — minimum is ${minRest} min`,
+          description: `Only ${rest} min rest between Game #${a.id} (${a.scheduled_time}) and Game #${b.id} (${b.scheduled_time}) — minimum is ${ruleMinRest} min${minRestRule ? ` (rule: ${minRestRule.rule_name})` : ''}`,
           gameIds: [a.id, b.id],
-          metadata: { rest_min: rest, required_min: minRest },
+          metadata: { rest_min: rest, required_min: ruleMinRest, rule_name: minRestRule?.rule_name ?? null },
         })
       }
     }

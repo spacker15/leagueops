@@ -58,6 +58,12 @@ export function ScheduleTab() {
   const [showConflicts, setShowConflicts] = useState(false)
   const [genOpen, setGenOpen] = useState(false)
   const [generating, setGenerating] = useState(false)
+  const [validationResult, setValidationResult] = useState<any>(null)
+  const [dryRunning, setDryRunning] = useState(false)
+  // Audit log state
+  const [auditLog, setAuditLog] = useState<any[]>([])
+  const [auditExpanded, setAuditExpanded] = useState(false)
+  const [lastRunId, setLastRunId] = useState<string | null>(null)
 
   // Schedule CSV import state
   const scheduleFileRef = useRef<HTMLInputElement>(null)
@@ -246,7 +252,27 @@ export function ScheduleTab() {
     setAddOpen(false)
   }
 
-  // Generate schedule
+  // Generate schedule — dry run for validation first
+  async function handleDryRun() {
+    if (!eventId) return
+    setDryRunning(true)
+    setValidationResult(null)
+    try {
+      const res = await fetch('/api/schedule-engine', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event_id: eventId, dry_run: true }),
+      })
+      const data = await res.json()
+      if (!res.ok || data.error) throw new Error(data.error || 'Dry run failed')
+      setValidationResult(data.validation)
+    } catch (err: any) {
+      toast.error(`Validation error: ${err.message}`)
+    } finally {
+      setDryRunning(false)
+    }
+  }
+
   async function handleGenerateSchedule() {
     if (!eventId) return
     setGenerating(true)
@@ -259,12 +285,26 @@ export function ScheduleTab() {
       const data = await res.json()
       if (!res.ok || data.error) throw new Error(data.error || 'Generation failed')
       toast.success(`Schedule generated: ${data.gamesCreated} games created`)
+      if (data.auditRunId) setLastRunId(data.auditRunId)
       setGenOpen(false)
+      setValidationResult(null)
       await refreshGames()
     } catch (err: any) {
       toast.error(`Schedule error: ${err.message}`)
     } finally {
       setGenerating(false)
+    }
+  }
+
+  async function loadAuditLog() {
+    if (!eventId || !lastRunId) return
+    try {
+      const res = await fetch(`/api/schedule-audit?event_id=${eventId}&run_id=${lastRunId}`)
+      const json = await res.json()
+      setAuditLog(json.audit ?? [])
+      setAuditExpanded(true)
+    } catch {
+      toast.error('Failed to load audit log')
     }
   }
 
@@ -695,6 +735,82 @@ export function ScheduleTab() {
         </div>
       )}
 
+      {/* Generation Log */}
+      {lastRunId && (
+        <div className="mb-4">
+          <button
+            onClick={() => {
+              if (auditExpanded) {
+                setAuditExpanded(false)
+              } else {
+                loadAuditLog()
+              }
+            }}
+            className={cn(
+              'font-cond text-[11px] font-bold tracking-wider px-3 py-1.5 rounded border transition-colors flex items-center gap-1.5',
+              auditExpanded
+                ? 'bg-navy/60 border-border text-white'
+                : 'bg-surface-card border-border text-muted hover:text-white'
+            )}
+          >
+            <Shield size={11} />
+            {auditExpanded ? 'HIDE GENERATION LOG' : 'VIEW GENERATION LOG'}
+          </button>
+
+          {auditExpanded && auditLog.length > 0 && (
+            <div className="mt-2 bg-surface-card border border-border rounded-lg overflow-hidden">
+              <div className="bg-navy/60 px-4 py-2 border-b border-border">
+                <span className="font-cond font-black text-[12px] tracking-wide text-white">
+                  GENERATION LOG — Run {lastRunId}
+                </span>
+              </div>
+              <div className="p-3 space-y-1.5 max-h-64 overflow-y-auto">
+                {auditLog.map((entry, idx) => (
+                  <div key={idx} className="flex items-start gap-2 text-[11px]">
+                    <span className={cn(
+                      'font-cond font-bold tracking-wider px-1.5 py-0.5 rounded text-[9px] uppercase flex-shrink-0 mt-0.5',
+                      entry.run_type === 'error' ? 'bg-red-900/40 text-red-400' :
+                      entry.run_type === 'warning' ? 'bg-yellow-900/40 text-yellow-400' :
+                      entry.run_type === 'generate' ? 'bg-green-900/40 text-green-400' :
+                      'bg-gray-800 text-gray-400'
+                    )}>
+                      {entry.run_type}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-gray-300">
+                        {entry.games_created != null && (
+                          <span className="text-white font-bold">{entry.games_created} games created</span>
+                        )}
+                        {entry.validation_errors > 0 && (
+                          <span className="text-red-400 ml-2">{entry.validation_errors} errors</span>
+                        )}
+                        {entry.validation_warnings > 0 && (
+                          <span className="text-yellow-400 ml-2">{entry.validation_warnings} warnings</span>
+                        )}
+                      </div>
+                      {entry.summary && (
+                        <div className="text-gray-500 text-[10px]">
+                          {entry.summary.totalGames} total games, {entry.summary.totalTeams} teams, games/team: {entry.summary.gamesPerTeamMin}–{entry.summary.gamesPerTeamMax}
+                        </div>
+                      )}
+                    </div>
+                    <span className="text-gray-600 text-[10px] flex-shrink-0">
+                      {entry.created_at ? new Date(entry.created_at).toLocaleString() : ''}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {auditExpanded && auditLog.length === 0 && (
+            <div className="mt-2 bg-surface-card border border-border rounded-lg p-4 text-center text-muted font-cond text-[12px]">
+              No audit log entries found for this run.
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ── TABLE VIEW ── */}
       {viewMode === 'table' && (
         <div className="overflow-x-auto">
@@ -908,16 +1024,26 @@ export function ScheduleTab() {
       {/* Generate schedule confirmation modal */}
       <Modal
         open={genOpen}
-        onClose={() => setGenOpen(false)}
+        onClose={() => { setGenOpen(false); setValidationResult(null) }}
         title="GENERATE SCHEDULE"
         footer={
           <>
-            <Btn variant="ghost" size="sm" onClick={() => setGenOpen(false)}>
+            <Btn variant="ghost" size="sm" onClick={() => { setGenOpen(false); setValidationResult(null) }}>
               CANCEL
             </Btn>
-            <Btn variant="primary" size="sm" onClick={handleGenerateSchedule} disabled={generating}>
-              {generating ? 'GENERATING...' : 'GENERATE'}
-            </Btn>
+            {!validationResult ? (
+              <Btn variant="primary" size="sm" onClick={handleDryRun} disabled={dryRunning}>
+                {dryRunning ? 'VALIDATING...' : 'VALIDATE & PREVIEW'}
+              </Btn>
+            ) : validationResult.errors.length === 0 ? (
+              <Btn variant="primary" size="sm" onClick={handleGenerateSchedule} disabled={generating}>
+                {generating ? 'GENERATING...' : 'ACCEPT & GENERATE'}
+              </Btn>
+            ) : (
+              <Btn variant="ghost" size="sm" onClick={() => setValidationResult(null)}>
+                RETRY
+              </Btn>
+            )}
           </>
         }
       >
@@ -945,9 +1071,65 @@ export function ScheduleTab() {
               {state.games.length} existing games will not be removed. New games will be added alongside them.
             </div>
           )}
-          <p className="text-[11px] text-muted">
-            Games are generated using round-robin within each division and assigned to available time slots across all event dates and fields.
-          </p>
+          {!validationResult && (
+            <p className="text-[11px] text-muted">
+              Games are generated using round-robin within each division and assigned to available time slots across all event dates and fields. Click "Validate & Preview" to run a dry run first.
+            </p>
+          )}
+
+          {/* Validation results */}
+          {validationResult && (
+            <div className="mt-4 space-y-3">
+              <div className="text-xs font-cond tracking-wider text-gray-400">
+                VALIDATION RESULTS — {validationResult.summary.totalGames} games, {validationResult.summary.totalTeams} teams
+              </div>
+
+              {validationResult.errors.length > 0 && (
+                <div className="bg-red-900/20 border border-red-700/50 rounded p-3">
+                  <div className="text-red-400 font-cond text-sm font-bold mb-1">
+                    {validationResult.errors.length} ERROR{validationResult.errors.length !== 1 ? 'S' : ''}
+                  </div>
+                  {validationResult.errors.slice(0, 10).map((e: any, i: number) => (
+                    <div key={i} className="text-xs text-red-300 py-0.5">{e.message}</div>
+                  ))}
+                  {validationResult.errors.length > 10 && (
+                    <div className="text-xs text-red-400 pt-1">...and {validationResult.errors.length - 10} more</div>
+                  )}
+                </div>
+              )}
+
+              {validationResult.warnings.length > 0 && (
+                <div className="bg-yellow-900/20 border border-yellow-700/50 rounded p-3">
+                  <div className="text-yellow-400 font-cond text-sm font-bold mb-1">
+                    {validationResult.warnings.length} WARNING{validationResult.warnings.length !== 1 ? 'S' : ''}
+                  </div>
+                  {validationResult.warnings.slice(0, 10).map((e: any, i: number) => (
+                    <div key={i} className="text-xs text-yellow-300 py-0.5">{e.message}</div>
+                  ))}
+                  {validationResult.warnings.length > 10 && (
+                    <div className="text-xs text-yellow-400 pt-1">...and {validationResult.warnings.length - 10} more</div>
+                  )}
+                </div>
+              )}
+
+              {validationResult.errors.length === 0 && (
+                <div className="bg-green-900/20 border border-green-700/50 rounded p-3 text-green-400 text-sm flex items-center gap-2">
+                  <CheckCircle size={14} /> Schedule passed validation
+                </div>
+              )}
+
+              {/* Team metrics summary */}
+              <div className="text-xs text-gray-400">
+                Games per team: {validationResult.summary.gamesPerTeamMin}–{validationResult.summary.gamesPerTeamMax}
+                {validationResult.summary.hardViolations > 0 && (
+                  <span className="text-red-400 ml-2">{validationResult.summary.hardViolations} hard violations</span>
+                )}
+                {validationResult.summary.softViolations > 0 && (
+                  <span className="text-yellow-400 ml-2">{validationResult.summary.softViolations} soft violations</span>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </Modal>
 
