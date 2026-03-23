@@ -1,8 +1,31 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/supabase/server'
 import { runUnifiedEngine } from '@/lib/engines/unified'
+import { engineRatelimit } from '@/lib/ratelimit'
 
 export async function POST(request: Request) {
+  // Rate limit by IP (SEC-08)
+  const ip =
+    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
+    '127.0.0.1'
+  const { success, limit, remaining, reset, pending } =
+    await engineRatelimit.limit(ip)
+  void pending
+
+  if (!success) {
+    return NextResponse.json(
+      { error: 'Too many requests' },
+      {
+        status: 429,
+        headers: {
+          'X-RateLimit-Limit': String(limit),
+          'X-RateLimit-Remaining': String(remaining),
+          'X-RateLimit-Reset': String(reset),
+        },
+      }
+    )
+  }
+
   try {
     const body = await request.json()
     const { event_date_id, event_id } = body

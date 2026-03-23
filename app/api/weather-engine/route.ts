@@ -1,8 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { runWeatherEngine, getLatestReading, getReadingHistory } from '@/lib/engines/weather'
 import { createClient } from '@/supabase/server'
+import { engineRatelimit } from '@/lib/ratelimit'
 
 export async function POST(req: NextRequest) {
+  // Rate limit by IP (SEC-08)
+  const ip =
+    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
+    '127.0.0.1'
+  const { success, limit, remaining, reset, pending } =
+    await engineRatelimit.limit(ip)
+  void pending
+
+  if (!success) {
+    return NextResponse.json(
+      { error: 'Too many requests' },
+      {
+        status: 429,
+        headers: {
+          'X-RateLimit-Limit': String(limit),
+          'X-RateLimit-Remaining': String(remaining),
+          'X-RateLimit-Reset': String(reset),
+        },
+      }
+    )
+  }
+
   const sb = createClient()
   const body = await req.json()
   const { complex_id, event_id, api_key } = body

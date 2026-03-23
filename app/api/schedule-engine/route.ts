@@ -2,8 +2,31 @@ import { NextRequest, NextResponse } from 'next/server'
 import { generateSchedule, detectConflicts } from '@/lib/engines/schedule'
 import { validateSchedule } from '@/lib/engines/schedule-validator'
 import { createClient } from '@/supabase/server'
+import { engineRatelimit } from '@/lib/ratelimit'
 
 export async function POST(req: NextRequest) {
+  // Rate limit by IP (SEC-08)
+  const ip =
+    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
+    '127.0.0.1'
+  const { success, limit, remaining, reset, pending } =
+    await engineRatelimit.limit(ip)
+  void pending
+
+  if (!success) {
+    return NextResponse.json(
+      { error: 'Too many requests' },
+      {
+        status: 429,
+        headers: {
+          'X-RateLimit-Limit': String(limit),
+          'X-RateLimit-Remaining': String(remaining),
+          'X-RateLimit-Reset': String(reset),
+        },
+      }
+    )
+  }
+
   const sb = createClient()
   const body = await req.json()
   const { event_id, dry_run = false } = body
