@@ -277,7 +277,7 @@ export async function generateSchedule(
   const teamSlotUsed = new Set<string>()
 
   const games: ScheduleGame[] = []
-  let slotIdx = 0
+  const slotIdx = 0
 
   for (const matchup of allMatchups) {
     // Find the next available slot where neither team is already playing
