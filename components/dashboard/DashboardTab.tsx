@@ -228,24 +228,56 @@ export function DashboardTab() {
 
       <div className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-3">
         {fields.map((field) => {
-          const fieldGames = state.games.filter((g) => g.field_id === field.id)
-          let game: Game | undefined
+          const fieldGames = state.games
+            .filter((g) => g.field_id === field.id)
+            .sort((a, b) => {
+              const timeA = a.scheduled_time || ''
+              const timeB = b.scheduled_time || ''
+              return timeA.localeCompare(timeB)
+            })
+          // Show the current/active game in the main card
+          let activeGame: Game | undefined
           for (const p of priority) {
-            game = fieldGames.find((g) => g.status === p)
-            if (game) break
+            activeGame = fieldGames.find((g) => g.status === p)
+            if (activeGame) break
           }
-          if (!game) game = fieldGames[fieldGames.length - 1]
+          if (!activeGame) activeGame = fieldGames[0]
           return (
-            <FieldCard
-              key={field.id}
-              field={field}
-              game={game ?? null}
-              onOpen={openGame}
-              onCycleStatus={async (g) => {
-                const n = nextGameStatus(g.status)
-                if (n) await handleStatusChange(g, n)
-              }}
-            />
+            <div key={field.id} className="flex flex-col">
+              <FieldCard
+                field={field}
+                game={activeGame ?? null}
+                onOpen={openGame}
+                onCycleStatus={async (g) => {
+                  const n = nextGameStatus(g.status)
+                  if (n) await handleStatusChange(g, n)
+                }}
+              />
+              {/* Show all games for this field */}
+              {fieldGames.length > 1 && (
+                <div className="bg-surface-card/50 border border-t-0 border-border rounded-b-lg px-2 py-1 space-y-0.5 -mt-1">
+                  {fieldGames.map((g) => {
+                    const isActive = g.id === activeGame?.id
+                    return (
+                      <button
+                        key={g.id}
+                        onClick={() => openGame(g)}
+                        className={cn(
+                          'w-full flex items-center gap-2 px-2 py-1 rounded text-left transition-colors',
+                          isActive ? 'bg-blue-900/30 border border-blue-700/30' : 'hover:bg-white/5'
+                        )}
+                      >
+                        <span className="font-cond text-[10px] text-muted w-16 shrink-0">{g.scheduled_time}</span>
+                        <span className="font-cond text-[10px] font-bold text-white truncate flex-1">
+                          {g.home_team?.name ?? '?'} vs {g.away_team?.name ?? '?'}
+                        </span>
+                        <StatusBadge status={g.status} size="xs" />
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
           )
         })}
       </div>

@@ -108,7 +108,7 @@ export async function deleteField(fieldId: number): Promise<void> {
 // ---- Teams ----
 export async function getTeams(eventId: number): Promise<Team[]> {
   const sb = createClient()
-  const { data } = await sb.from('teams').select('*').eq('event_id', eventId).order('division')
+  const { data } = await sb.from('teams').select('*, programs(name)').eq('event_id', eventId).order('division')
   return data ?? []
 }
 

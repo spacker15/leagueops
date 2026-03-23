@@ -217,7 +217,7 @@ export function ScheduleTab() {
       const res = await fetch('/api/field-engine', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ event_date_id: currentDate.id }),
+        body: JSON.stringify({ event_date_id: currentDate.id, event_id: eventId }),
       })
       const data = await res.json()
       if (data.error) throw new Error(data.error)
@@ -914,34 +914,79 @@ export function ScheduleTab() {
             + FOLLOW TEAM
           </button>
           {teamPickerOpen && (
-            <div className="absolute z-50 mt-1 left-0 w-56 max-h-60 overflow-y-auto bg-surface-card border border-border rounded-lg shadow-xl">
-              {state.teams
-                .slice()
-                .sort((a, b) => a.name.localeCompare(b.name))
-                .map((team) => {
+            <div className="absolute z-50 mt-1 left-0 w-72 max-h-72 overflow-y-auto bg-surface-card border border-border rounded-lg shadow-xl">
+              {(() => {
+                // Group teams by program -> division -> teams
+                const programs = new Map<string, Map<string, typeof state.teams>>()
+                const unassigned = new Map<string, typeof state.teams>()
+
+                for (const team of state.teams) {
+                  const progName = (team as any).programs?.name || (team as any).program_name || null
+                  const div = team.division || 'Unassigned'
+
+                  if (progName) {
+                    if (!programs.has(progName)) programs.set(progName, new Map())
+                    const divMap = programs.get(progName)!
+                    if (!divMap.has(div)) divMap.set(div, [])
+                    divMap.get(div)!.push(team)
+                  } else {
+                    if (!unassigned.has(div)) unassigned.set(div, [])
+                    unassigned.get(div)!.push(team)
+                  }
+                }
+
+                const renderTeam = (team: typeof state.teams[0]) => {
                   const isFollowed = followedSet.has(team.id)
                   return (
                     <button
                       key={team.id}
                       onClick={() => toggleFollowTeam(team.id)}
                       className={cn(
-                        'w-full flex items-center gap-2 px-3 py-1.5 text-left font-cond text-[11px] font-bold transition-colors border-b border-border/30 last:border-0',
-                        isFollowed
-                          ? 'bg-blue-900/30 text-blue-300'
-                          : 'hover:bg-white/5 text-white'
+                        'w-full flex items-center gap-2 pl-6 pr-3 py-1 text-left font-cond text-[11px] font-bold transition-colors',
+                        isFollowed ? 'bg-blue-900/30 text-blue-300' : 'hover:bg-white/5 text-white'
                       )}
                     >
-                      <Star
-                        size={10}
-                        className={cn(
-                          isFollowed ? 'text-yellow-400 fill-yellow-400' : 'text-muted'
-                        )}
-                      />
+                      <Star size={9} className={cn(isFollowed ? 'text-yellow-400 fill-yellow-400' : 'text-muted')} />
                       <span className="truncate">{team.name}</span>
-                      <span className="text-[9px] text-muted ml-auto">{team.division}</span>
                     </button>
                   )
-                })}
+                }
+
+                return (
+                  <>
+                    {[...programs.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([progName, divMap]) => (
+                      <div key={progName}>
+                        <div className="font-cond text-[9px] font-black tracking-widest text-muted px-3 pt-2 pb-0.5 bg-navy/30 border-b border-border/30 uppercase">
+                          {progName}
+                        </div>
+                        {[...divMap.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([div, teams]) => (
+                          <div key={div}>
+                            <div className="font-cond text-[8px] font-bold tracking-wider text-muted/70 pl-4 pt-1.5 pb-0.5 uppercase">
+                              {div}
+                            </div>
+                            {teams.sort((a, b) => a.name.localeCompare(b.name)).map(renderTeam)}
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                    {unassigned.size > 0 && (
+                      <div>
+                        <div className="font-cond text-[9px] font-black tracking-widest text-muted px-3 pt-2 pb-0.5 bg-navy/30 border-b border-border/30 uppercase">
+                          Unassigned
+                        </div>
+                        {[...unassigned.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([div, teams]) => (
+                          <div key={div}>
+                            <div className="font-cond text-[8px] font-bold tracking-wider text-muted/70 pl-4 pt-1.5 pb-0.5 uppercase">
+                              {div}
+                            </div>
+                            {teams.sort((a, b) => a.name.localeCompare(b.name)).map(renderTeam)}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )
+              })()}
             </div>
           )}
         </div>
