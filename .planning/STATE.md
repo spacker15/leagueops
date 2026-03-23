@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Ready to plan
+status: Executing Phase 03
 stopped_at: Phase 3 context gathered
-last_updated: "2026-03-23T12:23:21.706Z"
+last_updated: "2026-03-23T13:00:55.845Z"
 progress:
   total_phases: 10
   completed_phases: 2
-  total_plans: 10
-  completed_plans: 10
+  total_plans: 13
+  completed_plans: 11
 ---
 
 # Project State: LeagueOps
@@ -18,7 +18,7 @@ progress:
 
 See: .planning/PROJECT.md (updated 2026-03-22)
 **Core value:** Tournament day operations must work reliably in real time — live scoring, field status, weather alerts, and referee assignments must be accurate and instant so that admins can run events from a single screen.
-**Current focus:** Phase 02 — Hardcode Removal & Event Context
+**Current focus:** Phase 03 — api-auth-validation
 
 ## Phase Progress
 
@@ -38,7 +38,7 @@ See: .planning/PROJECT.md (updated 2026-03-22)
 ## Active Context
 
 **Last session:** 2026-03-23T12:23:21.703Z
-**Stopped at:** Phase 3 context gathered
+**Stopped at:** Completed 03-01-PLAN.md
 **Plans completed:** 01-01 (Core Engine Refactor) — 7 tasks, 12 files, 19 min; 01-02 (New API Routes for CommandCenter) — 3 tasks, 3 files, 3 min
 
 ## Performance Metrics
@@ -56,6 +56,7 @@ See: .planning/PROJECT.md (updated 2026-03-22)
 | Phase 02-hardcode-removal-event-context P02 | 3 min | 2 tasks | 17 files |
 | Phase 02-hardcode-removal-event-context P03 | 5 min | 2 tasks | 2 files |
 | Phase 02-hardcode-removal-event-context P04 | 45 min | 3 tasks | 18 files |
+| Phase 03-api-auth-validation P01 | 5 min | 2 tasks | 17 files |
 
 ## Decisions Log
 
@@ -84,3 +85,6 @@ See: .planning/PROJECT.md (updated 2026-03-22)
 | 02-04      | RegisterPage uses inner-component Suspense pattern for useSearchParams -- review fix #2 addressed |
 | 02-04      | Portal components use userRole.event_id as portalEventId (referee, volunteer, program_leader portals outside AppProvider) |
 | 02-04      | D-05 QR URL slug fix not applicable -- CheckInTab QR URLs already use token-based /checkin/${token} path, no hardcoded event_id in path |
+| 03-01      | lib/supabase/server.ts placed at lib/ (no src/ dir); async await cookies() pattern for Next.js 15 compatibility |
+| 03-01      | Engine-trigger routes categorized separately from write routes — engines need header secret auth not user session auth |
+| 03-01      | schemas/ at project root — consistent with lib/, types/, components/ structure (no src/ prefix in this project) |

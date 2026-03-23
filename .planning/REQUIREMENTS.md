@@ -10,13 +10,13 @@ Requirements for this milestone. Each maps to roadmap phases.
 ### Security & Auth Hardening
 
 - [ ] **SEC-01**: All core database tables have proper RLS policies replacing "Allow all" — scoped by event_id via `user_event_ids()` helper function
-- [ ] **SEC-02**: All 40+ API routes validate authentication via `auth.getUser()` (except intentionally public routes: join, QR check-in, public results)
+- [x] **SEC-02**: All 40+ API routes validate authentication via `auth.getUser()` (except intentionally public routes: join, QR check-in, public results)
 - [x] **SEC-03**: All engine modules (`referee.ts`, `weather.ts`, `field.ts`, `eligibility.ts`, `unified.ts`) accept a server-side Supabase client parameter instead of importing browser client
 - [x] **SEC-04**: All hardcoded `event_id = 1` references (~60 locations) replaced with dynamic event_id from context/props/params
 - [x] **SEC-05**: Real-time subscriptions scoped to current event_id
 - [x] **SEC-06**: OpenWeather API key moved from `NEXT_PUBLIC_*` to server-only environment variable
-- [ ] **SEC-07**: All API route request bodies validated with zod schemas
-- [ ] **SEC-08**: Rate limiting applied to weather-engine, referee-engine, and public-facing endpoints via Upstash
+- [x] **SEC-07**: All API route request bodies validated with zod schemas
+- [x] **SEC-08**: Rate limiting applied to weather-engine, referee-engine, and public-facing endpoints via Upstash
 
 ### Event Creation
 
