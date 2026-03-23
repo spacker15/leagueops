@@ -117,7 +117,7 @@ Plans:
 Plans:
 
 - [x] 04-01-PLAN.md — user_event_ids() function, drop all permissive policies, create authenticated policies
-- [ ] 04-02-PLAN.md — Anon public table policies, rollback script, branch deploy and smoke tests
+- [x] 04-02-PLAN.md — Anon public table policies, rollback script, branch deploy and smoke tests
 
 ### Success Criteria
 
