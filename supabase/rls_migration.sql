@@ -452,9 +452,10 @@ CREATE POLICY "auth_select_seasons" ON seasons
 -- ── GROUP A: Public tables (events uses id; others use event_id) ───────────
 
 -- events: id IS the event_id
+-- Allow any authenticated user to create events (role assigned after insert)
 CREATE POLICY "auth_insert_events" ON events
   FOR INSERT TO authenticated
-  WITH CHECK (id IN (SELECT user_event_ids()));
+  WITH CHECK (true);
 
 CREATE POLICY "auth_update_events" ON events
   FOR UPDATE TO authenticated
