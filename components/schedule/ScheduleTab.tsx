@@ -652,7 +652,52 @@ export function ScheduleTab() {
         }
       }
 
-      // Build event_date map for date matching
+      // Collect unique dates from CSV and auto-create missing event_dates
+      const csvDates = new Set<string>()
+      for (const row of scheduleCsvPreview.rows) {
+        if (row.date) {
+          const raw = row.date.trim()
+          // Normalize to ISO format (YYYY-MM-DD)
+          let iso = raw
+          // Handle M/D/YYYY or MM/DD/YYYY
+          const slashMatch = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
+          if (slashMatch) {
+            iso = `${slashMatch[3]}-${slashMatch[1].padStart(2, '0')}-${slashMatch[2].padStart(2, '0')}`
+          }
+          // Handle other parseable formats
+          if (!iso.match(/^\d{4}-\d{2}-\d{2}$/)) {
+            const parsed = new Date(raw)
+            if (!isNaN(parsed.getTime())) {
+              iso = parsed.toISOString().split('T')[0]
+            }
+          }
+          if (iso.match(/^\d{4}-\d{2}-\d{2}$/)) {
+            csvDates.add(iso)
+          }
+        }
+      }
+
+      // Check which dates already exist
+      const { data: existingDates } = await sb
+        .from('event_dates')
+        .select('id, date')
+        .eq('event_id', eventId!)
+
+      const existingDateSet = new Set((existingDates ?? []).map(d => d.date))
+      const datesToCreate = [...csvDates].filter(d => !existingDateSet.has(d)).sort()
+
+      if (datesToCreate.length > 0) {
+        const inserts = datesToCreate.map((d, i) => ({
+          event_id: eventId!,
+          date: d,
+          label: `Game Day`,
+          day_number: (existingDates?.length ?? 0) + i + 1,
+        }))
+        await sb.from('event_dates').insert(inserts)
+        toast.success(`${datesToCreate.length} event date${datesToCreate.length !== 1 ? 's' : ''} created`)
+      }
+
+      // Build event_date map for date matching (reload after potential inserts)
       const { data: eventDates } = await sb
         .from('event_dates')
         .select('id, date')
