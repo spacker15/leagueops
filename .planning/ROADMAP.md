@@ -142,6 +142,12 @@ Plans:
 **Requirements:** EVT-01, EVT-02, EVT-03, EVT-04, EVT-05, EVT-06
 **UI hint:** yes
 **Depends on:** Phase 3
+**Plans:** 3 plans
+
+Plans:
+- [ ] 05-01-PLAN.md — Foundation: migration, types, package install, route fix, VenueAutocompleteInput component
+- [ ] 05-02-PLAN.md — Wire VenueAutocompleteInput into EventPicker + EventSetupTab
+- [ ] 05-03-PLAN.md — Sharing tab with registration link, QR code, and share buttons
 
 ### Success Criteria
 
