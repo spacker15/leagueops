@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: Executing Phase 03
-stopped_at: Completed 03-03-PLAN.md
-last_updated: "2026-03-23T13:05:54.406Z"
+stopped_at: Completed 03-02-PLAN.md
+last_updated: "2026-03-23T13:14:20.089Z"
 progress:
   total_phases: 10
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 13
-  completed_plans: 12
+  completed_plans: 13
 ---
 
 # Project State: LeagueOps
@@ -37,8 +37,8 @@ See: .planning/PROJECT.md (updated 2026-03-22)
 
 ## Active Context
 
-**Last session:** 2026-03-23T13:05:54.403Z
-**Stopped at:** Completed 03-03-PLAN.md
+**Last session:** 2026-03-23T13:14:20.086Z
+**Stopped at:** Completed 03-02-PLAN.md
 **Plans completed:** 01-01 (Core Engine Refactor) — 7 tasks, 12 files, 19 min; 01-02 (New API Routes for CommandCenter) — 3 tasks, 3 files, 3 min
 
 ## Performance Metrics
@@ -58,6 +58,7 @@ See: .planning/PROJECT.md (updated 2026-03-22)
 | Phase 02-hardcode-removal-event-context P04 | 45 min | 3 tasks | 18 files |
 | Phase 03-api-auth-validation P01 | 5 min | 2 tasks | 17 files |
 | Phase 03-api-auth-validation P03 | 2 min | 2 tasks | 9 files |
+| Phase 03-api-auth-validation P02 | 9 min | 2 tasks | 33 files |
 
 ## Decisions Log
 
@@ -91,3 +92,6 @@ See: .planning/PROJECT.md (updated 2026-03-22)
 | 03-01      | schemas/ at project root — consistent with lib/, types/, components/ structure (no src/ prefix in this project) |
 | 03-03      | Engine-trigger GET handlers excluded from rate limiting — only POST triggers expensive engine operations; GET serves cached reads |
 | 03-03      | publicRatelimit sliding window used for all public routes — allows event-day burst tolerance better than fixed window |
+| 03-02      | eligibility and lightning routes use inline action-based validation instead of Zod schemas — discriminated union pattern does not map to a single schema |
+| 03-02      | teams POST and weather POST handlers guarded even though ROUTE-INVENTORY marks them read-authenticated (GET only) — actual files had undocumented POST handlers |
+| 03-02      | Public routes (check-email, checkins, join) were already annotated with PUBLIC ROUTE — SEC-02 comments from 03-01 — Task 2 was a no-op on entry |
