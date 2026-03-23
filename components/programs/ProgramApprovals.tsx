@@ -341,6 +341,10 @@ export function ProgramApprovals() {
       toast.error('Name, contact name, and contact email are required')
       return
     }
+    if (programs.some(p => p.name.toLowerCase() === newProgram.name.trim().toLowerCase())) {
+      toast.error(`Program "${newProgram.name}" already exists`)
+      return
+    }
     setCreatingProgram(true)
     const sb = createClient()
     const { error } = await sb.from('programs').insert({
@@ -369,6 +373,10 @@ export function ProgramApprovals() {
   async function createTeam() {
     if (!newTeam.name || !newTeam.division) {
       toast.error('Team name and division are required')
+      return
+    }
+    if (teams.some(t => t.name.toLowerCase() === newTeam.name.trim().toLowerCase() && t.division.toLowerCase() === newTeam.division.trim().toLowerCase())) {
+      toast.error(`Team "${newTeam.name}" already exists in division "${newTeam.division}"`)
       return
     }
     setCreatingTeam(true)
@@ -512,7 +520,14 @@ export function ProgramApprovals() {
 
     try {
       if (csvPreview.type === 'programs') {
-        const inserts = csvPreview.rows.map(r => ({
+        const existingNames = new Set(programs.map(p => p.name.toLowerCase()))
+        const seen = new Set<string>()
+        const inserts = csvPreview.rows.filter(r => {
+          const key = r.name.trim().toLowerCase()
+          if (existingNames.has(key) || seen.has(key)) return false
+          seen.add(key)
+          return true
+        }).map(r => ({
           event_id: eventId!,
           name: r.name,
           short_name: r.short_name || null,
@@ -524,18 +539,29 @@ export function ProgramApprovals() {
           approved_by: user?.id,
           approved_at: new Date().toISOString(),
         }))
+        const skipped = csvPreview.rows.length - inserts.length
+        if (inserts.length === 0) { toast.error('All programs already exist'); setImporting(false); return }
         const { error } = await sb.from('programs').insert(inserts)
         if (error) throw error
-        toast.success(`${inserts.length} program${inserts.length !== 1 ? 's' : ''} imported`)
+        toast.success(`${inserts.length} program${inserts.length !== 1 ? 's' : ''} imported${skipped ? ` (${skipped} duplicate${skipped !== 1 ? 's' : ''} skipped)` : ''}`)
       } else {
-        const inserts = csvPreview.rows.map(r => ({
+        const existingKeys = new Set(teams.map(t => `${t.name.toLowerCase()}|${t.division.toLowerCase()}`))
+        const seen = new Set<string>()
+        const inserts = csvPreview.rows.filter(r => {
+          const key = `${r.name.trim().toLowerCase()}|${(r.division || '').trim().toLowerCase()}`
+          if (existingKeys.has(key) || seen.has(key)) return false
+          seen.add(key)
+          return true
+        }).map(r => ({
           event_id: eventId!,
           name: r.name,
           division: r.division || '',
         }))
+        const skipped = csvPreview.rows.length - inserts.length
+        if (inserts.length === 0) { toast.error('All teams already exist'); setImporting(false); return }
         const { error } = await sb.from('teams').insert(inserts)
         if (error) throw error
-        toast.success(`${inserts.length} team${inserts.length !== 1 ? 's' : ''} imported`)
+        toast.success(`${inserts.length} team${inserts.length !== 1 ? 's' : ''} imported${skipped ? ` (${skipped} duplicate${skipped !== 1 ? 's' : ''} skipped)` : ''}`)
       }
       setCsvPreview(null)
       load()
