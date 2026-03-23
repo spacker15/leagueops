@@ -564,53 +564,73 @@ export function ScheduleTab() {
   const hasUnresolved = unresolvedOldMismatches.length > 0 || unresolvedTeamEntries.length > 0
 
   async function importScheduleCSV() {
-    if (!scheduleCsvPreview || !currentDate) return
+    if (!scheduleCsvPreview) return
     if (hasUnresolved) { toast.error('Resolve all mismatches before importing'); return }
     setImportingSchedule(true)
     const sb = createClient()
 
     try {
       // 1. Create new teams first
-      const newTeamLookup = new Map<string, number>() // csvValue lowercase -> team id
+      const newTeamLookup = new Map<string, number>()
       if (teamsToCreate.length > 0) {
-        const inserts = teamsToCreate.map(e => ({
-          event_id: eventId,
-          name: e.csvValue,
-          division: e.detectedDivision || '',
-          program_id: e.detectedProgram?.id ?? null,
-          color: '#0B3D91',
-        }))
+        // Insert one at a time to handle potential duplicates gracefully
+        for (const e of teamsToCreate) {
+          const { data: existing } = await sb
+            .from('teams')
+            .select('id')
+            .eq('event_id', eventId!)
+            .ilike('name', e.csvValue.trim())
+            .limit(1)
 
-        const { data: created, error: createErr } = await sb
-          .from('teams')
-          .upsert(inserts, { onConflict: 'event_id,name' })
-          .select('id, name, program_id, division')
+          if (existing && existing.length > 0) {
+            newTeamLookup.set(e.csvValue.toLowerCase().trim(), existing[0].id)
+            continue
+          }
 
-        if (createErr) { toast.error(`Failed to create teams: ${createErr.message}`); setImportingSchedule(false); return }
+          const { data: created, error: createErr } = await sb
+            .from('teams')
+            .insert({
+              event_id: eventId,
+              name: e.csvValue.trim(),
+              division: e.detectedDivision || '',
+              program_id: e.detectedProgram?.id ?? null,
+              color: '#0B3D91',
+            })
+            .select('id, name')
+            .single()
 
-        // Also insert into program_teams for backwards compat
-        const ptInserts = (created ?? [])
-          .filter((t: any) => t.program_id)
-          .map((t: any) => ({
-            event_id: eventId!,
-            program_id: t.program_id,
-            team_id: t.id,
-            division: t.division,
-          }))
-        if (ptInserts.length > 0) {
-          await sb.from('program_teams').upsert(ptInserts, { onConflict: 'program_id,team_id,event_id' })
+          if (createErr) {
+            console.warn(`Failed to create team "${e.csvValue}": ${createErr.message}`)
+            continue
+          }
+          if (created) {
+            newTeamLookup.set(e.csvValue.toLowerCase().trim(), created.id)
+          }
         }
-
-        for (const t of created ?? []) {
-          newTeamLookup.set(t.name.toLowerCase().trim(), t.id)
+        if (newTeamLookup.size > 0) {
+          toast.success(`${newTeamLookup.size} team${newTeamLookup.size !== 1 ? 's' : ''} created`)
         }
-        toast.success(`${created?.length ?? 0} team${(created?.length ?? 0) !== 1 ? 's' : ''} created`)
       }
 
-      // 2. Build lookup maps for teams and fields
-      const teamMap = new Map(state.teams.map(t => [t.name.toLowerCase(), t]))
-      const teamIdMap = new Map(state.teams.map(t => [String(t.id), t]))
-      const fieldMap = new Map(state.fields.map(f => [f.name.toLowerCase(), f]))
+      // 2. Reload teams to include newly created ones
+      const { data: freshTeams } = await sb
+        .from('teams')
+        .select('id, name, division')
+        .eq('event_id', eventId!)
+
+      const teamMap = new Map<string, { id: number; name: string; division: string }>()
+      for (const t of (freshTeams ?? [])) {
+        teamMap.set(t.name.toLowerCase().trim(), t)
+      }
+
+      // Also add newly created teams
+      for (const [key, id] of newTeamLookup) {
+        if (!teamMap.has(key)) {
+          teamMap.set(key, { id, name: key, division: '' })
+        }
+      }
+
+      const fieldMap = new Map(state.fields.map(f => [f.name.toLowerCase().trim(), f]))
       const fieldIdMap = new Map(state.fields.map(f => [String(f.id), f]))
 
       // Build resolved field/div name map from old-style mismatches
@@ -632,8 +652,24 @@ export function ScheduleTab() {
         }
       }
 
+      // Build event_date map for date matching
+      const { data: eventDates } = await sb
+        .from('event_dates')
+        .select('id, date')
+        .eq('event_id', eventId!)
+        .order('date')
+
+      const dateMap = new Map<string, number>()
+      for (const ed of (eventDates ?? [])) {
+        dateMap.set(ed.date, ed.id)
+        // Also map common formats
+        const d = new Date(ed.date + 'T12:00:00')
+        dateMap.set(`${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()}`, ed.id)
+        dateMap.set(`${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}/${d.getFullYear()}`, ed.id)
+      }
+
+      const gamesToInsert: any[] = []
       const errors: string[] = []
-      let gamesCreated = 0
       let gamesSkipped = 0
 
       for (let i = 0; i < scheduleCsvPreview.rows.length; i++) {
@@ -658,45 +694,71 @@ export function ScheduleTab() {
 
         if (!homeTeamId) { errors.push(`Row ${i + 1}: home team "${row.home_team}" not found`); continue }
         if (!awayTeamId) { errors.push(`Row ${i + 1}: away team "${row.away_team}" not found`); continue }
-        if (!field && row.field) { errors.push(`Row ${i + 1}: field "${row.field}" not found — using first field`); }
+
+        // Match date to event_date
+        let eventDateId = currentDate?.id
+        if (row.date) {
+          const dateKey = row.date.trim()
+          const matched = dateMap.get(dateKey)
+          if (matched) {
+            eventDateId = matched
+          } else {
+            // Try parsing as a date and matching
+            const parsed = new Date(dateKey)
+            if (!isNaN(parsed.getTime())) {
+              const isoDate = parsed.toISOString().split('T')[0]
+              const matchedIso = dateMap.get(isoDate)
+              if (matchedIso) eventDateId = matchedIso
+            }
+          }
+        }
+
+        if (!eventDateId) { errors.push(`Row ${i + 1}: no matching event date for "${row.date}"`); continue }
 
         // Parse time to display format
-        let timeStr = row.time
-        const tm = row.time.match(/^(\d{1,2}):(\d{2})$/)
-        if (tm) {
-          const h = parseInt(tm[1])
-          const m = parseInt(tm[2])
+        let timeStr = row.time || ''
+        const tm24 = timeStr.match(/^(\d{1,2}):(\d{2})$/)
+        if (tm24) {
+          const h = parseInt(tm24[1])
+          const m = parseInt(tm24[2])
           const ampm = h >= 12 ? 'PM' : 'AM'
           const dh = h > 12 ? h - 12 : h === 0 ? 12 : h
           timeStr = `${dh}:${m.toString().padStart(2, '0')} ${ampm}`
         }
 
-        const { error } = await sb.from('games').insert({
+        gamesToInsert.push({
           event_id: eventId,
-          event_date_id: currentDate.id,
+          event_date_id: eventDateId,
           field_id: field?.id ?? state.fields[0]?.id,
           home_team_id: homeTeamId,
           away_team_id: awayTeamId,
-          division: row.division || '',
+          division: row.division || teamMap.get(homeKey)?.division || '',
           scheduled_time: timeStr,
           status: 'Scheduled',
           home_score: 0,
           away_score: 0,
         })
-        if (error) {
-          errors.push(`Row ${i + 1}: ${error.message}`)
+      }
+
+      // Batch insert games
+      if (gamesToInsert.length > 0) {
+        const { error: insertErr, data: inserted } = await sb
+          .from('games')
+          .insert(gamesToInsert)
+          .select('id')
+
+        if (insertErr) {
+          toast.error(`Import failed: ${insertErr.message}`)
         } else {
-          gamesCreated++
+          toast.success(`${inserted?.length ?? gamesToInsert.length} game${gamesToInsert.length !== 1 ? 's' : ''} imported${gamesSkipped ? ` (${gamesSkipped} skipped)` : ''}`)
         }
       }
 
       if (errors.length > 0) {
-        toast.error(`${errors.length} error${errors.length !== 1 ? 's' : ''} during import`)
+        toast.error(`${errors.length} row${errors.length !== 1 ? 's' : ''} had errors — check console`)
         console.warn('Schedule import errors:', errors)
       }
-      if (gamesCreated > 0) {
-        toast.success(`${gamesCreated} game${gamesCreated !== 1 ? 's' : ''} imported${gamesSkipped ? ` (${gamesSkipped} skipped)` : ''}`)
-      }
+
       setScheduleCsvPreview(null)
       setCsvMismatches([])
       setResolverEntries([])
@@ -1410,7 +1472,7 @@ export function ScheduleTab() {
       {/* Schedule CSV Preview Modal */}
       {scheduleCsvPreview && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="bg-surface-card border border-border rounded-xl w-full max-w-5xl max-h-[85vh] flex flex-col shadow-xl">
+          <div className="bg-surface-card border border-border rounded-xl w-full max-w-5xl max-h-[90vh] flex flex-col shadow-xl overflow-hidden">
             <div className="flex items-center justify-between px-5 py-3 border-b border-border">
               <div className="font-cond font-black text-[14px] text-white tracking-wider">
                 IMPORT SCHEDULE — {scheduleCsvPreview.rows.length} game{scheduleCsvPreview.rows.length !== 1 ? 's' : ''}
@@ -1420,6 +1482,7 @@ export function ScheduleTab() {
               </button>
             </div>
 
+            <div className="flex-1 overflow-y-auto">
             {scheduleCsvPreview.warnings.length > 0 && (
               <div className="px-5 py-2 bg-yellow-900/20 border-b border-yellow-800/30">
                 <div className="flex items-center gap-1.5 font-cond text-[11px] font-bold text-yellow-400 mb-1">
@@ -1463,7 +1526,7 @@ export function ScheduleTab() {
 
             {/* Enhanced Team Resolver */}
             {resolverEntries.length > 0 && (
-              <div className="px-5 py-3 border-b border-border bg-navy/20 overflow-y-auto" style={{ maxHeight: '50vh' }}>
+              <div className="px-5 py-3 border-b border-border bg-navy/20">
                 <div className="flex items-center justify-between mb-3">
                   <div className="font-cond font-black text-[13px] text-white tracking-wider">
                     {resolverEntries.length} UNMATCHED TEAM{resolverEntries.length !== 1 ? 'S' : ''}
@@ -1668,7 +1731,8 @@ export function ScheduleTab() {
               </div>
             )}
 
-            <div className="flex items-center justify-between px-5 py-3 border-t border-border">
+            </div>{/* end scrollable body */}
+            <div className="flex items-center justify-between px-5 py-3 border-t border-border shrink-0">
               <span className="font-cond text-[11px] text-muted">
                 {scheduleCsvPreview.rows.length - skippedCsvValues.size} game{(scheduleCsvPreview.rows.length - skippedCsvValues.size) !== 1 ? 's' : ''} will be imported
                 {teamsToCreate.length > 0 && <span className="text-green-400 ml-2">{teamsToCreate.length} team{teamsToCreate.length !== 1 ? 's' : ''} will be created</span>}
