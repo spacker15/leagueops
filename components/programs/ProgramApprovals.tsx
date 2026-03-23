@@ -9,7 +9,8 @@ import { useApp } from '@/lib/store'
 import { cn } from '@/lib/utils'
 import { Btn, SectionHeader, Input, Select, FormField, Card } from '@/components/ui'
 import toast from 'react-hot-toast'
-import { CheckCircle, XCircle, Clock, Users, Building2, RefreshCw, Plus, ChevronDown, ChevronUp } from 'lucide-react'
+import { CheckCircle, XCircle, Clock, Users, Building2, RefreshCw, Plus, ChevronDown, ChevronUp, Upload, Download, X, AlertTriangle } from 'lucide-react'
+import { useRef } from 'react'
 
 interface Program {
   id: number
@@ -64,6 +65,12 @@ export function ProgramApprovals() {
   const [newTeam, setNewTeam] = useState({ name: '', division: '', association: '', color: '#0B3D91' })
   const [creatingTeam, setCreatingTeam] = useState(false)
   const [divisions, setDivisions] = useState<string[]>([])
+
+  // CSV import state
+  const [csvPreview, setCsvPreview] = useState<{ type: 'programs' | 'teams'; rows: Record<string, string>[]; warnings: string[] } | null>(null)
+  const [importing, setImporting] = useState(false)
+  const programFileRef = useRef<HTMLInputElement>(null)
+  const teamFileRef = useRef<HTMLInputElement>(null)
 
   const load = useCallback(async () => {
     const sb = createClient()
@@ -311,6 +318,128 @@ export function ProgramApprovals() {
     setCreatingTeam(false)
   }
 
+  // --- CSV helpers ---
+  function parseCSV(text: string): string[][] {
+    const rows: string[][] = []
+    let current = ''
+    let inQuotes = false
+    let row: string[] = []
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i]
+      if (inQuotes) {
+        if (ch === '"' && text[i + 1] === '"') { current += '"'; i++ }
+        else if (ch === '"') inQuotes = false
+        else current += ch
+      } else {
+        if (ch === '"') inQuotes = true
+        else if (ch === ',') { row.push(current.trim()); current = '' }
+        else if (ch === '\n' || ch === '\r') {
+          if (ch === '\r' && text[i + 1] === '\n') i++
+          row.push(current.trim()); current = ''
+          if (row.some(c => c)) rows.push(row)
+          row = []
+        } else current += ch
+      }
+    }
+    row.push(current.trim())
+    if (row.some(c => c)) rows.push(row)
+    return rows
+  }
+
+  function downloadTemplate(type: 'programs' | 'teams') {
+    const headers = type === 'programs'
+      ? 'name,short_name,association,city,state,contact_name,contact_email'
+      : 'name,division,association'
+    const example = type === 'programs'
+      ? '\nMetro FC,MFC,US Club,Springfield,IL,John Smith,john@metro.com'
+      : '\nMetro FC Blue,U12 Boys,US Club'
+    const blob = new Blob([headers + example], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = `${type}_template.csv`; a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  function handleCSVFile(file: File, type: 'programs' | 'teams') {
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      const text = e.target?.result as string
+      const parsed = parseCSV(text)
+      if (parsed.length < 2) { toast.error('CSV must have a header row and at least one data row'); return }
+
+      const headers = parsed[0].map(h => h.toLowerCase().replace(/\s+/g, '_'))
+      const expectedCols = type === 'programs'
+        ? ['name', 'short_name', 'association', 'city', 'state', 'contact_name', 'contact_email']
+        : ['name', 'division', 'association']
+
+      const rows: Record<string, string>[] = []
+      const warnings: string[] = []
+
+      // Check header match
+      const missing = expectedCols.filter(c => !headers.includes(c))
+      if (missing.length > 0) warnings.push(`Missing columns: ${missing.join(', ')} — those fields will be empty`)
+
+      for (let i = 1; i < parsed.length; i++) {
+        const obj: Record<string, string> = {}
+        headers.forEach((h, idx) => { obj[h] = parsed[i][idx] || '' })
+        // Validate required fields
+        if (!obj.name) { warnings.push(`Row ${i}: missing name — will skip`); continue }
+        if (type === 'programs' && !obj.contact_name && !obj.contact_email) {
+          warnings.push(`Row ${i} (${obj.name}): missing contact_name and contact_email`)
+        }
+        if (type === 'teams' && !obj.division) {
+          warnings.push(`Row ${i} (${obj.name}): missing division`)
+        }
+        rows.push(obj)
+      }
+
+      if (rows.length === 0) { toast.error('No valid rows found in CSV'); return }
+      setCsvPreview({ type, rows, warnings })
+    }
+    reader.readAsText(file)
+  }
+
+  async function importCSV() {
+    if (!csvPreview) return
+    setImporting(true)
+    const sb = createClient()
+
+    try {
+      if (csvPreview.type === 'programs') {
+        const inserts = csvPreview.rows.map(r => ({
+          name: r.name,
+          short_name: r.short_name || null,
+          association: r.association || null,
+          city: r.city || null,
+          state: r.state || null,
+          contact_name: r.contact_name || r.name,
+          contact_email: r.contact_email || '',
+          status: 'approved' as const,
+          approved_by: user?.id,
+          approved_at: new Date().toISOString(),
+        }))
+        const { error } = await sb.from('programs').insert(inserts)
+        if (error) throw error
+        toast.success(`${inserts.length} program${inserts.length !== 1 ? 's' : ''} imported`)
+      } else {
+        const inserts = csvPreview.rows.map(r => ({
+          event_id: eventId!,
+          name: r.name,
+          division: r.division || '',
+          association: r.association || null,
+        }))
+        const { error } = await sb.from('teams').insert(inserts)
+        if (error) throw error
+        toast.success(`${inserts.length} team${inserts.length !== 1 ? 's' : ''} imported`)
+      }
+      setCsvPreview(null)
+      load()
+    } catch (err: any) {
+      toast.error(err.message || 'Import failed')
+    }
+    setImporting(false)
+  }
+
   const filteredPrograms = programs.filter((p) => filter === 'all' || p.status === filter)
   const filteredTeams = teamRegs.filter((t) => filter === 'all' || t.status === filter)
   const pendingPrograms = programs.filter((p) => p.status === 'pending').length
@@ -395,15 +524,24 @@ export function ProgramApprovals() {
             <div className="space-y-3">
               {/* Create Program */}
               <div className="mb-2">
-                <Btn
-                  size="sm"
-                  variant={showCreateProgram ? 'ghost' : 'primary'}
-                  onClick={() => setShowCreateProgram(!showCreateProgram)}
-                >
-                  <Plus size={11} className="inline mr-1" />
-                  ADD PROGRAM
-                  {showCreateProgram ? <ChevronUp size={11} className="inline ml-1" /> : <ChevronDown size={11} className="inline ml-1" />}
-                </Btn>
+                <div className="flex items-center gap-2">
+                  <Btn
+                    size="sm"
+                    variant={showCreateProgram ? 'ghost' : 'primary'}
+                    onClick={() => setShowCreateProgram(!showCreateProgram)}
+                  >
+                    <Plus size={11} className="inline mr-1" />
+                    ADD PROGRAM
+                    {showCreateProgram ? <ChevronUp size={11} className="inline ml-1" /> : <ChevronDown size={11} className="inline ml-1" />}
+                  </Btn>
+                  <Btn size="sm" variant="ghost" onClick={() => programFileRef.current?.click()}>
+                    <Upload size={11} className="inline mr-1" /> IMPORT CSV
+                  </Btn>
+                  <button onClick={() => downloadTemplate('programs')} className="font-cond text-[11px] text-blue-400 hover:text-blue-300 flex items-center gap-1">
+                    <Download size={10} /> Template
+                  </button>
+                  <input ref={programFileRef} type="file" accept=".csv" className="hidden" onChange={(e) => { if (e.target.files?.[0]) handleCSVFile(e.target.files[0], 'programs'); e.target.value = '' }} />
+                </div>
                 {showCreateProgram && (
                   <Card className="mt-2 p-4">
                     <div className="grid grid-cols-2 gap-3">
@@ -599,15 +737,24 @@ export function ProgramApprovals() {
             <div className="space-y-3">
               {/* Create Team */}
               <div className="mb-2">
-                <Btn
-                  size="sm"
-                  variant={showCreateTeam ? 'ghost' : 'primary'}
-                  onClick={() => setShowCreateTeam(!showCreateTeam)}
-                >
-                  <Plus size={11} className="inline mr-1" />
-                  ADD TEAM
-                  {showCreateTeam ? <ChevronUp size={11} className="inline ml-1" /> : <ChevronDown size={11} className="inline ml-1" />}
-                </Btn>
+                <div className="flex items-center gap-2">
+                  <Btn
+                    size="sm"
+                    variant={showCreateTeam ? 'ghost' : 'primary'}
+                    onClick={() => setShowCreateTeam(!showCreateTeam)}
+                  >
+                    <Plus size={11} className="inline mr-1" />
+                    ADD TEAM
+                    {showCreateTeam ? <ChevronUp size={11} className="inline ml-1" /> : <ChevronDown size={11} className="inline ml-1" />}
+                  </Btn>
+                  <Btn size="sm" variant="ghost" onClick={() => teamFileRef.current?.click()}>
+                    <Upload size={11} className="inline mr-1" /> IMPORT CSV
+                  </Btn>
+                  <button onClick={() => downloadTemplate('teams')} className="font-cond text-[11px] text-blue-400 hover:text-blue-300 flex items-center gap-1">
+                    <Download size={10} /> Template
+                  </button>
+                  <input ref={teamFileRef} type="file" accept=".csv" className="hidden" onChange={(e) => { if (e.target.files?.[0]) handleCSVFile(e.target.files[0], 'teams'); e.target.value = '' }} />
+                </div>
                 {showCreateTeam && (
                   <Card className="mt-2 p-4">
                     <div className="grid grid-cols-2 gap-3">
@@ -783,6 +930,75 @@ export function ProgramApprovals() {
           )}
           {activeTab === 'config' && <RegistrationConfig />}
         </>
+      )}
+
+      {/* CSV Preview Modal */}
+      {csvPreview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-surface-card border border-border rounded-xl w-full max-w-3xl max-h-[80vh] flex flex-col shadow-xl">
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-3 border-b border-border">
+              <div className="font-cond font-black text-[14px] text-white tracking-wider">
+                IMPORT {csvPreview.type === 'programs' ? 'PROGRAMS' : 'TEAMS'} — {csvPreview.rows.length} row{csvPreview.rows.length !== 1 ? 's' : ''}
+              </div>
+              <button onClick={() => setCsvPreview(null)} className="text-muted hover:text-white">
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Warnings */}
+            {csvPreview.warnings.length > 0 && (
+              <div className="px-5 py-2 bg-yellow-900/20 border-b border-yellow-800/30">
+                <div className="flex items-center gap-1.5 font-cond text-[11px] font-bold text-yellow-400 mb-1">
+                  <AlertTriangle size={12} /> WARNINGS
+                </div>
+                {csvPreview.warnings.map((w, i) => (
+                  <div key={i} className="font-cond text-[11px] text-yellow-300/80">{w}</div>
+                ))}
+              </div>
+            )}
+
+            {/* Table */}
+            <div className="flex-1 overflow-auto px-5 py-3">
+              <table className="w-full text-[11px]">
+                <thead>
+                  <tr className="border-b border-border">
+                    <th className="font-cond font-bold text-muted text-left py-1.5 pr-3">#</th>
+                    {Object.keys(csvPreview.rows[0] || {}).map(col => (
+                      <th key={col} className="font-cond font-bold text-muted text-left py-1.5 pr-3">
+                        {col.toUpperCase().replace(/_/g, ' ')}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {csvPreview.rows.map((row, i) => (
+                    <tr key={i} className="border-b border-border/50 hover:bg-navy/20">
+                      <td className="font-cond text-muted py-1.5 pr-3">{i + 1}</td>
+                      {Object.values(row).map((val, j) => (
+                        <td key={j} className="font-cond text-white py-1.5 pr-3">{val || <span className="text-muted italic">—</span>}</td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-between px-5 py-3 border-t border-border">
+              <span className="font-cond text-[11px] text-muted">
+                {csvPreview.rows.length} row{csvPreview.rows.length !== 1 ? 's' : ''} will be imported
+                {csvPreview.type === 'programs' ? ' with status=approved' : ` into current event`}
+              </span>
+              <div className="flex gap-2">
+                <Btn size="sm" variant="ghost" onClick={() => setCsvPreview(null)}>CANCEL</Btn>
+                <Btn size="sm" variant="success" onClick={importCSV} disabled={importing}>
+                  {importing ? 'IMPORTING...' : `IMPORT ${csvPreview.rows.length} ${csvPreview.type === 'programs' ? 'PROGRAM' : 'TEAM'}${csvPreview.rows.length !== 1 ? 'S' : ''}`}
+                </Btn>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

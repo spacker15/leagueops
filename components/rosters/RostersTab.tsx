@@ -43,6 +43,23 @@ export function RostersTab() {
   const [teamPlayers, setTeamPlayers] = useState<any[]>([])
   const [loadingTeam, setLoadingTeam] = useState(false)
   const [committed, setCommitted] = useState(false)
+  const [divFilter, setDivFilter] = useState('')
+
+  // Derive unique divisions from teams, sorted
+  const divisions = [...new Set(state.teams.map((t) => t.division))].filter(Boolean).sort()
+
+  // Teams filtered by selected division
+  const filteredTeams = divFilter
+    ? state.teams.filter((t) => t.division === divFilter)
+    : state.teams
+
+  // Group filtered teams by division for the selector
+  const teamsByDivision = filteredTeams.reduce<Record<string, typeof state.teams>>((acc, t) => {
+    const div = t.division || 'Unassigned'
+    if (!acc[div]) acc[div] = []
+    acc[div].push(t)
+    return acc
+  }, {})
 
   function handleDrop(e: React.DragEvent) {
     e.preventDefault()
@@ -405,6 +422,25 @@ export function RostersTab() {
             )}
           </div>
 
+          {/* Division filter */}
+          <select
+            className="w-full bg-surface-card border border-border text-white px-3 py-2 rounded font-cond text-[11px] font-bold outline-none focus:border-blue-400 mb-2"
+            value={divFilter}
+            onChange={(e) => {
+              setDivFilter(e.target.value)
+              setTeamId(null)
+              setTeamPlayers([])
+            }}
+          >
+            <option value="">All Divisions ({state.teams.length} teams)</option>
+            {divisions.map((d) => (
+              <option key={d} value={d}>
+                {d} ({state.teams.filter((t) => t.division === d).length} teams)
+              </option>
+            ))}
+          </select>
+
+          {/* Team selector grouped by division */}
           <select
             className="w-full bg-surface-card border border-border text-white px-3 py-2 rounded font-cond text-[13px] font-bold outline-none focus:border-blue-400 mb-3"
             value={teamId ?? ''}
@@ -413,11 +449,17 @@ export function RostersTab() {
             }
           >
             <option value="">Select team…</option>
-            {state.teams.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name} ({t.division})
-              </option>
-            ))}
+            {Object.entries(teamsByDivision)
+              .sort(([a], [b]) => a.localeCompare(b))
+              .map(([div, teams]) => (
+                <optgroup key={div} label={div}>
+                  {teams.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
           </select>
 
           {loadingTeam && <div className="text-center py-8 text-muted font-cond">LOADING…</div>}

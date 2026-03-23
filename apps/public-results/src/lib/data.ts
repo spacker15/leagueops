@@ -8,6 +8,7 @@ export interface PublicEvent {
   start_date: string
   end_date: string
   logo_url?: string
+  public_schedule?: boolean
 }
 
 export interface PublicGame {
@@ -33,7 +34,7 @@ export interface PublicTeam {
 export async function getPublicEvents(): Promise<PublicEvent[]> {
   const { data, error } = await supabase
     .from('events')
-    .select('id, name, slug, location, start_date, end_date, logo_url')
+    .select('id, name, slug, location, start_date, end_date, logo_url, public_schedule')
     .order('start_date', { ascending: false })
 
   if (error) throw error
@@ -43,7 +44,7 @@ export async function getPublicEvents(): Promise<PublicEvent[]> {
 export async function getPublicEventBySlug(slug: string): Promise<PublicEvent | null> {
   const { data, error } = await supabase
     .from('events')
-    .select('id, name, slug, location, start_date, end_date, logo_url')
+    .select('id, name, slug, location, start_date, end_date, logo_url, public_schedule')
     .eq('slug', slug)
     .single()
 

@@ -16,16 +16,33 @@ import {
   Zap,
   ChevronRight,
   MoveHorizontal,
+  Star,
+  X,
 } from 'lucide-react'
 
 type ViewMode = 'table' | 'board'
+type TeamFilter = 'all' | 'my-teams'
+
+const FOLLOWED_TEAMS_KEY = 'leagueops-followed-teams'
+
+function loadFollowedTeams(): number[] {
+  try {
+    const raw = localStorage.getItem(FOLLOWED_TEAMS_KEY)
+    if (raw) return JSON.parse(raw)
+  } catch {}
+  return []
+}
+
+function saveFollowedTeams(ids: number[]) {
+  localStorage.setItem(FOLLOWED_TEAMS_KEY, JSON.stringify(ids))
+}
 
 interface FieldConflict extends OperationalConflict {
   conflict_type: 'field_overlap' | 'field_blocked' | 'schedule_cascade' | 'missing_referee'
 }
 
 export function ScheduleTab() {
-  const { state, updateGameStatus, addGame, currentDate, eventId } = useApp()
+  const { state, updateGameStatus, addGame, refreshGames, currentDate, eventId } = useApp()
   const [viewMode, setViewMode] = useState<ViewMode>('board')
   const [fieldFilter, setFieldFilter] = useState('')
   const [divFilter, setDivFilter] = useState('')
@@ -36,12 +53,39 @@ export function ScheduleTab() {
   const [engineResult, setEngineResult] = useState<string | null>(null)
   const [applying, setApplying] = useState<number | null>(null)
   const [showConflicts, setShowConflicts] = useState(false)
+  const [genOpen, setGenOpen] = useState(false)
+  const [generating, setGenerating] = useState(false)
+
+  // Follow teams
+  const [followedTeams, setFollowedTeams] = useState<number[]>(loadFollowedTeams)
+  const [teamFilter, setTeamFilter] = useState<TeamFilter>('all')
+  const [teamPickerOpen, setTeamPickerOpen] = useState(false)
+  const followedSet = useMemo(() => new Set(followedTeams), [followedTeams])
+
+  function toggleFollowTeam(id: number) {
+    setFollowedTeams((prev) => {
+      const next = prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id]
+      saveFollowedTeams(next)
+      return next
+    })
+  }
+
+  // Close team picker on outside click
+  useEffect(() => {
+    if (!teamPickerOpen) return
+    const handler = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      if (!target.closest('[data-team-picker]')) setTeamPickerOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [teamPickerOpen])
 
   // Add game form
   const [agField, setAgField] = useState('')
   const [agHome, setAgHome] = useState('')
   const [agAway, setAgAway] = useState('')
-  const [agDiv, setAgDiv] = useState('U14')
+  const [agDiv, setAgDiv] = useState('')
   const [agTime, setAgTime] = useState('08:00')
 
   const loadConflicts = useCallback(async () => {
@@ -151,8 +195,11 @@ export function ScheduleTab() {
     if (fieldFilter) g = g.filter((x) => String(x.field_id) === fieldFilter)
     if (divFilter) g = g.filter((x) => x.division.startsWith(divFilter))
     if (statusFilter) g = g.filter((x) => x.status === statusFilter)
+    if (teamFilter === 'my-teams' && followedTeams.length > 0) {
+      g = g.filter((x) => followedSet.has(x.home_team_id) || followedSet.has(x.away_team_id))
+    }
     return g
-  }, [state.games, fieldFilter, divFilter, statusFilter])
+  }, [state.games, fieldFilter, divFilter, statusFilter, teamFilter, followedTeams, followedSet])
 
   async function cycleStatus(gameId: number, current: GameStatus) {
     const next = nextGameStatus(current)
@@ -162,8 +209,8 @@ export function ScheduleTab() {
   }
 
   async function handleAddGame() {
-    if (!agField || !agHome || !agAway || agHome === agAway) {
-      toast.error('Fill all fields. Home ≠ Away.')
+    if (!agField || !agHome || !agAway || !agDiv || agHome === agAway) {
+      toast.error('Fill all fields (including division). Home ≠ Away.')
       return
     }
     if (!currentDate) {
@@ -191,6 +238,28 @@ export function ScheduleTab() {
     setAddOpen(false)
   }
 
+  // Generate schedule
+  async function handleGenerateSchedule() {
+    if (!eventId) return
+    setGenerating(true)
+    try {
+      const res = await fetch('/api/schedule-engine', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event_id: eventId }),
+      })
+      const data = await res.json()
+      if (!res.ok || data.error) throw new Error(data.error || 'Generation failed')
+      toast.success(`Schedule generated: ${data.gamesCreated} games created`)
+      setGenOpen(false)
+      await refreshGames()
+    } catch (err: any) {
+      toast.error(`Schedule error: ${err.message}`)
+    } finally {
+      setGenerating(false)
+    }
+  }
+
   // Field columns for board view
   const fieldColumns = useMemo(() => {
     return state.fields
@@ -214,6 +283,100 @@ export function ScheduleTab() {
 
   return (
     <div>
+      {/* Follow Teams Bar */}
+      <div className="flex flex-wrap items-center gap-2 mb-3 bg-surface-card border border-border rounded-lg px-3 py-2">
+        <span className="font-cond text-[10px] font-black tracking-widest text-muted mr-1">
+          <Star size={10} className="inline mr-1 text-yellow-400" />
+          MY TEAMS
+        </span>
+
+        {/* Followed team chips */}
+        {followedTeams.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {followedTeams.map((id) => {
+              const team = state.teams.find((t) => t.id === id)
+              if (!team) return null
+              return (
+                <span
+                  key={id}
+                  className="inline-flex items-center gap-1 font-cond text-[10px] font-bold bg-blue-900/40 text-blue-300 border border-blue-700/40 px-2 py-0.5 rounded-full"
+                >
+                  <Star size={8} className="text-yellow-400 fill-yellow-400" />
+                  {team.name}
+                  <button
+                    onClick={() => toggleFollowTeam(id)}
+                    className="hover:text-red-400 transition-colors ml-0.5"
+                  >
+                    <X size={9} />
+                  </button>
+                </span>
+              )
+            })}
+          </div>
+        )}
+
+        {/* Team picker dropdown */}
+        <div className="relative" data-team-picker>
+          <button
+            onClick={() => setTeamPickerOpen((o) => !o)}
+            className="font-cond text-[10px] font-bold tracking-wider px-2 py-1 rounded border border-border bg-navy hover:bg-navy-light text-white transition-colors"
+          >
+            + FOLLOW TEAM
+          </button>
+          {teamPickerOpen && (
+            <div className="absolute z-50 mt-1 left-0 w-56 max-h-60 overflow-y-auto bg-surface-card border border-border rounded-lg shadow-xl">
+              {state.teams
+                .slice()
+                .sort((a, b) => a.name.localeCompare(b.name))
+                .map((team) => {
+                  const isFollowed = followedSet.has(team.id)
+                  return (
+                    <button
+                      key={team.id}
+                      onClick={() => toggleFollowTeam(team.id)}
+                      className={cn(
+                        'w-full flex items-center gap-2 px-3 py-1.5 text-left font-cond text-[11px] font-bold transition-colors border-b border-border/30 last:border-0',
+                        isFollowed
+                          ? 'bg-blue-900/30 text-blue-300'
+                          : 'hover:bg-white/5 text-white'
+                      )}
+                    >
+                      <Star
+                        size={10}
+                        className={cn(
+                          isFollowed ? 'text-yellow-400 fill-yellow-400' : 'text-muted'
+                        )}
+                      />
+                      <span className="truncate">{team.name}</span>
+                      <span className="text-[9px] text-muted ml-auto">{team.division}</span>
+                    </button>
+                  )
+                })}
+            </div>
+          )}
+        </div>
+
+        {/* Filter toggle: ALL GAMES | MY TEAMS */}
+        {followedTeams.length > 0 && (
+          <div className="flex rounded overflow-hidden border border-border ml-auto">
+            {(['all', 'my-teams'] as TeamFilter[]).map((f) => (
+              <button
+                key={f}
+                onClick={() => setTeamFilter(f)}
+                className={cn(
+                  'font-cond text-[10px] font-bold tracking-wider px-3 py-1 transition-colors',
+                  teamFilter === f
+                    ? 'bg-blue-700 text-white'
+                    : 'bg-surface-card text-muted hover:text-white'
+                )}
+              >
+                {f === 'all' ? 'ALL GAMES' : 'MY TEAMS'}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* Toolbar */}
       <div className="flex flex-wrap gap-2 mb-3 items-center">
         {/* View toggle */}
@@ -278,6 +441,10 @@ export function ScheduleTab() {
 
         <Btn size="sm" variant="primary" onClick={() => setAddOpen(true)}>
           + ADD GAME
+        </Btn>
+        <Btn size="sm" variant="primary" onClick={() => setGenOpen(true)}>
+          <Zap size={11} className="inline mr-1" />
+          GENERATE SCHEDULE
         </Btn>
 
         <div className="ml-auto flex items-center gap-2">
@@ -369,6 +536,9 @@ export function ScheduleTab() {
               {filtered.map((game) => {
                 const hasConflict = conflictGameIds.has(game.id)
                 const conflict = conflicts.find((c) => c.impacted_game_ids?.includes(game.id))
+                const isFollowedGame =
+                  followedTeams.length > 0 &&
+                  (followedSet.has(game.home_team_id) || followedSet.has(game.away_team_id))
                 return (
                   <tr
                     key={game.id}
@@ -380,7 +550,10 @@ export function ScheduleTab() {
                           ? 'bg-red-900/10'
                           : hasConflict
                             ? 'bg-yellow-900/8'
-                            : ''
+                            : isFollowedGame
+                              ? 'bg-blue-900/8'
+                              : '',
+                      isFollowedGame && 'border-l-2 border-l-blue-500'
                     )}
                   >
                     <td className="font-mono text-blue-300 text-[11px] px-3 py-2 whitespace-nowrap">
@@ -404,9 +577,15 @@ export function ScheduleTab() {
                       {game.field?.name ?? `F${game.field_id}`}
                     </td>
                     <td className="font-cond font-bold text-white px-3 py-2">
+                      {followedSet.has(game.home_team_id) && (
+                        <Star size={9} className="inline mr-1 text-yellow-400 fill-yellow-400" />
+                      )}
                       {game.home_team?.name ?? '?'}
                     </td>
                     <td className="font-cond font-bold text-white px-3 py-2">
+                      {followedSet.has(game.away_team_id) && (
+                        <Star size={9} className="inline mr-1 text-yellow-400 fill-yellow-400" />
+                      )}
                       {game.away_team?.name ?? '?'}
                     </td>
                     <td className="px-3 py-2">
@@ -456,6 +635,7 @@ export function ScheduleTab() {
           conflictGameIds={conflictGameIds}
           onCycleStatus={cycleStatus}
           onRescheduled={loadConflicts}
+          followedSet={followedSet}
         />
       )}
 
@@ -504,6 +684,7 @@ export function ScheduleTab() {
               value={agDiv}
               onChange={(e) => setAgDiv(e.target.value)}
             >
+              <option value="">Select division…</option>
               {divisions.map((d) => (
                 <option key={d} value={d}>
                   {d}
@@ -542,6 +723,52 @@ export function ScheduleTab() {
                 ))}
             </select>
           </FormField>
+        </div>
+      </Modal>
+
+      {/* Generate schedule confirmation modal */}
+      <Modal
+        open={genOpen}
+        onClose={() => setGenOpen(false)}
+        title="GENERATE SCHEDULE"
+        footer={
+          <>
+            <Btn variant="ghost" size="sm" onClick={() => setGenOpen(false)}>
+              CANCEL
+            </Btn>
+            <Btn variant="primary" size="sm" onClick={handleGenerateSchedule} disabled={generating}>
+              {generating ? 'GENERATING...' : 'GENERATE'}
+            </Btn>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <p className="text-[13px] text-muted">
+            This will auto-generate a round-robin schedule for all divisions.
+          </p>
+          <div className="grid grid-cols-3 gap-3 text-center">
+            <div className="bg-navy/40 rounded-lg p-3">
+              <div className="font-cond font-black text-xl text-white">{state.teams.length}</div>
+              <div className="font-cond text-[10px] text-muted tracking-wide">TEAMS</div>
+            </div>
+            <div className="bg-navy/40 rounded-lg p-3">
+              <div className="font-cond font-black text-xl text-white">{state.fields.length}</div>
+              <div className="font-cond text-[10px] text-muted tracking-wide">FIELDS</div>
+            </div>
+            <div className="bg-navy/40 rounded-lg p-3">
+              <div className="font-cond font-black text-xl text-white">{divisions.length}</div>
+              <div className="font-cond text-[10px] text-muted tracking-wide">DIVISIONS</div>
+            </div>
+          </div>
+          {state.games.length > 0 && (
+            <div className="bg-yellow-900/30 border border-yellow-700/40 rounded-lg px-3 py-2 text-[12px] text-yellow-300 flex items-center gap-2">
+              <AlertTriangle size={14} />
+              {state.games.length} existing games will not be removed. New games will be added alongside them.
+            </div>
+          )}
+          <p className="text-[11px] text-muted">
+            Games are generated using round-robin within each division and assigned to available time slots across all event dates and fields.
+          </p>
         </div>
       </Modal>
     </div>
@@ -748,12 +975,14 @@ function ScheduleBoardView({
   conflictGameIds,
   onCycleStatus,
   onRescheduled,
+  followedSet,
 }: {
   fieldColumns: Array<{ field: any; games: any[] }>
   conflicts: any[]
   conflictGameIds: Set<number>
   onCycleStatus: (id: number, status: GameStatus) => void
   onRescheduled: () => void
+  followedSet: Set<number>
 }) {
   return (
     <div className="overflow-x-auto pb-3">
@@ -851,6 +1080,7 @@ function ScheduleBoardView({
                     conflict={conflicts.find((c) => c.impacted_game_ids?.includes(game.id))}
                     onCycleStatus={onCycleStatus}
                     onRescheduled={onRescheduled}
+                    followedSet={followedSet}
                   />
                 ))}
               </div>
@@ -869,18 +1099,23 @@ function GameCard({
   conflict,
   onCycleStatus,
   onRescheduled,
+  followedSet,
 }: {
   game: any
   hasConflict: boolean
   conflict: any
   onCycleStatus: (id: number, status: GameStatus) => void
   onRescheduled: () => void
+  followedSet: Set<number>
 }) {
   const [expanded, setExpanded] = useState(false)
   const isLive = game.status === 'Live' || game.status === 'Halftime'
   const isFinal = game.status === 'Final'
   const isDelayed = game.status === 'Delayed'
   const isStarting = game.status === 'Starting'
+  const isFollowedGame =
+    followedSet.size > 0 &&
+    (followedSet.has(game.home_team_id) || followedSet.has(game.away_team_id))
 
   const borderColor =
     hasConflict && conflict?.severity === 'critical'
@@ -895,7 +1130,9 @@ function GameCard({
               ? 'border-orange-500/60'
               : isFinal
                 ? 'border-border/40'
-                : 'border-border'
+                : isFollowedGame
+                  ? 'border-blue-500/60'
+                  : 'border-border'
 
   const bgColor = isLive
     ? 'bg-green-900/10'
@@ -903,7 +1140,9 @@ function GameCard({
       ? 'bg-red-900/10'
       : isFinal
         ? 'bg-surface-card/50'
-        : 'bg-surface-card'
+        : isFollowedGame
+          ? 'bg-blue-900/10'
+          : 'bg-surface-card'
 
   return (
     <div
@@ -975,6 +1214,9 @@ function GameCard({
           <div className="flex items-center justify-between mb-2">
             <div className="flex-1 min-w-0">
               <div className="font-cond font-black text-[13px] leading-tight truncate">
+                {followedSet.has(game.home_team_id) && (
+                  <Star size={9} className="inline mr-1 text-yellow-400 fill-yellow-400" />
+                )}
                 {game.home_team?.name ?? '?'}
               </div>
             </div>
@@ -1000,16 +1242,25 @@ function GameCard({
             <div className="flex-1 min-w-0 text-right">
               <div className="font-cond font-black text-[13px] leading-tight truncate">
                 {game.away_team?.name ?? '?'}
+                {followedSet.has(game.away_team_id) && (
+                  <Star size={9} className="inline ml-1 text-yellow-400 fill-yellow-400" />
+                )}
               </div>
             </div>
           </div>
         ) : (
           <div className="mb-2">
             <div className="font-cond font-black text-[13px] leading-tight mb-0.5">
+              {followedSet.has(game.home_team_id) && (
+                <Star size={9} className="inline mr-1 text-yellow-400 fill-yellow-400" />
+              )}
               {game.home_team?.name ?? '?'}
             </div>
             <div className="font-cond text-[10px] text-muted mb-0.5">vs</div>
             <div className="font-cond font-black text-[13px] leading-tight">
+              {followedSet.has(game.away_team_id) && (
+                <Star size={9} className="inline mr-1 text-yellow-400 fill-yellow-400" />
+              )}
               {game.away_team?.name ?? '?'}
             </div>
           </div>

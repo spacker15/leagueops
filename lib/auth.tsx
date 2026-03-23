@@ -29,7 +29,8 @@ export interface UserRole {
 interface AuthContextValue {
   user: User | null
   session: Session | null
-  userRole: UserRole | null
+  userRole: UserRole | null          // primary (first) role — kept for backwards compat
+  userRoles: UserRole[]              // all active roles
   loading: boolean
   signIn: (email: string, password: string) => Promise<{ error: string | null }>
   signOut: () => Promise<void>
@@ -46,7 +47,7 @@ const AuthCtx = createContext<AuthContextValue | null>(null)
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [session, setSession] = useState<Session | null>(null)
-  const [userRole, setUserRole] = useState<UserRole | null>(null)
+  const [userRoles, setUserRoles] = useState<UserRole[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -56,7 +57,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     sb.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
       setUser(session?.user ?? null)
-      if (session?.user) loadUserRole(session.user.id)
+      if (session?.user) loadUserRoles(session.user.id)
       else setLoading(false)
     })
 
@@ -66,9 +67,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } = sb.auth.onAuthStateChange((_event, session) => {
       setSession(session)
       setUser(session?.user ?? null)
-      if (session?.user) loadUserRole(session.user.id)
+      if (session?.user) loadUserRoles(session.user.id)
       else {
-        setUserRole(null)
+        setUserRoles([])
         setLoading(false)
       }
     })
@@ -76,7 +77,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.unsubscribe()
   }, [])
 
-  async function loadUserRole(userId: string) {
+  async function loadUserRoles(userId: string) {
     const sb = createClient()
     const { data } = await sb
       .from('user_roles')
@@ -84,9 +85,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .eq('user_id', userId)
       .eq('is_active', true)
       .order('id')
-      .limit(1)
-      .single()
-    setUserRole((data as UserRole) ?? null)
+    setUserRoles((data as UserRole[]) ?? [])
     setLoading(false)
   }
 
@@ -99,14 +98,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   async function signOut() {
     const sb = createClient()
     await sb.auth.signOut()
-    setUserRole(null)
+    setUserRoles([])
   }
 
-  const isAdmin = userRole?.role === 'admin'
-  const isLeagueAdmin = userRole?.role === 'league_admin'
-  const isReferee = userRole?.role === 'referee'
-  const isVolunteer = userRole?.role === 'volunteer'
-  const isCoach = userRole?.role === 'coach'
+  // Primary role (first) for backwards compatibility
+  const userRole = userRoles.length > 0 ? userRoles[0] : null
+
+  // Boolean flags check ANY role in the array
+  const isAdmin = userRoles.some((r) => r.role === 'admin')
+  const isLeagueAdmin = userRoles.some((r) => r.role === 'league_admin')
+  const isReferee = userRoles.some((r) => r.role === 'referee')
+  const isVolunteer = userRoles.some((r) => r.role === 'volunteer')
+  const isCoach = userRoles.some((r) => r.role === 'coach')
   const canManage = isAdmin || isLeagueAdmin
 
   return (
@@ -115,6 +118,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user,
         session,
         userRole,
+        userRoles,
         loading,
         signIn,
         signOut,

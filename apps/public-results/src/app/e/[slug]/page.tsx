@@ -27,8 +27,11 @@ export default async function EventPage({ params, searchParams }: Props) {
   const allStandings = computeStandings(teams, games)
   const byDivision = groupBy(allStandings, (s) => s.division)
 
+  const scheduledGames = games.filter((g) => g.status !== 'Final')
+
   const tabs = [
     { id: 'standings', label: 'Standings' },
+    ...(event.public_schedule ? [{ id: 'schedule', label: `Schedule (${games.length})` }] : []),
     { id: 'results', label: `Results (${finalGames.length})` },
     { id: 'live', label: `Live (${liveGames.length})`, highlight: liveGames.length > 0 },
   ]
@@ -86,7 +89,7 @@ export default async function EventPage({ params, searchParams }: Props) {
         ))}
 
         {/* Division filter */}
-        {activeTab === 'standings' && divisions.length > 2 && (
+        {(activeTab === 'standings' || activeTab === 'schedule') && divisions.length > 2 && (
           <div className="ml-auto flex items-center gap-2 pb-1">
             {divisions.map((d) => (
               <Link
@@ -107,6 +110,7 @@ export default async function EventPage({ params, searchParams }: Props) {
       {activeTab === 'standings' && (
         <StandingsSection byDivision={byDivision} divFilter={divFilter} />
       )}
+      {activeTab === 'schedule' && <ScheduleSection games={games} divFilter={divFilter} />}
       {activeTab === 'results' && <ResultsSection games={finalGames} />}
       {activeTab === 'live' && <LiveSection games={liveGames} />}
     </div>
@@ -192,6 +196,68 @@ function StandingsSection({
             </div>
             <div className="font-cond text-[9px] text-[#5a6e9a] mt-1 tracking-wide">
               W = 3 pts · T = 1 pt · Tiebreakers: GD → GF
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function ScheduleSection({ games, divFilter }: { games: PublicGame[]; divFilter: string }) {
+  const filtered = divFilter === 'ALL' ? games : games.filter((g) => g.division === divFilter)
+
+  if (filtered.length === 0) return <Empty message="No games scheduled yet." />
+
+  const byDate = groupBy(filtered, (g) => g.event_date?.date ?? 'TBD')
+  const sortedDates = Object.keys(byDate).sort()
+
+  return (
+    <div className="space-y-6">
+      {sortedDates.map((date) => {
+        const dateGames = byDate[date].sort((a, b) => (a.scheduled_time ?? '').localeCompare(b.scheduled_time ?? ''))
+        const dateLabel = date === 'TBD' ? 'TBD' : new Date(date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })
+        return (
+          <div key={date}>
+            <div className="font-cond text-[10px] font-black tracking-[.15em] text-[#5a6e9a] uppercase mb-2">
+              {dateLabel}
+            </div>
+            <div className="space-y-2">
+              {dateGames.map((game) => (
+                <div
+                  key={game.id}
+                  className={`bg-[#081428] border rounded-xl px-4 py-3 flex items-center gap-4 ${
+                    game.status === 'Live' || game.status === 'Halftime'
+                      ? 'border-green-400/30'
+                      : game.status === 'Final'
+                        ? 'border-[#1a2d50]'
+                        : 'border-[#1a2d50]'
+                  }`}
+                >
+                  <div className="w-14 shrink-0 text-center">
+                    <div className="font-mono text-[12px] text-white">{game.scheduled_time ?? '—'}</div>
+                    <div className="font-cond text-[9px] text-[#5a6e9a] uppercase">{game.field?.name ?? ''}</div>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <span className="font-cond font-bold text-[13px] text-white truncate">{game.home_team?.name ?? 'TBD'}</span>
+                      <span className="font-mono font-bold text-[16px] text-white tabular-nums">{game.status === 'Scheduled' ? '' : game.home_score}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="font-cond font-bold text-[13px] text-white truncate">{game.away_team?.name ?? 'TBD'}</span>
+                      <span className="font-mono font-bold text-[16px] text-white tabular-nums">{game.status === 'Scheduled' ? '' : game.away_score}</span>
+                    </div>
+                  </div>
+                  <div className="shrink-0">
+                    <div className={`font-cond text-[10px] font-black tracking-[.1em] uppercase ${
+                      game.status === 'Live' || game.status === 'Halftime' ? 'text-green-400' : game.status === 'Final' ? 'text-[#5a6e9a]' : 'text-blue-400'
+                    }`}>
+                      {game.status}
+                    </div>
+                    <div className="font-cond text-[9px] text-[#5a6e9a] uppercase">{game.division}</div>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         )

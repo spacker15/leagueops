@@ -249,6 +249,11 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
   const [divisionNames, setDivisionNames] = useState<string[]>([])
   const [expandedDivision, setExpandedDivision] = useState<string | null>(null)
   const [divTimingSaving, setDivTimingSaving] = useState(false)
+  // Season game days state
+  const [gameDays, setGameDays] = useState<
+    Record<number, { start_time: string; end_time: string; is_active: boolean }>
+  >({})
+  const [gameDaysSaving, setGameDaysSaving] = useState(false)
 
   useEffect(() => {
     loadEvent()
@@ -258,6 +263,9 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
   useEffect(() => {
     if (settingsTab === 'schedule' && eventId) {
       loadDivisionTimings()
+      if (event.event_type === 'season' || event.event_type === 'league') {
+        loadGameDays()
+      }
     }
   }, [settingsTab, eventId])
 
@@ -325,6 +333,49 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
       ...prev,
       [divName]: { ...prev[divName], [field]: value },
     }))
+  }
+
+  async function loadGameDays() {
+    const sb = createClient()
+    const { data } = await sb
+      .from('season_game_days')
+      .select('*')
+      .eq('event_id', eventId)
+    const map: Record<number, { start_time: string; end_time: string; is_active: boolean }> = {}
+    for (const row of data ?? []) {
+      map[(row as any).day_of_week] = {
+        start_time: (row as any).start_time ?? '09:00',
+        end_time: (row as any).end_time ?? '17:00',
+        is_active: (row as any).is_active ?? true,
+      }
+    }
+    setGameDays(map)
+  }
+
+  async function saveGameDays() {
+    setGameDaysSaving(true)
+    const sb = createClient()
+    // Delete all existing rows for this event, then insert active ones
+    await sb.from('season_game_days').delete().eq('event_id', eventId)
+    const rows = Object.entries(gameDays)
+      .filter(([, v]) => v.is_active)
+      .map(([day, v]) => ({
+        event_id: eventId,
+        day_of_week: Number(day),
+        start_time: v.start_time,
+        end_time: v.end_time,
+        is_active: true,
+      }))
+    if (rows.length > 0) {
+      const { error } = await sb.from('season_game_days').insert(rows)
+      if (error) {
+        toast.error(error.message)
+        setGameDaysSaving(false)
+        return
+      }
+    }
+    toast.success('Game days saved')
+    setGameDaysSaving(false)
   }
 
   async function loadComplexes(eventId: number) {
@@ -1441,6 +1492,100 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                 />
               </div>
             </Card>
+
+            {/* Season Game Days - only for season/league */}
+            {(event.event_type === 'season' || event.event_type === 'league') && (
+              <Card title="Season Game Days" icon={<Calendar size={14} />}>
+                <div className="space-y-4">
+                  <div className="font-cond text-[11px] text-muted">
+                    Select which days of the week games will be played and set the start/end times for each day.
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((dayLabel, dayIdx) => {
+                      const isChecked = gameDays[dayIdx]?.is_active ?? false
+                      return (
+                        <button
+                          key={dayIdx}
+                          type="button"
+                          onClick={() => {
+                            setGameDays((prev) => ({
+                              ...prev,
+                              [dayIdx]: {
+                                start_time: prev[dayIdx]?.start_time ?? '09:00',
+                                end_time: prev[dayIdx]?.end_time ?? '17:00',
+                                is_active: !isChecked,
+                              },
+                            }))
+                          }}
+                          className={cn(
+                            'font-cond text-[12px] font-black tracking-[.08em] uppercase px-4 py-2 rounded-lg border transition-colors',
+                            isChecked
+                              ? 'bg-blue-600/20 border-blue-500 text-blue-400'
+                              : 'bg-transparent border-[#1a2d50] text-muted hover:text-white hover:border-[#2a3d60]'
+                          )}
+                        >
+                          {dayLabel}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  {Object.entries(gameDays)
+                    .filter(([, v]) => v.is_active)
+                    .sort(([a], [b]) => Number(a) - Number(b))
+                    .map(([dayIdx, val]) => {
+                      const dayLabels = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+                      return (
+                        <div
+                          key={dayIdx}
+                          className="flex items-center gap-4 bg-[#0a1c35] border border-[#1a2d50] rounded-lg px-4 py-3"
+                        >
+                          <span className="font-cond text-[12px] font-black tracking-[.08em] text-white uppercase w-24">
+                            {dayLabels[Number(dayIdx)]}
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <label className={lbl + ' mb-0'}>Start</label>
+                            <input
+                              type="time"
+                              className={inp + ' w-32 font-mono'}
+                              value={val.start_time}
+                              onChange={(e) =>
+                                setGameDays((prev) => ({
+                                  ...prev,
+                                  [dayIdx]: { ...prev[Number(dayIdx)], start_time: e.target.value },
+                                }))
+                              }
+                            />
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <label className={lbl + ' mb-0'}>End</label>
+                            <input
+                              type="time"
+                              className={inp + ' w-32 font-mono'}
+                              value={val.end_time}
+                              onChange={(e) =>
+                                setGameDays((prev) => ({
+                                  ...prev,
+                                  [dayIdx]: { ...prev[Number(dayIdx)], end_time: e.target.value },
+                                }))
+                              }
+                            />
+                          </div>
+                        </div>
+                      )
+                    })}
+                  {Object.values(gameDays).some((v) => v.is_active) && (
+                    <button
+                      type="button"
+                      onClick={saveGameDays}
+                      disabled={gameDaysSaving}
+                      className="font-cond text-[11px] font-black tracking-[.08em] uppercase px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors disabled:opacity-50"
+                    >
+                      {gameDaysSaving ? 'Saving...' : 'Save Game Days'}
+                    </button>
+                  )}
+                </div>
+              </Card>
+            )}
           </div>
         )}
 

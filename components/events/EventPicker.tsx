@@ -237,7 +237,7 @@ export function EventPicker({ onSelectEvent }: Props) {
         event_id: newEventId,
         is_active: true,
       },
-      { onConflict: 'user_id,event_id' }
+      { onConflict: 'user_id,event_id,role' }
     )
 
     // Create the primary complex

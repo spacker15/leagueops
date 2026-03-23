@@ -457,7 +457,8 @@ function RegisterPageInner() {
             website: website || null,
             notes: notes || null,
             logo_url: logoUrl ?? null,
-            status: 'pending',
+            status: 'approved',
+            approved_at: new Date().toISOString(),
           })
           .select()
           .single()
@@ -473,7 +474,7 @@ function RegisterPageInner() {
           display_name: contactName,
           program_id: programId,
           event_id: eventId,
-          is_active: false,
+          is_active: true,
         })
       }
 
@@ -491,10 +492,32 @@ function RegisterPageInner() {
             head_coach_email: team.coachEmail || null,
             head_coach_phone: team.coachPhone || null,
             player_count: team.playerCount ? Number(team.playerCount) : null,
-            status: 'pending',
+            status: 'approved',
           })
           .select()
           .single()
+
+        // Auto-create team record when registration is approved
+        if (reg) {
+          const { data: newTeam } = await sb
+            .from('teams')
+            .insert({
+              event_id: eventId,
+              name: team.name,
+              division: team.division,
+            })
+            .select()
+            .single()
+
+          if (newTeam && programId) {
+            await sb.from('program_teams').insert({
+              program_id: programId,
+              team_id: (newTeam as any).id,
+              event_id: eventId,
+              division: team.division,
+            })
+          }
+        }
 
         if (reg && Object.keys(team.customAnswers).length > 0) {
           for (const [key, answer] of Object.entries(team.customAnswers)) {

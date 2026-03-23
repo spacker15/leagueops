@@ -122,7 +122,7 @@ export function ProgramDashboard() {
     if (!userRole?.program_id) return
     setAddingTeam(true)
     const sb = createClient()
-    const { error } = await sb.from('team_registrations').insert({
+    const { data: reg, error } = await sb.from('team_registrations').insert({
       program_id: userRole.program_id,
       event_id: portalEventId,
       team_name: newTeamName,
@@ -130,14 +130,30 @@ export function ProgramDashboard() {
       head_coach_name: newCoachName || null,
       head_coach_email: newCoachEmail || null,
       player_count: newPlayerCount ? Number(newPlayerCount) : null,
-      status: 'pending',
-    })
+      status: 'approved',
+    }).select().single()
     if (error) {
       toast.error(error.message)
       setAddingTeam(false)
       return
     }
-    toast.success('Team registration submitted for review')
+    // Auto-create team record
+    if (reg) {
+      const { data: newTeam } = await sb.from('teams').insert({
+        event_id: portalEventId,
+        name: newTeamName,
+        division: newTeamDiv,
+      }).select().single()
+      if (newTeam && userRole.program_id) {
+        await sb.from('program_teams').insert({
+          program_id: userRole.program_id,
+          team_id: (newTeam as any).id,
+          event_id: portalEventId,
+          division: newTeamDiv,
+        })
+      }
+    }
+    toast.success('Team registered and approved!')
     setNewTeamName('')
     setNewCoachName('')
     setNewCoachEmail('')
