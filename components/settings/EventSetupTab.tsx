@@ -31,6 +31,7 @@ import {
 } from 'lucide-react'
 import * as db from '@/lib/db'
 import type { Complex } from '@/types'
+import { VenueAutocompleteInput } from '@/components/events/VenueAutocompleteInput'
 
 type SetupStep = 'sport' | 'type' | 'details' | 'done'
 type SettingsTab =
@@ -1163,11 +1164,17 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
 
               <div>
                 <label className={lbl}>Location / Venue *</label>
-                <input
-                  className={inp}
+                <VenueAutocompleteInput
                   value={event.location}
-                  onChange={(e) => set('location', e.target.value)}
-                  placeholder="e.g. Julington Creek Plantation Park, Jacksonville FL"
+                  onLocationChange={(text) => set('location', text)}
+                  onVenueSelect={(venue) => {
+                    set('location', venue.address || venue.name)
+                    set('venue_address', venue.address)
+                    set('venue_lat', venue.lat)
+                    set('venue_lng', venue.lng)
+                    set('venue_place_id', venue.place_id)
+                  }}
+                  selectedPlaceId={event.venue_place_id}
                 />
               </div>
 
@@ -1366,12 +1373,25 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                   </select>
                 </div>
                 <div>
-                  <label className={lbl}>General Location</label>
-                  <input
-                    className={inp}
+                  <label className={lbl}>Location / Venue</label>
+                  <VenueAutocompleteInput
                     value={event.location}
-                    onChange={(e) => set('location', e.target.value)}
-                    placeholder="Venue / Park name, City"
+                    onLocationChange={(text) => set('location', text)}
+                    onVenueSelect={async (venue) => {
+                      set('location', venue.address || venue.name)
+                      set('venue_address', venue.address)
+                      set('venue_lat', venue.lat)
+                      set('venue_lng', venue.lng)
+                      set('venue_place_id', venue.place_id)
+                      // Per D-03: also update associated complex record
+                      const sb = createClient()
+                      await sb.from('complexes')
+                        .update({ address: venue.address, lat: venue.lat, lng: venue.lng })
+                        .eq('event_id', eventId)
+                        .is('lat', null)
+                        .limit(1)
+                    }}
+                    selectedPlaceId={event.venue_place_id}
                   />
                 </div>
                 <div>
