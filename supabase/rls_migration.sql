@@ -192,9 +192,10 @@ ALTER TABLE division_timing        ENABLE ROW LEVEL SECURITY;
 -- ── GROUP A: Public tables — event-scoped for authenticated users ──────────
 
 -- events: the event_id IS the `id` column
+-- Owner fallback: lets creator SELECT immediately after INSERT (before user_roles row exists)
 CREATE POLICY "auth_select_events" ON events
   FOR SELECT TO authenticated
-  USING (id IN (SELECT user_event_ids()));
+  USING (id IN (SELECT user_event_ids()) OR owner_id = auth.uid());
 
 -- event_dates: direct event_id
 CREATE POLICY "auth_select_event_dates" ON event_dates
@@ -459,8 +460,8 @@ CREATE POLICY "auth_insert_events" ON events
 
 CREATE POLICY "auth_update_events" ON events
   FOR UPDATE TO authenticated
-  USING (id IN (SELECT user_event_ids()))
-  WITH CHECK (id IN (SELECT user_event_ids()));
+  USING (id IN (SELECT user_event_ids()) OR owner_id = auth.uid())
+  WITH CHECK (id IN (SELECT user_event_ids()) OR owner_id = auth.uid());
 
 CREATE POLICY "auth_delete_events" ON events
   FOR DELETE TO authenticated
