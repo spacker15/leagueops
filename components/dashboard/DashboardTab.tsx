@@ -271,7 +271,7 @@ export function DashboardTab() {
                         <span className="font-cond text-[10px] font-bold text-white truncate flex-1">
                           {g.home_team?.name ?? '?'} vs {g.away_team?.name ?? '?'}
                         </span>
-                        <StatusBadge status={g.status} size="xs" />
+                        <StatusBadge status={g.status} />
                       </button>
                     )
                   })}
