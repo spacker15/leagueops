@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/supabase/client'
 import { useAuth } from '@/lib/auth'
 import { cn } from '@/lib/utils'
+import { seedDefaultRules } from '@/lib/engines/schedule-rules'
 import {
   Plus,
   LogOut,
@@ -246,6 +247,9 @@ export function EventPicker({ onSelectEvent }: Props) {
       name: complexName.trim(),
       address: complexAddress.trim() || null,
     })
+
+    // Seed default scheduling rules for the new event
+    await seedDefaultRules(newEventId, sb)
 
     // ── Copy from source event if selected ──────────────────────────────────
     if (copySourceId) {

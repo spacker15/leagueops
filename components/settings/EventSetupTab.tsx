@@ -27,6 +27,7 @@ import {
   Check,
   Shield,
   ChevronDown,
+  Copy,
 } from 'lucide-react'
 import * as db from '@/lib/db'
 import type { Complex } from '@/types'
@@ -268,6 +269,10 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
   const [expandedRule, setExpandedRule] = useState<number | null>(null)
   const [showAddRule, setShowAddRule] = useState(false)
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set())
+  // Copy rules state
+  const [showCopyRules, setShowCopyRules] = useState(false)
+  const [copySourceEventId, setCopySourceEventId] = useState<number | null>(null)
+  const [copyableEvents, setCopyableEvents] = useState<{ id: number; name: string }[]>([])
 
   useEffect(() => {
     loadEvent()
@@ -346,6 +351,49 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
     } catch {
       toast.error('Failed to create rule')
     }
+  }
+
+  async function loadCopyableEvents() {
+    const sb = createClient()
+    const { data } = await sb
+      .from('events')
+      .select('id, name')
+      .neq('id', eventId)
+      .order('name')
+    setCopyableEvents(data ?? [])
+    setShowCopyRules(true)
+  }
+
+  async function copyRulesFromEvent(sourceEventId: number) {
+    const sb = createClient()
+
+    // Fetch source rules
+    const { data: sourceRules, error: fetchErr } = await sb
+      .from('schedule_rules')
+      .select('*')
+      .eq('event_id', sourceEventId)
+
+    if (fetchErr || !sourceRules) { toast.error('Failed to load source rules'); return }
+
+    // Insert as new rules for current event
+    const newRules = sourceRules.map(({ id, event_id, created_at, updated_at, ...rule }: any) => ({
+      ...rule,
+      event_id: eventId,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }))
+
+    const { error: insertErr } = await sb
+      .from('schedule_rules')
+      .upsert(newRules, { onConflict: 'event_id,rule_name' })
+
+    if (insertErr) { toast.error(insertErr.message); return }
+
+    const sourceName = copyableEvents.find(e => e.id === sourceEventId)?.name ?? 'event'
+    toast.success(`Copied ${newRules.length} rules from ${sourceName}`)
+    setShowCopyRules(false)
+    setCopySourceEventId(null)
+    loadRules()
   }
 
   async function loadDivisionTimings() {
@@ -1864,13 +1912,61 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
               <div className={sectionHdr}>
                 <Shield size={14} /> Schedule Rules
               </div>
-              <button
-                onClick={() => setShowAddRule(true)}
-                className="flex items-center gap-1.5 font-cond font-black text-[11px] tracking-[.1em] px-4 py-2 rounded-lg bg-red hover:bg-red/80 text-white transition-colors"
-              >
-                <Plus size={12} /> ADD RULE
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={loadCopyableEvents}
+                  className="flex items-center gap-1.5 font-cond font-black text-[11px] tracking-[.1em] px-4 py-2 rounded-lg border border-[#1a2d50] hover:bg-[#0c1a35] text-[#5a6e9a] hover:text-white transition-colors"
+                >
+                  <Copy size={12} /> COPY RULES FROM EVENT
+                </button>
+                <button
+                  onClick={() => setShowAddRule(true)}
+                  className="flex items-center gap-1.5 font-cond font-black text-[11px] tracking-[.1em] px-4 py-2 rounded-lg bg-red hover:bg-red/80 text-white transition-colors"
+                >
+                  <Plus size={12} /> ADD RULE
+                </button>
+              </div>
             </div>
+
+            {/* Copy Rules Dropdown */}
+            {showCopyRules && (
+              <div className="bg-[#081428] border border-[#1a2d50] rounded-xl p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-cond font-bold text-[12px] tracking-[.08em] text-white uppercase">Select Source Event</span>
+                  <button onClick={() => { setShowCopyRules(false); setCopySourceEventId(null) }} className="text-muted hover:text-white">
+                    <X size={14} />
+                  </button>
+                </div>
+                {copyableEvents.length === 0 ? (
+                  <div className="text-center py-4 text-muted font-cond text-[12px]">No other events found.</div>
+                ) : (
+                  <div className="space-y-1 max-h-48 overflow-y-auto">
+                    {copyableEvents.map(ev => (
+                      <button
+                        key={ev.id}
+                        onClick={() => setCopySourceEventId(ev.id)}
+                        className={cn(
+                          'w-full text-left px-3 py-2 rounded-lg font-cond text-[12px] transition-colors',
+                          copySourceEventId === ev.id
+                            ? 'bg-red/20 text-white border border-red/40'
+                            : 'hover:bg-[#0c1a35] text-[#8a9bc0]'
+                        )}
+                      >
+                        {ev.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {copySourceEventId && (
+                  <button
+                    onClick={() => copyRulesFromEvent(copySourceEventId)}
+                    className="w-full flex items-center justify-center gap-2 font-cond font-black text-[11px] tracking-[.1em] px-4 py-2.5 rounded-lg bg-red hover:bg-red/80 text-white transition-colors"
+                  >
+                    <Copy size={12} /> COPY RULES
+                  </button>
+                )}
+              </div>
+            )}
 
             {rulesLoading ? (
               <div className="text-center py-8 text-muted font-cond text-[12px]">Loading rules...</div>

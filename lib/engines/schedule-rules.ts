@@ -547,6 +547,35 @@ export function getEffectiveTiming(
 }
 
 /**
+ * Seed default scheduling rules for a brand-new event.
+ * No-ops if the event already has any rules.
+ */
+export async function seedDefaultRules(eventId: number, sb: SupabaseClient): Promise<void> {
+  // Check if rules already exist for this event
+  const { data: existing } = await sb
+    .from('schedule_rules')
+    .select('id')
+    .eq('event_id', eventId)
+    .limit(1)
+
+  if (existing && existing.length > 0) return // Already has rules
+
+  const defaults = [
+    { rule_name: 'Same division only', rule_type: 'constraint', category: 'global', conditions: { type: 'same_division_only' }, action: 'block', action_params: { reason: 'Teams must be in the same division' }, priority: 1000, enforcement: 'hard' },
+    { rule_name: 'No same-program matchups', rule_type: 'constraint', category: 'global', conditions: { type: 'same_program_block' }, action: 'block', action_params: { reason: 'Teams from same program cannot play each other' }, priority: 900, enforcement: 'hard' },
+    { rule_name: 'No back-to-back games', rule_type: 'constraint', category: 'global', conditions: { type: 'no_back_to_back' }, action: 'block', action_params: { reason: 'Team cannot play consecutive time slots' }, priority: 800, enforcement: 'hard' },
+    { rule_name: 'Minimum rest 60 minutes', rule_type: 'constraint', category: 'global', conditions: { type: 'min_rest', minutes: 60 }, action: 'block', action_params: { reason: 'Insufficient rest between games' }, priority: 700, enforcement: 'hard' },
+    { rule_name: 'Double-header spacing', rule_type: 'preference', category: 'global', conditions: { type: 'doubleheader_spacing', preferred_hours: 2, max_hours: 3 }, action: 'warn', action_params: {}, priority: 600, enforcement: 'soft' },
+    { rule_name: 'Rematch spacing 3 weeks', rule_type: 'preference', category: 'global', conditions: { type: 'rematch_spacing', min_weeks: 3 }, action: 'warn', action_params: { reason: 'Teams should not rematch within 3 weeks' }, priority: 500, enforcement: 'soft' },
+    { rule_name: 'Field-division restriction', rule_type: 'constraint', category: 'global', conditions: { type: 'field_division_check' }, action: 'block', action_params: { reason: 'Field not assigned to this division' }, priority: 1100, enforcement: 'hard' },
+  ]
+
+  await sb.from('schedule_rules').insert(
+    defaults.map(r => ({ event_id: eventId, ...r }))
+  )
+}
+
+/**
  * Get forced matchups from rules (action='force').
  */
 export function getForcedMatchups(rules: ScheduleRule[]): ScheduleRule[] {
