@@ -1,19 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient as createServerClient } from '@/supabase/server'
+import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { createUserSchema } from '@/schemas/admin'
 
 export async function POST(req: NextRequest) {
-  // Verify requester is admin
-  const sb = createServerClient()
+  // 1. Auth guard (SEC-02) — verify requester is authenticated
+  const supabase = await createClient()
   const {
     data: { user },
-  } = await sb.auth.getUser()
+    error: authError,
+  } = await supabase.auth.getUser()
 
-  if (!user) {
-    return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+  if (authError || !user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const { data: roleCheck } = await sb
+  // Verify requester has admin role
+  const { data: roleCheck } = await supabase
     .from('user_roles')
     .select('role')
     .eq('user_id', user.id)
@@ -24,16 +27,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
   }
 
-  const body = await req.json()
-  const { email, password, role, display_name, referee_id, volunteer_id, event_id } = body
-
-  if (!email || !password || !role) {
-    return NextResponse.json({ error: 'email, password, role required' }, { status: 400 })
+  // 2. Parse raw JSON body (SEC-07)
+  let body: unknown
+  try {
+    body = await req.json()
+  } catch {
+    return NextResponse.json({ success: false, error: 'Invalid JSON body' }, { status: 400 })
   }
 
-  if (!event_id) {
-    return NextResponse.json({ error: 'event_id required' }, { status: 400 })
+  // 3. Zod validation (SEC-07)
+  const result = createUserSchema.safeParse(body)
+  if (!result.success) {
+    return NextResponse.json({ success: false, error: result.error.flatten() }, { status: 400 })
   }
+
+  // 4. Business logic
+  const { email, password, role, display_name, referee_id, volunteer_id, event_id } = result.data
 
   // Use service role client to create auth user
   const adminSb = createAdminClient(

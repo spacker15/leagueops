@@ -1,35 +1,38 @@
-import { NextResponse } from 'next/server'
-import { createClient } from '@/supabase/server'
+import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
 import { resolveAlert } from '@/lib/engines/unified'
+import { resolveAlertSchema } from '@/schemas/engines'
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
+  // 1. Auth guard (SEC-02)
+  const supabase = await createClient()
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser()
+
+  if (authError || !user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  // 2. Parse raw JSON body (SEC-07)
+  let body: unknown
   try {
-    const body = await request.json()
-    const { alert_id, resolved_by, note, event_id } = body
+    body = await request.json()
+  } catch {
+    return NextResponse.json({ success: false, error: 'Invalid JSON body' }, { status: 400 })
+  }
 
-    if (!alert_id || typeof alert_id !== 'number') {
-      return NextResponse.json(
-        { error: 'alert_id is required and must be a number' },
-        { status: 400 }
-      )
-    }
+  // 3. Zod validation (SEC-07)
+  const result = resolveAlertSchema.safeParse(body)
+  if (!result.success) {
+    return NextResponse.json({ success: false, error: result.error.flatten() }, { status: 400 })
+  }
 
-    if (!resolved_by || typeof resolved_by !== 'string') {
-      return NextResponse.json(
-        { error: 'resolved_by is required and must be a string' },
-        { status: 400 }
-      )
-    }
-
-    if (!event_id || typeof event_id !== 'number') {
-      return NextResponse.json(
-        { error: 'event_id is required and must be a number' },
-        { status: 400 }
-      )
-    }
-
-    const sb = createClient()
-    await resolveAlert(alert_id, resolved_by, note ?? undefined, event_id, sb)
+  // 4. Business logic
+  try {
+    const { alert_id, resolved_by, note, event_id } = result.data
+    await resolveAlert(alert_id, resolved_by, note ?? undefined, event_id, supabase)
     return NextResponse.json({ success: true })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error'
