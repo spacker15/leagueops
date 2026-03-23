@@ -145,7 +145,7 @@ Plans:
 **Plans:** 5 plans
 
 Plans:
-- [ ] 05-00-PLAN.md — Wave 0: Test stub scaffolding (EVT-01 through EVT-06)
+- [x] 05-00-PLAN.md — Wave 0: Test stub scaffolding (EVT-01 through EVT-06)
 - [ ] 05-01-PLAN.md — Foundation: migration, types, package install, route fix, VenueAutocompleteInput component
 - [ ] 05-02-PLAN.md — Wire VenueAutocompleteInput into EventPicker + EventSetupTab
 - [ ] 05-03-PLAN.md — Sharing tab with registration link, QR code, and share buttons

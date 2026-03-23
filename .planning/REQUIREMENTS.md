@@ -20,12 +20,12 @@ Requirements for this milestone. Each maps to roadmap phases.
 
 ### Event Creation
 
-- [ ] **EVT-01**: Admin can search for a venue/complex via Google Maps autocomplete when creating an event
-- [ ] **EVT-02**: Complex location (lat/lng, address, place ID) saved to event record
+- [x] **EVT-01**: Admin can search for a venue/complex via Google Maps autocomplete when creating an event
+- [x] **EVT-02**: Complex location (lat/lng, address, place ID) saved to event record
 - [ ] **EVT-03**: Google Maps API key protected via server-side proxy route (not exposed as NEXT_PUBLIC)
-- [ ] **EVT-04**: System generates a unique registration link per event
-- [ ] **EVT-05**: System generates a QR code for the registration link that admin can download/share
-- [ ] **EVT-06**: Registration link/QR includes event slug for direct routing
+- [x] **EVT-04**: System generates a unique registration link per event
+- [x] **EVT-05**: System generates a QR code for the registration link that admin can download/share
+- [x] **EVT-06**: Registration link/QR includes event slug for direct routing
 
 ### Registration Flow
 
