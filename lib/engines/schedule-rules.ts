@@ -161,13 +161,16 @@ export async function loadWeeklyOverrides(eventId: number, sb: SupabaseClient): 
 
 export async function loadTeamProgramMap(eventId: number, sb: SupabaseClient): Promise<Map<number, { id: number; name: string }>> {
   const { data } = await sb
-    .from('program_teams')
-    .select('team_id, program_id, programs(name)')
+    .from('teams')
+    .select('id, program_id, programs(name)')
     .eq('event_id', eventId)
+    .not('program_id', 'is', null)
 
   const map = new Map<number, { id: number; name: string }>()
   for (const row of (data ?? []) as any[]) {
-    map.set(row.team_id, { id: row.program_id, name: row.programs?.name ?? '' })
+    if (row.program_id) {
+      map.set(row.id, { id: row.program_id, name: row.programs?.name ?? '' })
+    }
   }
   return map
 }

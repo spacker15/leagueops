@@ -9,7 +9,7 @@ import { useApp } from '@/lib/store'
 import { cn, findCsvMismatches, type CsvMismatch } from '@/lib/utils'
 import { Btn, SectionHeader, Input, Select, FormField, Card } from '@/components/ui'
 import toast from 'react-hot-toast'
-import { CheckCircle, XCircle, Clock, Users, Building2, RefreshCw, Plus, ChevronDown, ChevronUp, Upload, Download, X, AlertTriangle, Trash2 } from 'lucide-react'
+import { CheckCircle, XCircle, Clock, Users, Building2, RefreshCw, Plus, ChevronDown, ChevronUp, Upload, Download, X, AlertTriangle, Trash2, ChevronRight } from 'lucide-react'
 import { useRef } from 'react'
 
 interface Program {
@@ -36,7 +36,9 @@ interface TeamRow {
   division: string
   association: string | null
   color: string | null
+  program_id: number | null
   created_at: string
+  programs?: { name: string } | null
 }
 
 interface TeamReg {
@@ -65,8 +67,11 @@ export function ProgramApprovals() {
   const [actionId, setActionId] = useState<number | null>(null)
   const [rejectNote, setRejectNote] = useState('')
   const [rejectingId, setRejectingId] = useState<number | null>(null)
-  const [activeTab, setActiveTab] = useState<'programs' | 'teams' | 'config'>('programs')
+  const [activeTab, setActiveTab] = useState<'programs' | 'config'>('programs')
   const [deletingId, setDeletingId] = useState<number | null>(null)
+
+  // Collapsed programs
+  const [collapsedPrograms, setCollapsedPrograms] = useState<Set<number>>(new Set())
 
   // Create Program state
   const [showCreateProgram, setShowCreateProgram] = useState(false)
@@ -75,7 +80,7 @@ export function ProgramApprovals() {
 
   // Create Team state
   const [showCreateTeam, setShowCreateTeam] = useState(false)
-  const [newTeam, setNewTeam] = useState({ name: '', division: '', association: '', color: '#0B3D91' })
+  const [newTeam, setNewTeam] = useState({ name: '', division: '', association: '', color: '#0B3D91', program_id: '' as string })
   const [creatingTeam, setCreatingTeam] = useState(false)
   const [divisions, setDivisions] = useState<string[]>([])
 
@@ -92,8 +97,8 @@ export function ProgramApprovals() {
     const sb = createClient()
     setLoading(true)
     const [{ data: progs }, { data: teamsData }, { data: regs }, { data: divs }] = await Promise.all([
-      sb.from('programs').select('*').eq('event_id', eventId).order('created_at', { ascending: false }),
-      sb.from('teams').select('*').eq('event_id', eventId!).order('name'),
+      sb.from('programs').select('*').eq('event_id', eventId).order('name'),
+      sb.from('teams').select('*, programs(name)').eq('event_id', eventId!).order('division').order('name'),
       sb
         .from('team_registrations')
         .select('*, program:programs(name)')
@@ -103,7 +108,7 @@ export function ProgramApprovals() {
         : Promise.resolve({ data: [] }),
     ])
     setPrograms((progs as Program[]) ?? [])
-    setTeams((teamsData as TeamRow[]) ?? [])
+    setTeams((teamsData as unknown as TeamRow[]) ?? [])
     setTeamRegs((regs as unknown as TeamReg[]) ?? [])
     setDivisions((divs ?? []).map((d: any) => d.name))
     setLoading(false)
@@ -115,38 +120,58 @@ export function ProgramApprovals() {
 
   if (!eventId) return null
 
-  // --- Delete program (cascade-deletes teams with matching program_id via program_teams) ---
+  // Toggle program collapse
+  function toggleProgram(id: number) {
+    setCollapsedPrograms(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  // Group teams by program, then by division
+  function groupTeamsByProgram() {
+    const byProgram = new Map<number | null, TeamRow[]>()
+    for (const team of teams) {
+      const key = team.program_id ?? null
+      if (!byProgram.has(key)) byProgram.set(key, [])
+      byProgram.get(key)!.push(team)
+    }
+    return byProgram
+  }
+
+  function groupByDivision(teamList: TeamRow[]) {
+    const byDiv = new Map<string, TeamRow[]>()
+    for (const t of teamList) {
+      const div = t.division || 'Unassigned'
+      if (!byDiv.has(div)) byDiv.set(div, [])
+      byDiv.get(div)!.push(t)
+    }
+    return byDiv
+  }
+
+  // --- Delete program (cascade-deletes teams) ---
   async function deleteProgram(prog: Program) {
-    if (!confirm(`Delete program "${prog.name}" and ALL its linked teams? This cannot be undone.`)) return
+    if (!confirm(`Delete program "${prog.name}" and ALL its teams? This cannot be undone.`)) return
     setDeletingId(prog.id)
     const sb = createClient()
 
-    // Find all team IDs linked to this program for this event
-    const { data: linkedTeams } = await sb
-      .from('program_teams')
-      .select('team_id')
-      .eq('program_id', prog.id)
-      .eq('event_id', eventId)
+    // Delete teams with this program_id
+    await sb.from('teams').delete().eq('program_id', prog.id)
 
-    const teamIds = (linkedTeams ?? []).map((t: any) => t.team_id)
-
-    // Delete program_teams links
+    // Delete program_teams links (backwards compat)
     await sb.from('program_teams').delete().eq('program_id', prog.id).eq('event_id', eventId)
 
     // Delete team_registrations for this program
     await sb.from('team_registrations').delete().eq('program_id', prog.id)
-
-    // Delete the linked teams
-    if (teamIds.length > 0) {
-      await sb.from('teams').delete().in('id', teamIds)
-    }
 
     // Delete the program itself
     const { error } = await sb.from('programs').delete().eq('id', prog.id)
     if (error) {
       toast.error(error.message)
     } else {
-      toast.success(`Program "${prog.name}" deleted (${teamIds.length} team${teamIds.length !== 1 ? 's' : ''} removed)`)
+      toast.success(`Program "${prog.name}" deleted`)
     }
     setDeletingId(null)
     load()
@@ -158,7 +183,7 @@ export function ProgramApprovals() {
     setDeletingId(team.id)
     const sb = createClient()
 
-    // Remove from program_teams
+    // Remove from program_teams (backwards compat)
     await sb.from('program_teams').delete().eq('team_id', team.id)
 
     // Delete team
@@ -202,20 +227,21 @@ export function ProgramApprovals() {
 
     let teamsCreated = 0
     for (const reg of pendingTeams ?? []) {
-      // Create the actual team record
+      // Create the actual team record with program_id
       const { data: team, error: teamErr } = await sb
         .from('teams')
         .insert({
           event_id: eventId,
           name: reg.team_name,
           division: reg.division,
+          program_id: prog.id,
         })
         .select()
         .single()
 
       if (teamErr || !team) continue
 
-      // Link team to program
+      // Link team to program (backwards compat)
       await sb.from('program_teams').insert({
         program_id: prog.id,
         team_id: (team as any).id,
@@ -272,13 +298,14 @@ export function ProgramApprovals() {
     setActionId(reg.id)
     const sb = createClient()
 
-    // Create the actual team record
+    // Create the actual team record with program_id
     const { data: team, error } = await sb
       .from('teams')
       .insert({
         event_id: eventId,
         name: reg.team_name,
         division: reg.division,
+        program_id: reg.program_id,
       })
       .select()
       .single()
@@ -289,7 +316,7 @@ export function ProgramApprovals() {
       return
     }
 
-    // Link team to program
+    // Link team to program (backwards compat)
     await sb.from('program_teams').insert({
       program_id: reg.program_id,
       team_id: team.id,
@@ -384,18 +411,29 @@ export function ProgramApprovals() {
     }
     setCreatingTeam(true)
     const sb = createClient()
-    const { error } = await sb.from('teams').insert({
+    const programId = newTeam.program_id ? Number(newTeam.program_id) : null
+    const { data: insertedTeam, error } = await sb.from('teams').insert({
       event_id: eventId,
       name: newTeam.name,
       division: newTeam.division,
       association: newTeam.association || null,
       color: newTeam.color || '#0B3D91',
-    })
+      program_id: programId,
+    }).select().single()
     if (error) {
       toast.error(error.message)
     } else {
+      // Also insert into program_teams for backwards compat
+      if (programId && insertedTeam) {
+        await sb.from('program_teams').insert({
+          event_id: eventId,
+          program_id: programId,
+          team_id: (insertedTeam as any).id,
+          division: newTeam.division,
+        })
+      }
       toast.success(`Team "${newTeam.name}" created`)
-      setNewTeam({ name: '', division: '', association: '', color: '#0B3D91' })
+      setNewTeam({ name: '', division: '', association: '', color: '#0B3D91', program_id: '' })
       setShowCreateTeam(false)
       load()
     }
@@ -433,10 +471,10 @@ export function ProgramApprovals() {
   function downloadTemplate(type: 'programs' | 'teams') {
     const headers = type === 'programs'
       ? 'name,short_name,city,state,contact_name,contact_email'
-      : 'name,division'
+      : 'name,division,program,color'
     const example = type === 'programs'
       ? '\nMetro FC,MFC,Springfield,IL,John Smith,john@metro.com'
-      : '\nMetro FC Blue,U12 Boys'
+      : '\nMetro FC Blue,U12 Boys,Metro FC,#0B3D91'
     const blob = new Blob([headers + example], { type: 'text/csv' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -462,13 +500,17 @@ export function ProgramApprovals() {
   }
 
   function exportTeamsCSV() {
-    const headers = ['name', 'division', 'association', 'color']
+    const headers = ['name', 'division', 'program', 'association', 'color']
     const csvRows = [headers.join(',')]
     for (const t of teams) {
-      csvRows.push(headers.map(h => {
-        const val = (t as any)[h] ?? ''
-        return `"${String(val).replace(/"/g, '""')}"`
-      }).join(','))
+      const progName = t.programs?.name ?? ''
+      csvRows.push([
+        `"${String(t.name).replace(/"/g, '""')}"`,
+        `"${String(t.division).replace(/"/g, '""')}"`,
+        `"${String(progName).replace(/"/g, '""')}"`,
+        `"${String(t.association ?? '').replace(/"/g, '""')}"`,
+        `"${String(t.color ?? '').replace(/"/g, '""')}"`,
+      ].join(','))
     }
     const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' })
     const url = URL.createObjectURL(blob)
@@ -572,11 +614,17 @@ export function ProgramApprovals() {
         if (error) throw error
         toast.success(`${inserts.length} program${inserts.length !== 1 ? 's' : ''} imported${skipped ? ` (${skipped} duplicate${skipped !== 1 ? 's' : ''} skipped)` : ''}`)
       } else {
+        // Build program name -> id lookup for fuzzy matching
+        const progNameMap = new Map<string, number>()
+        for (const p of programs) {
+          progNameMap.set(p.name.toLowerCase().trim(), p.id)
+          if (p.short_name) progNameMap.set(p.short_name.toLowerCase().trim(), p.id)
+        }
+
         const existingKeys = new Set(teams.map(t => `${t.name.toLowerCase()}|${t.division.toLowerCase()}`))
         const seen = new Set<string>()
         const rowsToImport = csvPreview.rows.filter(r => !skippedCsvValues.has((r.division || '').toLowerCase().trim()))
         const inserts = rowsToImport.filter(r => {
-          // Resolve division via mismatch map
           const resolvedDiv = resolvedDivMap.get((r.division || '').toLowerCase().trim()) || r.division || ''
           const key = `${r.name.trim().toLowerCase()}|${resolvedDiv.toLowerCase()}`
           if (existingKeys.has(key) || seen.has(key)) return false
@@ -584,16 +632,37 @@ export function ProgramApprovals() {
           return true
         }).map(r => {
           const resolvedDiv = resolvedDivMap.get((r.division || '').toLowerCase().trim()) || r.division || ''
+          // Fuzzy match program column
+          const csvProgName = (r.program || '').toLowerCase().trim()
+          const matchedProgramId = csvProgName ? (progNameMap.get(csvProgName) ?? null) : null
           return {
             event_id: eventId!,
             name: r.name,
             division: resolvedDiv,
+            program_id: matchedProgramId,
+            color: r.color || null,
           }
         })
         const skipped = csvPreview.rows.length - inserts.length
         if (inserts.length === 0) { toast.error('All teams already exist'); setImporting(false); return }
-        const { error } = await sb.from('teams').insert(inserts)
+
+        // Insert teams
+        const { data: insertedTeams, error } = await sb.from('teams').insert(inserts).select('id, program_id, division')
         if (error) throw error
+
+        // Backwards compat: also insert into program_teams
+        const ptInserts = (insertedTeams ?? [])
+          .filter((t: any) => t.program_id)
+          .map((t: any) => ({
+            event_id: eventId!,
+            program_id: t.program_id,
+            team_id: t.id,
+            division: t.division,
+          }))
+        if (ptInserts.length > 0) {
+          await sb.from('program_teams').insert(ptInserts)
+        }
+
         toast.success(`${inserts.length} team${inserts.length !== 1 ? 's' : ''} imported${skipped ? ` (${skipped} duplicate${skipped !== 1 ? 's' : ''} skipped)` : ''}`)
       }
       setCsvPreview(null)
@@ -606,8 +675,9 @@ export function ProgramApprovals() {
   }
 
   const filteredPrograms = programs.filter((p) => filter === 'all' || p.status === filter)
-  const filteredTeams = filter === 'all' ? teams : teams // teams table has no status filter
   const pendingPrograms = programs.filter((p) => p.status === 'pending').length
+  const teamsByProgram = groupTeamsByProgram()
+  const unassignedTeams = teamsByProgram.get(null) ?? []
 
   return (
     <div>
@@ -629,21 +699,10 @@ export function ProgramApprovals() {
               : 'bg-surface-card border-border text-muted hover:text-white'
           )}
         >
-          Programs ({programs.length})
+          Programs & Teams ({programs.length} programs, {teams.length} teams)
           {pendingPrograms > 0 && (
             <span className="ml-1 text-yellow-400">({pendingPrograms} pending)</span>
           )}
-        </button>
-        <button
-          onClick={() => setActiveTab('teams')}
-          className={cn(
-            'font-cond text-[12px] font-bold px-4 py-2 rounded-lg border transition-colors',
-            activeTab === 'teams'
-              ? 'bg-navy border-blue-400 text-white'
-              : 'bg-surface-card border-border text-muted hover:text-white'
-          )}
-        >
-          Teams ({teams.length})
         </button>
 
         <button
@@ -682,32 +741,52 @@ export function ProgramApprovals() {
         <div className="text-center py-12 text-muted font-cond">LOADING...</div>
       ) : (
         <>
-          {/* Programs list */}
           {activeTab === 'programs' && (
             <div className="space-y-3">
-              {/* Create Program + Actions */}
+              {/* Action bar */}
               <div className="mb-2">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <Btn
                     size="sm"
                     variant={showCreateProgram ? 'ghost' : 'primary'}
-                    onClick={() => setShowCreateProgram(!showCreateProgram)}
+                    onClick={() => { setShowCreateProgram(!showCreateProgram); setShowCreateTeam(false) }}
                   >
                     <Plus size={11} className="inline mr-1" />
                     ADD PROGRAM
-                    {showCreateProgram ? <ChevronUp size={11} className="inline ml-1" /> : <ChevronDown size={11} className="inline ml-1" />}
                   </Btn>
+                  <Btn
+                    size="sm"
+                    variant={showCreateTeam ? 'ghost' : 'primary'}
+                    onClick={() => { setShowCreateTeam(!showCreateTeam); setShowCreateProgram(false) }}
+                  >
+                    <Plus size={11} className="inline mr-1" />
+                    ADD TEAM
+                  </Btn>
+                  <div className="border-l border-border h-5 mx-1" />
                   <Btn size="sm" variant="ghost" onClick={() => programFileRef.current?.click()}>
-                    <Upload size={11} className="inline mr-1" /> IMPORT CSV
+                    <Upload size={11} className="inline mr-1" /> IMPORT PROGRAMS
                   </Btn>
+                  <Btn size="sm" variant="ghost" onClick={() => teamFileRef.current?.click()}>
+                    <Upload size={11} className="inline mr-1" /> IMPORT TEAMS
+                  </Btn>
+                  <div className="border-l border-border h-5 mx-1" />
                   <Btn size="sm" variant="ghost" onClick={exportProgramsCSV} disabled={programs.length === 0}>
-                    <Download size={11} className="inline mr-1" /> DOWNLOAD CSV
+                    <Download size={11} className="inline mr-1" /> PROGRAMS CSV
+                  </Btn>
+                  <Btn size="sm" variant="ghost" onClick={exportTeamsCSV} disabled={teams.length === 0}>
+                    <Download size={11} className="inline mr-1" /> TEAMS CSV
                   </Btn>
                   <button onClick={() => downloadTemplate('programs')} className="font-cond text-[11px] text-blue-400 hover:text-blue-300 flex items-center gap-1">
-                    <Download size={10} /> Template
+                    <Download size={10} /> Prog Template
+                  </button>
+                  <button onClick={() => downloadTemplate('teams')} className="font-cond text-[11px] text-blue-400 hover:text-blue-300 flex items-center gap-1">
+                    <Download size={10} /> Team Template
                   </button>
                   <input ref={programFileRef} type="file" accept=".csv" className="hidden" onChange={(e) => { if (e.target.files?.[0]) handleCSVFile(e.target.files[0], 'programs'); e.target.value = '' }} />
+                  <input ref={teamFileRef} type="file" accept=".csv" className="hidden" onChange={(e) => { if (e.target.files?.[0]) handleCSVFile(e.target.files[0], 'teams'); e.target.value = '' }} />
                 </div>
+
+                {/* Create Program Form */}
                 {showCreateProgram && (
                   <Card className="mt-2 p-4">
                     <div className="grid grid-cols-2 gap-3">
@@ -762,177 +841,8 @@ export function ProgramApprovals() {
                     </div>
                   </Card>
                 )}
-              </div>
 
-              {filteredPrograms.length === 0 && (
-                <div className="text-center py-12 text-muted font-cond">
-                  No programs matching filter
-                </div>
-              )}
-              {filteredPrograms.map((prog) => (
-                <div
-                  key={prog.id}
-                  className={cn(
-                    'bg-surface-card border rounded-xl p-4',
-                    prog.status === 'pending'
-                      ? 'border-yellow-700/50'
-                      : prog.status === 'approved'
-                        ? 'border-green-700/40'
-                        : 'border-border'
-                  )}
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-1">
-                        <Building2 size={16} className="text-muted flex-shrink-0" />
-                        <div className="font-cond font-black text-[16px] text-white">
-                          {prog.name}
-                        </div>
-                        {prog.short_name && (
-                          <span className="font-cond text-[11px] text-blue-300">
-                            {prog.short_name}
-                          </span>
-                        )}
-                        <span
-                          className={cn(
-                            'font-cond text-[10px] font-black px-2 py-0.5 rounded tracking-wider',
-                            prog.status === 'approved'
-                              ? 'bg-green-900/40 text-green-400'
-                              : prog.status === 'pending'
-                                ? 'bg-yellow-900/30 text-yellow-400'
-                                : 'bg-red-900/30 text-red-400'
-                          )}
-                        >
-                          {prog.status.toUpperCase()}
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-3 gap-3 text-[11px] mt-2">
-                        <div>
-                          <span className="text-muted">Contact: </span>
-                          <span className="text-white">{prog.contact_name}</span>
-                        </div>
-                        <div>
-                          <span className="text-muted">Email: </span>
-                          <span className="text-blue-300">{prog.contact_email}</span>
-                        </div>
-                        <div>
-                          <span className="text-muted">Location: </span>
-                          <span className="text-white">
-                            {[prog.city, prog.state].filter(Boolean).join(', ')}
-                          </span>
-                        </div>
-                        {prog.association && (
-                          <div>
-                            <span className="text-muted">Association: </span>
-                            <span className="text-white">{prog.association}</span>
-                          </div>
-                        )}
-                        {prog.contact_phone && (
-                          <div>
-                            <span className="text-muted">Phone: </span>
-                            <span className="text-white">{prog.contact_phone}</span>
-                          </div>
-                        )}
-                        <div>
-                          <span className="text-muted">Submitted: </span>
-                          <span className="text-white">
-                            {new Date(prog.created_at).toLocaleDateString()}
-                          </span>
-                        </div>
-                      </div>
-                      {prog.notes && (
-                        <div className="mt-2 text-[11px] bg-navy/30 rounded px-3 py-2 text-muted italic">
-                          &ldquo;{prog.notes}&rdquo;
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="flex flex-col gap-2 flex-shrink-0">
-                      {prog.status === 'pending' && (
-                        <>
-                          {rejectingId === prog.id ? (
-                            <div className="flex flex-col gap-1.5">
-                              <input
-                                className="bg-surface border border-border text-white px-2 py-1 rounded text-[12px] outline-none w-48"
-                                placeholder="Rejection reason (optional)"
-                                value={rejectNote}
-                                onChange={(e) => setRejectNote(e.target.value)}
-                              />
-                              <div className="flex gap-1.5">
-                                <button
-                                  onClick={() => rejectProgram(prog)}
-                                  disabled={actionId === prog.id}
-                                  className="flex-1 font-cond text-[11px] font-bold bg-red-800 hover:bg-red-700 text-white py-1.5 rounded transition-colors"
-                                >
-                                  CONFIRM
-                                </button>
-                                <button
-                                  onClick={() => setRejectingId(null)}
-                                  className="font-cond text-[11px] text-muted px-2 py-1.5 rounded border border-border hover:text-white"
-                                >
-                                  CANCEL
-                                </button>
-                              </div>
-                            </div>
-                          ) : (
-                            <>
-                              <button
-                                onClick={() => approveProgram(prog)}
-                                disabled={actionId === prog.id}
-                                className="flex items-center gap-1.5 font-cond text-[12px] font-bold bg-green-700 hover:bg-green-600 text-white px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
-                              >
-                                <CheckCircle size={13} /> APPROVE
-                              </button>
-                              <button
-                                onClick={() => setRejectingId(prog.id)}
-                                className="flex items-center gap-1.5 font-cond text-[12px] font-bold bg-surface-card border border-red-800/50 text-red-400 hover:bg-red-900/20 px-4 py-2 rounded-lg transition-colors"
-                              >
-                                <XCircle size={13} /> REJECT
-                              </button>
-                            </>
-                          )}
-                        </>
-                      )}
-                      <button
-                        onClick={() => deleteProgram(prog)}
-                        disabled={deletingId === prog.id}
-                        className="flex items-center gap-1.5 font-cond text-[11px] font-bold text-red-400/70 hover:text-red-400 hover:bg-red-900/20 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
-                      >
-                        <Trash2 size={12} /> DELETE
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Teams list - actual teams from teams table */}
-          {activeTab === 'teams' && (
-            <div className="space-y-3">
-              {/* Create Team + Actions */}
-              <div className="mb-2">
-                <div className="flex items-center gap-2">
-                  <Btn
-                    size="sm"
-                    variant={showCreateTeam ? 'ghost' : 'primary'}
-                    onClick={() => setShowCreateTeam(!showCreateTeam)}
-                  >
-                    <Plus size={11} className="inline mr-1" />
-                    ADD TEAM
-                    {showCreateTeam ? <ChevronUp size={11} className="inline ml-1" /> : <ChevronDown size={11} className="inline ml-1" />}
-                  </Btn>
-                  <Btn size="sm" variant="ghost" onClick={() => teamFileRef.current?.click()}>
-                    <Upload size={11} className="inline mr-1" /> IMPORT CSV
-                  </Btn>
-                  <Btn size="sm" variant="ghost" onClick={exportTeamsCSV} disabled={teams.length === 0}>
-                    <Download size={11} className="inline mr-1" /> DOWNLOAD CSV
-                  </Btn>
-                  <button onClick={() => downloadTemplate('teams')} className="font-cond text-[11px] text-blue-400 hover:text-blue-300 flex items-center gap-1">
-                    <Download size={10} /> Template
-                  </button>
-                  <input ref={teamFileRef} type="file" accept=".csv" className="hidden" onChange={(e) => { if (e.target.files?.[0]) handleCSVFile(e.target.files[0], 'teams'); e.target.value = '' }} />
-                </div>
+                {/* Create Team Form */}
                 {showCreateTeam && (
                   <Card className="mt-2 p-4">
                     <div className="grid grid-cols-2 gap-3">
@@ -961,6 +871,15 @@ export function ProgramApprovals() {
                             placeholder="e.g. U12 Boys"
                           />
                         )}
+                      </FormField>
+                      <FormField label="Program">
+                        <Select
+                          value={newTeam.program_id}
+                          onChange={(e) => setNewTeam({ ...newTeam, program_id: e.target.value })}
+                        >
+                          <option value="">No Program (Unassigned)</option>
+                          {programs.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                        </Select>
                       </FormField>
                       <FormField label="Association">
                         <Input
@@ -997,66 +916,248 @@ export function ProgramApprovals() {
                 )}
               </div>
 
-              {/* Teams table */}
-              {filteredTeams.length === 0 ? (
+              {/* Programs with nested teams */}
+              {filteredPrograms.length === 0 && unassignedTeams.length === 0 && (
                 <div className="text-center py-12 text-muted font-cond">
-                  No teams for this event
+                  No programs or teams yet
                 </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full border-collapse text-[12px]">
-                    <thead>
-                      <tr className="bg-navy">
-                        {['NAME', 'DIVISION', 'ASSOCIATION', 'COLOR', 'CREATED', 'ACTIONS'].map((h) => (
-                          <th
-                            key={h}
-                            className="font-cond text-[10px] font-black tracking-widest text-muted px-3 py-2 text-left border-b-2 border-border"
-                          >
-                            {h}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredTeams.map((team) => (
-                        <tr
-                          key={team.id}
-                          className="border-b border-border/50 hover:bg-white/5 transition-colors"
-                        >
-                          <td className="font-cond font-bold text-white px-3 py-2">{team.name}</td>
-                          <td className="px-3 py-2">
-                            <span className="font-cond text-[10px] font-bold px-2 py-0.5 rounded bg-blue-900/30 text-blue-300">
-                              {team.division}
-                            </span>
-                          </td>
-                          <td className="font-cond text-[11px] text-muted px-3 py-2">{team.association || '—'}</td>
-                          <td className="px-3 py-2">
-                            {team.color && (
-                              <div className="flex items-center gap-1.5">
-                                <div className="w-4 h-4 rounded-sm border border-border" style={{ backgroundColor: team.color }} />
-                                <span className="font-mono text-[10px] text-muted">{team.color}</span>
-                              </div>
+              )}
+
+              {filteredPrograms.map((prog) => {
+                const progTeams = teamsByProgram.get(prog.id) ?? []
+                const divGroups = groupByDivision(progTeams)
+                const isCollapsed = collapsedPrograms.has(prog.id)
+
+                return (
+                  <div
+                    key={prog.id}
+                    className={cn(
+                      'bg-surface-card border rounded-xl overflow-hidden',
+                      prog.status === 'pending'
+                        ? 'border-yellow-700/50'
+                        : prog.status === 'approved'
+                          ? 'border-green-700/40'
+                          : 'border-border'
+                    )}
+                  >
+                    {/* Program header */}
+                    <div className="p-4">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-1">
+                            <button
+                              onClick={() => toggleProgram(prog.id)}
+                              className="text-muted hover:text-white transition-colors"
+                            >
+                              <ChevronRight
+                                size={16}
+                                className={cn('transition-transform', !isCollapsed && 'rotate-90')}
+                              />
+                            </button>
+                            <Building2 size={16} className="text-muted flex-shrink-0" />
+                            <button
+                              onClick={() => toggleProgram(prog.id)}
+                              className="font-cond font-black text-[16px] text-white hover:text-blue-300 transition-colors text-left"
+                            >
+                              {prog.name}
+                            </button>
+                            {prog.short_name && (
+                              <span className="font-cond text-[11px] text-blue-300">
+                                {prog.short_name}
+                              </span>
                             )}
-                          </td>
-                          <td className="font-cond text-[11px] text-muted px-3 py-2">
-                            {new Date(team.created_at).toLocaleDateString()}
-                          </td>
-                          <td className="px-3 py-2">
+                            <span
+                              className={cn(
+                                'font-cond text-[10px] font-black px-2 py-0.5 rounded tracking-wider',
+                                prog.status === 'approved'
+                                  ? 'bg-green-900/40 text-green-400'
+                                  : prog.status === 'pending'
+                                    ? 'bg-yellow-900/30 text-yellow-400'
+                                    : 'bg-red-900/30 text-red-400'
+                              )}
+                            >
+                              {prog.status.toUpperCase()}
+                            </span>
+                            <span className="font-cond text-[10px] text-muted">
+                              {progTeams.length} team{progTeams.length !== 1 ? 's' : ''}
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-3 gap-3 text-[11px] mt-2 ml-7">
+                            <div>
+                              <span className="text-muted">Contact: </span>
+                              <span className="text-white">{prog.contact_name}</span>
+                            </div>
+                            <div>
+                              <span className="text-muted">Email: </span>
+                              <span className="text-blue-300">{prog.contact_email}</span>
+                            </div>
+                            <div>
+                              <span className="text-muted">Location: </span>
+                              <span className="text-white">
+                                {[prog.city, prog.state].filter(Boolean).join(', ')}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-col gap-2 flex-shrink-0">
+                          {prog.status === 'pending' && (
+                            <>
+                              {rejectingId === prog.id ? (
+                                <div className="flex flex-col gap-1.5">
+                                  <input
+                                    className="bg-surface border border-border text-white px-2 py-1 rounded text-[12px] outline-none w-48"
+                                    placeholder="Rejection reason (optional)"
+                                    value={rejectNote}
+                                    onChange={(e) => setRejectNote(e.target.value)}
+                                  />
+                                  <div className="flex gap-1.5">
+                                    <button
+                                      onClick={() => rejectProgram(prog)}
+                                      disabled={actionId === prog.id}
+                                      className="flex-1 font-cond text-[11px] font-bold bg-red-800 hover:bg-red-700 text-white py-1.5 rounded transition-colors"
+                                    >
+                                      CONFIRM
+                                    </button>
+                                    <button
+                                      onClick={() => setRejectingId(null)}
+                                      className="font-cond text-[11px] text-muted px-2 py-1.5 rounded border border-border hover:text-white"
+                                    >
+                                      CANCEL
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <>
+                                  <button
+                                    onClick={() => approveProgram(prog)}
+                                    disabled={actionId === prog.id}
+                                    className="flex items-center gap-1.5 font-cond text-[12px] font-bold bg-green-700 hover:bg-green-600 text-white px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
+                                  >
+                                    <CheckCircle size={13} /> APPROVE
+                                  </button>
+                                  <button
+                                    onClick={() => setRejectingId(prog.id)}
+                                    className="flex items-center gap-1.5 font-cond text-[12px] font-bold bg-surface-card border border-red-800/50 text-red-400 hover:bg-red-900/20 px-4 py-2 rounded-lg transition-colors"
+                                  >
+                                    <XCircle size={13} /> REJECT
+                                  </button>
+                                </>
+                              )}
+                            </>
+                          )}
+                          <button
+                            onClick={() => deleteProgram(prog)}
+                            disabled={deletingId === prog.id}
+                            className="flex items-center gap-1.5 font-cond text-[11px] font-bold text-red-400/70 hover:text-red-400 hover:bg-red-900/20 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+                          >
+                            <Trash2 size={12} /> DELETE
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Nested teams by division */}
+                    {!isCollapsed && progTeams.length > 0 && (
+                      <div className="border-t border-border/50 bg-navy/20">
+                        {Array.from(divGroups.entries()).map(([div, divTeams]) => (
+                          <div key={div}>
+                            <div className="px-4 py-1.5 bg-navy/30 border-b border-border/30 flex items-center gap-2">
+                              <span className="font-cond text-[10px] font-black tracking-widest text-blue-300 uppercase">
+                                {div}
+                              </span>
+                              <span className="font-cond text-[10px] text-muted">
+                                {divTeams.length} team{divTeams.length !== 1 ? 's' : ''}
+                              </span>
+                            </div>
+                            {divTeams.map((team) => (
+                              <div
+                                key={team.id}
+                                className="flex items-center gap-3 px-4 py-2 border-b border-border/20 hover:bg-white/5 transition-colors"
+                              >
+                                <div className="w-7" />
+                                {team.color && (
+                                  <div className="w-3.5 h-3.5 rounded-sm border border-border flex-shrink-0" style={{ backgroundColor: team.color }} />
+                                )}
+                                <span className="font-cond font-bold text-[12px] text-white flex-1">{team.name}</span>
+                                <span className="font-cond text-[10px] text-muted">{team.association || ''}</span>
+                                <button
+                                  onClick={() => deleteTeam(team)}
+                                  disabled={deletingId === team.id}
+                                  className="flex items-center gap-1 font-cond text-[10px] font-bold text-red-400/50 hover:text-red-400 hover:bg-red-900/20 px-2 py-1 rounded transition-colors disabled:opacity-50"
+                                >
+                                  <Trash2 size={10} />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {!isCollapsed && progTeams.length === 0 && (
+                      <div className="border-t border-border/50 bg-navy/20 px-4 py-3">
+                        <span className="font-cond text-[11px] text-muted italic">No teams yet</span>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+
+              {/* Unassigned Teams */}
+              {unassignedTeams.length > 0 && (
+                <div className="bg-surface-card border border-border rounded-xl overflow-hidden">
+                  <div className="p-4">
+                    <div className="flex items-center gap-3">
+                      <Users size={16} className="text-muted" />
+                      <span className="font-cond font-black text-[16px] text-white">
+                        Unassigned Teams
+                      </span>
+                      <span className="font-cond text-[10px] text-muted">
+                        {unassignedTeams.length} team{unassignedTeams.length !== 1 ? 's' : ''}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="border-t border-border/50 bg-navy/20">
+                    {Array.from(groupByDivision(unassignedTeams).entries()).map(([div, divTeams]) => (
+                      <div key={div}>
+                        <div className="px-4 py-1.5 bg-navy/30 border-b border-border/30 flex items-center gap-2">
+                          <span className="font-cond text-[10px] font-black tracking-widest text-blue-300 uppercase">
+                            {div}
+                          </span>
+                          <span className="font-cond text-[10px] text-muted">
+                            {divTeams.length} team{divTeams.length !== 1 ? 's' : ''}
+                          </span>
+                        </div>
+                        {divTeams.map((team) => (
+                          <div
+                            key={team.id}
+                            className="flex items-center gap-3 px-4 py-2 border-b border-border/20 hover:bg-white/5 transition-colors"
+                          >
+                            <div className="w-7" />
+                            {team.color && (
+                              <div className="w-3.5 h-3.5 rounded-sm border border-border flex-shrink-0" style={{ backgroundColor: team.color }} />
+                            )}
+                            <span className="font-cond font-bold text-[12px] text-white flex-1">{team.name}</span>
+                            <span className="font-cond text-[10px] text-muted">{team.association || ''}</span>
                             <button
                               onClick={() => deleteTeam(team)}
                               disabled={deletingId === team.id}
-                              className="flex items-center gap-1 font-cond text-[10px] font-bold text-red-400/70 hover:text-red-400 hover:bg-red-900/20 px-2 py-1 rounded transition-colors disabled:opacity-50"
+                              className="flex items-center gap-1 font-cond text-[10px] font-bold text-red-400/50 hover:text-red-400 hover:bg-red-900/20 px-2 py-1 rounded transition-colors disabled:opacity-50"
                             >
-                              <Trash2 size={11} /> DELETE
+                              <Trash2 size={10} />
                             </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  <div className="mt-2 font-cond text-[10px] text-muted">{filteredTeams.length} teams</div>
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
+
+              <div className="mt-2 font-cond text-[10px] text-muted">
+                {programs.length} programs, {teams.length} teams total ({unassignedTeams.length} unassigned)
+              </div>
             </div>
           )}
           {activeTab === 'config' && <RegistrationConfig />}

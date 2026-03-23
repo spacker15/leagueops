@@ -68,6 +68,7 @@ export interface Team {
   division: string
   association: string | null
   color: string
+  program_id: number | null
   created_at: string
 }
 
