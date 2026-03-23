@@ -12,7 +12,7 @@ import {
 } from '@dnd-kit/core'
 import { useApp } from '@/lib/store'
 import { Avatar, Pill, Modal, Btn, FormField } from '@/components/ui'
-import { cn } from '@/lib/utils'
+import { cn, findCsvMismatches, type CsvMismatch } from '@/lib/utils'
 import toast from 'react-hot-toast'
 import type { OperationalConflict, Referee, Volunteer, Game, RefereeAvailability } from '@/types'
 import { createClient } from '@/supabase/client'
@@ -332,6 +332,9 @@ export function RefsTab() {
     headers: string[]
   } | null>(null)
   const [csvImporting, setCsvImporting] = useState(false)
+  const [csvMismatches, setCsvMismatches] = useState<CsvMismatch[]>([])
+  const unresolvedMismatches = csvMismatches.filter(m => m.resolvedTo === null)
+  const skippedCsvValues = new Set(csvMismatches.filter(m => m.resolvedTo === '__skip__').map(m => m.csvValue.toLowerCase().trim()))
   const refFileRef = useRef<HTMLInputElement>(null)
   const volFileRef = useRef<HTMLInputElement>(null)
 
@@ -829,27 +832,58 @@ export function RefsTab() {
         return
       }
 
+      // Fuzzy match grade levels for referee CSV
+      if (type === 'referee' && headers.includes('grade_level')) {
+        const gradeSet = new Set(state.referees.map(r => r.grade_level).filter(Boolean))
+        const gradeCandidates = [...gradeSet].map(g => ({ id: g, name: g }))
+        const gradeVals = rows.map(r => r.grade_level).filter(Boolean)
+        const mismatches = findCsvMismatches(gradeVals, gradeCandidates, 'grade_level')
+        setCsvMismatches(mismatches)
+      } else {
+        setCsvMismatches([])
+      }
+
       setCsvPreview({ type, rows, headers })
     }
     reader.readAsText(file)
   }
 
+  function resolveCsvMismatch(idx: number, value: string) {
+    setCsvMismatches(prev => prev.map((m, i) => i === idx ? { ...m, resolvedTo: value || null } : m))
+  }
+
   async function confirmCSVImport() {
     if (!csvPreview) return
+    if (unresolvedMismatches.length > 0) { toast.error('Resolve all mismatches before importing'); return }
     setCsvImporting(true)
     const sb = createClient()
     const { type, rows } = csvPreview
 
+    // Build resolved grade level map
+    const resolvedGradeMap = new Map<string, string>()
+    for (const m of csvMismatches) {
+      if (m.resolvedTo && m.resolvedTo !== '__skip__') {
+        resolvedGradeMap.set(m.csvValue.toLowerCase().trim(), m.resolvedTo)
+      }
+    }
+
     try {
-      const records = rows.map((r) => {
+      const filteredRows = rows.filter(r => {
+        if (type === 'referee' && r.grade_level && skippedCsvValues.has(r.grade_level.toLowerCase().trim())) return false
+        return true
+      })
+
+      const records = filteredRows.map((r) => {
         const name = `${r.first_name?.trim() ?? ''} ${r.last_name?.trim() ?? ''}`.trim()
         if (type === 'referee') {
+          const rawGrade = r.grade_level?.trim() || ''
+          const resolvedGrade = resolvedGradeMap.get(rawGrade.toLowerCase()) || rawGrade
           return {
             event_id: eventId,
             name,
             email: r.email?.trim() || null,
             phone: r.phone?.trim() || null,
-            grade_level: r.grade_level?.trim() || '',
+            grade_level: resolvedGrade,
             checked_in: false,
           }
         } else {
@@ -872,8 +906,10 @@ export function RefsTab() {
         return
       }
 
-      toast.success(`Imported ${records.length} ${type === 'referee' ? 'referee' : 'volunteer'}${records.length !== 1 ? 's' : ''}`)
+      const skippedCount = rows.length - filteredRows.length
+      toast.success(`Imported ${records.length} ${type === 'referee' ? 'referee' : 'volunteer'}${records.length !== 1 ? 's' : ''}${skippedCount ? ` (${skippedCount} skipped)` : ''}`)
       setCsvPreview(null)
+      setCsvMismatches([])
       setCsvImporting(false)
       // Reload to pick up new data in the store
       window.location.reload()
@@ -1386,16 +1422,18 @@ export function RefsTab() {
               <Download size={11} />
               DOWNLOAD TEMPLATE
             </button>
-            <Btn variant="ghost" size="sm" onClick={() => setCsvPreview(null)}>
+            <Btn variant="ghost" size="sm" onClick={() => { setCsvPreview(null); setCsvMismatches([]) }}>
               CANCEL
             </Btn>
             <Btn
               variant="primary"
               size="sm"
               onClick={confirmCSVImport}
-              disabled={csvImporting}
+              disabled={csvImporting || unresolvedMismatches.length > 0}
             >
-              {csvImporting ? 'IMPORTING...' : `IMPORT ${csvPreview?.rows.length ?? 0} ROWS`}
+              {unresolvedMismatches.length > 0
+                ? `RESOLVE ${unresolvedMismatches.length} MISMATCH${unresolvedMismatches.length !== 1 ? 'ES' : ''}`
+                : csvImporting ? 'IMPORTING...' : `IMPORT ${csvPreview?.rows.length ?? 0} ROWS`}
             </Btn>
           </>
         }
@@ -1406,6 +1444,36 @@ export function RefsTab() {
               Preview of {csvPreview.rows.length} row{csvPreview.rows.length !== 1 ? 's' : ''} to import.
               Columns found: {csvPreview.headers.join(', ')}
             </div>
+
+            {/* Mismatch Resolver */}
+            {csvMismatches.length > 0 && (
+              <div className="bg-yellow-900/20 border border-yellow-700/50 rounded p-3 mb-3">
+                <div className="text-yellow-400 font-cond text-sm font-bold mb-2">
+                  {csvMismatches.length} UNMATCHED GRADE LEVEL{csvMismatches.length !== 1 ? 'S' : ''} — RESOLVE BEFORE IMPORTING
+                </div>
+                {csvMismatches.map((mismatch, i) => (
+                  <div key={i} className="flex items-center gap-2 py-1">
+                    <span className="text-red-400 text-xs font-mono">{mismatch.csvValue}</span>
+                    <span className="text-gray-500 text-xs">&rarr;</span>
+                    <select
+                      className="bg-[#081428] border border-[#1a2d50] text-white px-2 py-0.5 rounded text-xs outline-none focus:border-blue-400 transition-colors"
+                      value={mismatch.resolvedTo ?? ''}
+                      onChange={e => resolveCsvMismatch(i, e.target.value)}
+                    >
+                      <option value="">-- Select match --</option>
+                      <option value="__skip__">Skip rows with this value</option>
+                      {mismatch.suggestions.map(s => (
+                        <option key={s.id} value={String(s.id)}>{s.name} {s.score < 1 ? `(${Math.round(s.score * 100)}% match)` : ''}</option>
+                      ))}
+                    </select>
+                    {mismatch.resolvedTo === '__skip__' && <XCircle size={12} className="text-red-400" />}
+                    {mismatch.resolvedTo && mismatch.resolvedTo !== '__skip__' && <CheckCircle size={12} className="text-green-400" />}
+                    {!mismatch.resolvedTo && <AlertTriangle size={12} className="text-yellow-400" />}
+                  </div>
+                ))}
+              </div>
+            )}
+
             <div className="max-h-[300px] overflow-auto rounded border border-border">
               <table className="w-full border-collapse text-[12px]">
                 <thead>
@@ -1423,12 +1491,17 @@ export function RefsTab() {
                   {csvPreview.rows.map((row, i) => {
                     const name = `${row.first_name ?? ''} ${row.last_name ?? ''}`.trim()
                     const hasName = name.length > 0
+                    const gradeVal = (row.grade_level || '').toLowerCase().trim()
+                    const isGradeSkipped = csvPreview.type === 'referee' && skippedCsvValues.has(gradeVal)
+                    const gradeHasMismatch = csvPreview.type === 'referee' && csvMismatches.some(m => m.csvValue.toLowerCase().trim() === gradeVal && !m.resolvedTo)
+                    const gradeIsResolved = csvPreview.type === 'referee' && csvMismatches.some(m => m.csvValue.toLowerCase().trim() === gradeVal && m.resolvedTo && m.resolvedTo !== '__skip__')
                     return (
                       <tr
                         key={i}
                         className={cn(
                           'border-b border-border/40',
-                          !hasName && 'bg-red-900/10'
+                          !hasName && 'bg-red-900/10',
+                          isGradeSkipped && 'bg-red-900/10 opacity-50'
                         )}
                       >
                         <td className="font-mono text-muted text-[10px] px-3 py-1.5">{i + 1}</td>
@@ -1437,7 +1510,7 @@ export function RefsTab() {
                         </td>
                         <td className="font-mono text-[11px] px-3 py-1.5 text-blue-300">{row.email || '—'}</td>
                         <td className="font-mono text-[11px] px-3 py-1.5">{row.phone || '—'}</td>
-                        <td className="font-cond text-[11px] px-3 py-1.5">
+                        <td className={cn('font-cond text-[11px] px-3 py-1.5', gradeHasMismatch ? 'text-yellow-400' : gradeIsResolved ? 'text-green-400' : '')}>
                           {csvPreview.type === 'referee' ? (row.grade_level || '—') : (row.role || '—')}
                         </td>
                       </tr>

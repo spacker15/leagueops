@@ -273,6 +273,12 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
   const [showCopyRules, setShowCopyRules] = useState(false)
   const [copySourceEventId, setCopySourceEventId] = useState<number | null>(null)
   const [copyableEvents, setCopyableEvents] = useState<{ id: number; name: string }[]>([])
+  // Rule overrides state
+  const [ruleOverrides, setRuleOverrides] = useState<Record<number, any[]>>({})
+  const [overrideTeams, setOverrideTeams] = useState<{ id: number; name: string; division: string }[]>([])
+  const [overrideEventDates, setOverrideEventDates] = useState<{ id: number; date: string }[]>([])
+  const [addingOverrideForRule, setAddingOverrideForRule] = useState<number | null>(null)
+  const [overrideForm, setOverrideForm] = useState({ scope_type: 'global' as string, reason: '', home_team_id: '', away_team_id: '', scope_team_id: '', scope_event_date_id: '', override_action: 'allow' as string })
 
   useEffect(() => {
     loadEvent()
@@ -293,8 +299,76 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
   useEffect(() => {
     if (settingsTab === 'rules' && eventId) {
       loadRules()
+      loadOverrideContext()
     }
   }, [settingsTab, eventId])
+
+  async function loadOverrideContext() {
+    if (!eventId) return
+    const sb = createClient()
+    const [teamsRes, datesRes] = await Promise.all([
+      sb.from('teams').select('id, name, division').eq('event_id', eventId).order('name'),
+      sb.from('event_dates').select('id, date').eq('event_id', eventId).order('date'),
+    ])
+    setOverrideTeams(teamsRes.data ?? [])
+    setOverrideEventDates(datesRes.data ?? [])
+  }
+
+  async function loadOverridesForRule(ruleId: number) {
+    const sb = createClient()
+    const { data } = await sb
+      .from('schedule_rule_overrides')
+      .select('*')
+      .eq('rule_id', ruleId)
+      .eq('event_id', eventId)
+      .order('created_at', { ascending: false })
+    setRuleOverrides(prev => ({ ...prev, [ruleId]: data ?? [] }))
+  }
+
+  async function createOverride(ruleId: number) {
+    if (!overrideForm.reason.trim()) { toast.error('Reason is required'); return }
+    const sb = createClient()
+    const payload: Record<string, any> = {
+      event_id: eventId,
+      rule_id: ruleId,
+      scope_type: overrideForm.scope_type,
+      override_action: overrideForm.override_action,
+      reason: overrideForm.reason,
+      enabled: true,
+    }
+    if (overrideForm.scope_type === 'matchup') {
+      if (!overrideForm.home_team_id || !overrideForm.away_team_id) { toast.error('Select both teams for matchup override'); return }
+      payload.home_team_id = Number(overrideForm.home_team_id)
+      payload.away_team_id = Number(overrideForm.away_team_id)
+    }
+    if (overrideForm.scope_type === 'team') {
+      if (!overrideForm.scope_team_id) { toast.error('Select a team'); return }
+      payload.scope_team_id = Number(overrideForm.scope_team_id)
+    }
+    if (overrideForm.scope_type === 'week') {
+      if (!overrideForm.scope_event_date_id) { toast.error('Select an event date'); return }
+      payload.scope_event_date_id = Number(overrideForm.scope_event_date_id)
+    }
+    const { error } = await sb.from('schedule_rule_overrides').insert(payload)
+    if (error) { toast.error('Failed to create override: ' + error.message); return }
+    toast.success('Override created')
+    setAddingOverrideForRule(null)
+    setOverrideForm({ scope_type: 'global', reason: '', home_team_id: '', away_team_id: '', scope_team_id: '', scope_event_date_id: '', override_action: 'allow' })
+    loadOverridesForRule(ruleId)
+  }
+
+  async function toggleOverride(overrideId: number, ruleId: number, enabled: boolean) {
+    const sb = createClient()
+    await sb.from('schedule_rule_overrides').update({ enabled }).eq('id', overrideId)
+    loadOverridesForRule(ruleId)
+  }
+
+  async function deleteOverride(overrideId: number, ruleId: number) {
+    const sb = createClient()
+    await sb.from('schedule_rule_overrides').delete().eq('id', overrideId)
+    loadOverridesForRule(ruleId)
+    toast.success('Override deleted')
+  }
 
   async function loadRules() {
     if (!eventId) return
@@ -2113,6 +2187,153 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                                     <div className="text-[11px] text-gray-400">{rule.notes}</div>
                                   </div>
                                 )}
+
+                                {/* ── Admin Overrides Section ── */}
+                                <div className="mt-3 pt-3 border-t border-[#1a2d50]">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <div className="font-cond text-[10px] font-black tracking-[.12em] text-[#5a6e9a] uppercase">
+                                      Admin Overrides
+                                    </div>
+                                    <button
+                                      onClick={() => {
+                                        if (addingOverrideForRule === rule.id) {
+                                          setAddingOverrideForRule(null)
+                                        } else {
+                                          setAddingOverrideForRule(rule.id)
+                                          setOverrideForm({ scope_type: 'global', reason: '', home_team_id: '', away_team_id: '', scope_team_id: '', scope_event_date_id: '', override_action: 'allow' })
+                                          if (!ruleOverrides[rule.id]) loadOverridesForRule(rule.id)
+                                        }
+                                      }}
+                                      className="flex items-center gap-1 font-cond font-black text-[10px] tracking-[.08em] px-2.5 py-1 rounded bg-blue-900/40 hover:bg-blue-900/60 text-blue-400 transition-colors"
+                                    >
+                                      <Plus size={10} /> ADD OVERRIDE
+                                    </button>
+                                  </div>
+
+                                  {/* Existing overrides */}
+                                  {(ruleOverrides[rule.id] ?? []).length > 0 && (
+                                    <div className="space-y-1 mb-2">
+                                      {(ruleOverrides[rule.id] ?? []).map((ov: any) => (
+                                        <div key={ov.id} className={cn(
+                                          'flex items-center gap-2 px-2 py-1.5 rounded text-[10px]',
+                                          ov.enabled ? 'bg-[#081428]' : 'bg-[#081428]/50 opacity-60'
+                                        )}>
+                                          <span className={cn(
+                                            'font-cond font-bold px-1.5 py-0.5 rounded uppercase tracking-wider',
+                                            ov.override_action === 'allow' ? 'bg-green-900/40 text-green-400' : 'bg-red-900/40 text-red-400'
+                                          )}>
+                                            {ov.override_action}
+                                          </span>
+                                          <span className="font-cond font-bold text-muted uppercase px-1.5 py-0.5 rounded bg-[#1a2d50]">
+                                            {ov.scope_type}
+                                          </span>
+                                          <span className="text-gray-300 flex-1 truncate">{ov.reason}</span>
+                                          <button
+                                            onClick={() => toggleOverride(ov.id, rule.id, !ov.enabled)}
+                                            className={cn(
+                                              'w-6 h-3 rounded-full transition-colors flex-shrink-0 relative',
+                                              ov.enabled ? 'bg-green-600' : 'bg-gray-700'
+                                            )}
+                                          >
+                                            <span className={cn(
+                                              'absolute top-0.5 w-2 h-2 rounded-full bg-white transition-all',
+                                              ov.enabled ? 'left-3.5' : 'left-0.5'
+                                            )} />
+                                          </button>
+                                          <button
+                                            onClick={() => { if (confirm('Delete this override?')) deleteOverride(ov.id, rule.id) }}
+                                            className="text-muted hover:text-red-400 transition-colors flex-shrink-0"
+                                          >
+                                            <Trash2 size={10} />
+                                          </button>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+
+                                  {!ruleOverrides[rule.id] && (
+                                    <button onClick={() => loadOverridesForRule(rule.id)} className="text-[10px] text-blue-400 hover:underline font-cond">
+                                      Load overrides...
+                                    </button>
+                                  )}
+
+                                  {/* Add override form */}
+                                  {addingOverrideForRule === rule.id && (
+                                    <div className="bg-[#081428] border border-[#1a2d50] rounded-lg p-3 space-y-2 mt-2">
+                                      <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                          <div className={lbl}>Scope</div>
+                                          <select className={inp} value={overrideForm.scope_type} onChange={e => setOverrideForm(f => ({ ...f, scope_type: e.target.value }))}>
+                                            <option value="global">Global</option>
+                                            <option value="matchup">Matchup</option>
+                                            <option value="team">Team</option>
+                                            <option value="week">Week / Event Date</option>
+                                          </select>
+                                        </div>
+                                        <div>
+                                          <div className={lbl}>Action</div>
+                                          <select className={inp} value={overrideForm.override_action} onChange={e => setOverrideForm(f => ({ ...f, override_action: e.target.value }))}>
+                                            <option value="allow">Allow (bypass rule)</option>
+                                            <option value="block">Block (enforce extra)</option>
+                                          </select>
+                                        </div>
+                                      </div>
+
+                                      {overrideForm.scope_type === 'matchup' && (
+                                        <div className="grid grid-cols-2 gap-2">
+                                          <div>
+                                            <div className={lbl}>Home Team</div>
+                                            <select className={inp} value={overrideForm.home_team_id} onChange={e => setOverrideForm(f => ({ ...f, home_team_id: e.target.value }))}>
+                                              <option value="">-- Select --</option>
+                                              {overrideTeams.map(t => <option key={t.id} value={t.id}>{t.name} ({t.division})</option>)}
+                                            </select>
+                                          </div>
+                                          <div>
+                                            <div className={lbl}>Away Team</div>
+                                            <select className={inp} value={overrideForm.away_team_id} onChange={e => setOverrideForm(f => ({ ...f, away_team_id: e.target.value }))}>
+                                              <option value="">-- Select --</option>
+                                              {overrideTeams.map(t => <option key={t.id} value={t.id}>{t.name} ({t.division})</option>)}
+                                            </select>
+                                          </div>
+                                        </div>
+                                      )}
+
+                                      {overrideForm.scope_type === 'team' && (
+                                        <div>
+                                          <div className={lbl}>Team</div>
+                                          <select className={inp} value={overrideForm.scope_team_id} onChange={e => setOverrideForm(f => ({ ...f, scope_team_id: e.target.value }))}>
+                                            <option value="">-- Select --</option>
+                                            {overrideTeams.map(t => <option key={t.id} value={t.id}>{t.name} ({t.division})</option>)}
+                                          </select>
+                                        </div>
+                                      )}
+
+                                      {overrideForm.scope_type === 'week' && (
+                                        <div>
+                                          <div className={lbl}>Event Date</div>
+                                          <select className={inp} value={overrideForm.scope_event_date_id} onChange={e => setOverrideForm(f => ({ ...f, scope_event_date_id: e.target.value }))}>
+                                            <option value="">-- Select --</option>
+                                            {overrideEventDates.map(d => <option key={d.id} value={d.id}>{d.date}</option>)}
+                                          </select>
+                                        </div>
+                                      )}
+
+                                      <div>
+                                        <div className={lbl}>Reason (required)</div>
+                                        <input className={inp} placeholder="Why is this override needed?" value={overrideForm.reason} onChange={e => setOverrideForm(f => ({ ...f, reason: e.target.value }))} />
+                                      </div>
+
+                                      <div className="flex gap-2 justify-end">
+                                        <button onClick={() => setAddingOverrideForRule(null)} className="font-cond font-black text-[10px] tracking-[.08em] px-3 py-1.5 rounded border border-[#1a2d50] text-muted hover:text-white transition-colors">
+                                          CANCEL
+                                        </button>
+                                        <button onClick={() => createOverride(rule.id)} className="font-cond font-black text-[10px] tracking-[.08em] px-3 py-1.5 rounded bg-red hover:bg-red/80 text-white transition-colors">
+                                          CREATE OVERRIDE
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
                               </div>
                             )}
                           </div>

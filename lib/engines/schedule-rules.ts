@@ -43,6 +43,20 @@ export interface WeeklyOverride {
   notes: string | null
 }
 
+export interface RuleOverride {
+  id: number
+  event_id: number
+  rule_id: number
+  scope_type: 'game' | 'matchup' | 'team' | 'week' | 'global'
+  scope_team_id: number | null
+  scope_event_date_id: number | null
+  home_team_id: number | null
+  away_team_id: number | null
+  override_action: 'allow' | 'block'
+  reason: string
+  enabled: boolean
+}
+
 export interface TeamInfo {
   id: number
   name: string
@@ -156,6 +170,17 @@ export async function loadTeamProgramMap(eventId: number, sb: SupabaseClient): P
     map.set(row.team_id, { id: row.program_id, name: row.programs?.name ?? '' })
   }
   return map
+}
+
+// ─── Load Rule Overrides ──────────────────────────────────────
+
+export async function loadRuleOverrides(eventId: number, sb: SupabaseClient): Promise<RuleOverride[]> {
+  const { data } = await sb
+    .from('schedule_rule_overrides')
+    .select('*')
+    .eq('event_id', eventId)
+    .eq('enabled', true)
+  return (data ?? []) as RuleOverride[]
 }
 
 // ─── Rule Scope Check ─────────────────────────────────────────
@@ -416,13 +441,32 @@ function evaluateCondition(rule: ScheduleRule, ctx: ScheduleContext): { passed: 
   }
 }
 
+// ─── Override Matching ────────────────────────────────────────
+
+function findApplicableOverride(overrides: RuleOverride[], rule: ScheduleRule, ctx: ScheduleContext): RuleOverride | undefined {
+  return overrides.find(ov => {
+    if (ov.rule_id !== rule.id) return false
+    if (ov.override_action !== 'allow') return false
+    // Check scope
+    if (ov.scope_type === 'global') return true
+    if (ov.scope_type === 'matchup') {
+      const matchesHome = (ov.home_team_id === ctx.homeTeam.id && ov.away_team_id === ctx.awayTeam.id)
+      const matchesAway = (ov.home_team_id === ctx.awayTeam.id && ov.away_team_id === ctx.homeTeam.id)
+      return matchesHome || matchesAway
+    }
+    if (ov.scope_type === 'team') return ov.scope_team_id === ctx.homeTeam.id || ov.scope_team_id === ctx.awayTeam.id
+    if (ov.scope_type === 'week') return ov.scope_event_date_id === ctx.slot.eventDateId
+    return false
+  })
+}
+
 // ─── Main Evaluators ──────────────────────────────────────────
 
 /**
  * Evaluate all rules against a candidate matchup.
  * Used during matchup generation to filter invalid pairings.
  */
-export function evaluateMatchupRules(rules: ScheduleRule[], ctx: ScheduleContext): EvalResult {
+export function evaluateMatchupRules(rules: ScheduleRule[], ctx: ScheduleContext, overrides: RuleOverride[] = []): EvalResult {
   const evaluations: RuleEvaluation[] = []
   let penalties = 0
   let blockingRule: ScheduleRule | null = null
@@ -437,14 +481,24 @@ export function evaluateMatchupRules(rules: ScheduleRule[], ctx: ScheduleContext
     if (['set_timing', 'skip_date', 'season_dates', 'special_event', 'forced_doubleheader'].includes(condType)) continue
 
     const result = evaluateCondition(rule, ctx)
-    evaluations.push({ passed: result.passed, rule, reason: result.reason })
 
     if (!result.passed) {
+      // Check for admin override
+      const override = findApplicableOverride(overrides, rule, ctx)
+      if (override) {
+        evaluations.push({ passed: true, rule, reason: `ADMIN OVERRIDE: ${override.reason}` })
+        continue // Skip this block
+      }
+
+      evaluations.push({ passed: result.passed, rule, reason: result.reason })
+
       if (rule.action === 'block' && rule.enforcement === 'hard') {
         blockingRule = rule
       } else if (rule.action === 'warn' || rule.enforcement === 'soft') {
         penalties += 1
       }
+    } else {
+      evaluations.push({ passed: result.passed, rule, reason: result.reason })
     }
 
     if (rule.action === 'allow' && result.passed) {
@@ -462,7 +516,7 @@ export function evaluateMatchupRules(rules: ScheduleRule[], ctx: ScheduleContext
  * Evaluate slot-specific rules against a candidate placement.
  * Used during slot assignment to check time restrictions, rest, etc.
  */
-export function evaluateSlotRules(rules: ScheduleRule[], ctx: ScheduleContext): EvalResult {
+export function evaluateSlotRules(rules: ScheduleRule[], ctx: ScheduleContext, overrides: RuleOverride[] = []): EvalResult {
   const evaluations: RuleEvaluation[] = []
   let penalties = 0
   let blockingRule: ScheduleRule | null = null
@@ -476,14 +530,24 @@ export function evaluateSlotRules(rules: ScheduleRule[], ctx: ScheduleContext): 
     if (!['no_back_to_back', 'min_rest', 'doubleheader_spacing', 'time_restriction', 'team_availability', 'max_games_per_day'].includes(condType)) continue
 
     const result = evaluateCondition(rule, ctx)
-    evaluations.push({ passed: result.passed, rule, reason: result.reason })
 
     if (!result.passed) {
+      // Check for admin override
+      const override = findApplicableOverride(overrides, rule, ctx)
+      if (override) {
+        evaluations.push({ passed: true, rule, reason: `ADMIN OVERRIDE: ${override.reason}` })
+        continue // Skip this block
+      }
+
+      evaluations.push({ passed: result.passed, rule, reason: result.reason })
+
       if (rule.action === 'block' && rule.enforcement === 'hard') {
         blockingRule = rule
       } else if (rule.action === 'warn' || rule.enforcement === 'soft') {
         penalties += 1
       }
+    } else {
+      evaluations.push({ passed: result.passed, rule, reason: result.reason })
     }
 
     if (rule.action === 'allow' && result.passed) {

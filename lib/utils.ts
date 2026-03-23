@@ -171,3 +171,78 @@ export function generateSchedule(input: {
 
   return schedule
 }
+
+// ─── CSV Fuzzy Matching ──────────────────────────────────────
+
+export interface FuzzyCandidate {
+  id: number | string
+  name: string
+}
+
+export interface FuzzyResult extends FuzzyCandidate {
+  score: number
+}
+
+export function fuzzyMatch(input: string, candidates: FuzzyCandidate[]): FuzzyResult[] {
+  const inputLower = input.toLowerCase().trim()
+
+  return candidates
+    .map(c => {
+      const candLower = c.name.toLowerCase().trim()
+
+      // Exact match
+      if (inputLower === candLower) return { ...c, score: 1 }
+
+      // Contains match
+      if (candLower.includes(inputLower) || inputLower.includes(candLower)) return { ...c, score: 0.8 }
+
+      // Word overlap
+      const inputWords = inputLower.split(/\s+/)
+      const candWords = candLower.split(/\s+/)
+      const overlap = inputWords.filter(w => candWords.some(cw => cw.includes(w) || w.includes(cw))).length
+      const wordScore = overlap / Math.max(inputWords.length, candWords.length)
+      if (wordScore > 0.3) return { ...c, score: wordScore * 0.7 }
+
+      // Character overlap ratio
+      const chars = new Set(inputLower.split(''))
+      const matching = [...chars].filter(ch => candLower.includes(ch)).length
+      const charScore = matching / Math.max(inputLower.length, candLower.length)
+      if (charScore > 0.5) return { ...c, score: charScore * 0.5 }
+
+      return { ...c, score: 0 }
+    })
+    .filter(r => r.score > 0.2)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 5)
+}
+
+export interface CsvMismatch {
+  csvValue: string
+  column: string
+  suggestions: FuzzyResult[]
+  resolvedTo: string | null  // id or '__skip__'
+}
+
+export function findCsvMismatches(
+  csvValues: string[],
+  candidates: FuzzyCandidate[],
+  column: string
+): CsvMismatch[] {
+  const seen = new Set<string>()
+  const mismatches: CsvMismatch[] = []
+  const candLowerMap = new Map(candidates.map(c => [c.name.toLowerCase().trim(), c]))
+
+  for (const val of csvValues) {
+    const key = val.toLowerCase().trim()
+    if (!key || seen.has(key)) continue
+    seen.add(key)
+
+    const exact = candLowerMap.get(key)
+    if (exact) continue // Exact match, no mismatch
+
+    const suggestions = fuzzyMatch(val, candidates)
+    mismatches.push({ csvValue: val, column, suggestions, resolvedTo: null })
+  }
+
+  return mismatches
+}

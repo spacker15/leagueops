@@ -12,10 +12,10 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import {
-  loadScheduleRules, loadWeeklyOverrides, loadTeamProgramMap,
+  loadScheduleRules, loadWeeklyOverrides, loadTeamProgramMap, loadRuleOverrides,
   evaluateMatchupRules, evaluateSlotRules, getEffectiveTiming,
   getForcedMatchups, getSkippedDates,
-  type ScheduleRule, type ScheduleContext, type PlacedGame, type TeamInfo
+  type ScheduleRule, type ScheduleContext, type PlacedGame, type TeamInfo, type RuleOverride
 } from './schedule-rules'
 
 // ─── Types ────────────────────────────────────────────────────
@@ -236,9 +236,10 @@ export async function generateSchedule(
     }
   }
 
-  // Load schedule rules and weekly overrides
+  // Load schedule rules, weekly overrides, and admin rule overrides
   const scheduleRules = await loadScheduleRules(eventId, sb)
   const weeklyOverrides = await loadWeeklyOverrides(eventId, sb)
+  const ruleOverrides = await loadRuleOverrides(eventId, sb)
   const skippedDates = getSkippedDates(scheduleRules, weeklyOverrides)
 
   // Filter out skipped dates
@@ -333,7 +334,7 @@ export async function generateSchedule(
       teamProgramMap,
     }
 
-    const result = evaluateMatchupRules(scheduleRules, ctx)
+    const result = evaluateMatchupRules(scheduleRules, ctx, ruleOverrides)
     if (!result.allowed) {
       auditEntries.push({
         event_id: eventId, run_id: runId, log_type: 'matchup_blocked', severity: 'info',
@@ -456,7 +457,7 @@ export async function generateSchedule(
             teamProgramMap,
           }
 
-          const slotResult = evaluateSlotRules(scheduleRules, ctx)
+          const slotResult = evaluateSlotRules(scheduleRules, ctx, ruleOverrides)
           if (!slotResult.allowed) {
             auditEntries.push({
               event_id: eventId, run_id: runId, log_type: 'slot_skipped', severity: 'info',

@@ -3,7 +3,7 @@
 import { useState, useMemo, useCallback, useEffect } from 'react'
 import { useApp } from '@/lib/store'
 import { StatusBadge, Modal, Btn, FormField, SectionHeader } from '@/components/ui'
-import { cn, nextStatusLabel, nextGameStatus } from '@/lib/utils'
+import { cn, nextStatusLabel, nextGameStatus, fuzzyMatch, findCsvMismatches, type CsvMismatch } from '@/lib/utils'
 import toast from 'react-hot-toast'
 import type { GameStatus, OperationalConflict } from '@/types'
 import { createClient } from '@/supabase/client'
@@ -69,6 +69,8 @@ export function ScheduleTab() {
   const scheduleFileRef = useRef<HTMLInputElement>(null)
   const [scheduleCsvPreview, setScheduleCsvPreview] = useState<{ rows: Record<string, string>[]; warnings: string[] } | null>(null)
   const [importingSchedule, setImportingSchedule] = useState(false)
+  const [csvMismatches, setCsvMismatches] = useState<CsvMismatch[]>([])
+  const [csvResolvedMap, setCsvResolvedMap] = useState<Map<string, string>>(new Map())
 
   // Follow teams
   const [followedTeams, setFollowedTeams] = useState<number[]>(loadFollowedTeams)
@@ -360,29 +362,84 @@ export function ScheduleTab() {
       }
 
       if (rows.length === 0) { toast.error('No valid rows found in CSV'); return }
+
+      // Fuzzy match team names, fields, divisions against existing data
+      const teamCandidates = state.teams.map(t => ({ id: t.id ?? t.name, name: t.name }))
+      const fieldCandidates = state.fields.map(f => ({ id: f.id ?? f.name, name: f.name }))
+      const divSet = new Set(state.teams.map(t => t.division).filter(Boolean))
+      const divCandidates = [...divSet].map(d => ({ id: d, name: d }))
+
+      const homeTeamVals = rows.map(r => r.home_team).filter(Boolean)
+      const awayTeamVals = rows.map(r => r.away_team).filter(Boolean)
+      const fieldVals = rows.map(r => r.field).filter(Boolean)
+      const divVals = rows.map(r => r.division).filter(Boolean)
+
+      const allMismatches = [
+        ...findCsvMismatches([...homeTeamVals, ...awayTeamVals], teamCandidates, 'team'),
+        ...findCsvMismatches(fieldVals, fieldCandidates, 'field'),
+        ...findCsvMismatches(divVals, divCandidates, 'division'),
+      ]
+
+      setCsvMismatches(allMismatches)
+      setCsvResolvedMap(new Map())
       setScheduleCsvPreview({ rows, warnings })
     }
     reader.readAsText(file)
   }
 
+  function resolveCsvMismatch(idx: number, value: string) {
+    setCsvMismatches(prev => prev.map((m, i) => i === idx ? { ...m, resolvedTo: value || null } : m))
+  }
+
+  const unresolvedMismatches = csvMismatches.filter(m => m.resolvedTo === null)
+  const skippedCsvValues = new Set(csvMismatches.filter(m => m.resolvedTo === '__skip__').map(m => m.csvValue.toLowerCase().trim()))
+
   async function importScheduleCSV() {
     if (!scheduleCsvPreview || !currentDate) return
+    if (unresolvedMismatches.length > 0) { toast.error('Resolve all mismatches before importing'); return }
     setImportingSchedule(true)
     const sb = createClient()
 
     try {
       // Build lookup maps for teams and fields
       const teamMap = new Map(state.teams.map(t => [t.name.toLowerCase(), t]))
+      const teamIdMap = new Map(state.teams.map(t => [String(t.id), t]))
       const fieldMap = new Map(state.fields.map(f => [f.name.toLowerCase(), f]))
+      const fieldIdMap = new Map(state.fields.map(f => [String(f.id), f]))
+
+      // Build resolved name map from mismatches
+      const resolvedNameMap = new Map<string, string>()
+      for (const m of csvMismatches) {
+        if (m.resolvedTo && m.resolvedTo !== '__skip__') {
+          resolvedNameMap.set(m.csvValue.toLowerCase().trim(), m.resolvedTo)
+        }
+      }
 
       const errors: string[] = []
       let created = 0
+      let skipped = 0
 
       for (let i = 0; i < scheduleCsvPreview.rows.length; i++) {
         const row = scheduleCsvPreview.rows[i]
-        const homeTeam = teamMap.get(row.home_team?.toLowerCase())
-        const awayTeam = teamMap.get(row.away_team?.toLowerCase())
-        const field = fieldMap.get(row.field?.toLowerCase())
+
+        // Skip rows with skipped values
+        if (skippedCsvValues.has(row.home_team?.toLowerCase().trim()) || skippedCsvValues.has(row.away_team?.toLowerCase().trim())) {
+          skipped++
+          continue
+        }
+
+        // Resolve team names via mismatch mapping
+        const homeKey = row.home_team?.toLowerCase()
+        const awayKey = row.away_team?.toLowerCase()
+        const resolvedHomeId = resolvedNameMap.get(homeKey?.trim())
+        const resolvedAwayId = resolvedNameMap.get(awayKey?.trim())
+
+        const homeTeam = resolvedHomeId ? teamIdMap.get(resolvedHomeId) : teamMap.get(homeKey)
+        const awayTeam = resolvedAwayId ? teamIdMap.get(resolvedAwayId) : teamMap.get(awayKey)
+
+        const fieldKey = row.field?.toLowerCase()
+        const resolvedFieldId = resolvedNameMap.get(fieldKey?.trim())
+        const field = resolvedFieldId ? fieldIdMap.get(resolvedFieldId) : fieldMap.get(fieldKey)
 
         if (!homeTeam) { errors.push(`Row ${i + 1}: home team "${row.home_team}" not found`); continue }
         if (!awayTeam) { errors.push(`Row ${i + 1}: away team "${row.away_team}" not found`); continue }
@@ -423,9 +480,10 @@ export function ScheduleTab() {
         console.warn('Schedule import errors:', errors)
       }
       if (created > 0) {
-        toast.success(`${created} game${created !== 1 ? 's' : ''} imported`)
+        toast.success(`${created} game${created !== 1 ? 's' : ''} imported${skipped ? ` (${skipped} skipped)` : ''}`)
       }
       setScheduleCsvPreview(null)
+      setCsvMismatches([])
       await refreshGames()
     } catch (err: any) {
       toast.error(err.message || 'Import failed')
@@ -1157,6 +1215,36 @@ export function ScheduleTab() {
               </div>
             )}
 
+            {/* Mismatch Resolver */}
+            {csvMismatches.length > 0 && (
+              <div className="px-5 py-3 bg-yellow-900/20 border-b border-yellow-700/50">
+                <div className="text-yellow-400 font-cond text-sm font-bold mb-2">
+                  {csvMismatches.length} UNMATCHED NAME{csvMismatches.length !== 1 ? 'S' : ''} — RESOLVE BEFORE IMPORTING
+                </div>
+                {csvMismatches.map((mismatch, i) => (
+                  <div key={i} className="flex items-center gap-2 py-1">
+                    <span className="font-cond text-[9px] font-bold tracking-wider px-1.5 py-0.5 rounded bg-[#1a2d50] text-muted uppercase">{mismatch.column}</span>
+                    <span className="text-red-400 text-xs font-mono">{mismatch.csvValue}</span>
+                    <span className="text-gray-500 text-xs">&rarr;</span>
+                    <select
+                      className="bg-[#081428] border border-[#1a2d50] text-white px-2 py-0.5 rounded text-xs outline-none focus:border-blue-400 transition-colors"
+                      value={mismatch.resolvedTo ?? ''}
+                      onChange={e => resolveCsvMismatch(i, e.target.value)}
+                    >
+                      <option value="">-- Select match --</option>
+                      <option value="__skip__">Skip rows with this value</option>
+                      {mismatch.suggestions.map(s => (
+                        <option key={s.id} value={String(s.id)}>{s.name} {s.score < 1 ? `(${Math.round(s.score * 100)}% match)` : ''}</option>
+                      ))}
+                    </select>
+                    {mismatch.resolvedTo === '__skip__' && <XCircle size={12} className="text-red-400" />}
+                    {mismatch.resolvedTo && mismatch.resolvedTo !== '__skip__' && <CheckCircle size={12} className="text-green-400" />}
+                    {!mismatch.resolvedTo && <AlertTriangle size={12} className="text-yellow-400" />}
+                  </div>
+                ))}
+              </div>
+            )}
+
             <div className="flex-1 overflow-auto px-5 py-3">
               <table className="w-full text-[11px]">
                 <thead>
@@ -1170,26 +1258,39 @@ export function ScheduleTab() {
                   </tr>
                 </thead>
                 <tbody>
-                  {scheduleCsvPreview.rows.map((row, i) => (
-                    <tr key={i} className="border-b border-border/50 hover:bg-navy/20">
-                      <td className="font-cond text-muted py-1.5 pr-3">{i + 1}</td>
-                      {Object.values(row).map((val, j) => (
-                        <td key={j} className="font-cond text-white py-1.5 pr-3">{val || <span className="text-muted italic">—</span>}</td>
-                      ))}
-                    </tr>
-                  ))}
+                  {scheduleCsvPreview.rows.map((row, i) => {
+                    const isSkipped = skippedCsvValues.has(row.home_team?.toLowerCase().trim()) || skippedCsvValues.has(row.away_team?.toLowerCase().trim())
+                    return (
+                      <tr key={i} className={cn('border-b border-border/50', isSkipped ? 'bg-red-900/10 opacity-50' : 'hover:bg-navy/20')}>
+                        <td className="font-cond text-muted py-1.5 pr-3">{i + 1}</td>
+                        {Object.entries(row).map(([col, val], j) => {
+                          const valLower = (val || '').toLowerCase().trim()
+                          const hasMismatch = csvMismatches.some(m => m.csvValue.toLowerCase().trim() === valLower && !m.resolvedTo)
+                          const isResolved = csvMismatches.some(m => m.csvValue.toLowerCase().trim() === valLower && m.resolvedTo && m.resolvedTo !== '__skip__')
+                          return (
+                            <td key={j} className={cn('font-cond py-1.5 pr-3', hasMismatch ? 'text-yellow-400' : isResolved ? 'text-green-400' : 'text-white')}>
+                              {val || <span className="text-muted italic">&mdash;</span>}
+                            </td>
+                          )
+                        })}
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
 
             <div className="flex items-center justify-between px-5 py-3 border-t border-border">
               <span className="font-cond text-[11px] text-muted">
-                {scheduleCsvPreview.rows.length} game{scheduleCsvPreview.rows.length !== 1 ? 's' : ''} will be imported into the current event date
+                {scheduleCsvPreview.rows.length - skippedCsvValues.size} game{(scheduleCsvPreview.rows.length - skippedCsvValues.size) !== 1 ? 's' : ''} will be imported
+                {skippedCsvValues.size > 0 && <span className="text-red-400 ml-1">({skippedCsvValues.size} will be skipped)</span>}
               </span>
               <div className="flex gap-2">
-                <Btn size="sm" variant="ghost" onClick={() => setScheduleCsvPreview(null)}>CANCEL</Btn>
-                <Btn size="sm" variant="success" onClick={importScheduleCSV} disabled={importingSchedule}>
-                  {importingSchedule ? 'IMPORTING...' : `IMPORT ${scheduleCsvPreview.rows.length} GAME${scheduleCsvPreview.rows.length !== 1 ? 'S' : ''}`}
+                <Btn size="sm" variant="ghost" onClick={() => { setScheduleCsvPreview(null); setCsvMismatches([]) }}>CANCEL</Btn>
+                <Btn size="sm" variant="success" onClick={importScheduleCSV} disabled={importingSchedule || unresolvedMismatches.length > 0}>
+                  {unresolvedMismatches.length > 0
+                    ? `RESOLVE ${unresolvedMismatches.length} MISMATCH${unresolvedMismatches.length !== 1 ? 'ES' : ''}`
+                    : importingSchedule ? 'IMPORTING...' : `IMPORT ${scheduleCsvPreview.rows.length - skippedCsvValues.size} GAME${(scheduleCsvPreview.rows.length - skippedCsvValues.size) !== 1 ? 'S' : ''}`}
                 </Btn>
               </div>
             </div>

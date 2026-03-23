@@ -6,7 +6,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/supabase/client'
 import { useAuth } from '@/lib/auth'
 import { useApp } from '@/lib/store'
-import { cn } from '@/lib/utils'
+import { cn, findCsvMismatches, type CsvMismatch } from '@/lib/utils'
 import { Btn, SectionHeader, Input, Select, FormField, Card } from '@/components/ui'
 import toast from 'react-hot-toast'
 import { CheckCircle, XCircle, Clock, Users, Building2, RefreshCw, Plus, ChevronDown, ChevronUp, Upload, Download, X, AlertTriangle, Trash2 } from 'lucide-react'
@@ -82,6 +82,9 @@ export function ProgramApprovals() {
   // CSV import state
   const [csvPreview, setCsvPreview] = useState<{ type: 'programs' | 'teams'; rows: Record<string, string>[]; warnings: string[] } | null>(null)
   const [importing, setImporting] = useState(false)
+  const [csvMismatches, setCsvMismatches] = useState<CsvMismatch[]>([])
+  const unresolvedMismatches = csvMismatches.filter(m => m.resolvedTo === null)
+  const skippedCsvValues = new Set(csvMismatches.filter(m => m.resolvedTo === '__skip__').map(m => m.csvValue.toLowerCase().trim()))
   const programFileRef = useRef<HTMLInputElement>(null)
   const teamFileRef = useRef<HTMLInputElement>(null)
 
@@ -508,15 +511,39 @@ export function ProgramApprovals() {
       }
 
       if (rows.length === 0) { toast.error('No valid rows found in CSV'); return }
+
+      // Fuzzy match divisions for teams CSV
+      if (type === 'teams') {
+        const divCandidates = divisions.map(d => ({ id: d, name: d }))
+        const divVals = rows.map(r => r.division).filter(Boolean)
+        const mismatches = findCsvMismatches(divVals, divCandidates, 'division')
+        setCsvMismatches(mismatches)
+      } else {
+        setCsvMismatches([])
+      }
+
       setCsvPreview({ type, rows, warnings })
     }
     reader.readAsText(file)
   }
 
+  function resolveCsvMismatch(idx: number, value: string) {
+    setCsvMismatches(prev => prev.map((m, i) => i === idx ? { ...m, resolvedTo: value || null } : m))
+  }
+
   async function importCSV() {
     if (!csvPreview) return
+    if (unresolvedMismatches.length > 0) { toast.error('Resolve all mismatches before importing'); return }
     setImporting(true)
     const sb = createClient()
+
+    // Build resolved division map from mismatches
+    const resolvedDivMap = new Map<string, string>()
+    for (const m of csvMismatches) {
+      if (m.resolvedTo && m.resolvedTo !== '__skip__') {
+        resolvedDivMap.set(m.csvValue.toLowerCase().trim(), m.resolvedTo)
+      }
+    }
 
     try {
       if (csvPreview.type === 'programs') {
@@ -547,16 +574,22 @@ export function ProgramApprovals() {
       } else {
         const existingKeys = new Set(teams.map(t => `${t.name.toLowerCase()}|${t.division.toLowerCase()}`))
         const seen = new Set<string>()
-        const inserts = csvPreview.rows.filter(r => {
-          const key = `${r.name.trim().toLowerCase()}|${(r.division || '').trim().toLowerCase()}`
+        const rowsToImport = csvPreview.rows.filter(r => !skippedCsvValues.has((r.division || '').toLowerCase().trim()))
+        const inserts = rowsToImport.filter(r => {
+          // Resolve division via mismatch map
+          const resolvedDiv = resolvedDivMap.get((r.division || '').toLowerCase().trim()) || r.division || ''
+          const key = `${r.name.trim().toLowerCase()}|${resolvedDiv.toLowerCase()}`
           if (existingKeys.has(key) || seen.has(key)) return false
           seen.add(key)
           return true
-        }).map(r => ({
-          event_id: eventId!,
-          name: r.name,
-          division: r.division || '',
-        }))
+        }).map(r => {
+          const resolvedDiv = resolvedDivMap.get((r.division || '').toLowerCase().trim()) || r.division || ''
+          return {
+            event_id: eventId!,
+            name: r.name,
+            division: resolvedDiv,
+          }
+        })
         const skipped = csvPreview.rows.length - inserts.length
         if (inserts.length === 0) { toast.error('All teams already exist'); setImporting(false); return }
         const { error } = await sb.from('teams').insert(inserts)
@@ -564,6 +597,7 @@ export function ProgramApprovals() {
         toast.success(`${inserts.length} team${inserts.length !== 1 ? 's' : ''} imported${skipped ? ` (${skipped} duplicate${skipped !== 1 ? 's' : ''} skipped)` : ''}`)
       }
       setCsvPreview(null)
+      setCsvMismatches([])
       load()
     } catch (err: any) {
       toast.error(err.message || 'Import failed')
@@ -1055,6 +1089,36 @@ export function ProgramApprovals() {
               </div>
             )}
 
+            {/* Mismatch Resolver */}
+            {csvMismatches.length > 0 && (
+              <div className="px-5 py-3 bg-yellow-900/20 border-b border-yellow-700/50">
+                <div className="text-yellow-400 font-cond text-sm font-bold mb-2">
+                  {csvMismatches.length} UNMATCHED {csvMismatches[0]?.column?.toUpperCase() ?? 'VALUE'}{csvMismatches.length !== 1 ? 'S' : ''} — RESOLVE BEFORE IMPORTING
+                </div>
+                {csvMismatches.map((mismatch, i) => (
+                  <div key={i} className="flex items-center gap-2 py-1">
+                    <span className="font-cond text-[9px] font-bold tracking-wider px-1.5 py-0.5 rounded bg-[#1a2d50] text-muted uppercase">{mismatch.column}</span>
+                    <span className="text-red-400 text-xs font-mono">{mismatch.csvValue}</span>
+                    <span className="text-gray-500 text-xs">&rarr;</span>
+                    <select
+                      className="bg-[#081428] border border-[#1a2d50] text-white px-2 py-0.5 rounded text-xs outline-none focus:border-blue-400 transition-colors"
+                      value={mismatch.resolvedTo ?? ''}
+                      onChange={e => resolveCsvMismatch(i, e.target.value)}
+                    >
+                      <option value="">-- Select match --</option>
+                      <option value="__skip__">Skip rows with this value</option>
+                      {mismatch.suggestions.map(s => (
+                        <option key={s.id} value={String(s.id)}>{s.name} {s.score < 1 ? `(${Math.round(s.score * 100)}% match)` : ''}</option>
+                      ))}
+                    </select>
+                    {mismatch.resolvedTo === '__skip__' && <XCircle size={12} className="text-red-400" />}
+                    {mismatch.resolvedTo && mismatch.resolvedTo !== '__skip__' && <CheckCircle size={12} className="text-green-400" />}
+                    {!mismatch.resolvedTo && <AlertTriangle size={12} className="text-yellow-400" />}
+                  </div>
+                ))}
+              </div>
+            )}
+
             {/* Table */}
             <div className="flex-1 overflow-auto px-5 py-3">
               <table className="w-full text-[11px]">
@@ -1069,14 +1133,24 @@ export function ProgramApprovals() {
                   </tr>
                 </thead>
                 <tbody>
-                  {csvPreview.rows.map((row, i) => (
-                    <tr key={i} className="border-b border-border/50 hover:bg-navy/20">
-                      <td className="font-cond text-muted py-1.5 pr-3">{i + 1}</td>
-                      {Object.values(row).map((val, j) => (
-                        <td key={j} className="font-cond text-white py-1.5 pr-3">{val || <span className="text-muted italic">—</span>}</td>
-                      ))}
-                    </tr>
-                  ))}
+                  {csvPreview.rows.map((row, i) => {
+                    const divSkipped = csvPreview.type === 'teams' && skippedCsvValues.has((row.division || '').toLowerCase().trim())
+                    return (
+                      <tr key={i} className={cn('border-b border-border/50', divSkipped ? 'bg-red-900/10 opacity-50' : 'hover:bg-navy/20')}>
+                        <td className="font-cond text-muted py-1.5 pr-3">{i + 1}</td>
+                        {Object.entries(row).map(([col, val], j) => {
+                          const valLower = (val || '').toLowerCase().trim()
+                          const hasMismatch = csvMismatches.some(m => m.csvValue.toLowerCase().trim() === valLower && !m.resolvedTo)
+                          const isResolved = csvMismatches.some(m => m.csvValue.toLowerCase().trim() === valLower && m.resolvedTo && m.resolvedTo !== '__skip__')
+                          return (
+                            <td key={j} className={cn('font-cond py-1.5 pr-3', hasMismatch ? 'text-yellow-400' : isResolved ? 'text-green-400' : 'text-white')}>
+                              {val || <span className="text-muted italic">&mdash;</span>}
+                            </td>
+                          )
+                        })}
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
@@ -1086,11 +1160,14 @@ export function ProgramApprovals() {
               <span className="font-cond text-[11px] text-muted">
                 {csvPreview.rows.length} row{csvPreview.rows.length !== 1 ? 's' : ''} will be imported
                 {csvPreview.type === 'programs' ? ' with status=approved' : ` into current event`}
+                {skippedCsvValues.size > 0 && <span className="text-red-400 ml-1">({skippedCsvValues.size} values will be skipped)</span>}
               </span>
               <div className="flex gap-2">
-                <Btn size="sm" variant="ghost" onClick={() => setCsvPreview(null)}>CANCEL</Btn>
-                <Btn size="sm" variant="success" onClick={importCSV} disabled={importing}>
-                  {importing ? 'IMPORTING...' : `IMPORT ${csvPreview.rows.length} ${csvPreview.type === 'programs' ? 'PROGRAM' : 'TEAM'}${csvPreview.rows.length !== 1 ? 'S' : ''}`}
+                <Btn size="sm" variant="ghost" onClick={() => { setCsvPreview(null); setCsvMismatches([]) }}>CANCEL</Btn>
+                <Btn size="sm" variant="success" onClick={importCSV} disabled={importing || unresolvedMismatches.length > 0}>
+                  {unresolvedMismatches.length > 0
+                    ? `RESOLVE ${unresolvedMismatches.length} MISMATCH${unresolvedMismatches.length !== 1 ? 'ES' : ''}`
+                    : importing ? 'IMPORTING...' : `IMPORT ${csvPreview.rows.length} ${csvPreview.type === 'programs' ? 'PROGRAM' : 'TEAM'}${csvPreview.rows.length !== 1 ? 'S' : ''}`}
                 </Btn>
               </div>
             </div>
