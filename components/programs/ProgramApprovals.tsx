@@ -90,6 +90,7 @@ export function ProgramApprovals() {
   const [csvMismatches, setCsvMismatches] = useState<CsvMismatch[]>([])
   const unresolvedMismatches = csvMismatches.filter(m => m.resolvedTo === null)
   const skippedCsvValues = new Set(csvMismatches.filter(m => m.resolvedTo === '__skip__').map(m => m.csvValue.toLowerCase().trim()))
+  const divsToCreate = csvMismatches.filter(m => m.resolvedTo === '__create__')
   const programFileRef = useRef<HTMLInputElement>(null)
   const teamFileRef = useRef<HTMLInputElement>(null)
 
@@ -579,11 +580,35 @@ export function ProgramApprovals() {
     setImporting(true)
     const sb = createClient()
 
+    // Create new divisions first
+    if (divsToCreate.length > 0 && eventId) {
+      const maxSort = divisions.length > 0 ? divisions.length + 1 : 1
+      const divInserts = divsToCreate.map((m, idx) => ({
+        event_id: eventId,
+        name: m.csvValue,
+        is_active: true,
+        sort_order: maxSort + idx,
+      }))
+      const { error: divErr } = await sb
+        .from('registration_divisions')
+        .upsert(divInserts, { onConflict: 'event_id,name' })
+      if (divErr) {
+        toast.error(`Failed to create divisions: ${divErr.message}`)
+        setImporting(false)
+        return
+      }
+      toast.success(`${divInserts.length} division${divInserts.length !== 1 ? 's' : ''} created`)
+    }
+
     // Build resolved division map from mismatches
     const resolvedDivMap = new Map<string, string>()
     for (const m of csvMismatches) {
-      if (m.resolvedTo && m.resolvedTo !== '__skip__') {
+      if (m.resolvedTo && m.resolvedTo !== '__skip__' && m.resolvedTo !== '__create__') {
         resolvedDivMap.set(m.csvValue.toLowerCase().trim(), m.resolvedTo)
+      }
+      // For __create__, use the original CSV value as the division name
+      if (m.resolvedTo === '__create__') {
+        resolvedDivMap.set(m.csvValue.toLowerCase().trim(), m.csvValue)
       }
     }
 
@@ -1193,27 +1218,97 @@ export function ProgramApprovals() {
             {/* Mismatch Resolver */}
             {csvMismatches.length > 0 && (
               <div className="px-5 py-3 bg-yellow-900/20 border-b border-yellow-700/50">
-                <div className="text-yellow-400 font-cond text-sm font-bold mb-2">
-                  {csvMismatches.length} UNMATCHED {csvMismatches[0]?.column?.toUpperCase() ?? 'VALUE'}{csvMismatches.length !== 1 ? 'S' : ''} — RESOLVE BEFORE IMPORTING
+                <div className="flex items-center justify-between mb-2">
+                  <div className="text-yellow-400 font-cond text-sm font-bold">
+                    {csvMismatches.length} UNMATCHED {csvMismatches[0]?.column?.toUpperCase() ?? 'VALUE'}{csvMismatches.length !== 1 ? 'S' : ''}
+                    <span className="text-muted font-normal ml-2">
+                      Resolved: {csvMismatches.filter(m => m.resolvedTo !== null).length}/{csvMismatches.length}
+                    </span>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setCsvMismatches(prev => prev.map(m => ({ ...m, resolvedTo: '__create__' })))}
+                      className="font-cond text-[10px] font-black tracking-wider px-3 py-1 rounded border border-green-700/50 bg-green-900/30 text-green-400 hover:bg-green-900/50 transition-colors"
+                    >
+                      AUTO-CREATE ALL
+                    </button>
+                    <button
+                      onClick={() => setCsvMismatches(prev => prev.map(m => ({
+                        ...m,
+                        resolvedTo: m.suggestions.length > 0 ? String(m.suggestions[0].id) : '__create__'
+                      })))}
+                      className="font-cond text-[10px] font-black tracking-wider px-3 py-1 rounded border border-blue-700/50 bg-blue-900/30 text-blue-400 hover:bg-blue-900/50 transition-colors"
+                    >
+                      BEST MATCH ALL
+                    </button>
+                    <button
+                      onClick={() => setCsvMismatches(prev => prev.map(m => ({ ...m, resolvedTo: '__skip__' })))}
+                      className="font-cond text-[10px] font-black tracking-wider px-3 py-1 rounded border border-border bg-surface-card text-muted hover:text-white transition-colors"
+                    >
+                      SKIP ALL
+                    </button>
+                  </div>
                 </div>
                 {csvMismatches.map((mismatch, i) => (
-                  <div key={i} className="flex items-center gap-2 py-1">
+                  <div key={i} className={cn(
+                    'flex items-center gap-2 py-1.5 px-2 rounded mb-1',
+                    mismatch.resolvedTo === '__create__' ? 'bg-green-900/10' :
+                    mismatch.resolvedTo === '__skip__' ? 'bg-surface-card/30 opacity-60' :
+                    mismatch.resolvedTo ? 'bg-blue-900/10' : ''
+                  )}>
                     <span className="font-cond text-[9px] font-bold tracking-wider px-1.5 py-0.5 rounded bg-[#1a2d50] text-muted uppercase">{mismatch.column}</span>
-                    <span className="text-red-400 text-xs font-mono">{mismatch.csvValue}</span>
+                    <span className="text-red-400 text-xs font-mono min-w-[100px]">{mismatch.csvValue}</span>
                     <span className="text-gray-500 text-xs">&rarr;</span>
+
+                    {/* Radio: Create */}
+                    <label className="flex items-center gap-1 cursor-pointer">
+                      <input
+                        type="radio"
+                        name={`mismatch-${i}`}
+                        checked={mismatch.resolvedTo === '__create__'}
+                        onChange={() => resolveCsvMismatch(i, '__create__')}
+                        className="accent-green-500"
+                      />
+                      <span className="font-cond text-[10px] font-bold text-green-400">CREATE</span>
+                    </label>
+
+                    {/* Radio: Map */}
+                    <label className="flex items-center gap-1 cursor-pointer">
+                      <input
+                        type="radio"
+                        name={`mismatch-${i}`}
+                        checked={mismatch.resolvedTo !== null && mismatch.resolvedTo !== '__skip__' && mismatch.resolvedTo !== '__create__'}
+                        onChange={() => resolveCsvMismatch(i, mismatch.suggestions[0] ? String(mismatch.suggestions[0].id) : '')}
+                        className="accent-blue-500"
+                      />
+                      <span className="font-cond text-[10px] font-bold text-blue-400">MAP:</span>
+                    </label>
                     <select
-                      className="bg-[#081428] border border-[#1a2d50] text-white px-2 py-0.5 rounded text-xs outline-none focus:border-blue-400 transition-colors"
-                      value={mismatch.resolvedTo ?? ''}
+                      className="bg-[#081428] border border-[#1a2d50] text-white px-2 py-0.5 rounded text-xs outline-none focus:border-blue-400 transition-colors max-w-[180px]"
+                      value={mismatch.resolvedTo !== '__skip__' && mismatch.resolvedTo !== '__create__' ? (mismatch.resolvedTo ?? '') : ''}
                       onChange={e => resolveCsvMismatch(i, e.target.value)}
                     >
-                      <option value="">-- Select match --</option>
-                      <option value="__skip__">Skip rows with this value</option>
+                      <option value="">-- Select --</option>
                       {mismatch.suggestions.map(s => (
-                        <option key={s.id} value={String(s.id)}>{s.name} {s.score < 1 ? `(${Math.round(s.score * 100)}% match)` : ''}</option>
+                        <option key={s.id} value={String(s.id)}>{s.name} {s.score < 1 ? `(${Math.round(s.score * 100)}%)` : ''}</option>
                       ))}
                     </select>
-                    {mismatch.resolvedTo === '__skip__' && <XCircle size={12} className="text-red-400" />}
-                    {mismatch.resolvedTo && mismatch.resolvedTo !== '__skip__' && <CheckCircle size={12} className="text-green-400" />}
+
+                    {/* Radio: Skip */}
+                    <label className="flex items-center gap-1 cursor-pointer">
+                      <input
+                        type="radio"
+                        name={`mismatch-${i}`}
+                        checked={mismatch.resolvedTo === '__skip__'}
+                        onChange={() => resolveCsvMismatch(i, '__skip__')}
+                        className="accent-gray-500"
+                      />
+                      <span className="font-cond text-[10px] font-bold text-muted">SKIP</span>
+                    </label>
+
+                    {mismatch.resolvedTo === '__create__' && <CheckCircle size={12} className="text-green-400" />}
+                    {mismatch.resolvedTo === '__skip__' && <XCircle size={12} className="text-muted" />}
+                    {mismatch.resolvedTo && mismatch.resolvedTo !== '__skip__' && mismatch.resolvedTo !== '__create__' && <CheckCircle size={12} className="text-blue-400" />}
                     {!mismatch.resolvedTo && <AlertTriangle size={12} className="text-yellow-400" />}
                   </div>
                 ))}
@@ -1261,7 +1356,8 @@ export function ProgramApprovals() {
               <span className="font-cond text-[11px] text-muted">
                 {csvPreview.rows.length} row{csvPreview.rows.length !== 1 ? 's' : ''} will be imported
                 {csvPreview.type === 'programs' ? ' with status=approved' : ` into current event`}
-                {skippedCsvValues.size > 0 && <span className="text-red-400 ml-1">({skippedCsvValues.size} values will be skipped)</span>}
+                {divsToCreate.length > 0 && <span className="text-green-400 ml-1">({divsToCreate.length} division{divsToCreate.length !== 1 ? 's' : ''} will be created)</span>}
+                {skippedCsvValues.size > 0 && <span className="text-red-400 ml-1">({skippedCsvValues.size} skipped)</span>}
               </span>
               <div className="flex gap-2">
                 <Btn size="sm" variant="ghost" onClick={() => { setCsvPreview(null); setCsvMismatches([]) }}>CANCEL</Btn>

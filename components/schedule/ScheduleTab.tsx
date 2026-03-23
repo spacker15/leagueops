@@ -3,7 +3,7 @@
 import { useState, useMemo, useCallback, useEffect } from 'react'
 import { useApp } from '@/lib/store'
 import { StatusBadge, Modal, Btn, FormField, SectionHeader } from '@/components/ui'
-import { cn, nextStatusLabel, nextGameStatus, fuzzyMatch, findCsvMismatches, type CsvMismatch } from '@/lib/utils'
+import { cn, nextStatusLabel, nextGameStatus, fuzzyMatch, findCsvMismatches, type CsvMismatch, type FuzzyResult } from '@/lib/utils'
 import toast from 'react-hot-toast'
 import type { GameStatus, OperationalConflict } from '@/types'
 import { createClient } from '@/supabase/client'
@@ -21,10 +21,95 @@ import {
   X,
   Upload,
   Download,
+  Plus,
 } from 'lucide-react'
 
 type ViewMode = 'table' | 'board'
 type TeamFilter = 'all' | 'my-teams'
+
+// Enhanced resolver types for schedule CSV import
+type ResolverAction = 'create' | 'map' | 'skip' | null
+interface ResolverEntry {
+  csvValue: string
+  column: string
+  action: ResolverAction
+  mapToId: string | null // team id when action='map'
+  detectedDivision: string | null
+  detectedProgram: { id: number; name: string } | null
+  suggestions: FuzzyResult[]
+}
+
+interface CsvProgram {
+  id: number
+  name: string
+  short_name: string | null
+}
+
+// Division prefix map: CSV prefix -> possible division names
+const DIV_PREFIX_MAP: Record<string, string[]> = {
+  '8u': ['1/2 grade', '8u', '1st/2nd grade'],
+  '10u': ['3/4 grade', '10u', '3rd/4th grade'],
+  '12u': ['5/6 grade', '12u', '5th/6th grade'],
+  '14u': ['7/8 grade', '14u', '7th/8th grade'],
+  '6u': ['k/1 grade', '6u', 'kindergarten'],
+  '16u': ['9/10 grade', '16u'],
+  '18u': ['11/12 grade', '18u'],
+}
+
+function parseTeamName(
+  name: string,
+  programs: CsvProgram[],
+  divisionNames: string[]
+): { teamName: string; detectedDivision: string | null; detectedProgram: CsvProgram | null } {
+  const parts = name.trim()
+
+  // Try to detect division prefix: "8U", "10U", "12U", "14U", etc.
+  let detectedDivision: string | null = null
+  const divPrefixMatch = parts.match(/^(\d+U)/i)
+  if (divPrefixMatch) {
+    const prefix = divPrefixMatch[1].toLowerCase()
+    const possibleNames = DIV_PREFIX_MAP[prefix] ?? [prefix]
+    for (const d of divisionNames) {
+      const dLower = d.toLowerCase()
+      if (possibleNames.some(p => dLower.includes(p))) {
+        detectedDivision = d
+        break
+      }
+    }
+    if (!detectedDivision) detectedDivision = divPrefixMatch[1].toUpperCase()
+  }
+
+  // Also try "1/2 Grade", "3/4 Grade" style prefixes
+  if (!detectedDivision) {
+    const gradeMatch = parts.match(/^(\d+\/\d+\s*Grade)/i)
+    if (gradeMatch) {
+      const prefix = gradeMatch[1].toLowerCase()
+      for (const d of divisionNames) {
+        if (d.toLowerCase().includes(prefix)) {
+          detectedDivision = d
+          break
+        }
+      }
+      if (!detectedDivision) detectedDivision = gradeMatch[1]
+    }
+  }
+
+  // Try to detect program from name
+  let detectedProgram: CsvProgram | null = null
+  const partsLower = parts.toLowerCase()
+  for (const p of programs) {
+    if (partsLower.includes(p.name.toLowerCase())) {
+      detectedProgram = p
+      break
+    }
+    if (p.short_name && partsLower.includes(p.short_name.toLowerCase())) {
+      detectedProgram = p
+      break
+    }
+  }
+
+  return { teamName: parts, detectedDivision, detectedProgram }
+}
 
 const FOLLOWED_TEAMS_KEY = 'leagueops-followed-teams'
 
@@ -71,6 +156,9 @@ export function ScheduleTab() {
   const [importingSchedule, setImportingSchedule] = useState(false)
   const [csvMismatches, setCsvMismatches] = useState<CsvMismatch[]>([])
   const [csvResolvedMap, setCsvResolvedMap] = useState<Map<string, string>>(new Map())
+  // Enhanced resolver state
+  const [resolverEntries, setResolverEntries] = useState<ResolverEntry[]>([])
+  const [csvPrograms, setCsvPrograms] = useState<CsvProgram[]>([])
 
   // Follow teams
   const [followedTeams, setFollowedTeams] = useState<number[]>(loadFollowedTeams)
@@ -338,9 +426,9 @@ export function ScheduleTab() {
     return rows
   }
 
-  function handleScheduleCSVFile(file: File) {
+  async function handleScheduleCSVFile(file: File) {
     const reader = new FileReader()
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       const text = e.target?.result as string
       const parsed = parseCSV(text)
       if (parsed.length < 2) { toast.error('CSV must have a header row and at least one data row'); return }
@@ -363,51 +451,169 @@ export function ScheduleTab() {
 
       if (rows.length === 0) { toast.error('No valid rows found in CSV'); return }
 
+      // Fetch programs for smart detection
+      const sb = createClient()
+      const { data: progs } = await sb
+        .from('programs')
+        .select('id, name, short_name')
+        .eq('event_id', eventId)
+        .order('name')
+      const fetchedPrograms: CsvProgram[] = (progs ?? []) as CsvProgram[]
+      setCsvPrograms(fetchedPrograms)
+
+      // Get division names from existing teams
+      const divisionNames = [...new Set(state.teams.map(t => t.division).filter(Boolean))]
+
       // Fuzzy match team names, fields, divisions against existing data
       const teamCandidates = state.teams.map(t => ({ id: t.id ?? t.name, name: t.name }))
       const fieldCandidates = state.fields.map(f => ({ id: f.id ?? f.name, name: f.name }))
-      const divSet = new Set(state.teams.map(t => t.division).filter(Boolean))
-      const divCandidates = [...divSet].map(d => ({ id: d, name: d }))
+      const divCandidates = divisionNames.map(d => ({ id: d, name: d }))
 
       const homeTeamVals = rows.map(r => r.home_team).filter(Boolean)
       const awayTeamVals = rows.map(r => r.away_team).filter(Boolean)
       const fieldVals = rows.map(r => r.field).filter(Boolean)
       const divVals = rows.map(r => r.division).filter(Boolean)
 
-      const allMismatches = [
-        ...findCsvMismatches([...homeTeamVals, ...awayTeamVals], teamCandidates, 'team'),
-        ...findCsvMismatches(fieldVals, fieldCandidates, 'field'),
-        ...findCsvMismatches(divVals, divCandidates, 'division'),
-      ]
+      // Field and division mismatches use old system
+      const fieldMismatches = findCsvMismatches(fieldVals, fieldCandidates, 'field')
+      const divMismatches = findCsvMismatches(divVals, divCandidates, 'division')
+      setCsvMismatches([...fieldMismatches, ...divMismatches])
 
-      setCsvMismatches(allMismatches)
+      // Team mismatches use new enhanced resolver
+      const allTeamVals = [...new Set([...homeTeamVals, ...awayTeamVals])]
+      const teamLowerMap = new Map(state.teams.map(t => [t.name.toLowerCase().trim(), t]))
+      const entries: ResolverEntry[] = []
+
+      for (const val of allTeamVals) {
+        const key = val.toLowerCase().trim()
+        if (!key) continue
+        if (teamLowerMap.has(key)) continue // exact match
+
+        const suggestions = fuzzyMatch(val, teamCandidates)
+        const parsed = parseTeamName(val, fetchedPrograms, divisionNames)
+
+        entries.push({
+          csvValue: val,
+          column: 'team',
+          action: null,
+          mapToId: null,
+          detectedDivision: parsed.detectedDivision,
+          detectedProgram: parsed.detectedProgram,
+          suggestions,
+        })
+      }
+
+      setResolverEntries(entries)
       setCsvResolvedMap(new Map())
       setScheduleCsvPreview({ rows, warnings })
     }
     reader.readAsText(file)
   }
 
+  // Resolver entry actions
+  function setResolverAction(idx: number, action: ResolverAction, mapToId?: string) {
+    setResolverEntries(prev => prev.map((e, i) => i === idx ? { ...e, action, mapToId: action === 'map' ? (mapToId ?? e.mapToId) : null } : e))
+  }
+
+  function setResolverMapId(idx: number, mapToId: string) {
+    setResolverEntries(prev => prev.map((e, i) => i === idx ? { ...e, action: 'map', mapToId } : e))
+  }
+
+  function setResolverDivision(idx: number, division: string) {
+    setResolverEntries(prev => prev.map((e, i) => i === idx ? { ...e, detectedDivision: division } : e))
+  }
+
+  function setResolverProgram(idx: number, programId: string) {
+    setResolverEntries(prev => prev.map((e, i) => {
+      const prog = csvPrograms.find(p => String(p.id) === programId) ?? null
+      return i === idx ? { ...e, detectedProgram: prog } : e
+    }))
+  }
+
+  // Bulk actions
+  function bulkAutoCreateAll() {
+    setResolverEntries(prev => prev.map(e => ({ ...e, action: 'create' as ResolverAction })))
+  }
+
+  function bulkSkipAll() {
+    setResolverEntries(prev => prev.map(e => ({ ...e, action: 'skip' as ResolverAction })))
+  }
+
+  function bulkBestMatchAll() {
+    setResolverEntries(prev => prev.map(e => {
+      if (e.suggestions.length > 0) {
+        return { ...e, action: 'map' as ResolverAction, mapToId: String(e.suggestions[0].id) }
+      }
+      return { ...e, action: 'create' as ResolverAction }
+    }))
+  }
+
+  // Old mismatch resolver for fields/divisions
   function resolveCsvMismatch(idx: number, value: string) {
     setCsvMismatches(prev => prev.map((m, i) => i === idx ? { ...m, resolvedTo: value || null } : m))
   }
 
-  const unresolvedMismatches = csvMismatches.filter(m => m.resolvedTo === null)
-  const skippedCsvValues = new Set(csvMismatches.filter(m => m.resolvedTo === '__skip__').map(m => m.csvValue.toLowerCase().trim()))
+  const unresolvedOldMismatches = csvMismatches.filter(m => m.resolvedTo === null)
+  const unresolvedTeamEntries = resolverEntries.filter(e => e.action === null)
+  const resolvedTeamCount = resolverEntries.filter(e => e.action !== null).length
+  const skippedCsvValues = new Set([
+    ...csvMismatches.filter(m => m.resolvedTo === '__skip__').map(m => m.csvValue.toLowerCase().trim()),
+    ...resolverEntries.filter(e => e.action === 'skip').map(e => e.csvValue.toLowerCase().trim()),
+  ])
+  const teamsToCreate = resolverEntries.filter(e => e.action === 'create')
+  const hasUnresolved = unresolvedOldMismatches.length > 0 || unresolvedTeamEntries.length > 0
 
   async function importScheduleCSV() {
     if (!scheduleCsvPreview || !currentDate) return
-    if (unresolvedMismatches.length > 0) { toast.error('Resolve all mismatches before importing'); return }
+    if (hasUnresolved) { toast.error('Resolve all mismatches before importing'); return }
     setImportingSchedule(true)
     const sb = createClient()
 
     try {
-      // Build lookup maps for teams and fields
+      // 1. Create new teams first
+      const newTeamLookup = new Map<string, number>() // csvValue lowercase -> team id
+      if (teamsToCreate.length > 0) {
+        const inserts = teamsToCreate.map(e => ({
+          event_id: eventId,
+          name: e.csvValue,
+          division: e.detectedDivision || '',
+          program_id: e.detectedProgram?.id ?? null,
+          color: '#0B3D91',
+        }))
+
+        const { data: created, error: createErr } = await sb
+          .from('teams')
+          .upsert(inserts, { onConflict: 'event_id,name' })
+          .select('id, name, program_id, division')
+
+        if (createErr) { toast.error(`Failed to create teams: ${createErr.message}`); setImportingSchedule(false); return }
+
+        // Also insert into program_teams for backwards compat
+        const ptInserts = (created ?? [])
+          .filter((t: any) => t.program_id)
+          .map((t: any) => ({
+            event_id: eventId!,
+            program_id: t.program_id,
+            team_id: t.id,
+            division: t.division,
+          }))
+        if (ptInserts.length > 0) {
+          await sb.from('program_teams').upsert(ptInserts, { onConflict: 'program_id,team_id,event_id' })
+        }
+
+        for (const t of created ?? []) {
+          newTeamLookup.set(t.name.toLowerCase().trim(), t.id)
+        }
+        toast.success(`${created?.length ?? 0} team${(created?.length ?? 0) !== 1 ? 's' : ''} created`)
+      }
+
+      // 2. Build lookup maps for teams and fields
       const teamMap = new Map(state.teams.map(t => [t.name.toLowerCase(), t]))
       const teamIdMap = new Map(state.teams.map(t => [String(t.id), t]))
       const fieldMap = new Map(state.fields.map(f => [f.name.toLowerCase(), f]))
       const fieldIdMap = new Map(state.fields.map(f => [String(f.id), f]))
 
-      // Build resolved name map from mismatches
+      // Build resolved field/div name map from old-style mismatches
       const resolvedNameMap = new Map<string, string>()
       for (const m of csvMismatches) {
         if (m.resolvedTo && m.resolvedTo !== '__skip__') {
@@ -415,34 +621,43 @@ export function ScheduleTab() {
         }
       }
 
+      // Build team resolver map: csvValue -> team id
+      const resolvedTeamMap = new Map<string, number>()
+      for (const e of resolverEntries) {
+        if (e.action === 'map' && e.mapToId) {
+          resolvedTeamMap.set(e.csvValue.toLowerCase().trim(), Number(e.mapToId))
+        } else if (e.action === 'create') {
+          const created = newTeamLookup.get(e.csvValue.toLowerCase().trim())
+          if (created) resolvedTeamMap.set(e.csvValue.toLowerCase().trim(), created)
+        }
+      }
+
       const errors: string[] = []
-      let created = 0
-      let skipped = 0
+      let gamesCreated = 0
+      let gamesSkipped = 0
 
       for (let i = 0; i < scheduleCsvPreview.rows.length; i++) {
         const row = scheduleCsvPreview.rows[i]
 
         // Skip rows with skipped values
         if (skippedCsvValues.has(row.home_team?.toLowerCase().trim()) || skippedCsvValues.has(row.away_team?.toLowerCase().trim())) {
-          skipped++
+          gamesSkipped++
           continue
         }
 
-        // Resolve team names via mismatch mapping
-        const homeKey = row.home_team?.toLowerCase()
-        const awayKey = row.away_team?.toLowerCase()
-        const resolvedHomeId = resolvedNameMap.get(homeKey?.trim())
-        const resolvedAwayId = resolvedNameMap.get(awayKey?.trim())
+        // Resolve team names
+        const homeKey = (row.home_team || '').toLowerCase().trim()
+        const awayKey = (row.away_team || '').toLowerCase().trim()
 
-        const homeTeam = resolvedHomeId ? teamIdMap.get(resolvedHomeId) : teamMap.get(homeKey)
-        const awayTeam = resolvedAwayId ? teamIdMap.get(resolvedAwayId) : teamMap.get(awayKey)
+        const homeTeamId = resolvedTeamMap.get(homeKey) ?? teamMap.get(homeKey)?.id ?? null
+        const awayTeamId = resolvedTeamMap.get(awayKey) ?? teamMap.get(awayKey)?.id ?? null
 
-        const fieldKey = row.field?.toLowerCase()
-        const resolvedFieldId = resolvedNameMap.get(fieldKey?.trim())
+        const fieldKey = (row.field || '').toLowerCase().trim()
+        const resolvedFieldId = resolvedNameMap.get(fieldKey)
         const field = resolvedFieldId ? fieldIdMap.get(resolvedFieldId) : fieldMap.get(fieldKey)
 
-        if (!homeTeam) { errors.push(`Row ${i + 1}: home team "${row.home_team}" not found`); continue }
-        if (!awayTeam) { errors.push(`Row ${i + 1}: away team "${row.away_team}" not found`); continue }
+        if (!homeTeamId) { errors.push(`Row ${i + 1}: home team "${row.home_team}" not found`); continue }
+        if (!awayTeamId) { errors.push(`Row ${i + 1}: away team "${row.away_team}" not found`); continue }
         if (!field && row.field) { errors.push(`Row ${i + 1}: field "${row.field}" not found — using first field`); }
 
         // Parse time to display format
@@ -460,9 +675,9 @@ export function ScheduleTab() {
           event_id: eventId,
           event_date_id: currentDate.id,
           field_id: field?.id ?? state.fields[0]?.id,
-          home_team_id: homeTeam.id,
-          away_team_id: awayTeam.id,
-          division: row.division || homeTeam.division || '',
+          home_team_id: homeTeamId,
+          away_team_id: awayTeamId,
+          division: row.division || '',
           scheduled_time: timeStr,
           status: 'Scheduled',
           home_score: 0,
@@ -471,7 +686,7 @@ export function ScheduleTab() {
         if (error) {
           errors.push(`Row ${i + 1}: ${error.message}`)
         } else {
-          created++
+          gamesCreated++
         }
       }
 
@@ -479,11 +694,12 @@ export function ScheduleTab() {
         toast.error(`${errors.length} error${errors.length !== 1 ? 's' : ''} during import`)
         console.warn('Schedule import errors:', errors)
       }
-      if (created > 0) {
-        toast.success(`${created} game${created !== 1 ? 's' : ''} imported${skipped ? ` (${skipped} skipped)` : ''}`)
+      if (gamesCreated > 0) {
+        toast.success(`${gamesCreated} game${gamesCreated !== 1 ? 's' : ''} imported${gamesSkipped ? ` (${gamesSkipped} skipped)` : ''}`)
       }
       setScheduleCsvPreview(null)
       setCsvMismatches([])
+      setResolverEntries([])
       await refreshGames()
     } catch (err: any) {
       toast.error(err.message || 'Import failed')
@@ -1194,12 +1410,12 @@ export function ScheduleTab() {
       {/* Schedule CSV Preview Modal */}
       {scheduleCsvPreview && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="bg-surface-card border border-border rounded-xl w-full max-w-4xl max-h-[80vh] flex flex-col shadow-xl">
+          <div className="bg-surface-card border border-border rounded-xl w-full max-w-5xl max-h-[85vh] flex flex-col shadow-xl">
             <div className="flex items-center justify-between px-5 py-3 border-b border-border">
               <div className="font-cond font-black text-[14px] text-white tracking-wider">
                 IMPORT SCHEDULE — {scheduleCsvPreview.rows.length} game{scheduleCsvPreview.rows.length !== 1 ? 's' : ''}
               </div>
-              <button onClick={() => setScheduleCsvPreview(null)} className="text-muted hover:text-white">
+              <button onClick={() => { setScheduleCsvPreview(null); setCsvMismatches([]); setResolverEntries([]) }} className="text-muted hover:text-white">
                 <X size={16} />
               </button>
             </div>
@@ -1215,11 +1431,11 @@ export function ScheduleTab() {
               </div>
             )}
 
-            {/* Mismatch Resolver */}
+            {/* Field/Division Mismatch Resolver (old style) */}
             {csvMismatches.length > 0 && (
               <div className="px-5 py-3 bg-yellow-900/20 border-b border-yellow-700/50">
                 <div className="text-yellow-400 font-cond text-sm font-bold mb-2">
-                  {csvMismatches.length} UNMATCHED NAME{csvMismatches.length !== 1 ? 'S' : ''} — RESOLVE BEFORE IMPORTING
+                  {csvMismatches.length} UNMATCHED FIELD/DIVISION NAME{csvMismatches.length !== 1 ? 'S' : ''}
                 </div>
                 {csvMismatches.map((mismatch, i) => (
                   <div key={i} className="flex items-center gap-2 py-1">
@@ -1245,52 +1461,225 @@ export function ScheduleTab() {
               </div>
             )}
 
-            <div className="flex-1 overflow-auto px-5 py-3">
-              <table className="w-full text-[11px]">
-                <thead>
-                  <tr className="border-b border-border">
-                    <th className="font-cond font-bold text-muted text-left py-1.5 pr-3">#</th>
-                    {Object.keys(scheduleCsvPreview.rows[0] || {}).map(col => (
-                      <th key={col} className="font-cond font-bold text-muted text-left py-1.5 pr-3">
-                        {col.toUpperCase().replace(/_/g, ' ')}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {scheduleCsvPreview.rows.map((row, i) => {
-                    const isSkipped = skippedCsvValues.has(row.home_team?.toLowerCase().trim()) || skippedCsvValues.has(row.away_team?.toLowerCase().trim())
+            {/* Enhanced Team Resolver */}
+            {resolverEntries.length > 0 && (
+              <div className="px-5 py-3 border-b border-border bg-navy/20 overflow-y-auto" style={{ maxHeight: '50vh' }}>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="font-cond font-black text-[13px] text-white tracking-wider">
+                    {resolverEntries.length} UNMATCHED TEAM{resolverEntries.length !== 1 ? 'S' : ''}
+                    <span className="text-muted font-normal ml-2">
+                      Resolved: {resolvedTeamCount}/{resolverEntries.length}
+                    </span>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={bulkAutoCreateAll}
+                      className="font-cond text-[10px] font-black tracking-wider px-3 py-1.5 rounded border border-green-700/50 bg-green-900/30 text-green-400 hover:bg-green-900/50 transition-colors"
+                    >
+                      <Plus size={10} className="inline mr-1" />
+                      AUTO-CREATE ALL
+                    </button>
+                    <button
+                      onClick={bulkBestMatchAll}
+                      className="font-cond text-[10px] font-black tracking-wider px-3 py-1.5 rounded border border-blue-700/50 bg-blue-900/30 text-blue-400 hover:bg-blue-900/50 transition-colors"
+                    >
+                      BEST MATCH ALL
+                    </button>
+                    <button
+                      onClick={bulkSkipAll}
+                      className="font-cond text-[10px] font-black tracking-wider px-3 py-1.5 rounded border border-border bg-surface-card text-muted hover:text-white transition-colors"
+                    >
+                      SKIP ALL
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  {resolverEntries.map((entry, i) => {
+                    const divisionNames = [...new Set(state.teams.map(t => t.division).filter(Boolean))]
                     return (
-                      <tr key={i} className={cn('border-b border-border/50', isSkipped ? 'bg-red-900/10 opacity-50' : 'hover:bg-navy/20')}>
-                        <td className="font-cond text-muted py-1.5 pr-3">{i + 1}</td>
-                        {Object.entries(row).map(([col, val], j) => {
-                          const valLower = (val || '').toLowerCase().trim()
-                          const hasMismatch = csvMismatches.some(m => m.csvValue.toLowerCase().trim() === valLower && !m.resolvedTo)
-                          const isResolved = csvMismatches.some(m => m.csvValue.toLowerCase().trim() === valLower && m.resolvedTo && m.resolvedTo !== '__skip__')
-                          return (
-                            <td key={j} className={cn('font-cond py-1.5 pr-3', hasMismatch ? 'text-yellow-400' : isResolved ? 'text-green-400' : 'text-white')}>
-                              {val || <span className="text-muted italic">&mdash;</span>}
-                            </td>
-                          )
-                        })}
-                      </tr>
+                      <div key={i} className={cn(
+                        'rounded-lg border p-3',
+                        entry.action === 'create' ? 'border-green-700/40 bg-green-900/10' :
+                        entry.action === 'map' ? 'border-blue-700/40 bg-blue-900/10' :
+                        entry.action === 'skip' ? 'border-border/50 bg-surface-card/50 opacity-60' :
+                        'border-yellow-700/40 bg-yellow-900/10'
+                      )}>
+                        <div className="font-cond text-[12px] font-black text-white tracking-wider mb-2">
+                          {entry.csvValue}
+                          {entry.action === null && <AlertTriangle size={11} className="inline ml-2 text-yellow-400" />}
+                          {entry.action === 'create' && <CheckCircle size={11} className="inline ml-2 text-green-400" />}
+                          {entry.action === 'map' && <CheckCircle size={11} className="inline ml-2 text-blue-400" />}
+                          {entry.action === 'skip' && <XCircle size={11} className="inline ml-2 text-muted" />}
+                        </div>
+
+                        <div className="flex flex-col gap-2">
+                          {/* Option 1: Create */}
+                          <label className="flex items-start gap-2 cursor-pointer">
+                            <input
+                              type="radio"
+                              name={`resolver-${i}`}
+                              checked={entry.action === 'create'}
+                              onChange={() => setResolverAction(i, 'create')}
+                              className="mt-0.5 accent-green-500"
+                            />
+                            <div className="flex-1">
+                              <span className="font-cond text-[11px] font-bold text-green-400">
+                                CREATE NEW TEAM
+                              </span>
+                              {entry.action === 'create' && (
+                                <div className="mt-1 flex flex-wrap gap-2">
+                                  <div className="flex items-center gap-1">
+                                    <span className="font-cond text-[9px] text-muted tracking-wider">DIVISION:</span>
+                                    <select
+                                      className="bg-[#081428] border border-[#1a2d50] text-white px-1.5 py-0.5 rounded text-[10px] outline-none focus:border-green-400"
+                                      value={entry.detectedDivision ?? ''}
+                                      onChange={e => setResolverDivision(i, e.target.value)}
+                                    >
+                                      <option value="">-- None --</option>
+                                      {divisionNames.map(d => (
+                                        <option key={d} value={d}>{d}</option>
+                                      ))}
+                                    </select>
+                                    {entry.detectedDivision && (
+                                      <span className="font-cond text-[9px] text-green-400/70">(auto-detected)</span>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <span className="font-cond text-[9px] text-muted tracking-wider">PROGRAM:</span>
+                                    <select
+                                      className="bg-[#081428] border border-[#1a2d50] text-white px-1.5 py-0.5 rounded text-[10px] outline-none focus:border-green-400"
+                                      value={entry.detectedProgram ? String(entry.detectedProgram.id) : ''}
+                                      onChange={e => setResolverProgram(i, e.target.value)}
+                                    >
+                                      <option value="">-- None --</option>
+                                      {csvPrograms.map(p => (
+                                        <option key={p.id} value={String(p.id)}>{p.name}</option>
+                                      ))}
+                                    </select>
+                                    {entry.detectedProgram && (
+                                      <span className="font-cond text-[9px] text-green-400/70">(auto-detected)</span>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </label>
+
+                          {/* Option 2: Map */}
+                          <label className="flex items-start gap-2 cursor-pointer">
+                            <input
+                              type="radio"
+                              name={`resolver-${i}`}
+                              checked={entry.action === 'map'}
+                              onChange={() => setResolverAction(i, 'map', entry.suggestions[0] ? String(entry.suggestions[0].id) : undefined)}
+                              className="mt-0.5 accent-blue-500"
+                            />
+                            <div className="flex-1 flex items-center gap-2">
+                              <span className="font-cond text-[11px] font-bold text-blue-400">MAP TO EXISTING:</span>
+                              <select
+                                className="bg-[#081428] border border-[#1a2d50] text-white px-1.5 py-0.5 rounded text-[10px] outline-none focus:border-blue-400 max-w-[220px]"
+                                value={entry.mapToId ?? ''}
+                                onChange={e => setResolverMapId(i, e.target.value)}
+                                disabled={entry.action !== 'map'}
+                              >
+                                <option value="">-- Select team --</option>
+                                {entry.suggestions.length > 0 && (
+                                  <optgroup label="Best matches">
+                                    {entry.suggestions.map(s => (
+                                      <option key={s.id} value={String(s.id)}>{s.name} ({Math.round(s.score * 100)}%)</option>
+                                    ))}
+                                  </optgroup>
+                                )}
+                                <optgroup label="All teams">
+                                  {state.teams.slice().sort((a, b) => a.name.localeCompare(b.name)).map(t => (
+                                    <option key={t.id} value={String(t.id)}>{t.name} — {t.division}</option>
+                                  ))}
+                                </optgroup>
+                              </select>
+                            </div>
+                          </label>
+
+                          {/* Option 3: Skip */}
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="radio"
+                              name={`resolver-${i}`}
+                              checked={entry.action === 'skip'}
+                              onChange={() => setResolverAction(i, 'skip')}
+                              className="accent-gray-500"
+                            />
+                            <span className="font-cond text-[11px] font-bold text-muted">SKIP</span>
+                          </label>
+                        </div>
+                      </div>
                     )
                   })}
-                </tbody>
-              </table>
-            </div>
+                </div>
+              </div>
+            )}
+
+            {/* Data table - only show if no resolver entries or all resolved */}
+            {(resolverEntries.length === 0 || resolvedTeamCount === resolverEntries.length) && (
+              <div className="flex-1 overflow-auto px-5 py-3">
+                <table className="w-full text-[11px]">
+                  <thead>
+                    <tr className="border-b border-border">
+                      <th className="font-cond font-bold text-muted text-left py-1.5 pr-3">#</th>
+                      {Object.keys(scheduleCsvPreview.rows[0] || {}).map(col => (
+                        <th key={col} className="font-cond font-bold text-muted text-left py-1.5 pr-3">
+                          {col.toUpperCase().replace(/_/g, ' ')}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {scheduleCsvPreview.rows.map((row, i) => {
+                      const isSkipped = skippedCsvValues.has(row.home_team?.toLowerCase().trim()) || skippedCsvValues.has(row.away_team?.toLowerCase().trim())
+                      return (
+                        <tr key={i} className={cn('border-b border-border/50', isSkipped ? 'bg-red-900/10 opacity-50' : 'hover:bg-navy/20')}>
+                          <td className="font-cond text-muted py-1.5 pr-3">{i + 1}</td>
+                          {Object.entries(row).map(([col, val], j) => {
+                            const valLower = (val || '').toLowerCase().trim()
+                            const isTeamCreate = resolverEntries.some(e => e.csvValue.toLowerCase().trim() === valLower && e.action === 'create')
+                            const isTeamMap = resolverEntries.some(e => e.csvValue.toLowerCase().trim() === valLower && e.action === 'map')
+                            const isTeamSkip = resolverEntries.some(e => e.csvValue.toLowerCase().trim() === valLower && e.action === 'skip')
+                            const hasMismatch = csvMismatches.some(m => m.csvValue.toLowerCase().trim() === valLower && !m.resolvedTo)
+                            const isResolved = csvMismatches.some(m => m.csvValue.toLowerCase().trim() === valLower && m.resolvedTo && m.resolvedTo !== '__skip__')
+                            return (
+                              <td key={j} className={cn(
+                                'font-cond py-1.5 pr-3',
+                                isTeamCreate ? 'text-green-400' :
+                                isTeamMap ? 'text-blue-400' :
+                                isTeamSkip ? 'text-muted line-through' :
+                                hasMismatch ? 'text-yellow-400' :
+                                isResolved ? 'text-green-400' :
+                                'text-white'
+                              )}>
+                                {val || <span className="text-muted italic">&mdash;</span>}
+                              </td>
+                            )
+                          })}
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
 
             <div className="flex items-center justify-between px-5 py-3 border-t border-border">
               <span className="font-cond text-[11px] text-muted">
                 {scheduleCsvPreview.rows.length - skippedCsvValues.size} game{(scheduleCsvPreview.rows.length - skippedCsvValues.size) !== 1 ? 's' : ''} will be imported
-                {skippedCsvValues.size > 0 && <span className="text-red-400 ml-1">({skippedCsvValues.size} will be skipped)</span>}
+                {teamsToCreate.length > 0 && <span className="text-green-400 ml-2">{teamsToCreate.length} team{teamsToCreate.length !== 1 ? 's' : ''} will be created</span>}
+                {skippedCsvValues.size > 0 && <span className="text-red-400 ml-2">({skippedCsvValues.size} skipped)</span>}
               </span>
               <div className="flex gap-2">
-                <Btn size="sm" variant="ghost" onClick={() => { setScheduleCsvPreview(null); setCsvMismatches([]) }}>CANCEL</Btn>
-                <Btn size="sm" variant="success" onClick={importScheduleCSV} disabled={importingSchedule || unresolvedMismatches.length > 0}>
-                  {unresolvedMismatches.length > 0
-                    ? `RESOLVE ${unresolvedMismatches.length} MISMATCH${unresolvedMismatches.length !== 1 ? 'ES' : ''}`
-                    : importingSchedule ? 'IMPORTING...' : `IMPORT ${scheduleCsvPreview.rows.length - skippedCsvValues.size} GAME${(scheduleCsvPreview.rows.length - skippedCsvValues.size) !== 1 ? 'S' : ''}`}
+                <Btn size="sm" variant="ghost" onClick={() => { setScheduleCsvPreview(null); setCsvMismatches([]); setResolverEntries([]) }}>CANCEL</Btn>
+                <Btn size="sm" variant="success" onClick={importScheduleCSV} disabled={importingSchedule || hasUnresolved}>
+                  {hasUnresolved
+                    ? `RESOLVE ${unresolvedTeamEntries.length + unresolvedOldMismatches.length} UNMATCHED`
+                    : importingSchedule ? 'IMPORTING...' : `IMPORT ${scheduleCsvPreview.rows.length - skippedCsvValues.size} GAME${(scheduleCsvPreview.rows.length - skippedCsvValues.size) !== 1 ? 'S' : ''}${teamsToCreate.length > 0 ? ` + CREATE ${teamsToCreate.length} TEAM${teamsToCreate.length !== 1 ? 'S' : ''}` : ''}`}
                 </Btn>
               </div>
             </div>
