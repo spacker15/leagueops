@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: Executing Phase 05
-stopped_at: Completed 05-00-PLAN.md
-last_updated: "2026-03-23T16:31:55.371Z"
+stopped_at: Completed 05-01-PLAN.md
+last_updated: "2026-03-23T16:35:00.000Z"
 progress:
   total_phases: 10
   completed_phases: 4
   total_plans: 20
-  completed_plans: 16
+  completed_plans: 17
 ---
 
 # Project State: LeagueOps
@@ -37,9 +37,9 @@ See: .planning/PROJECT.md (updated 2026-03-22)
 
 ## Active Context
 
-**Last session:** 2026-03-23T16:31:55.368Z
-**Stopped at:** Completed 05-00-PLAN.md
-**Plans completed:** 01-01 (Core Engine Refactor) — 7 tasks, 12 files, 19 min; 01-02 (New API Routes for CommandCenter) — 3 tasks, 3 files, 3 min
+**Last session:** 2026-03-23T16:35:00.000Z
+**Stopped at:** Completed 05-01-PLAN.md
+**Plans completed:** 01-01 (Core Engine Refactor) — 7 tasks, 12 files, 19 min; 01-02 (New API Routes for CommandCenter) — 3 tasks, 3 files, 3 min; 05-01 (Phase 5 Foundation) — 2 tasks, 6 files, 2 min
 
 ## Performance Metrics
 
@@ -62,6 +62,7 @@ See: .planning/PROJECT.md (updated 2026-03-22)
 | Phase 04-rls-database-security P01 | 4 min | 2 tasks | 1 files |
 | Phase 04-rls-database-security P02 | 8 min | 2 tasks | 1 files |
 | Phase 05-event-creation-enhancements P00 | 1 min | 1 tasks | 2 files |
+| Phase 05-event-creation-enhancements P01 | 2 min | 2 tasks | 6 files |
 
 ## Decisions Log
 
@@ -106,3 +107,6 @@ See: .planning/PROJECT.md (updated 2026-03-22)
 | 04-02      | Migration deployment deferred — no Supabase credentials in execution env; apply via SQL Editor at supabase.com/dashboard or MCP tools; rollback staged |
 | 05-00      | Used it.todo() pattern for pending stubs — vitest treats todos as skipped keeping suite green while documenting test contract |
 | 05-00      | Created __tests__/components/ directory following existing __tests__/app/ and __tests__/lib/ pattern |
+| 05-01      | VenueAutocompleteInput uses onLocationChange + onVenueSelect callbacks so parent owns state |
+| 05-01      | slug and status added as optional fields to Event interface -- needed by Plan 03 Sharing tab |
+| 05-01      | Component silently fails on details fetch error -- no toast dependency, caller handles UX |

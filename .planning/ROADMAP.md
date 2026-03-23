@@ -15,7 +15,7 @@ created: 2026-03-22
 | 2     | Hardcode Removal & Event Context | 5/5 | Complete   | 2026-03-22 |
 | 3     | API Auth & Validation            | 3/3 | Complete   | 2026-03-23 |
 | 4     | RLS & Database Security          | 1/2 | In Progress|  |
-| 5     | Event Creation Enhancements      | EVT-01, EVT-02, EVT-03, EVT-04, EVT-05, EVT-06                 | yes      | Phase 3                   |
+| 5     | Event Creation Enhancements      | 2/5 | In Progress|  |
 | 6     | Registration Flow Enhancements   | REG-01, REG-02, REG-03, REG-04, REG-05, REG-06, REG-07, REG-08 | yes      | Phase 2, Phase 4          |
 | 7     | Notification Infrastructure      | NOT-01, NOT-05, NOT-06, NOT-07, NOT-08                         | yes      | Phase 1, Phase 4          |
 | 8     | Schedule Change Request Workflow | SCR-01, SCR-02, SCR-03, SCR-04, SCR-05, SCR-06, SCR-07, SCR-08 | yes      | Phase 6, Phase 7          |
@@ -142,11 +142,11 @@ Plans:
 **Requirements:** EVT-01, EVT-02, EVT-03, EVT-04, EVT-05, EVT-06
 **UI hint:** yes
 **Depends on:** Phase 3
-**Plans:** 5 plans
+**Plans:** 2/5 plans executed
 
 Plans:
 - [x] 05-00-PLAN.md — Wave 0: Test stub scaffolding (EVT-01 through EVT-06)
-- [ ] 05-01-PLAN.md — Foundation: migration, types, package install, route fix, VenueAutocompleteInput component
+- [x] 05-01-PLAN.md — Foundation: migration, types, package install, route fix, VenueAutocompleteInput component
 - [ ] 05-02-PLAN.md — Wire VenueAutocompleteInput into EventPicker + EventSetupTab
 - [ ] 05-03-PLAN.md — Sharing tab with registration link, QR code, and share buttons
 - [ ] 05-04-PLAN.md — Registration route placeholder in apps/public-results (/e/[slug]/register)
