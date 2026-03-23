@@ -1,17 +1,44 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useApp } from '@/lib/store'
+import { useAuth } from '@/lib/auth'
 import { StatusBadge, Modal, Btn } from '@/components/ui'
 import { cn, nextStatusLabel, nextGameStatus } from '@/lib/utils'
+import { createClient } from '@/supabase/client'
 import toast from 'react-hot-toast'
 import type { Game, GameStatus } from '@/types'
 
 export function DashboardTab() {
   const { state, updateGameStatus, updateGameScore, addLog } = useApp()
+  const { userRole, isCoach } = useAuth()
   const [selectedGame, setSelectedGame] = useState<Game | null>(null)
   const [homeScore, setHomeScore] = useState(0)
   const [awayScore, setAwayScore] = useState(0)
+  const [latestWeather, setLatestWeather] = useState<any>(null)
+
+  // Fetch latest weather reading
+  useEffect(() => {
+    const eventId = state.event?.id
+    if (!eventId) return
+    const sb = createClient()
+    sb.from('complexes')
+      .select('id')
+      .eq('event_id', eventId)
+      .then(({ data: cmplx }) => {
+        const ids = (cmplx ?? []).map((c: any) => c.id)
+        if (!ids.length) return
+        sb.from('weather_readings')
+          .select('*')
+          .in('complex_id', ids)
+          .order('fetched_at', { ascending: false })
+          .limit(1)
+          .single()
+          .then(({ data }) => {
+            if (data) setLatestWeather(data)
+          })
+      })
+  }, [state.event?.id])
 
   function openGame(game: Game) {
     setSelectedGame(game)
@@ -39,8 +66,155 @@ export function DashboardTab() {
   const fields = state.fields.slice(0, 12)
   const priority: GameStatus[] = ['Live', 'Starting', 'Halftime', 'Scheduled', 'Delayed', 'Final']
 
+  const lightningActive = state.lightningActive
+  const countdownM = Math.floor(state.lightningSecondsLeft / 60)
+  const countdownS = state.lightningSecondsLeft % 60
+  const activeAlerts = state.weatherAlerts.filter((a) => a.is_active).length
+
   return (
     <div>
+      {/* ── Weather / Lightning Banner (all users) ────────────── */}
+      {lightningActive ? (
+        <div
+          className="rounded-lg mb-4 px-4 py-2.5 flex items-center justify-between lightning-flash"
+          style={{
+            background: 'linear-gradient(90deg, #7f1d1d, #991b1b, #7f1d1d)',
+            border: '2px solid #ef4444',
+            boxShadow: '0 0 20px #ef444440',
+          }}
+        >
+          <div className="flex items-center gap-3">
+            <span className="text-lg">⚡</span>
+            <span className="font-cond text-[13px] font-black tracking-[.12em] text-white uppercase">
+              Lightning Delay Active
+            </span>
+          </div>
+          <div className="flex items-center gap-4">
+            {activeAlerts > 0 && (
+              <span className="font-cond text-[11px] font-bold tracking-wide text-yellow-300">
+                ⚠ {activeAlerts} ALERT{activeAlerts > 1 ? 'S' : ''}
+              </span>
+            )}
+            <span className="font-mono text-[22px] font-black text-white tabular-nums">
+              {countdownM}:{countdownS.toString().padStart(2, '0')}
+            </span>
+            <span className="font-cond text-[10px] font-bold tracking-wider text-red-200 uppercase">
+              Remaining
+            </span>
+          </div>
+        </div>
+      ) : activeAlerts > 0 ? (
+        <div
+          className="rounded-lg mb-4 px-4 py-2 flex items-center justify-between"
+          style={{
+            background: 'linear-gradient(90deg, #422006, #4a2506, #422006)',
+            border: '1px solid #a16207',
+          }}
+        >
+          <div className="flex items-center gap-3">
+            <span className="text-sm">⚠</span>
+            <span className="font-cond text-[12px] font-black tracking-[.1em] text-yellow-300 uppercase">
+              {activeAlerts} Active Weather Alert{activeAlerts > 1 ? 's' : ''}
+            </span>
+          </div>
+          {latestWeather && (
+            <div className="flex items-center gap-3 text-[11px] font-mono text-yellow-200/70">
+              <span>{latestWeather.temperature_f}°F</span>
+              <span className="text-yellow-700">·</span>
+              <span>HI {latestWeather.heat_index_f}°F</span>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div
+          className="rounded-lg mb-4 px-4 py-1.5 flex items-center justify-between"
+          style={{
+            background: '#051a10',
+            border: '1px solid #166534',
+          }}
+        >
+          <div className="flex items-center gap-2">
+            <span className="font-cond text-[11px] font-black tracking-[.1em] text-green-400 uppercase">
+              ✓ Weather: All Clear
+            </span>
+          </div>
+          {latestWeather ? (
+            <div className="flex items-center gap-3 text-[11px] font-mono text-green-200/60">
+              <span>{latestWeather.temperature_f}°F</span>
+              <span className="text-green-800">·</span>
+              <span>
+                Heat Index{' '}
+                <span
+                  className={cn(
+                    'font-bold',
+                    !latestWeather.heat_index_f
+                      ? ''
+                      : latestWeather.heat_index_f >= 113
+                        ? 'text-red-400'
+                        : latestWeather.heat_index_f >= 103
+                          ? 'text-orange-400'
+                          : latestWeather.heat_index_f >= 95
+                            ? 'text-yellow-400'
+                            : 'text-green-400'
+                  )}
+                >
+                  {latestWeather.heat_index_f}°F
+                </span>
+              </span>
+              <span className="text-green-800">·</span>
+              <span className="capitalize">{latestWeather.conditions}</span>
+            </div>
+          ) : (
+            <span className="font-cond text-[10px] text-green-600">No weather data yet</span>
+          )}
+        </div>
+      )}
+
+      {/* ── Coach: My Games ────────────────────────────── */}
+      {isCoach && userRole?.team_id && (() => {
+        const coachGames = state.games.filter(
+          (g) => g.home_team_id === userRole.team_id || g.away_team_id === userRole.team_id
+        )
+        const coachTeam = state.teams.find((t) => t.id === userRole.team_id)
+        return coachGames.length > 0 ? (
+          <div className="mb-6">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-1 h-5 rounded-sm bg-blue-400" />
+              <span className="font-cond text-[13px] font-black tracking-[.15em] text-white uppercase">
+                My Games {coachTeam ? `— ${coachTeam.name}` : ''}
+              </span>
+            </div>
+            <div className="space-y-2">
+              {coachGames.map((g) => (
+                <div
+                  key={g.id}
+                  className="bg-[#081428] border border-[#1a2d50] rounded-lg p-3 flex items-center justify-between cursor-pointer hover:border-blue-500/40 transition-colors"
+                  onClick={() => openGame(g)}
+                >
+                  <div className="flex items-center gap-4">
+                    <StatusBadge status={g.status} />
+                    <div className="text-[11px] text-muted font-cond">
+                      {g.field?.name ?? 'TBD'} · {g.scheduled_time ?? '—'}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className={cn('font-cond text-[13px] font-bold', g.home_team_id === userRole.team_id ? 'text-blue-300' : 'text-white')}>
+                      {g.home_team?.name ?? 'TBD'}
+                    </span>
+                    <span className="font-mono text-[15px] font-bold text-white">
+                      {g.home_score}–{g.away_score}
+                    </span>
+                    <span className={cn('font-cond text-[13px] font-bold', g.away_team_id === userRole.team_id ? 'text-blue-300' : 'text-white')}>
+                      {g.away_team?.name ?? 'TBD'}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null
+      })()}
+
       {/* Section label */}
       <div className="flex items-center gap-3 mb-4">
         <div className="w-1 h-5 rounded-sm bg-red" />

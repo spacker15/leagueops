@@ -202,6 +202,9 @@ export function EventPicker({ onSelectEvent }: Props) {
       secondary_color: '#D62828',
     }
 
+    // Auto-generate public results link from slug
+    eventInsert.results_link = `https://leagueops-live.vercel.app/e/${slug}`
+
     // Store venue details from Google Maps if selected
     if (selectedPlaceId) {
       eventInsert.venue_place_id = selectedPlaceId

@@ -10,3 +10,6 @@ CREATE TABLE IF NOT EXISTS registration_invites (
   is_active   BOOLEAN DEFAULT TRUE,
   created_at  TIMESTAMPTZ DEFAULT NOW()
 );
+
+ALTER TABLE registration_invites ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow all on registration_invites" ON registration_invites FOR ALL USING (true) WITH CHECK (true);

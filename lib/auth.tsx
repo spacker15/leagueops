@@ -21,6 +21,7 @@ export interface UserRole {
   volunteer_id: number | null
   player_id: number | null
   program_id: number | null
+  team_id: number | null
   display_name: string | null
   is_active: boolean
 }
@@ -36,6 +37,7 @@ interface AuthContextValue {
   isLeagueAdmin: boolean
   isReferee: boolean
   isVolunteer: boolean
+  isCoach: boolean
   canManage: boolean // admin or league_admin
 }
 
@@ -104,6 +106,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const isLeagueAdmin = userRole?.role === 'league_admin'
   const isReferee = userRole?.role === 'referee'
   const isVolunteer = userRole?.role === 'volunteer'
+  const isCoach = userRole?.role === 'coach'
   const canManage = isAdmin || isLeagueAdmin
 
   return (
@@ -119,6 +122,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isLeagueAdmin,
         isReferee,
         isVolunteer,
+        isCoach,
         canManage,
       }}
     >

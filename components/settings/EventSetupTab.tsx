@@ -242,10 +242,90 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
   // Permissions tab state
   const [rolePerms, setRolePerms] = useState<Record<string, string[]>>({})
   const [permSaving, setPermSaving] = useState(false)
+  // Division timing overrides
+  const [divisionTimings, setDivisionTimings] = useState<
+    Record<string, { schedule_increment?: number; time_between_games?: number; periods_per_game?: number; minutes_per_period?: number }>
+  >({})
+  const [divisionNames, setDivisionNames] = useState<string[]>([])
+  const [expandedDivision, setExpandedDivision] = useState<string | null>(null)
+  const [divTimingSaving, setDivTimingSaving] = useState(false)
 
   useEffect(() => {
     loadEvent()
   }, [eventId])
+
+  // Load division names and timing overrides when schedule tab is active
+  useEffect(() => {
+    if (settingsTab === 'schedule' && eventId) {
+      loadDivisionTimings()
+    }
+  }, [settingsTab, eventId])
+
+  async function loadDivisionTimings() {
+    const sb = createClient()
+    const { data: divs } = await sb
+      .from('registration_divisions')
+      .select('name')
+      .eq('event_id', eventId)
+      .eq('is_active', true)
+      .order('sort_order')
+    const names = (divs ?? []).map((d: any) => d.name as string)
+    setDivisionNames(names)
+
+    const { data: timings } = await sb
+      .from('division_timing')
+      .select('*')
+      .eq('event_id', eventId)
+    const map: Record<string, { schedule_increment?: number; time_between_games?: number; periods_per_game?: number; minutes_per_period?: number }> = {}
+    for (const t of timings ?? []) {
+      map[(t as any).division_name] = {
+        schedule_increment: (t as any).schedule_increment ?? undefined,
+        time_between_games: (t as any).time_between_games ?? undefined,
+        periods_per_game: (t as any).periods_per_game ?? undefined,
+        minutes_per_period: (t as any).minutes_per_period ?? undefined,
+      }
+    }
+    setDivisionTimings(map)
+  }
+
+  async function saveDivisionTiming(divName: string) {
+    setDivTimingSaving(true)
+    const sb = createClient()
+    const vals = divisionTimings[divName]
+    if (!vals || (vals.schedule_increment == null && vals.time_between_games == null && vals.periods_per_game == null && vals.minutes_per_period == null)) {
+      // Delete override if all blank
+      await sb.from('division_timing').delete().eq('event_id', eventId).eq('division_name', divName)
+    } else {
+      await sb.from('division_timing').upsert(
+        {
+          event_id: eventId,
+          division_name: divName,
+          schedule_increment: vals.schedule_increment ?? null,
+          time_between_games: vals.time_between_games ?? null,
+          periods_per_game: vals.periods_per_game ?? null,
+          minutes_per_period: vals.minutes_per_period ?? null,
+        },
+        { onConflict: 'event_id,division_name' }
+      )
+    }
+    setDivTimingSaving(false)
+    toast.success(`Timing saved for ${divName}`)
+  }
+
+  function clearDivisionTiming(divName: string) {
+    setDivisionTimings((prev) => {
+      const next = { ...prev }
+      delete next[divName]
+      return next
+    })
+  }
+
+  function setDivTiming(divName: string, field: string, value: number | undefined) {
+    setDivisionTimings((prev) => ({
+      ...prev,
+      [divName]: { ...prev[divName], [field]: value },
+    }))
+  }
 
   async function loadComplexes(eventId: number) {
     const data = await db.getComplexes(eventId)
@@ -1058,13 +1138,27 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
             <Card title="Links & Info" icon={<Globe size={14} />}>
               <div className="space-y-3">
                 <div>
-                  <label className={lbl}>Results Link</label>
-                  <input
-                    className={inp}
-                    value={event.results_link}
-                    onChange={(e) => set('results_link', e.target.value)}
-                    placeholder="https://"
-                  />
+                  <label className={lbl}>Results Link (auto-generated)</label>
+                  <div className="flex gap-2">
+                    <input
+                      className={cn(inp, 'flex-1 text-muted')}
+                      value={event.results_link}
+                      readOnly
+                      placeholder="Created when event is saved"
+                    />
+                    {event.results_link && (
+                      <button
+                        type="button"
+                        className="font-cond text-[10px] font-bold tracking-wider text-blue-300 bg-navy/60 px-3 py-1.5 rounded hover:bg-navy transition-colors whitespace-nowrap"
+                        onClick={() => {
+                          navigator.clipboard.writeText(event.results_link)
+                          toast.success('Results link copied!')
+                        }}
+                      >
+                        COPY
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <div>
                   <label className={lbl}>Tournament Info URL</label>
@@ -1187,6 +1281,144 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                 />
               </div>
             </Card>
+
+            {/* Division Timing Overrides */}
+            <Card title="Division Timing Overrides" icon={<Sliders size={14} />}>
+              {divisionNames.length === 0 ? (
+                <div className="font-cond text-[11px] text-muted">
+                  No active divisions found. Add divisions in the registration settings to configure per-division timing.
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  {divisionNames.map((divName) => {
+                    const isOpen = expandedDivision === divName
+                    const vals = divisionTimings[divName]
+                    const hasOverride = vals && (vals.schedule_increment != null || vals.time_between_games != null || vals.periods_per_game != null || vals.minutes_per_period != null)
+                    return (
+                      <div key={divName} className="border border-[#1a2d50] rounded-lg overflow-hidden">
+                        <button
+                          type="button"
+                          onClick={() => setExpandedDivision(isOpen ? null : divName)}
+                          className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-[#0d1a2e] transition-colors"
+                        >
+                          <div className="flex items-center gap-2">
+                            <ChevronRight
+                              size={12}
+                              className={cn('text-muted transition-transform', isOpen && 'rotate-90')}
+                            />
+                            <span className="font-cond text-[13px] font-bold text-white">{divName}</span>
+                          </div>
+                          {hasOverride ? (
+                            <span className="font-cond text-[9px] font-black tracking-[.12em] text-blue-400 uppercase">
+                              Custom
+                            </span>
+                          ) : (
+                            <span className="font-cond text-[9px] tracking-[.12em] text-muted uppercase">
+                              Using global defaults
+                            </span>
+                          )}
+                        </button>
+                        {isOpen && (
+                          <div className="px-4 pb-4 pt-2 border-t border-[#1a2d50]">
+                            <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                <label className={lbl}>Schedule Increment (minutes)</label>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  className="w-full bg-[#081428] border border-[#1a2d50] text-white px-3 py-2 rounded-lg text-[13px] outline-none focus:border-blue-400 transition-colors font-mono"
+                                  value={vals?.schedule_increment ?? ''}
+                                  placeholder={String(event.schedule_increment)}
+                                  onChange={(e) =>
+                                    setDivTiming(divName, 'schedule_increment', e.target.value === '' ? undefined : Number(e.target.value))
+                                  }
+                                />
+                                <div className="font-cond text-[9px] text-muted mt-1">
+                                  Global: {event.schedule_increment}
+                                </div>
+                              </div>
+                              <div>
+                                <label className={lbl}>Time Between Games (minutes)</label>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  className="w-full bg-[#081428] border border-[#1a2d50] text-white px-3 py-2 rounded-lg text-[13px] outline-none focus:border-blue-400 transition-colors font-mono"
+                                  value={vals?.time_between_games ?? ''}
+                                  placeholder={String(event.time_between_games)}
+                                  onChange={(e) =>
+                                    setDivTiming(divName, 'time_between_games', e.target.value === '' ? undefined : Number(e.target.value))
+                                  }
+                                />
+                                <div className="font-cond text-[9px] text-muted mt-1">
+                                  Global: {event.time_between_games}
+                                </div>
+                              </div>
+                              <div>
+                                <label className={lbl}>Periods / Innings per Game</label>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  className="w-full bg-[#081428] border border-[#1a2d50] text-white px-3 py-2 rounded-lg text-[13px] outline-none focus:border-blue-400 transition-colors font-mono"
+                                  value={vals?.periods_per_game ?? ''}
+                                  placeholder={String(event.periods_per_game)}
+                                  onChange={(e) =>
+                                    setDivTiming(divName, 'periods_per_game', e.target.value === '' ? undefined : Number(e.target.value))
+                                  }
+                                />
+                                <div className="font-cond text-[9px] text-muted mt-1">
+                                  Global: {event.periods_per_game}
+                                </div>
+                              </div>
+                              <div>
+                                <label className={lbl}>Minutes per Period</label>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  className="w-full bg-[#081428] border border-[#1a2d50] text-white px-3 py-2 rounded-lg text-[13px] outline-none focus:border-blue-400 transition-colors font-mono"
+                                  value={vals?.minutes_per_period ?? ''}
+                                  placeholder={String(event.minutes_per_period)}
+                                  onChange={(e) =>
+                                    setDivTiming(divName, 'minutes_per_period', e.target.value === '' ? undefined : Number(e.target.value))
+                                  }
+                                />
+                                <div className="font-cond text-[9px] text-muted mt-1">
+                                  Global: {event.minutes_per_period}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 mt-4">
+                              <button
+                                type="button"
+                                onClick={() => saveDivisionTiming(divName)}
+                                disabled={divTimingSaving}
+                                className="font-cond text-[11px] font-black tracking-[.08em] uppercase px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors disabled:opacity-50"
+                              >
+                                {divTimingSaving ? 'Saving...' : 'Save Override'}
+                              </button>
+                              {hasOverride && (
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    clearDivisionTiming(divName)
+                                    const sb = createClient()
+                                    await sb.from('division_timing').delete().eq('event_id', eventId).eq('division_name', divName)
+                                    toast.success(`Override cleared for ${divName}`)
+                                  }}
+                                  className="font-cond text-[11px] font-black tracking-[.08em] uppercase px-4 py-1.5 bg-transparent border border-[#1a2d50] text-muted hover:text-white hover:border-red-500 rounded-lg transition-colors"
+                                >
+                                  Clear Override
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </Card>
+
             <Card title="Schedule Options">
               <div className="space-y-1">
                 <Toggle

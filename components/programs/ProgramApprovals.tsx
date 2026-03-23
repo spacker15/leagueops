@@ -7,9 +7,9 @@ import { createClient } from '@/supabase/client'
 import { useAuth } from '@/lib/auth'
 import { useApp } from '@/lib/store'
 import { cn } from '@/lib/utils'
-import { Btn, SectionHeader } from '@/components/ui'
+import { Btn, SectionHeader, Input, Select, FormField, Card } from '@/components/ui'
 import toast from 'react-hot-toast'
-import { CheckCircle, XCircle, Clock, Users, Building2, RefreshCw } from 'lucide-react'
+import { CheckCircle, XCircle, Clock, Users, Building2, RefreshCw, Plus, ChevronDown, ChevronUp } from 'lucide-react'
 
 interface Program {
   id: number
@@ -54,20 +54,35 @@ export function ProgramApprovals() {
   const [rejectingId, setRejectingId] = useState<number | null>(null)
   const [activeTab, setActiveTab] = useState<'programs' | 'teams' | 'config'>('programs')
 
+  // Create Program state
+  const [showCreateProgram, setShowCreateProgram] = useState(false)
+  const [newProgram, setNewProgram] = useState({ name: '', short_name: '', city: '', state: '', contact_name: '', contact_email: '' })
+  const [creatingProgram, setCreatingProgram] = useState(false)
+
+  // Create Team state
+  const [showCreateTeam, setShowCreateTeam] = useState(false)
+  const [newTeam, setNewTeam] = useState({ name: '', division: '', association: '', color: '#0B3D91' })
+  const [creatingTeam, setCreatingTeam] = useState(false)
+  const [divisions, setDivisions] = useState<string[]>([])
+
   const load = useCallback(async () => {
     const sb = createClient()
     setLoading(true)
-    const [{ data: progs }, { data: regs }] = await Promise.all([
+    const [{ data: progs }, { data: regs }, { data: divs }] = await Promise.all([
       sb.from('programs').select('*').order('created_at', { ascending: false }),
       sb
         .from('team_registrations')
         .select('*, program:programs(name)')
         .order('created_at', { ascending: false }),
+      eventId
+        ? sb.from('registration_divisions').select('name').eq('event_id', eventId).eq('is_active', true).order('sort_order')
+        : Promise.resolve({ data: [] }),
     ])
     setPrograms((progs as Program[]) ?? [])
     setTeamRegs((regs as unknown as TeamReg[]) ?? [])
+    setDivisions((divs ?? []).map((d: any) => d.name))
     setLoading(false)
-  }, [])
+  }, [eventId])
 
   useEffect(() => {
     load()
@@ -242,6 +257,60 @@ export function ProgramApprovals() {
     load()
   }
 
+  async function createProgram() {
+    if (!newProgram.name || !newProgram.contact_name || !newProgram.contact_email) {
+      toast.error('Name, contact name, and contact email are required')
+      return
+    }
+    setCreatingProgram(true)
+    const sb = createClient()
+    const { error } = await sb.from('programs').insert({
+      name: newProgram.name,
+      short_name: newProgram.short_name || null,
+      city: newProgram.city || null,
+      state: newProgram.state || null,
+      contact_name: newProgram.contact_name,
+      contact_email: newProgram.contact_email,
+      status: 'approved',
+      approved_by: user?.id,
+      approved_at: new Date().toISOString(),
+    })
+    if (error) {
+      toast.error(error.message)
+    } else {
+      toast.success(`Program "${newProgram.name}" created`)
+      setNewProgram({ name: '', short_name: '', city: '', state: '', contact_name: '', contact_email: '' })
+      setShowCreateProgram(false)
+      load()
+    }
+    setCreatingProgram(false)
+  }
+
+  async function createTeam() {
+    if (!newTeam.name || !newTeam.division) {
+      toast.error('Team name and division are required')
+      return
+    }
+    setCreatingTeam(true)
+    const sb = createClient()
+    const { error } = await sb.from('teams').insert({
+      event_id: eventId,
+      name: newTeam.name,
+      division: newTeam.division,
+      association: newTeam.association || null,
+      color: newTeam.color || '#0B3D91',
+    })
+    if (error) {
+      toast.error(error.message)
+    } else {
+      toast.success(`Team "${newTeam.name}" created`)
+      setNewTeam({ name: '', division: '', association: '', color: '#0B3D91' })
+      setShowCreateTeam(false)
+      load()
+    }
+    setCreatingTeam(false)
+  }
+
   const filteredPrograms = programs.filter((p) => filter === 'all' || p.status === filter)
   const filteredTeams = teamRegs.filter((t) => filter === 'all' || t.status === filter)
   const pendingPrograms = programs.filter((p) => p.status === 'pending').length
@@ -324,6 +393,73 @@ export function ProgramApprovals() {
           {/* Programs list */}
           {activeTab === 'programs' && (
             <div className="space-y-3">
+              {/* Create Program */}
+              <div className="mb-2">
+                <Btn
+                  size="sm"
+                  variant={showCreateProgram ? 'ghost' : 'primary'}
+                  onClick={() => setShowCreateProgram(!showCreateProgram)}
+                >
+                  <Plus size={11} className="inline mr-1" />
+                  ADD PROGRAM
+                  {showCreateProgram ? <ChevronUp size={11} className="inline ml-1" /> : <ChevronDown size={11} className="inline ml-1" />}
+                </Btn>
+                {showCreateProgram && (
+                  <Card className="mt-2 p-4">
+                    <div className="grid grid-cols-2 gap-3">
+                      <FormField label="Program Name *">
+                        <Input
+                          value={newProgram.name}
+                          onChange={(e) => setNewProgram({ ...newProgram, name: e.target.value })}
+                          placeholder="e.g. Metro FC"
+                        />
+                      </FormField>
+                      <FormField label="Short Name">
+                        <Input
+                          value={newProgram.short_name}
+                          onChange={(e) => setNewProgram({ ...newProgram, short_name: e.target.value })}
+                          placeholder="e.g. MFC"
+                        />
+                      </FormField>
+                      <FormField label="City">
+                        <Input
+                          value={newProgram.city}
+                          onChange={(e) => setNewProgram({ ...newProgram, city: e.target.value })}
+                        />
+                      </FormField>
+                      <FormField label="State">
+                        <Input
+                          value={newProgram.state}
+                          onChange={(e) => setNewProgram({ ...newProgram, state: e.target.value })}
+                          placeholder="e.g. CA"
+                        />
+                      </FormField>
+                      <FormField label="Contact Name *">
+                        <Input
+                          value={newProgram.contact_name}
+                          onChange={(e) => setNewProgram({ ...newProgram, contact_name: e.target.value })}
+                        />
+                      </FormField>
+                      <FormField label="Contact Email *">
+                        <Input
+                          type="email"
+                          value={newProgram.contact_email}
+                          onChange={(e) => setNewProgram({ ...newProgram, contact_email: e.target.value })}
+                        />
+                      </FormField>
+                    </div>
+                    <div className="flex gap-2 mt-3">
+                      <Btn size="sm" variant="success" onClick={createProgram} disabled={creatingProgram}>
+                        {creatingProgram ? 'CREATING...' : 'CREATE PROGRAM'}
+                      </Btn>
+                      <Btn size="sm" variant="ghost" onClick={() => setShowCreateProgram(false)}>
+                        CANCEL
+                      </Btn>
+                    </div>
+                  </Card>
+                )}
+              </div>
+
               {filteredPrograms.length === 0 && (
                 <div className="text-center py-12 text-muted font-cond">
                   No programs matching filter
@@ -461,6 +597,81 @@ export function ProgramApprovals() {
           {/* Teams list */}
           {activeTab === 'teams' && (
             <div className="space-y-3">
+              {/* Create Team */}
+              <div className="mb-2">
+                <Btn
+                  size="sm"
+                  variant={showCreateTeam ? 'ghost' : 'primary'}
+                  onClick={() => setShowCreateTeam(!showCreateTeam)}
+                >
+                  <Plus size={11} className="inline mr-1" />
+                  ADD TEAM
+                  {showCreateTeam ? <ChevronUp size={11} className="inline ml-1" /> : <ChevronDown size={11} className="inline ml-1" />}
+                </Btn>
+                {showCreateTeam && (
+                  <Card className="mt-2 p-4">
+                    <div className="grid grid-cols-2 gap-3">
+                      <FormField label="Team Name *">
+                        <Input
+                          value={newTeam.name}
+                          onChange={(e) => setNewTeam({ ...newTeam, name: e.target.value })}
+                          placeholder="e.g. Metro FC Blue"
+                        />
+                      </FormField>
+                      <FormField label="Division *">
+                        {divisions.length > 0 ? (
+                          <Select
+                            value={newTeam.division}
+                            onChange={(e) => setNewTeam({ ...newTeam, division: e.target.value })}
+                          >
+                            <option value="">Select division...</option>
+                            {divisions.map((d) => (
+                              <option key={d} value={d}>{d}</option>
+                            ))}
+                          </Select>
+                        ) : (
+                          <Input
+                            value={newTeam.division}
+                            onChange={(e) => setNewTeam({ ...newTeam, division: e.target.value })}
+                            placeholder="e.g. U12 Boys"
+                          />
+                        )}
+                      </FormField>
+                      <FormField label="Association">
+                        <Input
+                          value={newTeam.association}
+                          onChange={(e) => setNewTeam({ ...newTeam, association: e.target.value })}
+                          placeholder="Optional"
+                        />
+                      </FormField>
+                      <FormField label="Color">
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="color"
+                            value={newTeam.color}
+                            onChange={(e) => setNewTeam({ ...newTeam, color: e.target.value })}
+                            className="w-8 h-8 rounded border border-[#1e3060] bg-transparent cursor-pointer"
+                          />
+                          <Input
+                            value={newTeam.color}
+                            onChange={(e) => setNewTeam({ ...newTeam, color: e.target.value })}
+                            className="flex-1"
+                          />
+                        </div>
+                      </FormField>
+                    </div>
+                    <div className="flex gap-2 mt-3">
+                      <Btn size="sm" variant="success" onClick={createTeam} disabled={creatingTeam}>
+                        {creatingTeam ? 'CREATING...' : 'CREATE TEAM'}
+                      </Btn>
+                      <Btn size="sm" variant="ghost" onClick={() => setShowCreateTeam(false)}>
+                        CANCEL
+                      </Btn>
+                    </div>
+                  </Card>
+                )}
+              </div>
+
               {filteredTeams.length === 0 && (
                 <div className="text-center py-12 text-muted font-cond">
                   No team registrations matching filter

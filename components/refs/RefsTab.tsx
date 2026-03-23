@@ -28,6 +28,8 @@ import {
   Users,
   Calendar,
   Link2,
+  Upload,
+  Download,
 } from 'lucide-react'
 
 // ─── Types ───────────────────────────────────────────────────
@@ -324,6 +326,14 @@ export function RefsTab() {
   const [newDate, setNewDate] = useState('')
   const [newFrom, setNewFrom] = useState('07:30')
   const [newTo, setNewTo] = useState('17:00')
+  const [csvPreview, setCsvPreview] = useState<{
+    type: 'referee' | 'volunteer'
+    rows: Record<string, string>[]
+    headers: string[]
+  } | null>(null)
+  const [csvImporting, setCsvImporting] = useState(false)
+  const refFileRef = useRef<HTMLInputElement>(null)
+  const volFileRef = useRef<HTMLInputElement>(null)
 
   // Load all assignments for today's games
   const loadAssignments = useCallback(async () => {
@@ -736,7 +746,7 @@ export function RefsTab() {
   async function copyInviteLink(type: 'referee' | 'volunteer') {
     setCopyingInvite(type)
     const sb = createClient()
-    const token = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2)
+    const token = crypto.randomUUID().replace(/-/g, '')
     const { error } = await sb
       .from('registration_invites')
       .insert({ event_id: eventId, type, token })
@@ -749,6 +759,144 @@ export function RefsTab() {
     await navigator.clipboard.writeText(url)
     toast.success(`${type === 'referee' ? 'Referee' : 'Volunteer'} invite link copied!`)
     setCopyingInvite(null)
+  }
+
+  // ─── CSV helpers ─────────────────────────────────────────────
+  function parseCSV(text: string): { headers: string[]; rows: Record<string, string>[] } {
+    const lines = text.split(/\r?\n/).filter((l) => l.trim())
+    if (lines.length < 2) return { headers: [], rows: [] }
+
+    function splitRow(line: string): string[] {
+      const cols: string[] = []
+      let cur = ''
+      let inQuote = false
+      for (let i = 0; i < line.length; i++) {
+        const ch = line[i]
+        if (inQuote) {
+          if (ch === '"' && line[i + 1] === '"') {
+            cur += '"'
+            i++
+          } else if (ch === '"') {
+            inQuote = false
+          } else {
+            cur += ch
+          }
+        } else {
+          if (ch === '"') {
+            inQuote = true
+          } else if (ch === ',') {
+            cols.push(cur.trim())
+            cur = ''
+          } else {
+            cur += ch
+          }
+        }
+      }
+      cols.push(cur.trim())
+      return cols
+    }
+
+    const headers = splitRow(lines[0]).map((h) => h.toLowerCase().replace(/\s+/g, '_'))
+    const rows = lines.slice(1).map((line) => {
+      const vals = splitRow(line)
+      const row: Record<string, string> = {}
+      headers.forEach((h, i) => {
+        row[h] = vals[i] ?? ''
+      })
+      return row
+    }).filter((r) => {
+      // skip empty rows
+      const vals = Object.values(r)
+      return vals.some((v) => v.trim() !== '')
+    })
+
+    return { headers, rows }
+  }
+
+  function handleCSVFile(file: File, type: 'referee' | 'volunteer') {
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      const text = e.target?.result as string
+      if (!text) { toast.error('Could not read file'); return }
+      const { headers, rows } = parseCSV(text)
+      if (rows.length === 0) { toast.error('No data rows found in CSV'); return }
+
+      // Validate required columns
+      const hasFirst = headers.includes('first_name')
+      const hasLast = headers.includes('last_name')
+      if (!hasFirst || !hasLast) {
+        toast.error('CSV must have first_name and last_name columns')
+        return
+      }
+
+      setCsvPreview({ type, rows, headers })
+    }
+    reader.readAsText(file)
+  }
+
+  async function confirmCSVImport() {
+    if (!csvPreview) return
+    setCsvImporting(true)
+    const sb = createClient()
+    const { type, rows } = csvPreview
+
+    try {
+      const records = rows.map((r) => {
+        const name = `${r.first_name?.trim() ?? ''} ${r.last_name?.trim() ?? ''}`.trim()
+        if (type === 'referee') {
+          return {
+            event_id: eventId,
+            name,
+            email: r.email?.trim() || null,
+            phone: r.phone?.trim() || null,
+            grade_level: r.grade_level?.trim() || '',
+            checked_in: false,
+          }
+        } else {
+          return {
+            event_id: eventId,
+            name,
+            email: r.email?.trim() || null,
+            phone: r.phone?.trim() || null,
+            role: r.role?.trim() || 'Operations',
+            checked_in: false,
+          }
+        }
+      })
+
+      const table = type === 'referee' ? 'referees' : 'volunteers'
+      const { error } = await sb.from(table).insert(records)
+      if (error) {
+        toast.error(`Import failed: ${error.message}`)
+        setCsvImporting(false)
+        return
+      }
+
+      toast.success(`Imported ${records.length} ${type === 'referee' ? 'referee' : 'volunteer'}${records.length !== 1 ? 's' : ''}`)
+      setCsvPreview(null)
+      setCsvImporting(false)
+      // Reload to pick up new data in the store
+      window.location.reload()
+    } catch (err: any) {
+      toast.error(`Import failed: ${err?.message ?? 'Unknown error'}`)
+      setCsvImporting(false)
+    }
+  }
+
+  function downloadTemplate(type: 'referee' | 'volunteer') {
+    const header = type === 'referee'
+      ? 'first_name,last_name,email,phone,grade_level'
+      : 'first_name,last_name,email,phone,role'
+    const example = type === 'referee'
+      ? '\nJohn,Doe,john@example.com,555-0100,Grade 7'
+      : '\nJane,Smith,jane@example.com,555-0200,Score Table'
+    const blob = new Blob([header + example], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${type}_import_template.csv`
+    a.click()
+    URL.revokeObjectURL(url)
   }
 
   // Group games by field
@@ -968,14 +1116,34 @@ export function RefsTab() {
             <div className="font-cond text-[11px] text-muted">
               {state.referees.length} referee{state.referees.length !== 1 ? 's' : ''} registered
             </div>
-            <button
-              onClick={() => copyInviteLink('referee')}
-              disabled={!!copyingInvite}
-              className="flex items-center gap-1.5 font-cond text-[11px] font-black tracking-wider px-3 py-1.5 rounded-lg bg-red/20 border border-red/40 text-red-300 hover:bg-red/30 transition-colors disabled:opacity-50"
-            >
-              <Link2 size={11} />
-              {copyingInvite === 'referee' ? 'COPYING...' : 'COPY INVITE LINK'}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => refFileRef.current?.click()}
+                className="flex items-center gap-1.5 font-cond text-[11px] font-black tracking-wider px-3 py-1.5 rounded-lg bg-surface border border-border text-muted hover:text-white hover:border-red/40 transition-colors"
+              >
+                <Upload size={11} />
+                IMPORT CSV
+              </button>
+              <input
+                ref={refFileRef}
+                type="file"
+                accept=".csv"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0]
+                  if (f) handleCSVFile(f, 'referee')
+                  e.target.value = ''
+                }}
+              />
+              <button
+                onClick={() => copyInviteLink('referee')}
+                disabled={!!copyingInvite}
+                className="flex items-center gap-1.5 font-cond text-[11px] font-black tracking-wider px-3 py-1.5 rounded-lg bg-red/20 border border-red/40 text-red-300 hover:bg-red/30 transition-colors disabled:opacity-50"
+              >
+                <Link2 size={11} />
+                {copyingInvite === 'referee' ? 'COPYING...' : 'COPY INVITE LINK'}
+              </button>
+            </div>
           </div>
           <div className="grid grid-cols-[repeat(auto-fill,minmax(210px,1fr))] gap-2">
             {state.referees.map((ref) => {
@@ -1052,14 +1220,34 @@ export function RefsTab() {
               {state.volunteers.length} volunteer{state.volunteers.length !== 1 ? 's' : ''}{' '}
               registered
             </div>
-            <button
-              onClick={() => copyInviteLink('volunteer')}
-              disabled={!!copyingInvite}
-              className="flex items-center gap-1.5 font-cond text-[11px] font-black tracking-wider px-3 py-1.5 rounded-lg bg-blue-900/30 border border-blue-700/50 text-blue-300 hover:bg-blue-900/50 transition-colors disabled:opacity-50"
-            >
-              <Link2 size={11} />
-              {copyingInvite === 'volunteer' ? 'COPYING...' : 'COPY INVITE LINK'}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => volFileRef.current?.click()}
+                className="flex items-center gap-1.5 font-cond text-[11px] font-black tracking-wider px-3 py-1.5 rounded-lg bg-surface border border-border text-muted hover:text-white hover:border-blue-400/40 transition-colors"
+              >
+                <Upload size={11} />
+                IMPORT CSV
+              </button>
+              <input
+                ref={volFileRef}
+                type="file"
+                accept=".csv"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0]
+                  if (f) handleCSVFile(f, 'volunteer')
+                  e.target.value = ''
+                }}
+              />
+              <button
+                onClick={() => copyInviteLink('volunteer')}
+                disabled={!!copyingInvite}
+                className="flex items-center gap-1.5 font-cond text-[11px] font-black tracking-wider px-3 py-1.5 rounded-lg bg-blue-900/30 border border-blue-700/50 text-blue-300 hover:bg-blue-900/50 transition-colors disabled:opacity-50"
+              >
+                <Link2 size={11} />
+                {copyingInvite === 'volunteer' ? 'COPYING...' : 'COPY INVITE LINK'}
+              </button>
+            </div>
           </div>
           <div className="grid grid-cols-[repeat(auto-fill,minmax(210px,1fr))] gap-2 mb-6">
             {state.volunteers.map((vol) => (
@@ -1183,6 +1371,90 @@ export function RefsTab() {
           </div>
         </div>
       )}
+
+      {/* ═══ CSV IMPORT PREVIEW MODAL ═════════════════════════════ */}
+      <Modal
+        open={!!csvPreview}
+        onClose={() => setCsvPreview(null)}
+        title={`IMPORT ${csvPreview?.type === 'referee' ? 'REFEREES' : 'VOLUNTEERS'} FROM CSV`}
+        footer={
+          <>
+            <button
+              onClick={() => downloadTemplate(csvPreview?.type ?? 'referee')}
+              className="flex items-center gap-1.5 font-cond text-[11px] font-bold tracking-wider px-3 py-1.5 rounded text-muted hover:text-white transition-colors mr-auto"
+            >
+              <Download size={11} />
+              DOWNLOAD TEMPLATE
+            </button>
+            <Btn variant="ghost" size="sm" onClick={() => setCsvPreview(null)}>
+              CANCEL
+            </Btn>
+            <Btn
+              variant="primary"
+              size="sm"
+              onClick={confirmCSVImport}
+              disabled={csvImporting}
+            >
+              {csvImporting ? 'IMPORTING...' : `IMPORT ${csvPreview?.rows.length ?? 0} ROWS`}
+            </Btn>
+          </>
+        }
+      >
+        {csvPreview && (
+          <div>
+            <div className="font-cond text-[11px] text-muted mb-3">
+              Preview of {csvPreview.rows.length} row{csvPreview.rows.length !== 1 ? 's' : ''} to import.
+              Columns found: {csvPreview.headers.join(', ')}
+            </div>
+            <div className="max-h-[300px] overflow-auto rounded border border-border">
+              <table className="w-full border-collapse text-[12px]">
+                <thead>
+                  <tr className="bg-navy sticky top-0">
+                    <th className="font-cond text-[10px] font-black tracking-widest text-muted px-3 py-1.5 text-left">#</th>
+                    <th className="font-cond text-[10px] font-black tracking-widest text-muted px-3 py-1.5 text-left">NAME</th>
+                    <th className="font-cond text-[10px] font-black tracking-widest text-muted px-3 py-1.5 text-left">EMAIL</th>
+                    <th className="font-cond text-[10px] font-black tracking-widest text-muted px-3 py-1.5 text-left">PHONE</th>
+                    <th className="font-cond text-[10px] font-black tracking-widest text-muted px-3 py-1.5 text-left">
+                      {csvPreview.type === 'referee' ? 'GRADE' : 'ROLE'}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {csvPreview.rows.map((row, i) => {
+                    const name = `${row.first_name ?? ''} ${row.last_name ?? ''}`.trim()
+                    const hasName = name.length > 0
+                    return (
+                      <tr
+                        key={i}
+                        className={cn(
+                          'border-b border-border/40',
+                          !hasName && 'bg-red-900/10'
+                        )}
+                      >
+                        <td className="font-mono text-muted text-[10px] px-3 py-1.5">{i + 1}</td>
+                        <td className={cn('font-cond font-bold text-[11px] px-3 py-1.5', !hasName && 'text-red-400')}>
+                          {hasName ? name : 'MISSING NAME'}
+                        </td>
+                        <td className="font-mono text-[11px] px-3 py-1.5 text-blue-300">{row.email || '—'}</td>
+                        <td className="font-mono text-[11px] px-3 py-1.5">{row.phone || '—'}</td>
+                        <td className="font-cond text-[11px] px-3 py-1.5">
+                          {csvPreview.type === 'referee' ? (row.grade_level || '—') : (row.role || '—')}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+            {csvPreview.rows.some((r) => !r.first_name?.trim() && !r.last_name?.trim()) && (
+              <div className="mt-2 font-cond text-[11px] text-red-400 flex items-center gap-1.5">
+                <AlertTriangle size={12} />
+                Some rows are missing names and will be imported with empty names.
+              </div>
+            )}
+          </div>
+        )}
+      </Modal>
 
       {/* ═══ ROLE / BLOCK ASSIGNMENT MODAL ═══════════════════════ */}
       <Modal
