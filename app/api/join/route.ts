@@ -1,8 +1,34 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/supabase/server'
+import { publicRatelimit } from '@/lib/ratelimit'
+
+// PUBLIC ROUTE — intentionally excluded from auth guard per SEC-02.
+// Token-gated invite flow for referees and volunteers.
 
 // GET /api/join?token=xxx — validate invite and return event info
 export async function GET(req: NextRequest) {
+  // Rate limit by IP (SEC-08)
+  const ip =
+    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
+    '127.0.0.1'
+  const { success, limit, remaining, reset, pending } =
+    await publicRatelimit.limit(ip)
+  void pending
+
+  if (!success) {
+    return NextResponse.json(
+      { error: 'Too many requests' },
+      {
+        status: 429,
+        headers: {
+          'X-RateLimit-Limit': String(limit),
+          'X-RateLimit-Remaining': String(remaining),
+          'X-RateLimit-Reset': String(reset),
+        },
+      }
+    )
+  }
+
   const token = new URL(req.url).searchParams.get('token')
   if (!token) return NextResponse.json({ error: 'Missing token' }, { status: 400 })
 
@@ -21,6 +47,28 @@ export async function GET(req: NextRequest) {
 
 // POST /api/join — submit registration
 export async function POST(req: NextRequest) {
+  // Rate limit by IP (SEC-08)
+  const ip =
+    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
+    '127.0.0.1'
+  const { success, limit, remaining, reset, pending } =
+    await publicRatelimit.limit(ip)
+  void pending
+
+  if (!success) {
+    return NextResponse.json(
+      { error: 'Too many requests' },
+      {
+        status: 429,
+        headers: {
+          'X-RateLimit-Limit': String(limit),
+          'X-RateLimit-Remaining': String(remaining),
+          'X-RateLimit-Reset': String(reset),
+        },
+      }
+    )
+  }
+
   const { token, first_name, last_name, email, phone } = await req.json()
 
   if (!token || !first_name?.trim() || !last_name?.trim() || !email?.trim()) {
