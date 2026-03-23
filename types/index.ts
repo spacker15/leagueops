@@ -33,6 +33,13 @@ export interface Event {
   end_date: string
   created_at: string
   role_permissions?: Record<string, string[]>
+  // Venue fields (Phase 5 -- EVT-02)
+  venue_address?: string | null
+  venue_lat?: number | null
+  venue_lng?: number | null
+  venue_place_id?: string | null
+  slug?: string
+  status?: string
 }
 
 export interface EventDate {

@@ -150,6 +150,11 @@ interface EventData {
   park_name: string
   primary_color: string
   secondary_color: string
+  // Venue (Phase 5)
+  venue_address: string
+  venue_lat: number | null
+  venue_lng: number | null
+  venue_place_id: string | null
 }
 
 const DEFAULT_EVENT: Omit<EventData, 'id'> = {
@@ -216,6 +221,10 @@ const DEFAULT_EVENT: Omit<EventData, 'id'> = {
   park_name: '',
   primary_color: '#0B3D91',
   secondary_color: '#D62828',
+  venue_address: '',
+  venue_lat: null,
+  venue_lng: null,
+  venue_place_id: null,
 }
 
 export function EventSetupTab({ eventId }: { eventId: number }) {
@@ -654,6 +663,10 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
         park_name: d.park_name ?? '',
         primary_color: d.primary_color ?? '#0B3D91',
         secondary_color: d.secondary_color ?? '#D62828',
+        venue_address: d.venue_address ?? '',
+        venue_lat: d.venue_lat ?? null,
+        venue_lng: d.venue_lng ?? null,
+        venue_place_id: d.venue_place_id ?? null,
       })
       setLogoPreview(d.logo_url ?? null)
       setMapPhotoUrl(d.park_photo_url ?? null)
@@ -980,6 +993,10 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
         primary_color: event.primary_color,
         secondary_color: event.secondary_color,
         logo_url: finalLogoUrl,
+        venue_address: event.venue_address || null,
+        venue_lat: event.venue_lat,
+        venue_lng: event.venue_lng,
+        venue_place_id: event.venue_place_id || null,
         updated_at: new Date().toISOString(),
       })
       .eq('id', eventId)
