@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: Executing Phase 03
-stopped_at: Phase 3 context gathered
-last_updated: "2026-03-23T13:00:55.845Z"
+stopped_at: Completed 03-03-PLAN.md
+last_updated: "2026-03-23T13:05:54.406Z"
 progress:
   total_phases: 10
   completed_phases: 2
   total_plans: 13
-  completed_plans: 11
+  completed_plans: 12
 ---
 
 # Project State: LeagueOps
@@ -37,8 +37,8 @@ See: .planning/PROJECT.md (updated 2026-03-22)
 
 ## Active Context
 
-**Last session:** 2026-03-23T12:23:21.703Z
-**Stopped at:** Completed 03-01-PLAN.md
+**Last session:** 2026-03-23T13:05:54.403Z
+**Stopped at:** Completed 03-03-PLAN.md
 **Plans completed:** 01-01 (Core Engine Refactor) — 7 tasks, 12 files, 19 min; 01-02 (New API Routes for CommandCenter) — 3 tasks, 3 files, 3 min
 
 ## Performance Metrics
@@ -57,6 +57,7 @@ See: .planning/PROJECT.md (updated 2026-03-22)
 | Phase 02-hardcode-removal-event-context P03 | 5 min | 2 tasks | 2 files |
 | Phase 02-hardcode-removal-event-context P04 | 45 min | 3 tasks | 18 files |
 | Phase 03-api-auth-validation P01 | 5 min | 2 tasks | 17 files |
+| Phase 03-api-auth-validation P03 | 2 min | 2 tasks | 9 files |
 
 ## Decisions Log
 
@@ -88,3 +89,5 @@ See: .planning/PROJECT.md (updated 2026-03-22)
 | 03-01      | lib/supabase/server.ts placed at lib/ (no src/ dir); async await cookies() pattern for Next.js 15 compatibility |
 | 03-01      | Engine-trigger routes categorized separately from write routes — engines need header secret auth not user session auth |
 | 03-01      | schemas/ at project root — consistent with lib/, types/, components/ structure (no src/ prefix in this project) |
+| 03-03      | Engine-trigger GET handlers excluded from rate limiting — only POST triggers expensive engine operations; GET serves cached reads |
+| 03-03      | publicRatelimit sliding window used for all public routes — allows event-day burst tolerance better than fixed window |
