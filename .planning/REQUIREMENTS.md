@@ -9,7 +9,7 @@ Requirements for this milestone. Each maps to roadmap phases.
 
 ### Security & Auth Hardening
 
-- [ ] **SEC-01**: All core database tables have proper RLS policies replacing "Allow all" — scoped by event_id via `user_event_ids()` helper function
+- [x] **SEC-01**: All core database tables have proper RLS policies replacing "Allow all" — scoped by event_id via `user_event_ids()` helper function
 - [x] **SEC-02**: All 40+ API routes validate authentication via `auth.getUser()` (except intentionally public routes: join, QR check-in, public results)
 - [x] **SEC-03**: All engine modules (`referee.ts`, `weather.ts`, `field.ts`, `eligibility.ts`, `unified.ts`) accept a server-side Supabase client parameter instead of importing browser client
 - [x] **SEC-04**: All hardcoded `event_id = 1` references (~60 locations) replaced with dynamic event_id from context/props/params
