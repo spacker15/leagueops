@@ -115,7 +115,7 @@ export async function generateSchedule(
     divisionMap.get(t.division)!.push(t.id)
   }
 
-  // 2. Load fields
+  // 2. Load fields and their division assignments
   const { data: fields, error: fieldsErr } = await sb
     .from('fields')
     .select('id, name, division')
@@ -124,6 +124,26 @@ export async function generateSchedule(
 
   if (fieldsErr) throw new Error(`Failed to load fields: ${fieldsErr.message}`)
   if (!fields || fields.length === 0) throw new Error('No fields found for this event')
+
+  // Load field_divisions for multi-division assignment
+  const { data: fieldDivRows } = await sb
+    .from('field_divisions')
+    .select('field_id, division_name')
+    .eq('event_id', eventId)
+
+  // Build field -> allowed divisions map (empty = any division)
+  const fieldDivMap = new Map<number, Set<string>>()
+  for (const row of (fieldDivRows ?? []) as { field_id: number; division_name: string }[]) {
+    if (!fieldDivMap.has(row.field_id)) fieldDivMap.set(row.field_id, new Set())
+    fieldDivMap.get(row.field_id)!.add(row.division_name)
+  }
+
+  // Helper: can this field host this division?
+  function fieldAllowsDivision(fieldId: number, division: string): boolean {
+    const allowed = fieldDivMap.get(fieldId)
+    if (!allowed || allowed.size === 0) return true // no restriction = any division
+    return allowed.has(division)
+  }
 
   // 3. Load event dates
   const { data: eventDates, error: datesErr } = await sb
@@ -270,6 +290,9 @@ export async function generateSchedule(
 
       const homeKey = `${matchup.home}-${slot.eventDateId}-${slot.timeMinutes}`
       const awayKey = `${matchup.away}-${slot.eventDateId}-${slot.timeMinutes}`
+
+      // Check field-division compatibility
+      if (!fieldAllowsDivision(slot.fieldId, matchup.division)) continue
 
       if (!teamSlotUsed.has(homeKey) && !teamSlotUsed.has(awayKey)) {
         teamSlotUsed.add(homeKey)

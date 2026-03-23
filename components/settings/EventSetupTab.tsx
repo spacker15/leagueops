@@ -255,8 +255,8 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
   >({})
   const [gameDaysSaving, setGameDaysSaving] = useState(false)
   // Divisions state (general tab)
-  const [divisions, setDivisions] = useState<{ id: number; name: string; age_group: string; gender: string; sort_order: number; is_active: boolean; max_teams: number | null }[]>([])
-  const [newDiv, setNewDiv] = useState({ name: '', age_group: '', gender: 'Coed' })
+  const [divisions, setDivisions] = useState<{ id: number; name: string; age_group: string; gender: string; sort_order: number; is_active: boolean; max_teams: number | null; color: string }[]>([])
+  const [newDiv, setNewDiv] = useState({ name: '', age_group: '', gender: 'Coed', color: '#0B3D91' })
   const [addingDiv, setAddingDiv] = useState(false)
   const [divSaving, setDivSaving] = useState(false)
 
@@ -663,13 +663,14 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
       name: newDiv.name.trim(),
       age_group: newDiv.age_group.trim() || null,
       gender: newDiv.gender,
+      color: newDiv.color,
       sort_order: divisions.length + 1,
       is_active: true,
     })
     if (error) toast.error(error.message)
     else {
       toast.success('Division added')
-      setNewDiv({ name: '', age_group: '', gender: 'Coed' })
+      setNewDiv({ name: '', age_group: '', gender: 'Coed', color: '#0B3D91' })
       setAddingDiv(false)
       loadDivisions()
       loadDivisionTimings()
@@ -692,6 +693,12 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
     const sb = createClient()
     await sb.from('registration_divisions').update({ is_active: active }).eq('id', id)
     loadDivisions()
+  }
+
+  async function updateDivisionColor(id: number, color: string) {
+    const sb = createClient()
+    await sb.from('registration_divisions').update({ color }).eq('id', id)
+    setDivisions((prev) => prev.map((d) => (d.id === id ? { ...d, color } : d)))
   }
 
   async function saveSettings() {
@@ -1342,6 +1349,7 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                   <div
                     key={d.id}
                     className="flex items-center justify-between bg-[#040e24] border border-[#1a2d50] rounded-lg px-3 py-2"
+                    style={{ borderLeftWidth: 3, borderLeftColor: d.color || '#0B3D91' }}
                   >
                     <div className="flex items-center gap-3">
                       <button
@@ -1352,6 +1360,18 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                         )}
                         title={d.is_active ? 'Active — click to deactivate' : 'Inactive — click to activate'}
                       />
+                      <label className="relative cursor-pointer" title="Change division color">
+                        <span
+                          className="block w-4 h-4 rounded border border-white/20"
+                          style={{ backgroundColor: d.color || '#0B3D91' }}
+                        />
+                        <input
+                          type="color"
+                          value={d.color || '#0B3D91'}
+                          onChange={(e) => updateDivisionColor(d.id, e.target.value)}
+                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                        />
+                      </label>
                       <span className={cn('font-cond text-[12px] font-bold', d.is_active ? 'text-white' : 'text-muted')}>
                         {d.name}
                       </span>
@@ -1373,7 +1393,7 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
 
                 {addingDiv ? (
                   <div className="bg-[#040e24] border border-[#1a2d50] rounded-lg p-3 space-y-2">
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-4 gap-2">
                       <div>
                         <label className={lbl}>Division Name *</label>
                         <input
@@ -1404,6 +1424,24 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                           <option value="Girls">Girls</option>
                         </select>
                       </div>
+                      <div>
+                        <label className={lbl}>Color</label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="color"
+                            value={newDiv.color}
+                            onChange={(e) => setNewDiv({ ...newDiv, color: e.target.value })}
+                            className="w-8 h-8 rounded border border-[#1a2d50] cursor-pointer bg-transparent"
+                          />
+                          <input
+                            className={cn(inp, 'flex-1')}
+                            value={newDiv.color}
+                            onChange={(e) => setNewDiv({ ...newDiv, color: e.target.value })}
+                            placeholder="#0B3D91"
+                            maxLength={7}
+                          />
+                        </div>
+                      </div>
                     </div>
                     <div className="flex gap-2">
                       <button
@@ -1414,7 +1452,7 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                         {divSaving ? 'SAVING...' : 'ADD DIVISION'}
                       </button>
                       <button
-                        onClick={() => { setAddingDiv(false); setNewDiv({ name: '', age_group: '', gender: 'Coed' }) }}
+                        onClick={() => { setAddingDiv(false); setNewDiv({ name: '', age_group: '', gender: 'Coed', color: '#0B3D91' }) }}
                         className="font-cond text-[10px] font-bold tracking-wider text-muted px-3 py-1.5 rounded hover:text-white transition-colors"
                       >
                         CANCEL

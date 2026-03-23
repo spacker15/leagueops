@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils'
 import toast from 'react-hot-toast'
 import { Plus, Pencil, Trash2, Check, X, Layout } from 'lucide-react'
 import * as db from '@/lib/db'
+import { createClient } from '@/supabase/client'
 import type { Complex } from '@/types'
 
 const inp =
@@ -14,8 +15,13 @@ const inp =
 interface EditState {
   name: string
   number: string
-  division: string
+  divisions: string[]
   complex_id: number | null
+}
+
+interface DivOption {
+  name: string
+  color: string
 }
 
 export function FieldsTab() {
@@ -24,31 +30,74 @@ export function FieldsTab() {
   // Add form state
   const [newName, setNewName] = useState('')
   const [newNumber, setNewNumber] = useState('')
-  const [newDivision, setNewDivision] = useState('')
+  const [newDivisions, setNewDivisions] = useState<string[]>([])
   const [newComplexId, setNewComplexId] = useState<number | ''>('')
   const [adding, setAdding] = useState(false)
 
-  // Edit state — which row is being edited
+  // Edit state
   const [editId, setEditId] = useState<number | null>(null)
   const [editVals, setEditVals] = useState<EditState>({
     name: '',
     number: '',
-    division: '',
+    divisions: [],
     complex_id: null,
   })
 
-  // Complexes for this event
+  // Complexes and divisions
   const [complexes, setComplexes] = useState<Complex[]>([])
+  const [divOptions, setDivOptions] = useState<DivOption[]>([])
+  // field_id -> division names
+  const [fieldDivMap, setFieldDivMap] = useState<Record<number, string[]>>({})
 
   useEffect(() => {
     if (state.event?.id) {
       db.getComplexes(state.event.id).then((data) => setComplexes(data as Complex[]))
+      loadDivOptions()
+      loadFieldDivisions()
     }
   }, [state.event?.id])
 
-  const divisions = Array.from(
-    new Set(state.teams.map((t: any) => t.division).filter(Boolean))
-  ).sort() as string[]
+  async function loadDivOptions() {
+    const sb = createClient()
+    const { data } = await sb
+      .from('registration_divisions')
+      .select('name, color')
+      .eq('event_id', state.event?.id)
+      .eq('is_active', true)
+      .order('sort_order')
+    setDivOptions((data as DivOption[]) ?? [])
+  }
+
+  async function loadFieldDivisions() {
+    const sb = createClient()
+    const { data } = await sb
+      .from('field_divisions')
+      .select('field_id, division_name')
+      .eq('event_id', state.event?.id)
+    const map: Record<number, string[]> = {}
+    for (const row of (data ?? []) as any[]) {
+      if (!map[row.field_id]) map[row.field_id] = []
+      map[row.field_id].push(row.division_name)
+    }
+    setFieldDivMap(map)
+  }
+
+  async function saveFieldDivisions(fieldId: number, divNames: string[]) {
+    const sb = createClient()
+    // Delete existing
+    await sb.from('field_divisions').delete().eq('field_id', fieldId)
+    // Insert new
+    if (divNames.length > 0) {
+      await sb.from('field_divisions').insert(
+        divNames.map((d) => ({ field_id: fieldId, division_name: d, event_id: state.event?.id }))
+      )
+    }
+    setFieldDivMap((prev) => ({ ...prev, [fieldId]: divNames }))
+  }
+
+  function getDivColor(name: string): string {
+    return divOptions.find((d) => d.name === name)?.color ?? '#0B3D91'
+  }
 
   async function handleAdd() {
     if (!newName.trim()) {
@@ -56,10 +105,29 @@ export function FieldsTab() {
       return
     }
     setAdding(true)
-    await addField(newName.trim(), newNumber.trim(), newDivision.trim(), newComplexId || undefined)
+    await addField(newName.trim(), newNumber.trim(), newDivisions.join(', '), newComplexId || undefined)
+    // Save field-division assignments after field is created
+    // The new field will be in state after addField refreshes
+    if (newDivisions.length > 0) {
+      // Small delay to let state update with the new field
+      setTimeout(async () => {
+        const sb = createClient()
+        const { data: latestFields } = await sb
+          .from('fields')
+          .select('id')
+          .eq('event_id', state.event?.id)
+          .eq('name', newName.trim())
+          .order('id', { ascending: false })
+          .limit(1)
+        if (latestFields?.[0]) {
+          await saveFieldDivisions(latestFields[0].id, newDivisions)
+        }
+        loadFieldDivisions()
+      }, 300)
+    }
     setNewName('')
     setNewNumber('')
-    setNewDivision('')
+    setNewDivisions([])
     setNewComplexId('')
     toast.success('Field added')
     setAdding(false)
@@ -76,7 +144,7 @@ export function FieldsTab() {
     setEditVals({
       name: field.name,
       number: field.number,
-      division: field.division ?? '',
+      divisions: fieldDivMap[field.id] ?? (field.division ? [field.division] : []),
       complex_id: field.complex_id ?? null,
     })
   }
@@ -90,9 +158,10 @@ export function FieldsTab() {
     await updateFieldDetails(editId, {
       name: editVals.name.trim(),
       number: editVals.number.trim(),
-      division: editVals.division.trim(),
+      division: editVals.divisions.join(', '),
       complex_id: editVals.complex_id,
     })
+    await saveFieldDivisions(editId, editVals.divisions)
     toast.success('Saved')
     setEditId(null)
   }
@@ -103,6 +172,10 @@ export function FieldsTab() {
     toast.success('Field removed')
   }
 
+  function toggleDiv(list: string[], div: string): string[] {
+    return list.includes(div) ? list.filter((d) => d !== div) : [...list, div]
+  }
+
   const fields = [...state.fields].sort((a, b) => {
     const na = parseInt(a.number) || 0,
       nb = parseInt(b.number) || 0
@@ -110,6 +183,50 @@ export function FieldsTab() {
   })
 
   const complexName = (id?: number | null) => complexes.find((c) => c.id === id)?.name ?? null
+
+  // Division chips renderer
+  function DivChips({ divs }: { divs: string[] }) {
+    if (divs.length === 0) return <span className="font-cond text-[11px] text-muted/40">—</span>
+    return (
+      <div className="flex flex-wrap gap-1">
+        {divs.map((d) => (
+          <span
+            key={d}
+            className="font-cond text-[10px] font-bold px-1.5 py-0.5 rounded"
+            style={{ backgroundColor: getDivColor(d) + '30', color: getDivColor(d), border: `1px solid ${getDivColor(d)}40` }}
+          >
+            {d}
+          </span>
+        ))}
+      </div>
+    )
+  }
+
+  // Division multi-select checkboxes
+  function DivSelect({ selected, onChange }: { selected: string[]; onChange: (v: string[]) => void }) {
+    if (divOptions.length === 0) return <span className="text-[10px] text-muted font-cond">No divisions configured</span>
+    return (
+      <div className="flex flex-wrap gap-1.5">
+        {divOptions.map((d) => {
+          const active = selected.includes(d.name)
+          return (
+            <button
+              key={d.name}
+              type="button"
+              onClick={() => onChange(toggleDiv(selected, d.name))}
+              className={cn(
+                'font-cond text-[10px] font-bold px-2 py-1 rounded border transition-colors',
+                active ? 'text-white' : 'text-muted border-[#1a2d50] hover:text-white'
+              )}
+              style={active ? { backgroundColor: d.color + '30', borderColor: d.color, color: d.color } : undefined}
+            >
+              {d.name}
+            </button>
+          )
+        })}
+      </div>
+    )
+  }
 
   return (
     <div>
@@ -152,22 +269,6 @@ export function FieldsTab() {
               autoFocus
             />
           </div>
-          <div className="w-36">
-            <label className="font-cond text-[10px] text-muted block mb-1">Division</label>
-            <input
-              className={inp}
-              value={newDivision}
-              onChange={(e) => setNewDivision(e.target.value)}
-              placeholder={divisions[0] ?? 'e.g. U12'}
-              list="div-list"
-              onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
-            />
-            <datalist id="div-list">
-              {divisions.map((d) => (
-                <option key={d} value={d} />
-              ))}
-            </datalist>
-          </div>
           {complexes.length > 0 && (
             <div className="w-40">
               <label className="font-cond text-[10px] text-muted block mb-1">Complex</label>
@@ -193,6 +294,12 @@ export function FieldsTab() {
             <Plus size={12} /> ADD
           </button>
         </div>
+        {divOptions.length > 0 && (
+          <div className="mt-3">
+            <label className="font-cond text-[10px] text-muted block mb-1.5">Divisions (select which divisions can play on this field)</label>
+            <DivSelect selected={newDivisions} onChange={setNewDivisions} />
+          </div>
+        )}
       </div>
 
       {/* Fields table */}
@@ -211,8 +318,8 @@ export function FieldsTab() {
                 <th className="font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase text-left px-4 py-2.5">
                   Name
                 </th>
-                <th className="font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase text-left px-4 py-2.5 w-40">
-                  Division
+                <th className="font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase text-left px-4 py-2.5">
+                  Divisions
                 </th>
                 {complexes.length > 0 && (
                   <th className="font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase text-left px-4 py-2.5 w-40">
@@ -254,19 +361,10 @@ export function FieldsTab() {
                         />
                       </td>
                       <td className="px-3 py-2">
-                        <input
-                          className={inp}
-                          value={editVals.division}
-                          onChange={(e) => setEditVals((v) => ({ ...v, division: e.target.value }))}
-                          placeholder="Division"
-                          list="div-list-edit"
-                          onKeyDown={(e) => e.key === 'Enter' && saveEdit()}
+                        <DivSelect
+                          selected={editVals.divisions}
+                          onChange={(v) => setEditVals((prev) => ({ ...prev, divisions: v }))}
                         />
-                        <datalist id="div-list-edit">
-                          {divisions.map((d) => (
-                            <option key={d} value={d} />
-                          ))}
-                        </datalist>
                       </td>
                       {complexes.length > 0 && (
                         <td className="px-3 py-2">
@@ -325,13 +423,7 @@ export function FieldsTab() {
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        {field.division ? (
-                          <span className="font-cond text-[11px] font-bold px-2 py-0.5 rounded bg-[#1a2d50] text-blue-300">
-                            {field.division}
-                          </span>
-                        ) : (
-                          <span className="font-cond text-[11px] text-muted/40">—</span>
-                        )}
+                        <DivChips divs={fieldDivMap[field.id] ?? (field.division ? [field.division] : [])} />
                       </td>
                       {complexes.length > 0 && (
                         <td className="px-4 py-3">
@@ -370,9 +462,8 @@ export function FieldsTab() {
       )}
 
       <div className="mt-4 font-cond text-[10px] text-muted">
-        To position fields on the park map, use the{' '}
-        <strong className="text-white/50">Park Map</strong> tab. Divisions set here are used to
-        filter field assignments.
+        Assign divisions to fields to control which games can be scheduled on each field.
+        Fields with no divisions assigned will accept any division.
       </div>
     </div>
   )
