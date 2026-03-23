@@ -16,6 +16,11 @@ import {
   ArrowLeft,
   Settings,
   Users,
+  Archive,
+  ArchiveRestore,
+  Search,
+  Eye,
+  EyeOff,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -60,6 +65,16 @@ export function EventPicker({ onSelectEvent }: Props) {
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
   const [copiedCode, setCopiedCode] = useState<number | null>(null)
+  const [showArchived, setShowArchived] = useState(false)
+
+  // Venue search state
+  const [venueQuery, setVenueQuery] = useState('')
+  const [venuePredictions, setVenuePredictions] = useState<
+    { place_id: string; description: string; main_text: string; secondary_text: string }[]
+  >([])
+  const [venueSearching, setVenueSearching] = useState(false)
+  const [showVenueDropdown, setShowVenueDropdown] = useState(false)
+  const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null)
 
   // Wizard state
   const [step, setStep] = useState<1 | 2>(1)
@@ -110,7 +125,7 @@ export function EventPicker({ onSelectEvent }: Props) {
         .single()
       if (data) setEvents([data as EventSummary])
     } else {
-      const { data } = await sb
+      const query = sb
         .from('events')
         .select(
           'id,name,sport,event_type,location,start_date,end_date,status,logo_url,event_code,slug,primary_color'
@@ -118,6 +133,7 @@ export function EventPicker({ onSelectEvent }: Props) {
         .in('id', eventIds)
         .eq('is_active', true)
         .order('created_at', { ascending: false })
+      const { data } = await query
       setEvents((data as EventSummary[]) ?? [])
     }
     setLoading(false)
@@ -151,6 +167,10 @@ export function EventPicker({ onSelectEvent }: Props) {
     setComplexAddress('')
     setCopyTeams(false)
     setCopyComplexes(false)
+    setVenueQuery('')
+    setVenuePredictions([])
+    setSelectedPlaceId(null)
+    setShowVenueDropdown(false)
   }
 
   async function createEvent() {
@@ -166,23 +186,31 @@ export function EventPicker({ onSelectEvent }: Props) {
       '-' +
       new Date().getFullYear()
 
+    const eventInsert: Record<string, any> = {
+      name: newName,
+      sport: newSport,
+      event_type: newType,
+      location: newLocation,
+      start_date: newStart,
+      end_date: newEnd,
+      status: 'draft',
+      slug,
+      owner_id: user?.id,
+      is_active: true,
+      event_code: Math.random().toString(36).substring(2, 8).toUpperCase(),
+      primary_color: '#0B3D91',
+      secondary_color: '#D62828',
+    }
+
+    // Store venue details from Google Maps if selected
+    if (selectedPlaceId) {
+      eventInsert.venue_place_id = selectedPlaceId
+      eventInsert.venue_address = complexAddress || newLocation
+    }
+
     const { data: ev, error } = await sb
       .from('events')
-      .insert({
-        name: newName,
-        sport: newSport,
-        event_type: newType,
-        location: newLocation,
-        start_date: newStart,
-        end_date: newEnd,
-        status: 'draft',
-        slug,
-        owner_id: user?.id,
-        is_active: true,
-        event_code: Math.random().toString(36).substring(2, 8).toUpperCase(),
-        primary_color: '#0B3D91',
-        secondary_color: '#D62828',
-      })
+      .insert(eventInsert)
       .select()
       .single()
 
@@ -339,6 +367,70 @@ export function EventPicker({ onSelectEvent }: Props) {
     toast.success('Event code copied')
   }
 
+  async function archiveEvent(e: React.MouseEvent, eventId: number) {
+    e.stopPropagation()
+    const sb = createClient()
+    const { error } = await sb.from('events').update({ status: 'archived' }).eq('id', eventId)
+    if (error) {
+      toast.error('Failed to archive event')
+      return
+    }
+    toast.success('Event archived')
+    loadEvents()
+  }
+
+  async function unarchiveEvent(e: React.MouseEvent, eventId: number) {
+    e.stopPropagation()
+    const sb = createClient()
+    const { error } = await sb.from('events').update({ status: 'draft' }).eq('id', eventId)
+    if (error) {
+      toast.error('Failed to unarchive event')
+      return
+    }
+    toast.success('Event restored')
+    loadEvents()
+  }
+
+  // Venue search with debounce
+  async function searchVenue(query: string) {
+    setVenueQuery(query)
+    setSelectedPlaceId(null)
+    if (query.length < 3) {
+      setVenuePredictions([])
+      setShowVenueDropdown(false)
+      return
+    }
+    setVenueSearching(true)
+    try {
+      const res = await fetch(`/api/maps/autocomplete?q=${encodeURIComponent(query)}`)
+      const data = await res.json()
+      setVenuePredictions(data.predictions ?? [])
+      setShowVenueDropdown(true)
+    } catch {
+      setVenuePredictions([])
+    }
+    setVenueSearching(false)
+  }
+
+  async function selectVenue(placeId: string) {
+    setShowVenueDropdown(false)
+    setVenueSearching(true)
+    try {
+      const res = await fetch(`/api/maps/details?place_id=${encodeURIComponent(placeId)}`)
+      const data = await res.json()
+      if (data.name) {
+        setVenueQuery(data.name + (data.address ? ` — ${data.address}` : ''))
+        setNewLocation(data.address || data.name)
+        setComplexName(data.name)
+        setComplexAddress(data.address || '')
+        setSelectedPlaceId(placeId)
+      }
+    } catch {
+      toast.error('Failed to load venue details')
+    }
+    setVenueSearching(false)
+  }
+
   function formatDate(d: string) {
     if (!d) return ''
     return new Date(d + 'T00:00:00').toLocaleDateString('en-US', {
@@ -391,15 +483,29 @@ export function EventPicker({ onSelectEvent }: Props) {
               Select an event to manage, or create a new one
             </div>
           </div>
-          <button
-            onClick={() => {
-              setShowForm((s) => !s)
-              setStep(1)
-            }}
-            className="flex items-center gap-2 font-cond font-black text-[13px] tracking-[.1em] px-5 py-2.5 rounded-xl bg-red hover:bg-red/80 text-white transition-colors"
-          >
-            <Plus size={15} /> CREATE EVENT
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowArchived((s) => !s)}
+              className={cn(
+                'flex items-center gap-1.5 font-cond text-[11px] font-black tracking-[.08em] px-3 py-2 rounded-lg border transition-colors',
+                showArchived
+                  ? 'border-blue-500/40 bg-blue-900/20 text-blue-400'
+                  : 'border-[#1a2d50] text-[#5a6e9a] hover:text-white hover:border-[#2a3d60]'
+              )}
+            >
+              {showArchived ? <EyeOff size={12} /> : <Eye size={12} />}
+              {showArchived ? 'HIDE ARCHIVED' : 'SHOW ARCHIVED'}
+            </button>
+            <button
+              onClick={() => {
+                setShowForm((s) => !s)
+                setStep(1)
+              }}
+              className="flex items-center gap-2 font-cond font-black text-[13px] tracking-[.1em] px-5 py-2.5 rounded-xl bg-red hover:bg-red/80 text-white transition-colors"
+            >
+              <Plus size={15} /> CREATE EVENT
+            </button>
+          </div>
         </div>
 
         {/* ── Create wizard ─────────────────────────────────────────────────── */}
@@ -481,14 +587,57 @@ export function EventPicker({ onSelectEvent }: Props) {
                       <option value="league">🏅 League</option>
                     </select>
                   </div>
-                  <div className="col-span-2">
+                  <div className="col-span-2 relative">
                     <label className={lbl}>Location / Venue *</label>
-                    <input
-                      className={inp}
-                      value={newLocation}
-                      onChange={(e) => setNewLocation(e.target.value)}
-                      placeholder="e.g. Riverside Sports Complex, Jacksonville FL"
-                    />
+                    <div className="relative">
+                      <Search
+                        size={14}
+                        className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6e9a] pointer-events-none"
+                      />
+                      <input
+                        className={cn(inp, 'pl-9')}
+                        value={venueQuery || newLocation}
+                        onChange={(e) => {
+                          setNewLocation(e.target.value)
+                          searchVenue(e.target.value)
+                        }}
+                        onFocus={() => venuePredictions.length > 0 && setShowVenueDropdown(true)}
+                        onBlur={() => setTimeout(() => setShowVenueDropdown(false), 200)}
+                        placeholder="Search for a venue (e.g. Riverside Sports Complex)"
+                      />
+                      {venueSearching && (
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[#5a6e9a] text-[10px] font-cond">
+                          Searching...
+                        </div>
+                      )}
+                    </div>
+                    {showVenueDropdown && venuePredictions.length > 0 && (
+                      <div className="absolute z-50 left-0 right-0 mt-1 bg-[#081428] border border-[#1a2d50] rounded-xl overflow-hidden shadow-xl">
+                        {venuePredictions.map((p) => (
+                          <button
+                            key={p.place_id}
+                            type="button"
+                            className="w-full text-left px-4 py-3 hover:bg-[#0d1a2e] transition-colors border-b border-[#1a2d50] last:border-0"
+                            onMouseDown={() => selectVenue(p.place_id)}
+                          >
+                            <div className="font-cond text-[12px] font-bold text-white">
+                              {p.main_text}
+                            </div>
+                            <div className="font-cond text-[10px] text-[#5a6e9a]">
+                              {p.secondary_text}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {selectedPlaceId && (
+                      <div className="flex items-center gap-1.5 mt-1.5">
+                        <CheckCircle size={11} className="text-green-400" />
+                        <span className="font-cond text-[10px] text-green-400">
+                          Venue selected — complex name and address auto-filled below
+                        </span>
+                      </div>
+                    )}
                   </div>
                   <div>
                     <label className={lbl}>Start Date *</label>
@@ -767,15 +916,21 @@ export function EventPicker({ onSelectEvent }: Props) {
           </div>
         ) : (
           <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4">
-            {events.map((ev) => {
+            {events
+              .filter((ev) => showArchived || ev.status !== 'archived')
+              .map((ev) => {
               const sport = SPORTS_EMOJI[ev.sport] ?? '🏆'
               const color = ev.primary_color ?? '#0B3D91'
               const isLive = ev.status === 'active'
+              const isArchived = ev.status === 'archived'
 
               return (
                 <div
                   key={ev.id}
-                  className="group relative rounded-2xl overflow-hidden border transition-all hover:border-blue-400/60 cursor-pointer"
+                  className={cn(
+                    'group relative rounded-2xl overflow-hidden border transition-all cursor-pointer',
+                    isArchived ? 'opacity-50 hover:opacity-80' : 'hover:border-blue-400/60'
+                  )}
                   style={{ background: '#081428', borderColor: isLive ? '#22c55e40' : '#1a2d50' }}
                   onClick={() => onSelectEvent(ev.id)}
                 >
@@ -812,9 +967,11 @@ export function EventPicker({ onSelectEvent }: Props) {
                           'font-cond text-[9px] font-black tracking-[.15em] px-2 py-1 rounded flex-shrink-0',
                           isLive
                             ? 'bg-green-900/40 text-green-400'
-                            : ev.status === 'completed'
-                              ? 'bg-gray-800 text-gray-500'
-                              : 'bg-[#0d1a2e] text-[#5a6e9a]'
+                            : isArchived
+                              ? 'bg-amber-900/30 text-amber-500'
+                              : ev.status === 'completed'
+                                ? 'bg-gray-800 text-gray-500'
+                                : 'bg-[#0d1a2e] text-[#5a6e9a]'
                         )}
                       >
                         {ev.status.toUpperCase()}
@@ -857,6 +1014,23 @@ export function EventPicker({ onSelectEvent }: Props) {
                               <Copy size={11} /> {ev.event_code}
                             </>
                           )}
+                        </button>
+                      )}
+                      {isArchived ? (
+                        <button
+                          onClick={(e) => unarchiveEvent(e, ev.id)}
+                          className="flex items-center gap-1.5 font-cond text-[10px] font-black tracking-[.08em] text-amber-500 hover:text-amber-400 transition-colors"
+                          title="Unarchive event"
+                        >
+                          <ArchiveRestore size={12} /> UNARCHIVE
+                        </button>
+                      ) : (
+                        <button
+                          onClick={(e) => archiveEvent(e, ev.id)}
+                          className="flex items-center gap-1.5 font-cond text-[10px] font-black tracking-[.08em] text-[#5a6e9a] hover:text-amber-400 transition-colors opacity-0 group-hover:opacity-100"
+                          title="Archive event"
+                        >
+                          <Archive size={12} /> ARCHIVE
                         </button>
                       )}
                       <div className="flex items-center gap-1.5 font-cond text-[11px] font-black tracking-[.08em] text-[#5a6e9a] group-hover:text-white transition-colors ml-auto">
