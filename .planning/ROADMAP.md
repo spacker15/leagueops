@@ -112,6 +112,12 @@ Plans:
 **Requirements:** SEC-01
 **UI hint:** no
 **Depends on:** Phase 1, Phase 2
+**Plans:** 2 plans
+
+Plans:
+
+- [ ] 04-01-PLAN.md — user_event_ids() function, drop all permissive policies, create authenticated policies
+- [ ] 04-02-PLAN.md — Anon public table policies, rollback script, branch deploy and smoke tests
 
 ### Success Criteria
 
@@ -295,4 +301,4 @@ Plans:
 
 ---
 
-_Last updated: 2026-03-22_
+_Last updated: 2026-03-23_
