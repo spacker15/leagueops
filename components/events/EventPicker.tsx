@@ -19,11 +19,11 @@ import {
   Users,
   Archive,
   ArchiveRestore,
-  Search,
   Eye,
   EyeOff,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { VenueAutocompleteInput } from './VenueAutocompleteInput'
 
 interface EventSummary {
   id: number
@@ -69,13 +69,10 @@ export function EventPicker({ onSelectEvent }: Props) {
   const [showArchived, setShowArchived] = useState(false)
 
   // Venue search state
-  const [venueQuery, setVenueQuery] = useState('')
-  const [venuePredictions, setVenuePredictions] = useState<
-    { place_id: string; description: string; main_text: string; secondary_text: string }[]
-  >([])
-  const [venueSearching, setVenueSearching] = useState(false)
-  const [showVenueDropdown, setShowVenueDropdown] = useState(false)
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null)
+  const [selectedLat, setSelectedLat] = useState<number | null>(null)
+  const [selectedLng, setSelectedLng] = useState<number | null>(null)
+  const [selectedVenueAddress, setSelectedVenueAddress] = useState<string>('')
 
   // Wizard state
   const [step, setStep] = useState<1 | 2>(1)
@@ -168,10 +165,10 @@ export function EventPicker({ onSelectEvent }: Props) {
     setComplexAddress('')
     setCopyTeams(false)
     setCopyComplexes(false)
-    setVenueQuery('')
-    setVenuePredictions([])
     setSelectedPlaceId(null)
-    setShowVenueDropdown(false)
+    setSelectedLat(null)
+    setSelectedLng(null)
+    setSelectedVenueAddress('')
   }
 
   async function createEvent() {
@@ -209,7 +206,9 @@ export function EventPicker({ onSelectEvent }: Props) {
     // Store venue details from Google Maps if selected
     if (selectedPlaceId) {
       eventInsert.venue_place_id = selectedPlaceId
-      eventInsert.venue_address = complexAddress || newLocation
+      eventInsert.venue_address = selectedVenueAddress || complexAddress || newLocation
+      eventInsert.venue_lat = selectedLat
+      eventInsert.venue_lng = selectedLng
     }
 
     const { data: ev, error } = await sb
@@ -398,44 +397,14 @@ export function EventPicker({ onSelectEvent }: Props) {
     loadEvents()
   }
 
-  // Venue search with debounce
-  async function searchVenue(query: string) {
-    setVenueQuery(query)
-    setSelectedPlaceId(null)
-    if (query.length < 3) {
-      setVenuePredictions([])
-      setShowVenueDropdown(false)
-      return
-    }
-    setVenueSearching(true)
-    try {
-      const res = await fetch(`/api/maps/autocomplete?q=${encodeURIComponent(query)}`)
-      const data = await res.json()
-      setVenuePredictions(data.predictions ?? [])
-      setShowVenueDropdown(true)
-    } catch {
-      setVenuePredictions([])
-    }
-    setVenueSearching(false)
-  }
-
-  async function selectVenue(placeId: string) {
-    setShowVenueDropdown(false)
-    setVenueSearching(true)
-    try {
-      const res = await fetch(`/api/maps/details?place_id=${encodeURIComponent(placeId)}`)
-      const data = await res.json()
-      if (data.name) {
-        setVenueQuery(data.name + (data.address ? ` — ${data.address}` : ''))
-        setNewLocation(data.address || data.name)
-        setComplexName(data.name)
-        setComplexAddress(data.address || '')
-        setSelectedPlaceId(placeId)
-      }
-    } catch {
-      toast.error('Failed to load venue details')
-    }
-    setVenueSearching(false)
+  function handleVenueSelect(venue: { name: string; address: string; lat: number; lng: number; place_id: string }) {
+    setSelectedPlaceId(venue.place_id)
+    setSelectedLat(venue.lat)
+    setSelectedLng(venue.lng)
+    setSelectedVenueAddress(venue.address)
+    setNewLocation(venue.address || venue.name)
+    setComplexName(venue.name)
+    setComplexAddress(venue.address)
   }
 
   function formatDate(d: string) {
@@ -594,57 +563,14 @@ export function EventPicker({ onSelectEvent }: Props) {
                       <option value="league">🏅 League</option>
                     </select>
                   </div>
-                  <div className="col-span-2 relative">
-                    <label className={lbl}>Location / Venue *</label>
-                    <div className="relative">
-                      <Search
-                        size={14}
-                        className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6e9a] pointer-events-none"
-                      />
-                      <input
-                        className={cn(inp, 'pl-9')}
-                        value={venueQuery || newLocation}
-                        onChange={(e) => {
-                          setNewLocation(e.target.value)
-                          searchVenue(e.target.value)
-                        }}
-                        onFocus={() => venuePredictions.length > 0 && setShowVenueDropdown(true)}
-                        onBlur={() => setTimeout(() => setShowVenueDropdown(false), 200)}
-                        placeholder="Search for a venue (e.g. Riverside Sports Complex)"
-                      />
-                      {venueSearching && (
-                        <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[#5a6e9a] text-[10px] font-cond">
-                          Searching...
-                        </div>
-                      )}
-                    </div>
-                    {showVenueDropdown && venuePredictions.length > 0 && (
-                      <div className="absolute z-50 left-0 right-0 mt-1 bg-[#081428] border border-[#1a2d50] rounded-xl overflow-hidden shadow-xl">
-                        {venuePredictions.map((p) => (
-                          <button
-                            key={p.place_id}
-                            type="button"
-                            className="w-full text-left px-4 py-3 hover:bg-[#0d1a2e] transition-colors border-b border-[#1a2d50] last:border-0"
-                            onMouseDown={() => selectVenue(p.place_id)}
-                          >
-                            <div className="font-cond text-[12px] font-bold text-white">
-                              {p.main_text}
-                            </div>
-                            <div className="font-cond text-[10px] text-[#5a6e9a]">
-                              {p.secondary_text}
-                            </div>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                    {selectedPlaceId && (
-                      <div className="flex items-center gap-1.5 mt-1.5">
-                        <CheckCircle size={11} className="text-green-400" />
-                        <span className="font-cond text-[10px] text-green-400">
-                          Venue selected — complex name and address auto-filled below
-                        </span>
-                      </div>
-                    )}
+                  <div className="col-span-2">
+                    <label className={lbl}>Venue / Complex Name *</label>
+                    <VenueAutocompleteInput
+                      value={newLocation}
+                      onLocationChange={(text) => setNewLocation(text)}
+                      onVenueSelect={handleVenueSelect}
+                      selectedPlaceId={selectedPlaceId}
+                    />
                   </div>
                   <div>
                     <label className={lbl}>Start Date *</label>
