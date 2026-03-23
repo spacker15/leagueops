@@ -28,7 +28,14 @@ import {
   Shield,
   ChevronDown,
   Copy,
+  Share2,
+  Mail,
+  MessageSquare,
+  Download,
+  QrCode,
 } from 'lucide-react'
+import { QRCodeSVG, QRCodeCanvas } from 'qrcode.react'
+import { Btn, Modal } from '@/components/ui'
 import * as db from '@/lib/db'
 import type { Complex } from '@/types'
 import { VenueAutocompleteInput } from '@/components/events/VenueAutocompleteInput'
@@ -44,6 +51,7 @@ type SettingsTab =
   | 'branding'
   | 'map'
   | 'permissions'
+  | 'sharing'
 
 const SPORTS = [
   { name: 'Lacrosse', icon: '🥍' },
@@ -92,6 +100,7 @@ interface EventData {
   end_date: string
   time_zone: string
   status: string
+  slug: string
   // General
   message: string
   hotel_link: string
@@ -167,6 +176,7 @@ const DEFAULT_EVENT: Omit<EventData, 'id'> = {
   end_date: '',
   time_zone: 'Eastern',
   status: 'draft',
+  slug: '',
   message: '',
   hotel_link: '',
   results_link: '',
@@ -289,6 +299,11 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
   const [overrideEventDates, setOverrideEventDates] = useState<{ id: number; date: string }[]>([])
   const [addingOverrideForRule, setAddingOverrideForRule] = useState<number | null>(null)
   const [overrideForm, setOverrideForm] = useState({ scope_type: 'global' as string, reason: '', home_team_id: '', away_team_id: '', scope_team_id: '', scope_event_date_id: '', override_action: 'allow' as string })
+  // Sharing tab state
+  const [showQRModal, setShowQRModal] = useState(false)
+  const [linkCopied, setLinkCopied] = useState(false)
+  const svgRef = useRef<SVGSVGElement>(null)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
 
   useEffect(() => {
     loadEvent()
@@ -609,6 +624,7 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
         end_date: d.end_date ?? '',
         time_zone: d.time_zone ?? 'Eastern',
         status: d.status ?? 'draft',
+        slug: d.slug ?? '',
         message: d.message ?? '',
         hotel_link: d.hotel_link ?? '',
         results_link: d.results_link ?? '',
@@ -1239,6 +1255,66 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
   const sport = SPORTS.find((s) => s.name === event.sport)
   const evType = EVENT_TYPES.find((t) => t.id === event.event_type)
 
+  // ── SHARING TAB HELPERS ─────────────────────────────────────
+  // Registration URL uses public-results domain (separate Vercel deployment).
+  // CRITICAL: Do NOT use window.location.origin -- the /e/[slug]/register route
+  // lives in apps/public-results which is deployed at a different domain.
+  const publicResultsUrl = process.env.NEXT_PUBLIC_PUBLIC_RESULTS_URL || ''
+  const registrationUrl = event.slug
+    ? `${publicResultsUrl}/e/${event.slug}/register`
+    : ''
+
+  function copyRegistrationLink() {
+    if (!registrationUrl) return
+    navigator.clipboard.writeText(registrationUrl)
+    setLinkCopied(true)
+    setTimeout(() => setLinkCopied(false), 2000)
+    toast.success('Link copied')
+  }
+
+  function downloadSVG() {
+    const svgEl = svgRef.current
+    if (!svgEl) return
+    const serializer = new XMLSerializer()
+    const source = '<?xml version="1.0" encoding="UTF-8"?>' + serializer.serializeToString(svgEl)
+    const blob = new Blob([source], { type: 'image/svg+xml;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${event.slug || 'event'}-registration-qr.svg`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  function downloadPNG() {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const url = canvas.toDataURL('image/png')
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${event.slug || 'event'}-registration-qr.png`
+    a.click()
+  }
+
+  function formatDateRange(start: string, end: string): string {
+    if (!start) return ''
+    const opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' }
+    const s = new Date(start + 'T00:00:00')
+    const e = end ? new Date(end + 'T00:00:00') : null
+    if (e && e.getTime() !== s.getTime()) {
+      return `${s.toLocaleDateString('en-US', opts)}-${e.toLocaleDateString('en-US', { ...opts, year: 'numeric' })}`
+    }
+    return s.toLocaleDateString('en-US', { ...opts, year: 'numeric' })
+  }
+
+  const shareSubject = encodeURIComponent(`Register for ${event.name}`)
+  const shareBody = encodeURIComponent(
+    `Register for ${event.name}${event.start_date ? ` (${formatDateRange(event.start_date, event.end_date)})` : ''}:\n${registrationUrl}`
+  )
+  const mailtoHref = `mailto:?subject=${shareSubject}&body=${shareBody}`
+  const smsBody = encodeURIComponent(`Register for ${event.name}: ${registrationUrl}`)
+  const smsHref = `sms:?body=${smsBody}`
+
   const SETTINGS_TABS: { id: SettingsTab; label: string; icon: React.ReactNode }[] = [
     { id: 'general', label: 'General', icon: <Settings size={13} /> },
     { id: 'schedule', label: 'Schedule', icon: <Calendar size={13} /> },
@@ -1249,6 +1325,7 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
     { id: 'branding', label: 'Branding', icon: <FileText size={13} /> },
     { id: 'map', label: 'Map', icon: <Map size={13} /> },
     { id: 'permissions', label: 'Permissions', icon: <Lock size={13} /> },
+    { id: 'sharing', label: 'Sharing', icon: <Share2 size={13} /> },
   ]
 
   return (
@@ -2988,6 +3065,92 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
             saving={permSaving}
             onSave={savePermissions}
           />
+        )}
+
+        {/* ── SHARING ── */}
+        {settingsTab === 'sharing' && (
+          <div className="space-y-6">
+            {event.status !== 'active' ? (
+              /* Draft gate -- sharing only available for active events */
+              <div className="border border-[#1a2d50] bg-[#030d20] rounded-lg p-6 flex items-center gap-3">
+                <Lock size={14} className="text-[#5a6e9a] flex-shrink-0" />
+                <div>
+                  <div className="font-cond text-[12px] font-black text-white mb-1">Registration link available after publishing</div>
+                  <div className="text-[11px] text-[#5a6e9a]">Publish this event to generate the registration link and QR code.</div>
+                </div>
+              </div>
+            ) : (
+              <>
+                {/* Section 1: Registration Link */}
+                <div>
+                  <div className={sectionHdr}><QrCode size={14} /> REGISTRATION LINK</div>
+                  <div className="flex items-center gap-3">
+                    <input
+                      className={cn(inp, 'cursor-default select-all')}
+                      value={registrationUrl}
+                      readOnly
+                      onClick={(e) => (e.target as HTMLInputElement).select()}
+                    />
+                    <Btn variant="primary" size="sm" onClick={copyRegistrationLink}>
+                      {linkCopied ? <Check size={13} /> : <Copy size={13} />}
+                      <span className="ml-1.5">{linkCopied ? 'COPIED' : 'COPY LINK'}</span>
+                    </Btn>
+                  </div>
+                </div>
+
+                {/* Section 2: QR Code */}
+                <div>
+                  <div className={sectionHdr}><QrCode size={14} /> QR CODE</div>
+                  <div className="flex items-center gap-4">
+                    <div className="w-20 h-20 bg-white rounded p-1 flex-shrink-0">
+                      <QRCodeSVG value={registrationUrl} size={72} bgColor="#ffffff" fgColor="#000000" level="M" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-cond text-[12px] font-black text-white truncate">{event.name}</div>
+                      <div className="text-[10px] text-[#5a6e9a] truncate mt-0.5">{registrationUrl}</div>
+                      <Btn variant="ghost" size="sm" onClick={() => setShowQRModal(true)} className="mt-2">
+                        PREVIEW
+                      </Btn>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Section 3: Share */}
+                <div>
+                  <div className={sectionHdr}><Share2 size={14} /> SHARE</div>
+                  <div className="flex items-center gap-3">
+                    <a href={mailtoHref} className="inline-flex items-center gap-1.5 font-cond font-bold text-[11px] uppercase tracking-[.1em] text-[#5a6e9a] hover:text-white transition-colors px-3 py-2 rounded-lg border border-[#1a2d50] hover:border-[#2a3d60]">
+                      <Mail size={13} /> EMAIL
+                    </a>
+                    <a href={smsHref} className="inline-flex items-center gap-1.5 font-cond font-bold text-[11px] uppercase tracking-[.1em] text-[#5a6e9a] hover:text-white transition-colors px-3 py-2 rounded-lg border border-[#1a2d50] hover:border-[#2a3d60]">
+                      <MessageSquare size={13} /> TEXT
+                    </a>
+                  </div>
+                </div>
+
+                {/* Hidden canvas for PNG export -- always mounted (not conditionally rendered) */}
+                <div style={{ display: 'none' }}>
+                  <QRCodeCanvas ref={canvasRef} value={registrationUrl} size={512} bgColor="#ffffff" fgColor="#000000" level="M" />
+                </div>
+
+                {/* QR Preview Modal */}
+                <Modal open={showQRModal} onClose={() => setShowQRModal(false)} title="Registration QR Code">
+                  <div className="flex flex-col items-center gap-3 p-6 bg-white rounded-lg mx-auto" style={{ maxWidth: 300 }}>
+                    <QRCodeSVG ref={svgRef} value={registrationUrl} size={256} bgColor="#ffffff" fgColor="#000000" level="M" />
+                    <div className="text-black font-bold text-[14px] text-center">{event.name}</div>
+                  </div>
+                  <div className="flex gap-3 justify-center mt-4">
+                    <Btn variant="primary" size="sm" onClick={downloadSVG}>
+                      <Download size={13} /> <span className="ml-1.5">DOWNLOAD SVG</span>
+                    </Btn>
+                    <Btn variant="outline" size="sm" onClick={downloadPNG}>
+                      <Download size={13} /> <span className="ml-1.5">DOWNLOAD PNG</span>
+                    </Btn>
+                  </div>
+                </Modal>
+              </>
+            )}
+          </div>
         )}
       </div>
     </div>
