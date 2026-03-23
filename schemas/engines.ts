@@ -23,7 +23,7 @@ export const fieldEngineSchema = z.object({
   action: z.enum(['scan', 'resolve']).optional(),
   conflict_id: z.number().int().positive().optional(),
   resolution_action: z.string().optional(),
-  resolution_params: z.record(z.unknown()).optional(),
+  resolution_params: z.record(z.string(), z.unknown()).optional(),
 })
 
 export type FieldEngineInput = z.infer<typeof fieldEngineSchema>

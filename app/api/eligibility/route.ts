@@ -97,7 +97,7 @@ export async function POST(req: NextRequest) {
       }
       await approveMultiGame(
         Number(approval_id),
-        String(approved_by),
+        String(approved_by) as 'admin' | 'referee' | 'volunteer' | 'coach',
         String(approved_by_name),
         supabase
       )

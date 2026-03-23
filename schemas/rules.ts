@@ -25,7 +25,7 @@ export const createScheduleRuleSchema = z.object({
   scope: z.enum(['global', 'division', 'program', 'team', 'week', 'season']),
   type: z.enum(['constraint', 'preference']),
   priority: z.number().int().min(0),
-  conditions: z.record(z.unknown()),
+  conditions: z.record(z.string(), z.unknown()),
   description: z.string().optional(),
 })
 
@@ -37,7 +37,7 @@ export const updateScheduleRuleSchema = z.object({
   scope: z.enum(['global', 'division', 'program', 'team', 'week', 'season']).optional(),
   type: z.enum(['constraint', 'preference']).optional(),
   priority: z.number().int().min(0).optional(),
-  conditions: z.record(z.unknown()).optional(),
+  conditions: z.record(z.string(), z.unknown()).optional(),
   description: z.string().optional(),
 })
 
@@ -48,7 +48,7 @@ export const createWeeklyOverrideSchema = z.object({
   event_id: z.number().int().positive(),
   week_number: z.number().int().positive().optional(),
   override_date: z.string().datetime().optional(),
-  overrides: z.record(z.unknown()),
+  overrides: z.record(z.string(), z.unknown()),
 })
 
 export type CreateWeeklyOverrideInput = z.infer<typeof createWeeklyOverrideSchema>
@@ -56,7 +56,7 @@ export type CreateWeeklyOverrideInput = z.infer<typeof createWeeklyOverrideSchem
 // PUT /api/weekly-overrides — update a weekly override
 export const updateWeeklyOverrideSchema = z.object({
   id: z.number().int().positive(),
-  overrides: z.record(z.unknown()).optional(),
+  overrides: z.record(z.string(), z.unknown()).optional(),
   week_number: z.number().int().positive().optional(),
 })
 
