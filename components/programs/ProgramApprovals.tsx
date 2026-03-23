@@ -9,7 +9,7 @@ import { useApp } from '@/lib/store'
 import { cn } from '@/lib/utils'
 import { Btn, SectionHeader, Input, Select, FormField, Card } from '@/components/ui'
 import toast from 'react-hot-toast'
-import { CheckCircle, XCircle, Clock, Users, Building2, RefreshCw, Plus, ChevronDown, ChevronUp, Upload, Download, X, AlertTriangle } from 'lucide-react'
+import { CheckCircle, XCircle, Clock, Users, Building2, RefreshCw, Plus, ChevronDown, ChevronUp, Upload, Download, X, AlertTriangle, Trash2 } from 'lucide-react'
 import { useRef } from 'react'
 
 interface Program {
@@ -26,6 +26,17 @@ interface Program {
   notes: string | null
   created_at: string
   website: string | null
+  event_id: number | null
+}
+
+interface TeamRow {
+  id: number
+  event_id: number
+  name: string
+  division: string
+  association: string | null
+  color: string | null
+  created_at: string
 }
 
 interface TeamReg {
@@ -47,13 +58,15 @@ export function ProgramApprovals() {
   const { user } = useAuth()
   const { eventId } = useApp()
   const [programs, setPrograms] = useState<Program[]>([])
+  const [teams, setTeams] = useState<TeamRow[]>([])
   const [teamRegs, setTeamRegs] = useState<TeamReg[]>([])
-  const [filter, setFilter] = useState<FilterStatus>('pending')
+  const [filter, setFilter] = useState<FilterStatus>('all')
   const [loading, setLoading] = useState(true)
   const [actionId, setActionId] = useState<number | null>(null)
   const [rejectNote, setRejectNote] = useState('')
   const [rejectingId, setRejectingId] = useState<number | null>(null)
   const [activeTab, setActiveTab] = useState<'programs' | 'teams' | 'config'>('programs')
+  const [deletingId, setDeletingId] = useState<number | null>(null)
 
   // Create Program state
   const [showCreateProgram, setShowCreateProgram] = useState(false)
@@ -75,8 +88,9 @@ export function ProgramApprovals() {
   const load = useCallback(async () => {
     const sb = createClient()
     setLoading(true)
-    const [{ data: progs }, { data: regs }, { data: divs }] = await Promise.all([
-      sb.from('programs').select('*').order('created_at', { ascending: false }),
+    const [{ data: progs }, { data: teamsData }, { data: regs }, { data: divs }] = await Promise.all([
+      sb.from('programs').select('*').eq('event_id', eventId).order('created_at', { ascending: false }),
+      sb.from('teams').select('*').eq('event_id', eventId!).order('name'),
       sb
         .from('team_registrations')
         .select('*, program:programs(name)')
@@ -86,6 +100,7 @@ export function ProgramApprovals() {
         : Promise.resolve({ data: [] }),
     ])
     setPrograms((progs as Program[]) ?? [])
+    setTeams((teamsData as TeamRow[]) ?? [])
     setTeamRegs((regs as unknown as TeamReg[]) ?? [])
     setDivisions((divs ?? []).map((d: any) => d.name))
     setLoading(false)
@@ -96,6 +111,63 @@ export function ProgramApprovals() {
   }, [load])
 
   if (!eventId) return null
+
+  // --- Delete program (cascade-deletes teams with matching program_id via program_teams) ---
+  async function deleteProgram(prog: Program) {
+    if (!confirm(`Delete program "${prog.name}" and ALL its linked teams? This cannot be undone.`)) return
+    setDeletingId(prog.id)
+    const sb = createClient()
+
+    // Find all team IDs linked to this program for this event
+    const { data: linkedTeams } = await sb
+      .from('program_teams')
+      .select('team_id')
+      .eq('program_id', prog.id)
+      .eq('event_id', eventId)
+
+    const teamIds = (linkedTeams ?? []).map((t: any) => t.team_id)
+
+    // Delete program_teams links
+    await sb.from('program_teams').delete().eq('program_id', prog.id).eq('event_id', eventId)
+
+    // Delete team_registrations for this program
+    await sb.from('team_registrations').delete().eq('program_id', prog.id)
+
+    // Delete the linked teams
+    if (teamIds.length > 0) {
+      await sb.from('teams').delete().in('id', teamIds)
+    }
+
+    // Delete the program itself
+    const { error } = await sb.from('programs').delete().eq('id', prog.id)
+    if (error) {
+      toast.error(error.message)
+    } else {
+      toast.success(`Program "${prog.name}" deleted (${teamIds.length} team${teamIds.length !== 1 ? 's' : ''} removed)`)
+    }
+    setDeletingId(null)
+    load()
+  }
+
+  // --- Delete team ---
+  async function deleteTeam(team: TeamRow) {
+    if (!confirm(`Delete team "${team.name}"? This cannot be undone.`)) return
+    setDeletingId(team.id)
+    const sb = createClient()
+
+    // Remove from program_teams
+    await sb.from('program_teams').delete().eq('team_id', team.id)
+
+    // Delete team
+    const { error } = await sb.from('teams').delete().eq('id', team.id)
+    if (error) {
+      toast.error(error.message)
+    } else {
+      toast.success(`Team "${team.name}" deleted`)
+    }
+    setDeletingId(null)
+    load()
+  }
 
   async function approveProgram(prog: Program) {
     setActionId(prog.id)
@@ -272,6 +344,7 @@ export function ProgramApprovals() {
     setCreatingProgram(true)
     const sb = createClient()
     const { error } = await sb.from('programs').insert({
+      event_id: eventId,
       name: newProgram.name,
       short_name: newProgram.short_name || null,
       city: newProgram.city || null,
@@ -348,15 +421,48 @@ export function ProgramApprovals() {
 
   function downloadTemplate(type: 'programs' | 'teams') {
     const headers = type === 'programs'
-      ? 'name,short_name,association,city,state,contact_name,contact_email'
-      : 'name,division,association'
+      ? 'name,short_name,city,state,contact_name,contact_email'
+      : 'name,division'
     const example = type === 'programs'
-      ? '\nMetro FC,MFC,US Club,Springfield,IL,John Smith,john@metro.com'
-      : '\nMetro FC Blue,U12 Boys,US Club'
+      ? '\nMetro FC,MFC,Springfield,IL,John Smith,john@metro.com'
+      : '\nMetro FC Blue,U12 Boys'
     const blob = new Blob([headers + example], { type: 'text/csv' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url; a.download = `${type}_template.csv`; a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  // --- CSV Export ---
+  function exportProgramsCSV() {
+    const headers = ['name', 'short_name', 'city', 'state', 'contact_name', 'contact_email', 'status']
+    const csvRows = [headers.join(',')]
+    for (const p of programs) {
+      csvRows.push(headers.map(h => {
+        const val = (p as any)[h] ?? ''
+        return `"${String(val).replace(/"/g, '""')}"`
+      }).join(','))
+    }
+    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = `programs_export.csv`; a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  function exportTeamsCSV() {
+    const headers = ['name', 'division', 'association', 'color']
+    const csvRows = [headers.join(',')]
+    for (const t of teams) {
+      csvRows.push(headers.map(h => {
+        const val = (t as any)[h] ?? ''
+        return `"${String(val).replace(/"/g, '""')}"`
+      }).join(','))
+    }
+    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = `teams_export.csv`; a.click()
     URL.revokeObjectURL(url)
   }
 
@@ -369,8 +475,8 @@ export function ProgramApprovals() {
 
       const headers = parsed[0].map(h => h.toLowerCase().replace(/\s+/g, '_'))
       const expectedCols = type === 'programs'
-        ? ['name', 'short_name', 'association', 'city', 'state', 'contact_name', 'contact_email']
-        : ['name', 'division', 'association']
+        ? ['name', 'short_name', 'city', 'state', 'contact_name', 'contact_email']
+        : ['name', 'division']
 
       const rows: Record<string, string>[] = []
       const warnings: string[] = []
@@ -407,9 +513,9 @@ export function ProgramApprovals() {
     try {
       if (csvPreview.type === 'programs') {
         const inserts = csvPreview.rows.map(r => ({
+          event_id: eventId!,
           name: r.name,
           short_name: r.short_name || null,
-          association: r.association || null,
           city: r.city || null,
           state: r.state || null,
           contact_name: r.contact_name || r.name,
@@ -426,7 +532,6 @@ export function ProgramApprovals() {
           event_id: eventId!,
           name: r.name,
           division: r.division || '',
-          association: r.association || null,
         }))
         const { error } = await sb.from('teams').insert(inserts)
         if (error) throw error
@@ -441,14 +546,13 @@ export function ProgramApprovals() {
   }
 
   const filteredPrograms = programs.filter((p) => filter === 'all' || p.status === filter)
-  const filteredTeams = teamRegs.filter((t) => filter === 'all' || t.status === filter)
+  const filteredTeams = filter === 'all' ? teams : teams // teams table has no status filter
   const pendingPrograms = programs.filter((p) => p.status === 'pending').length
-  const pendingTeams = teamRegs.filter((t) => t.status === 'pending').length
 
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <SectionHeader>PROGRAM & TEAM REGISTRATIONS</SectionHeader>
+        <SectionHeader>PROGRAM & TEAM MANAGEMENT</SectionHeader>
         <Btn size="sm" variant="ghost" onClick={load}>
           <RefreshCw size={11} className="inline mr-1" /> REFRESH
         </Btn>
@@ -465,7 +569,7 @@ export function ProgramApprovals() {
               : 'bg-surface-card border-border text-muted hover:text-white'
           )}
         >
-          Programs{' '}
+          Programs ({programs.length})
           {pendingPrograms > 0 && (
             <span className="ml-1 text-yellow-400">({pendingPrograms} pending)</span>
           )}
@@ -479,13 +583,9 @@ export function ProgramApprovals() {
               : 'bg-surface-card border-border text-muted hover:text-white'
           )}
         >
-          Teams{' '}
-          {pendingTeams > 0 && (
-            <span className="ml-1 text-yellow-400">({pendingTeams} pending)</span>
-          )}
+          Teams ({teams.length})
         </button>
 
-        {/* Filter */}
         <button
           onClick={() => setActiveTab('config')}
           className={cn(
@@ -495,24 +595,27 @@ export function ProgramApprovals() {
               : 'bg-surface-card border-border text-muted hover:text-white'
           )}
         >
-          ⚙ Form Config
+          Config
         </button>
-        <div className="ml-auto flex gap-1">
-          {(['pending', 'approved', 'rejected', 'all'] as FilterStatus[]).map((f) => (
-            <button
-              key={f}
-              onClick={() => setFilter(f)}
-              className={cn(
-                'font-cond text-[11px] font-bold px-3 py-1.5 rounded transition-colors',
-                filter === f
-                  ? 'bg-navy text-white'
-                  : 'bg-surface-card border border-border text-muted hover:text-white'
-              )}
-            >
-              {f.toUpperCase()}
-            </button>
-          ))}
-        </div>
+
+        {activeTab === 'programs' && (
+          <div className="ml-auto flex gap-1">
+            {(['all', 'pending', 'approved', 'rejected'] as FilterStatus[]).map((f) => (
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
+                className={cn(
+                  'font-cond text-[11px] font-bold px-3 py-1.5 rounded transition-colors',
+                  filter === f
+                    ? 'bg-navy text-white'
+                    : 'bg-surface-card border border-border text-muted hover:text-white'
+                )}
+              >
+                {f.toUpperCase()}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {loading ? (
@@ -522,7 +625,7 @@ export function ProgramApprovals() {
           {/* Programs list */}
           {activeTab === 'programs' && (
             <div className="space-y-3">
-              {/* Create Program */}
+              {/* Create Program + Actions */}
               <div className="mb-2">
                 <div className="flex items-center gap-2">
                   <Btn
@@ -536,6 +639,9 @@ export function ProgramApprovals() {
                   </Btn>
                   <Btn size="sm" variant="ghost" onClick={() => programFileRef.current?.click()}>
                     <Upload size={11} className="inline mr-1" /> IMPORT CSV
+                  </Btn>
+                  <Btn size="sm" variant="ghost" onClick={exportProgramsCSV} disabled={programs.length === 0}>
+                    <Download size={11} className="inline mr-1" /> DOWNLOAD CSV
                   </Btn>
                   <button onClick={() => downloadTemplate('programs')} className="font-cond text-[11px] text-blue-400 hover:text-blue-300 flex items-center gap-1">
                     <Download size={10} /> Template
@@ -676,66 +782,75 @@ export function ProgramApprovals() {
                       </div>
                       {prog.notes && (
                         <div className="mt-2 text-[11px] bg-navy/30 rounded px-3 py-2 text-muted italic">
-                          "{prog.notes}"
+                          &ldquo;{prog.notes}&rdquo;
                         </div>
                       )}
                     </div>
 
-                    {prog.status === 'pending' && (
-                      <div className="flex flex-col gap-2 flex-shrink-0">
-                        {rejectingId === prog.id ? (
-                          <div className="flex flex-col gap-1.5">
-                            <input
-                              className="bg-surface border border-border text-white px-2 py-1 rounded text-[12px] outline-none w-48"
-                              placeholder="Rejection reason (optional)"
-                              value={rejectNote}
-                              onChange={(e) => setRejectNote(e.target.value)}
-                            />
-                            <div className="flex gap-1.5">
-                              <button
-                                onClick={() => rejectProgram(prog)}
-                                disabled={actionId === prog.id}
-                                className="flex-1 font-cond text-[11px] font-bold bg-red-800 hover:bg-red-700 text-white py-1.5 rounded transition-colors"
-                              >
-                                CONFIRM
-                              </button>
-                              <button
-                                onClick={() => setRejectingId(null)}
-                                className="font-cond text-[11px] text-muted px-2 py-1.5 rounded border border-border hover:text-white"
-                              >
-                                CANCEL
-                              </button>
+                    <div className="flex flex-col gap-2 flex-shrink-0">
+                      {prog.status === 'pending' && (
+                        <>
+                          {rejectingId === prog.id ? (
+                            <div className="flex flex-col gap-1.5">
+                              <input
+                                className="bg-surface border border-border text-white px-2 py-1 rounded text-[12px] outline-none w-48"
+                                placeholder="Rejection reason (optional)"
+                                value={rejectNote}
+                                onChange={(e) => setRejectNote(e.target.value)}
+                              />
+                              <div className="flex gap-1.5">
+                                <button
+                                  onClick={() => rejectProgram(prog)}
+                                  disabled={actionId === prog.id}
+                                  className="flex-1 font-cond text-[11px] font-bold bg-red-800 hover:bg-red-700 text-white py-1.5 rounded transition-colors"
+                                >
+                                  CONFIRM
+                                </button>
+                                <button
+                                  onClick={() => setRejectingId(null)}
+                                  className="font-cond text-[11px] text-muted px-2 py-1.5 rounded border border-border hover:text-white"
+                                >
+                                  CANCEL
+                                </button>
+                              </div>
                             </div>
-                          </div>
-                        ) : (
-                          <>
-                            <button
-                              onClick={() => approveProgram(prog)}
-                              disabled={actionId === prog.id}
-                              className="flex items-center gap-1.5 font-cond text-[12px] font-bold bg-green-700 hover:bg-green-600 text-white px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
-                            >
-                              <CheckCircle size={13} /> APPROVE
-                            </button>
-                            <button
-                              onClick={() => setRejectingId(prog.id)}
-                              className="flex items-center gap-1.5 font-cond text-[12px] font-bold bg-surface-card border border-red-800/50 text-red-400 hover:bg-red-900/20 px-4 py-2 rounded-lg transition-colors"
-                            >
-                              <XCircle size={13} /> REJECT
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    )}
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => approveProgram(prog)}
+                                disabled={actionId === prog.id}
+                                className="flex items-center gap-1.5 font-cond text-[12px] font-bold bg-green-700 hover:bg-green-600 text-white px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
+                              >
+                                <CheckCircle size={13} /> APPROVE
+                              </button>
+                              <button
+                                onClick={() => setRejectingId(prog.id)}
+                                className="flex items-center gap-1.5 font-cond text-[12px] font-bold bg-surface-card border border-red-800/50 text-red-400 hover:bg-red-900/20 px-4 py-2 rounded-lg transition-colors"
+                              >
+                                <XCircle size={13} /> REJECT
+                              </button>
+                            </>
+                          )}
+                        </>
+                      )}
+                      <button
+                        onClick={() => deleteProgram(prog)}
+                        disabled={deletingId === prog.id}
+                        className="flex items-center gap-1.5 font-cond text-[11px] font-bold text-red-400/70 hover:text-red-400 hover:bg-red-900/20 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+                      >
+                        <Trash2 size={12} /> DELETE
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
             </div>
           )}
 
-          {/* Teams list */}
+          {/* Teams list - actual teams from teams table */}
           {activeTab === 'teams' && (
             <div className="space-y-3">
-              {/* Create Team */}
+              {/* Create Team + Actions */}
               <div className="mb-2">
                 <div className="flex items-center gap-2">
                   <Btn
@@ -749,6 +864,9 @@ export function ProgramApprovals() {
                   </Btn>
                   <Btn size="sm" variant="ghost" onClick={() => teamFileRef.current?.click()}>
                     <Upload size={11} className="inline mr-1" /> IMPORT CSV
+                  </Btn>
+                  <Btn size="sm" variant="ghost" onClick={exportTeamsCSV} disabled={teams.length === 0}>
+                    <Download size={11} className="inline mr-1" /> DOWNLOAD CSV
                   </Btn>
                   <button onClick={() => downloadTemplate('teams')} className="font-cond text-[11px] text-blue-400 hover:text-blue-300 flex items-center gap-1">
                     <Download size={10} /> Template
@@ -819,113 +937,66 @@ export function ProgramApprovals() {
                 )}
               </div>
 
-              {filteredTeams.length === 0 && (
+              {/* Teams table */}
+              {filteredTeams.length === 0 ? (
                 <div className="text-center py-12 text-muted font-cond">
-                  No team registrations matching filter
+                  No teams for this event
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse text-[12px]">
+                    <thead>
+                      <tr className="bg-navy">
+                        {['NAME', 'DIVISION', 'ASSOCIATION', 'COLOR', 'CREATED', 'ACTIONS'].map((h) => (
+                          <th
+                            key={h}
+                            className="font-cond text-[10px] font-black tracking-widest text-muted px-3 py-2 text-left border-b-2 border-border"
+                          >
+                            {h}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredTeams.map((team) => (
+                        <tr
+                          key={team.id}
+                          className="border-b border-border/50 hover:bg-white/5 transition-colors"
+                        >
+                          <td className="font-cond font-bold text-white px-3 py-2">{team.name}</td>
+                          <td className="px-3 py-2">
+                            <span className="font-cond text-[10px] font-bold px-2 py-0.5 rounded bg-blue-900/30 text-blue-300">
+                              {team.division}
+                            </span>
+                          </td>
+                          <td className="font-cond text-[11px] text-muted px-3 py-2">{team.association || '—'}</td>
+                          <td className="px-3 py-2">
+                            {team.color && (
+                              <div className="flex items-center gap-1.5">
+                                <div className="w-4 h-4 rounded-sm border border-border" style={{ backgroundColor: team.color }} />
+                                <span className="font-mono text-[10px] text-muted">{team.color}</span>
+                              </div>
+                            )}
+                          </td>
+                          <td className="font-cond text-[11px] text-muted px-3 py-2">
+                            {new Date(team.created_at).toLocaleDateString()}
+                          </td>
+                          <td className="px-3 py-2">
+                            <button
+                              onClick={() => deleteTeam(team)}
+                              disabled={deletingId === team.id}
+                              className="flex items-center gap-1 font-cond text-[10px] font-bold text-red-400/70 hover:text-red-400 hover:bg-red-900/20 px-2 py-1 rounded transition-colors disabled:opacity-50"
+                            >
+                              <Trash2 size={11} /> DELETE
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <div className="mt-2 font-cond text-[10px] text-muted">{filteredTeams.length} teams</div>
                 </div>
               )}
-              {filteredTeams.map((reg) => (
-                <div
-                  key={reg.id}
-                  className={cn(
-                    'bg-surface-card border rounded-xl p-4',
-                    reg.status === 'pending'
-                      ? 'border-yellow-700/50'
-                      : reg.status === 'approved'
-                        ? 'border-green-700/40'
-                        : 'border-border'
-                  )}
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-1">
-                        <div className="font-cond font-black text-[16px] text-white">
-                          {reg.team_name}
-                        </div>
-                        <span className="font-cond text-[11px] text-blue-300">{reg.division}</span>
-                        <span
-                          className={cn(
-                            'font-cond text-[10px] font-black px-2 py-0.5 rounded tracking-wider',
-                            reg.status === 'approved'
-                              ? 'bg-green-900/40 text-green-400'
-                              : reg.status === 'pending'
-                                ? 'bg-yellow-900/30 text-yellow-400'
-                                : 'bg-red-900/30 text-red-400'
-                          )}
-                        >
-                          {reg.status.toUpperCase()}
-                        </span>
-                      </div>
-                      <div className="font-cond text-[11px] text-muted mb-2">
-                        Program: <span className="text-white">{(reg.program as any)?.name}</span>
-                      </div>
-                      <div className="flex gap-4 text-[11px]">
-                        {reg.head_coach_name && (
-                          <span className="text-muted">
-                            Coach: <span className="text-white">{reg.head_coach_name}</span>
-                          </span>
-                        )}
-                        {reg.head_coach_email && (
-                          <span className="text-muted">
-                            Email: <span className="text-blue-300">{reg.head_coach_email}</span>
-                          </span>
-                        )}
-                        {reg.player_count && (
-                          <span className="text-muted">
-                            Players: <span className="text-white">{reg.player_count}</span>
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {reg.status === 'pending' && (
-                      <div className="flex flex-col gap-2 flex-shrink-0">
-                        {rejectingId === reg.id ? (
-                          <div className="flex flex-col gap-1.5">
-                            <input
-                              className="bg-surface border border-border text-white px-2 py-1 rounded text-[12px] outline-none w-48"
-                              placeholder="Rejection reason (optional)"
-                              value={rejectNote}
-                              onChange={(e) => setRejectNote(e.target.value)}
-                            />
-                            <div className="flex gap-1.5">
-                              <button
-                                onClick={() => rejectTeam(reg)}
-                                disabled={actionId === reg.id}
-                                className="flex-1 font-cond text-[11px] font-bold bg-red-800 hover:bg-red-700 text-white py-1.5 rounded"
-                              >
-                                CONFIRM
-                              </button>
-                              <button
-                                onClick={() => setRejectingId(null)}
-                                className="font-cond text-[11px] text-muted px-2 py-1.5 rounded border border-border hover:text-white"
-                              >
-                                CANCEL
-                              </button>
-                            </div>
-                          </div>
-                        ) : (
-                          <>
-                            <button
-                              onClick={() => approveTeam(reg)}
-                              disabled={actionId === reg.id}
-                              className="flex items-center gap-1.5 font-cond text-[12px] font-bold bg-green-700 hover:bg-green-600 text-white px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
-                            >
-                              <CheckCircle size={13} /> APPROVE + CREATE TEAM
-                            </button>
-                            <button
-                              onClick={() => setRejectingId(reg.id)}
-                              className="flex items-center gap-1.5 font-cond text-[12px] font-bold bg-surface-card border border-red-800/50 text-red-400 hover:bg-red-900/20 px-4 py-2 rounded-lg transition-colors"
-                            >
-                              <XCircle size={13} /> REJECT
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
             </div>
           )}
           {activeTab === 'config' && <RegistrationConfig />}

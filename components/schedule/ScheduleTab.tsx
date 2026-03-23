@@ -7,6 +7,7 @@ import { cn, nextStatusLabel, nextGameStatus } from '@/lib/utils'
 import toast from 'react-hot-toast'
 import type { GameStatus, OperationalConflict } from '@/types'
 import { createClient } from '@/supabase/client'
+import { useRef } from 'react'
 import {
   RefreshCw,
   AlertTriangle,
@@ -18,6 +19,8 @@ import {
   MoveHorizontal,
   Star,
   X,
+  Upload,
+  Download,
 } from 'lucide-react'
 
 type ViewMode = 'table' | 'board'
@@ -55,6 +58,11 @@ export function ScheduleTab() {
   const [showConflicts, setShowConflicts] = useState(false)
   const [genOpen, setGenOpen] = useState(false)
   const [generating, setGenerating] = useState(false)
+
+  // Schedule CSV import state
+  const scheduleFileRef = useRef<HTMLInputElement>(null)
+  const [scheduleCsvPreview, setScheduleCsvPreview] = useState<{ rows: Record<string, string>[]; warnings: string[] } | null>(null)
+  const [importingSchedule, setImportingSchedule] = useState(false)
 
   // Follow teams
   const [followedTeams, setFollowedTeams] = useState<number[]>(loadFollowedTeams)
@@ -260,6 +268,167 @@ export function ScheduleTab() {
     }
   }
 
+  // --- Schedule CSV helpers ---
+  function parseCSV(text: string): string[][] {
+    const rows: string[][] = []
+    let current = ''
+    let inQuotes = false
+    let row: string[] = []
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i]
+      if (inQuotes) {
+        if (ch === '"' && text[i + 1] === '"') { current += '"'; i++ }
+        else if (ch === '"') inQuotes = false
+        else current += ch
+      } else {
+        if (ch === '"') inQuotes = true
+        else if (ch === ',') { row.push(current.trim()); current = '' }
+        else if (ch === '\n' || ch === '\r') {
+          if (ch === '\r' && text[i + 1] === '\n') i++
+          row.push(current.trim()); current = ''
+          if (row.some(c => c)) rows.push(row)
+          row = []
+        } else current += ch
+      }
+    }
+    row.push(current.trim())
+    if (row.some(c => c)) rows.push(row)
+    return rows
+  }
+
+  function handleScheduleCSVFile(file: File) {
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      const text = e.target?.result as string
+      const parsed = parseCSV(text)
+      if (parsed.length < 2) { toast.error('CSV must have a header row and at least one data row'); return }
+
+      const headers = parsed[0].map(h => h.toLowerCase().replace(/\s+/g, '_'))
+      const expectedCols = ['date', 'time', 'home_team', 'away_team', 'division', 'field']
+      const rows: Record<string, string>[] = []
+      const warnings: string[] = []
+
+      const missing = expectedCols.filter(c => !headers.includes(c))
+      if (missing.length > 0) warnings.push(`Missing columns: ${missing.join(', ')}`)
+
+      for (let i = 1; i < parsed.length; i++) {
+        const obj: Record<string, string> = {}
+        headers.forEach((h, idx) => { obj[h] = parsed[i][idx] || '' })
+        if (!obj.home_team || !obj.away_team) { warnings.push(`Row ${i}: missing home_team or away_team — will skip`); continue }
+        if (!obj.time) { warnings.push(`Row ${i}: missing time — will skip`); continue }
+        rows.push(obj)
+      }
+
+      if (rows.length === 0) { toast.error('No valid rows found in CSV'); return }
+      setScheduleCsvPreview({ rows, warnings })
+    }
+    reader.readAsText(file)
+  }
+
+  async function importScheduleCSV() {
+    if (!scheduleCsvPreview || !currentDate) return
+    setImportingSchedule(true)
+    const sb = createClient()
+
+    try {
+      // Build lookup maps for teams and fields
+      const teamMap = new Map(state.teams.map(t => [t.name.toLowerCase(), t]))
+      const fieldMap = new Map(state.fields.map(f => [f.name.toLowerCase(), f]))
+
+      const errors: string[] = []
+      let created = 0
+
+      for (let i = 0; i < scheduleCsvPreview.rows.length; i++) {
+        const row = scheduleCsvPreview.rows[i]
+        const homeTeam = teamMap.get(row.home_team?.toLowerCase())
+        const awayTeam = teamMap.get(row.away_team?.toLowerCase())
+        const field = fieldMap.get(row.field?.toLowerCase())
+
+        if (!homeTeam) { errors.push(`Row ${i + 1}: home team "${row.home_team}" not found`); continue }
+        if (!awayTeam) { errors.push(`Row ${i + 1}: away team "${row.away_team}" not found`); continue }
+        if (!field && row.field) { errors.push(`Row ${i + 1}: field "${row.field}" not found — using first field`); }
+
+        // Parse time to display format
+        let timeStr = row.time
+        const tm = row.time.match(/^(\d{1,2}):(\d{2})$/)
+        if (tm) {
+          const h = parseInt(tm[1])
+          const m = parseInt(tm[2])
+          const ampm = h >= 12 ? 'PM' : 'AM'
+          const dh = h > 12 ? h - 12 : h === 0 ? 12 : h
+          timeStr = `${dh}:${m.toString().padStart(2, '0')} ${ampm}`
+        }
+
+        const { error } = await sb.from('games').insert({
+          event_id: eventId,
+          event_date_id: currentDate.id,
+          field_id: field?.id ?? state.fields[0]?.id,
+          home_team_id: homeTeam.id,
+          away_team_id: awayTeam.id,
+          division: row.division || homeTeam.division || '',
+          scheduled_time: timeStr,
+          status: 'Scheduled',
+          home_score: 0,
+          away_score: 0,
+        })
+        if (error) {
+          errors.push(`Row ${i + 1}: ${error.message}`)
+        } else {
+          created++
+        }
+      }
+
+      if (errors.length > 0) {
+        toast.error(`${errors.length} error${errors.length !== 1 ? 's' : ''} during import`)
+        console.warn('Schedule import errors:', errors)
+      }
+      if (created > 0) {
+        toast.success(`${created} game${created !== 1 ? 's' : ''} imported`)
+      }
+      setScheduleCsvPreview(null)
+      await refreshGames()
+    } catch (err: any) {
+      toast.error(err.message || 'Import failed')
+    }
+    setImportingSchedule(false)
+  }
+
+  function exportScheduleCSV() {
+    const headers = ['date', 'time', 'home_team', 'away_team', 'division', 'field', 'status', 'home_score', 'away_score']
+    const csvRows = [headers.join(',')]
+    for (const g of filtered) {
+      const homeName = g.home_team?.name ?? ''
+      const awayName = g.away_team?.name ?? ''
+      const fieldName = g.field?.name ?? ''
+      const dateStr = currentDate?.date ?? ''
+      csvRows.push([
+        `"${dateStr}"`,
+        `"${g.scheduled_time}"`,
+        `"${homeName.replace(/"/g, '""')}"`,
+        `"${awayName.replace(/"/g, '""')}"`,
+        `"${g.division}"`,
+        `"${fieldName.replace(/"/g, '""')}"`,
+        `"${g.status}"`,
+        `"${g.home_score ?? 0}"`,
+        `"${g.away_score ?? 0}"`,
+      ].join(','))
+    }
+    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = `schedule_export.csv`; a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  function downloadScheduleTemplate() {
+    const csv = 'date,time,home_team,away_team,division,field\n2026-03-22,08:00,Metro FC Blue,City SC Red,U12 Boys,Field 1'
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = 'schedule_template.csv'; a.click()
+    URL.revokeObjectURL(url)
+  }
+
   // Field columns for board view
   const fieldColumns = useMemo(() => {
     return state.fields
@@ -446,6 +615,16 @@ export function ScheduleTab() {
           <Zap size={11} className="inline mr-1" />
           GENERATE SCHEDULE
         </Btn>
+        <Btn size="sm" variant="ghost" onClick={() => scheduleFileRef.current?.click()}>
+          <Upload size={11} className="inline mr-1" /> IMPORT CSV
+        </Btn>
+        <Btn size="sm" variant="ghost" onClick={exportScheduleCSV} disabled={filtered.length === 0}>
+          <Download size={11} className="inline mr-1" /> EXPORT CSV
+        </Btn>
+        <button onClick={downloadScheduleTemplate} className="font-cond text-[11px] text-blue-400 hover:text-blue-300 flex items-center gap-1">
+          <Download size={10} /> Template
+        </button>
+        <input ref={scheduleFileRef} type="file" accept=".csv" className="hidden" onChange={(e) => { if (e.target.files?.[0]) handleScheduleCSVFile(e.target.files[0]); e.target.value = '' }} />
 
         <div className="ml-auto flex items-center gap-2">
           {/* Conflict badge */}
@@ -771,6 +950,70 @@ export function ScheduleTab() {
           </p>
         </div>
       </Modal>
+
+      {/* Schedule CSV Preview Modal */}
+      {scheduleCsvPreview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-surface-card border border-border rounded-xl w-full max-w-4xl max-h-[80vh] flex flex-col shadow-xl">
+            <div className="flex items-center justify-between px-5 py-3 border-b border-border">
+              <div className="font-cond font-black text-[14px] text-white tracking-wider">
+                IMPORT SCHEDULE — {scheduleCsvPreview.rows.length} game{scheduleCsvPreview.rows.length !== 1 ? 's' : ''}
+              </div>
+              <button onClick={() => setScheduleCsvPreview(null)} className="text-muted hover:text-white">
+                <X size={16} />
+              </button>
+            </div>
+
+            {scheduleCsvPreview.warnings.length > 0 && (
+              <div className="px-5 py-2 bg-yellow-900/20 border-b border-yellow-800/30">
+                <div className="flex items-center gap-1.5 font-cond text-[11px] font-bold text-yellow-400 mb-1">
+                  <AlertTriangle size={12} /> WARNINGS
+                </div>
+                {scheduleCsvPreview.warnings.map((w, i) => (
+                  <div key={i} className="font-cond text-[11px] text-yellow-300/80">{w}</div>
+                ))}
+              </div>
+            )}
+
+            <div className="flex-1 overflow-auto px-5 py-3">
+              <table className="w-full text-[11px]">
+                <thead>
+                  <tr className="border-b border-border">
+                    <th className="font-cond font-bold text-muted text-left py-1.5 pr-3">#</th>
+                    {Object.keys(scheduleCsvPreview.rows[0] || {}).map(col => (
+                      <th key={col} className="font-cond font-bold text-muted text-left py-1.5 pr-3">
+                        {col.toUpperCase().replace(/_/g, ' ')}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {scheduleCsvPreview.rows.map((row, i) => (
+                    <tr key={i} className="border-b border-border/50 hover:bg-navy/20">
+                      <td className="font-cond text-muted py-1.5 pr-3">{i + 1}</td>
+                      {Object.values(row).map((val, j) => (
+                        <td key={j} className="font-cond text-white py-1.5 pr-3">{val || <span className="text-muted italic">—</span>}</td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex items-center justify-between px-5 py-3 border-t border-border">
+              <span className="font-cond text-[11px] text-muted">
+                {scheduleCsvPreview.rows.length} game{scheduleCsvPreview.rows.length !== 1 ? 's' : ''} will be imported into the current event date
+              </span>
+              <div className="flex gap-2">
+                <Btn size="sm" variant="ghost" onClick={() => setScheduleCsvPreview(null)}>CANCEL</Btn>
+                <Btn size="sm" variant="success" onClick={importScheduleCSV} disabled={importingSchedule}>
+                  {importingSchedule ? 'IMPORTING...' : `IMPORT ${scheduleCsvPreview.rows.length} GAME${scheduleCsvPreview.rows.length !== 1 ? 'S' : ''}`}
+                </Btn>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
