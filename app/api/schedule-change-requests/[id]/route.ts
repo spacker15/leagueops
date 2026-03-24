@@ -66,7 +66,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     // Fetch current request
     const { data: current, error: fetchError } = await supabase
       .from('schedule_change_requests')
-      .select('status, event_id, team_id, request_type, games:schedule_change_request_games(*, game:games(*))')
+      .select(
+        'status, event_id, team_id, request_type, games:schedule_change_request_games(*, game:games(*))'
+      )
       .eq('id', params.id)
       .single()
 
@@ -154,8 +156,16 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       // Mark request as completed since all games are cancelled
       finalStatus = 'completed'
     } else if (body.status === 'denied') {
+      // Update all child game rows to denied
+      const games = (current.games ?? []) as Array<{ id: number; game_id: number }>
+      for (const reqGame of games) {
+        await supabase
+          .from('schedule_change_request_games')
+          .update({ status: 'denied' })
+          .eq('id', reqGame.id)
+      }
+
       // Notify requester team (D-21 point 3)
-      const games = (current.games ?? []) as Array<unknown>
       await insertNotification(current.event_id, 'schedule_change', 'team', current.team_id, {
         title: 'Schedule change request denied',
         summary: `Your request for ${games.length} game(s) was denied`,
