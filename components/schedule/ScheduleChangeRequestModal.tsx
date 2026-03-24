@@ -35,7 +35,7 @@ export function ScheduleChangeRequestModal({
   const [selectedGameIds, setSelectedGameIds] = useState<Set<number>>(
     preSelectedGameId ? new Set([preSelectedGameId]) : new Set()
   )
-  const [requestType, setRequestType] = useState<'reschedule' | 'cancel'>('reschedule')
+  const [requestType, setRequestType] = useState<'reschedule' | 'cancel' | 'change_opponent'>('reschedule')
   const [reasonCategory, setReasonCategory] = useState('')
   const [reasonDetails, setReasonDetails] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -197,6 +197,14 @@ export function ScheduleChangeRequestModal({
               Reschedule
             </Btn>
             <Btn
+              variant={requestType === 'change_opponent' ? 'primary' : 'ghost'}
+              size="sm"
+              onClick={() => setRequestType('change_opponent')}
+              aria-pressed={requestType === 'change_opponent'}
+            >
+              Change Opponent
+            </Btn>
+            <Btn
               variant={requestType === 'cancel' ? 'primary' : 'ghost'}
               size="sm"
               onClick={() => setRequestType('cancel')}
@@ -219,6 +227,7 @@ export function ScheduleChangeRequestModal({
             <option value="Team conflict">Team conflict</option>
             <option value="Weather concern">Weather concern</option>
             <option value="Venue issue">Venue issue</option>
+            <option value="Opponent issue">Opponent issue</option>
             <option value="Other">Other</option>
           </Select>
         </FormField>

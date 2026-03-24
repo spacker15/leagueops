@@ -16,9 +16,9 @@ CREATE TABLE IF NOT EXISTS schedule_change_requests (
   submitted_by UUID NOT NULL REFERENCES auth.users(id),
   submitted_by_role TEXT NOT NULL CHECK (submitted_by_role IN ('coach', 'program_leader')),
   team_id BIGINT NOT NULL REFERENCES teams(id),
-  request_type TEXT NOT NULL CHECK (request_type IN ('cancel', 'reschedule')),
+  request_type TEXT NOT NULL CHECK (request_type IN ('cancel', 'reschedule', 'change_opponent')),
   reason_category TEXT NOT NULL CHECK (reason_category IN (
-    'Coach conflict', 'Team conflict', 'Weather concern', 'Venue issue', 'Other'
+    'Coach conflict', 'Team conflict', 'Weather concern', 'Venue issue', 'Opponent issue', 'Other'
   )),
   reason_details TEXT,
   status TEXT NOT NULL DEFAULT 'pending'

@@ -131,8 +131,8 @@ export function RequestCard({ request, eventId }: RequestCardProps) {
       <div className="flex justify-between items-start mb-3">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="font-cond text-[15px] font-black text-white">{teamName}</span>
-          <Pill variant={request.request_type === 'reschedule' ? 'blue' : 'red'}>
-            {request.request_type === 'reschedule' ? 'Reschedule' : 'Cancel'}
+          <Pill variant={request.request_type === 'reschedule' ? 'blue' : request.request_type === 'change_opponent' ? 'yellow' : 'red'}>
+            {request.request_type === 'reschedule' ? 'Reschedule' : request.request_type === 'change_opponent' ? 'Change Opponent' : 'Cancel'}
           </Pill>
           <span className={`badge-request-${request.status}`}>{request.status.replace('_', ' ')}</span>
         </div>
@@ -253,7 +253,32 @@ export function RequestCard({ request, eventId }: RequestCardProps) {
       {/* Approve expansion */}
       {expandedAction === 'approve' && (
         <div className="mt-3 transition-all duration-150 ease-out">
-          {request.request_type === 'cancel' ? (
+          {request.request_type === 'change_opponent' ? (
+            // Change opponent — admin handles manually
+            <div>
+              <p className="text-[12px] text-muted mb-2">
+                Approve this opponent change request? You will need to manually reassign the opponent in the schedule.
+              </p>
+              <div className="flex items-center gap-2">
+                <Btn
+                  variant="primary"
+                  size="sm"
+                  onClick={() => handleStatusChange('approved')}
+                  disabled={processing}
+                >
+                  Approve Request
+                </Btn>
+                <Btn
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setExpandedAction('none')}
+                  disabled={processing}
+                >
+                  Go Back
+                </Btn>
+              </div>
+            </div>
+          ) : request.request_type === 'cancel' ? (
             // Cancel confirmation
             <div>
               <p className="text-[12px] text-muted mb-2">

@@ -536,7 +536,7 @@ export interface CoachConflict {
 
 export type RequestStatus = 'pending' | 'under_review' | 'approved' | 'denied' | 'partially_complete' | 'completed'
 export type RequestGameStatus = 'pending' | 'under_review' | 'approved' | 'denied' | 'rescheduled' | 'cancelled'
-export type RequestType = 'cancel' | 'reschedule'
+export type RequestType = 'cancel' | 'reschedule' | 'change_opponent'
 export type RequestReasonCategory = 'Coach conflict' | 'Team conflict' | 'Weather concern' | 'Venue issue' | 'Other'
 
 export interface ScheduleChangeRequest {
