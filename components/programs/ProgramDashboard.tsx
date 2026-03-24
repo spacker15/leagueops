@@ -5,7 +5,9 @@ import { useAuth } from '@/lib/auth'
 import { createClient } from '@/supabase/client'
 import { cn } from '@/lib/utils'
 import toast from 'react-hot-toast'
-import { LogOut, Upload, Plus, Trash2, Download, Users, CheckCircle, Clock } from 'lucide-react'
+import { LogOut, Upload, Plus, Trash2, Download, Users, CheckCircle, Clock, CalendarX } from 'lucide-react'
+import { ScheduleChangeRequestModal } from '@/components/schedule/ScheduleChangeRequestModal'
+import type { Game } from '@/types'
 
 const DIVISIONS = [
   '8U Boys',
@@ -77,6 +79,13 @@ export function ProgramDashboard() {
   const [newPlayerCount, setNewPlayerCount] = useState('')
   const [addingTeam, setAddingTeam] = useState(false)
 
+  // Schedule change request state
+  const [programGames, setProgramGames] = useState<Game[]>([])
+  const [pendingGameIds, setPendingGameIds] = useState<Set<number>>(new Set())
+  const [scrModalOpen, setScrModalOpen] = useState(false)
+  const [scrPreSelectedGameId, setScrPreSelectedGameId] = useState<number | undefined>()
+  const [scrTeamId, setScrTeamId] = useState<number | undefined>()
+
   useEffect(() => {
     loadData()
   }, [userRole])
@@ -103,7 +112,33 @@ export function ProgramDashboard() {
 
     setProgram(prog as Program)
     setTeamRegs((regs as TeamReg[]) ?? [])
-    setTeams((teamData ?? []).map((pt: any) => pt.team).filter(Boolean))
+    const teamsList = (teamData ?? []).map((pt: any) => pt.team).filter(Boolean)
+    setTeams(teamsList)
+
+    // Load games and pending schedule change requests for Request Change buttons
+    if (teamsList.length > 0) {
+      const teamIds = teamsList.map((t: any) => t.id)
+      const { data: gamesData } = await sb
+        .from('games')
+        .select('*, home_team:teams!games_home_team_id_fkey(id, name), away_team:teams!games_away_team_id_fkey(id, name), field:fields(id, name)')
+        .eq('event_id', portalEventId!)
+        .or(`home_team_id.in.(${teamIds.join(',')}),away_team_id.in.(${teamIds.join(',')})`)
+        .order('scheduled_time')
+      setProgramGames((gamesData as Game[]) ?? [])
+
+      const { data: scrData } = await sb
+        .from('schedule_change_requests')
+        .select('id, status, schedule_change_request_games(game_id)')
+        .eq('event_id', portalEventId!)
+        .in('team_id', teamIds)
+        .in('status', ['pending', 'under_review'])
+      setPendingGameIds(new Set(
+        ((scrData ?? []) as any[])
+          .flatMap((r: any) => r.schedule_change_request_games ?? [])
+          .map((g: any) => g.game_id as number)
+      ))
+    }
+
     setLoading(false)
   }
 
@@ -444,6 +479,64 @@ export function ProgramDashboard() {
                       Note: {reg.notes}
                     </div>
                   )}
+                  {/* Games with Request Change buttons */}
+                  {(() => {
+                    const matchedTeam = teams.find(
+                      (t: any) => t.name.toLowerCase() === reg.team_name.toLowerCase()
+                    )
+                    if (!matchedTeam) return null
+                    const teamGames = programGames.filter(
+                      (g) => g.home_team_id === matchedTeam.id || g.away_team_id === matchedTeam.id
+                    )
+                    if (teamGames.length === 0) return null
+                    return (
+                      <div className="mt-3 pt-3 border-t border-border/40">
+                        <div className="font-cond text-[10px] font-black tracking-widest text-muted uppercase mb-2">
+                          UPCOMING GAMES
+                        </div>
+                        <div className="space-y-1.5">
+                          {teamGames.map((game) => {
+                            const isPending = pendingGameIds.has(game.id)
+                            const isCancelled = game.status === 'Cancelled'
+                            const opponent =
+                              game.home_team_id === matchedTeam.id
+                                ? (game.away_team as any)?.name ?? `Team #${game.away_team_id}`
+                                : (game.home_team as any)?.name ?? `Team #${game.home_team_id}`
+                            return (
+                              <div
+                                key={game.id}
+                                className={`flex items-center justify-between gap-2 rounded-lg px-2.5 py-2 bg-surface border border-border/40 ${isCancelled ? 'opacity-50' : ''}`}
+                              >
+                                <div className="flex items-center gap-2 flex-1 min-w-0">
+                                  <span className={`font-mono text-[11px] text-muted whitespace-nowrap ${isCancelled ? 'line-through' : ''}`}>
+                                    {game.scheduled_time}
+                                  </span>
+                                  <span className="font-cond text-[12px] text-white font-black truncate">
+                                    vs {opponent}
+                                  </span>
+                                </div>
+                                {!isCancelled && (
+                                  <button
+                                    disabled={isPending}
+                                    title={isPending ? 'Request pending' : undefined}
+                                    onClick={() => {
+                                      setScrTeamId(matchedTeam.id)
+                                      setScrPreSelectedGameId(game.id)
+                                      setScrModalOpen(true)
+                                    }}
+                                    className="flex items-center gap-1 font-cond text-[10px] font-bold tracking-wider text-muted hover:text-white border border-border rounded px-2 py-1 transition-colors disabled:opacity-40"
+                                  >
+                                    <CalendarX size={11} />
+                                    REQUEST CHANGE
+                                  </button>
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )
+                  })()}
                 </div>
               ))
             )}
@@ -678,6 +771,23 @@ export function ProgramDashboard() {
           </div>
         )}
       </div>
+
+      {/* Schedule Change Request modal */}
+      {scrTeamId && (
+        <ScheduleChangeRequestModal
+          open={scrModalOpen}
+          onClose={() => {
+            setScrModalOpen(false)
+            setScrPreSelectedGameId(undefined)
+            setScrTeamId(undefined)
+          }}
+          preSelectedGameId={scrPreSelectedGameId}
+          teamId={scrTeamId}
+          teamGames={programGames.filter(
+            (g) => g.home_team_id === scrTeamId || g.away_team_id === scrTeamId
+          )}
+        />
+      )}
     </div>
   )
 }
