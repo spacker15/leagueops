@@ -519,16 +519,19 @@ export function ProgramDashboard() {
                                     vs {opponent}
                                   </span>
                                 </div>
-                                {!isCancelled && (
+                                {isPending && (
+                                  <span className="badge-request-pending font-cond text-[9px] font-black tracking-wider px-2 py-0.5 rounded">
+                                    REQUEST PENDING
+                                  </span>
+                                )}
+                                {!isCancelled && !isPending && (
                                   <button
-                                    disabled={isPending}
-                                    title={isPending ? 'Request pending' : undefined}
                                     onClick={() => {
                                       setScrTeamId(matchedTeam.id)
                                       setScrPreSelectedGameId(game.id)
                                       setScrModalOpen(true)
                                     }}
-                                    className="flex items-center gap-1 font-cond text-[10px] font-bold tracking-wider text-muted hover:text-white border border-border rounded px-2 py-1 transition-colors disabled:opacity-40"
+                                    className="flex items-center gap-1 font-cond text-[10px] font-bold tracking-wider text-muted hover:text-white border border-border rounded px-2 py-1 transition-colors"
                                   >
                                     <CalendarX size={11} />
                                     REQUEST CHANGE
