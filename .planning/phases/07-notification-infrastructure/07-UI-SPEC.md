@@ -44,9 +44,7 @@ Declared values (must be multiples of 4):
 Exceptions:
 - Bell icon touch target: minimum 44x44px — `p-3` (12px padding on a 24px icon = 48px hit area) satisfies accessibility requirement per ui-ux-pro-max touch-target-size rule
 - Notification dropdown item row: `py-3` (12px) — compact list density at 38–40px effective height with 13px body font
-- Tab content padding: 12px 14px (`tab-content` CSS class) — existing pattern from globals.css, do not change
-
-Source: CLAUDE.md conventions + ui-ux-pro-max touch-target-size rule + globals.css `.tab-content`
+Source: CLAUDE.md conventions + ui-ux-pro-max touch-target-size rule
 
 ---
 
