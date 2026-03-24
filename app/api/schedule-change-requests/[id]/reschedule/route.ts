@@ -8,6 +8,7 @@ const rescheduleSchema = z.object({
   request_game_id: z.number().int().positive(),
   new_field_id: z.number().int().positive(),
   new_scheduled_time: z.string().min(1),
+  new_event_date_id: z.number().int().positive().optional(),
 })
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
@@ -67,13 +68,23 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       )
     }
 
+    // Convert ISO scheduled_time to display format (e.g. "10:00 AM")
+    const dt = new Date(body.new_scheduled_time)
+    const displayTime = dt.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+      timeZone: 'America/New_York',
+    })
+
     // Call the RPC atomically (SCR-06)
     const { data: rpcData, error: rpcError } = await supabase.rpc('reschedule_game', {
       p_game_id: body.game_id,
       p_new_field_id: body.new_field_id,
-      p_new_scheduled_time: body.new_scheduled_time,
+      p_new_scheduled_time: displayTime,
       p_request_game_id: body.request_game_id,
       p_event_id: request.event_id,
+      p_new_event_date_id: body.new_event_date_id ?? null,
     })
 
     if (rpcError) {

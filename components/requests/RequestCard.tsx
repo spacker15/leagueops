@@ -98,6 +98,7 @@ export function RequestCard({ request, eventId }: RequestCardProps) {
             request_game_id: requestGame.id,
             new_field_id: slot.fieldId,
             new_scheduled_time: slot.scheduledTime,
+            new_event_date_id: slot.eventDateId,
           }),
         }
       )
