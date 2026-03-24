@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { useApp } from '@/lib/store'
 import { Modal, Btn, FormField, Select, Textarea } from '@/components/ui'
 import toast from 'react-hot-toast'
 import type { Game } from '@/types'
@@ -14,6 +13,7 @@ interface ScheduleChangeRequestModalProps {
   preSelectedGameId?: number
   teamId: number
   teamGames: Game[]
+  eventId?: number
 }
 
 // ─── Component ────────────────────────────────────────────────
@@ -24,8 +24,11 @@ export function ScheduleChangeRequestModal({
   preSelectedGameId,
   teamId,
   teamGames,
+  eventId: eventIdProp,
 }: ScheduleChangeRequestModalProps) {
-  const { eventId } = useApp()
+  // When eventId prop is provided (e.g. ProgramDashboard outside AppProvider), use it directly.
+  // When inside AppProvider (e.g. ScheduleTab), the caller passes eventId from useApp().
+  const eventId = eventIdProp
   const containerRef = useRef<HTMLDivElement>(null)
 
   // ── State (all hooks before early returns per CLAUDE.md) ──

@@ -786,6 +786,7 @@ export function ProgramDashboard() {
           teamGames={programGames.filter(
             (g) => g.home_team_id === scrTeamId || g.away_team_id === scrTeamId
           )}
+          eventId={portalEventId!}
         />
       )}
     </div>

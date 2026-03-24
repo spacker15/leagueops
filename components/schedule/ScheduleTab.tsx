@@ -1922,6 +1922,7 @@ export function ScheduleTab() {
           preSelectedGameId={scrPreSelectedGameId}
           teamId={teamId}
           teamGames={teamGames}
+          eventId={eventId}
         />
       )}
     </div>
