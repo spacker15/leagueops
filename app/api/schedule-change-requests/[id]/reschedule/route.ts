@@ -60,7 +60,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       return NextResponse.json({ error: 'Only admins can reschedule games' }, { status: 403 })
     }
 
-    if (!['approved', 'under_review'].includes(request.status)) {
+    if (!['pending', 'approved', 'under_review'].includes(request.status)) {
       return NextResponse.json(
         { error: `Cannot reschedule a request with status: ${request.status}` },
         { status: 400 }
