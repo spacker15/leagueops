@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import {
   generateSlotSuggestions,
   type SlotSuggestion,
@@ -97,7 +97,7 @@ describe('generateSlotSuggestions', () => {
     // Fill every slot on field 1 and field 2 on all event dates
     // We generate blocking games at 08:00, 09:00, 10:00, ... on each field/date
     const blockingGames: Game[] = []
-    const times = ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00']
+    const times = ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00']
     let gId = 100
     for (const field of fields) {
       for (const ed of eventDates) {
