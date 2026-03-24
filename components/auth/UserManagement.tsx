@@ -68,7 +68,7 @@ export function UserManagement() {
   async function loadRefVol() {
     const sb = createClient()
     const [{ data: r }, { data: v }] = await Promise.all([
-      sb.from('referees').select('id, name, grade_level').eq('event_id', eventId).order('name'),
+      sb.from('referees').select('id, name').eq('event_id', eventId).order('name'),
       sb.from('volunteers').select('id, name, role').eq('event_id', eventId).order('name'),
     ])
     setRefs(r ?? [])
@@ -274,7 +274,7 @@ export function UserManagement() {
                       <option value="__new__">+ Create new referee</option>
                       {refs.map((r) => (
                         <option key={r.id} value={r.id}>
-                          {r.name} ({r.grade_level})
+                          {r.name}
                         </option>
                       ))}
                     </select>
