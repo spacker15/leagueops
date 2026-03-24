@@ -1,7 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { format, parseISO } from 'date-fns'
 
 export const revalidate = 30
 
@@ -17,7 +16,7 @@ interface Props {
 export default async function RegisterPage({ params }: Props) {
   const { data: event } = await supabase
     .from('events')
-    .select('id, name, slug, location, logo_url, registration_opens_at, registration_closes_at, registration_open')
+    .select('id, name, slug, location, logo_url, start_date, end_date, status')
     .eq('slug', params.slug)
     .order('created_at', { ascending: false })
     .limit(1)
@@ -25,23 +24,8 @@ export default async function RegisterPage({ params }: Props) {
 
   if (!event) notFound()
 
-  // Compute registration status
-  const now = new Date()
-  let registrationStatus: 'open' | 'not_yet_open' | 'closed_after' | 'closed_manual' = 'open'
-  let closedMessage = ''
-
-  if (event.registration_open === false) {
-    registrationStatus = 'closed_manual'
-    closedMessage = 'Registration is currently closed. Contact the event organizer for details.'
-  } else if (event.registration_opens_at && new Date(event.registration_opens_at) > now) {
-    registrationStatus = 'not_yet_open'
-    closedMessage = `Registration opens ${format(parseISO(event.registration_opens_at), 'MMMM d, yyyy')}`
-  } else if (event.registration_closes_at && new Date(event.registration_closes_at) < now) {
-    registrationStatus = 'closed_after'
-    closedMessage = `Registration closed on ${format(parseISO(event.registration_closes_at), 'MMMM d, yyyy')}`
-  }
-
-  const isOpen = registrationStatus === 'open'
+  // For now, treat all active events as open for registration
+  const isOpen = event.status === 'active'
 
   // If registration is open, redirect to main app registration page
   if (isOpen) {
@@ -99,10 +83,10 @@ export default async function RegisterPage({ params }: Props) {
 
         <div className="border border-[#1a2d50] bg-[#081428] rounded-xl p-8 mb-6">
           <div className="font-cond text-[14px] font-black text-white mb-2">
-            {registrationStatus === 'not_yet_open' ? 'Coming Soon' : 'Registration Closed'}
+            Registration Closed
           </div>
           <div className="text-[12px] text-[#5a6e9a] leading-relaxed">
-            {closedMessage}
+            Registration is currently closed. Contact the event organizer for details.
           </div>
         </div>
 
