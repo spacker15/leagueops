@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils'
 import type { TabName } from '@/components/AppShell'
 import type { UserRole } from '@/lib/auth'
 import { LogOut, ChevronDown } from 'lucide-react'
+import { NotificationBell } from '@/components/notifications/NotificationBell'
 
 const ROLE_BADGE: Record<string, string> = {
   admin: 'bg-red text-white',
@@ -265,6 +266,8 @@ export function TopBar({
           </div>
           <span className="font-cond text-[11px] font-black tracking-[.15em] text-red">LIVE</span>
         </div>
+
+        <NotificationBell />
 
         {userRole && (
           <div

@@ -17,6 +17,7 @@ import type {
   OpsLogEntry,
   LogType,
   GameStatus,
+  NotificationLogEntry,
 } from '@/types'
 
 // ---- Events ----
@@ -612,4 +613,50 @@ export async function resolveConflict(id: number, resolvedBy?: string) {
       resolved_by: resolvedBy ?? 'operator',
     })
     .eq('id', id)
+}
+
+// === Phase 7: Notification helpers ===
+
+/** Get unread notification count for current user */
+export async function getUnreadNotificationCount(userId: string): Promise<number> {
+  const sb = createClient()
+  const { count } = await sb
+    .from('notification_log')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .is('read_at', null)
+    .eq('status', 'delivered')
+  return count ?? 0
+}
+
+/** Get recent notifications for dropdown (last 20) */
+export async function getRecentNotifications(userId: string): Promise<NotificationLogEntry[]> {
+  const sb = createClient()
+  const { data } = await sb
+    .from('notification_log')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('status', 'delivered')
+    .order('delivered_at', { ascending: false })
+    .limit(20)
+  return (data ?? []) as NotificationLogEntry[]
+}
+
+/** Mark all notifications as read for current user */
+export async function markAllNotificationsRead(userId: string): Promise<void> {
+  const sb = createClient()
+  await sb
+    .from('notification_log')
+    .update({ read_at: new Date().toISOString() })
+    .eq('user_id', userId)
+    .is('read_at', null)
+}
+
+/** Mark a single notification as read */
+export async function markNotificationRead(notificationId: number): Promise<void> {
+  const sb = createClient()
+  await sb
+    .from('notification_log')
+    .update({ read_at: new Date().toISOString() })
+    .eq('id', notificationId)
 }
