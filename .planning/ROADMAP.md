@@ -247,6 +247,14 @@ Plans:
 **Requirements:** SCR-01, SCR-02, SCR-03, SCR-04, SCR-05, SCR-06, SCR-07, SCR-08
 **UI hint:** yes
 **Depends on:** Phase 6, Phase 7
+**Plans:** 5 plans
+
+Plans:
+- [ ] 08-01-PLAN.md — Foundation: migration SQL, types, Zod schemas, db.ts CRUD, CSS badges (SCR-01, SCR-06, SCR-08)
+- [ ] 08-02-PLAN.md — Slot suggestion engine with TDD tests (SCR-04, SCR-05)
+- [ ] 08-03-PLAN.md — API routes, state machine, store integration, notification wiring (SCR-02, SCR-03, SCR-06, SCR-07, SCR-08)
+- [ ] 08-04-PLAN.md — Coach submission UI: modal, game card button, request status badge (SCR-01)
+- [ ] 08-05-PLAN.md — Admin Requests tab, RequestCard, AppShell integration, slot panel (SCR-03, SCR-04, SCR-05)
 
 ### Success Criteria
 
