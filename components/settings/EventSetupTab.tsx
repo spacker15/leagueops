@@ -35,10 +35,12 @@ import {
   QrCode,
 } from 'lucide-react'
 import { QRCodeSVG, QRCodeCanvas } from 'qrcode.react'
-import { Btn, Modal } from '@/components/ui'
+import { Btn, Modal, Pill } from '@/components/ui'
 import * as db from '@/lib/db'
-import type { Complex } from '@/types'
+import type { Complex, EventDate } from '@/types'
 import { VenueAutocompleteInput } from '@/components/events/VenueAutocompleteInput'
+import { MultiDatePicker } from '@/components/events/MultiDatePicker'
+import { format, parseISO } from 'date-fns'
 
 type SetupStep = 'sport' | 'type' | 'details' | 'done'
 type SettingsTab =
@@ -165,6 +167,10 @@ interface EventData {
   venue_lat: number | null
   venue_lng: number | null
   venue_place_id: string | null
+  // Registration window (Phase 6 -- REG-01)
+  registration_opens_at: string
+  registration_closes_at: string
+  registration_open: boolean | null
 }
 
 const DEFAULT_EVENT: Omit<EventData, 'id'> = {
@@ -236,6 +242,9 @@ const DEFAULT_EVENT: Omit<EventData, 'id'> = {
   venue_lat: null,
   venue_lng: null,
   venue_place_id: null,
+  registration_opens_at: '',
+  registration_closes_at: '',
+  registration_open: null,
 }
 
 export function EventSetupTab({ eventId }: { eventId: number }) {
@@ -304,10 +313,16 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
   const [linkCopied, setLinkCopied] = useState(false)
   const svgRef = useRef<SVGSVGElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  // Schedule dates state (Phase 6 -- REG-01)
+  const [eventDates, setEventDates] = useState<EventDate[]>([])
+  const [regSaving, setRegSaving] = useState(false)
 
   useEffect(() => {
     loadEvent()
-    if (eventId) loadDivisions()
+    if (eventId) {
+      loadDivisions()
+      loadEventDates()
+    }
   }, [eventId])
 
   // Load division names and timing overrides when schedule tab is active
@@ -684,6 +699,9 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
         venue_lat: d.venue_lat ?? null,
         venue_lng: d.venue_lng ?? null,
         venue_place_id: d.venue_place_id ?? null,
+        registration_opens_at: d.registration_opens_at ? d.registration_opens_at.slice(0, 16) : '',
+        registration_closes_at: d.registration_closes_at ? d.registration_closes_at.slice(0, 16) : '',
+        registration_open: d.registration_open ?? null,
       })
       setLogoPreview(d.logo_url ?? null)
       setMapPhotoUrl(d.park_photo_url ?? null)
@@ -695,6 +713,61 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
       loadComplexes(d.id)
     }
     setLoading(false)
+  }
+
+  async function loadEventDates() {
+    if (!eventId) return
+    const sb = createClient()
+    const { data } = await sb
+      .from('event_dates')
+      .select('*')
+      .eq('event_id', eventId)
+      .order('date')
+    setEventDates((data as EventDate[]) ?? [])
+  }
+
+  async function toggleEventDate(isoDate: string) {
+    if (!eventId) return
+    const sb = createClient()
+    const existing = eventDates.find((d) => d.date === isoDate)
+    if (existing) {
+      // Delete it
+      const { error } = await sb.from('event_dates').delete().eq('id', existing.id)
+      if (error) { toast.error(error.message); return }
+      setEventDates((prev) => prev.filter((d) => d.id !== existing.id))
+    } else {
+      // Insert new entry -- day_number is sequential based on sorted dates
+      const parsedDate = parseISO(isoDate)
+      const dayLabel = format(parsedDate, 'EEEE')
+      // Compute day_number as position in sorted list
+      const sortedDates = [...eventDates.map((d) => d.date), isoDate].sort()
+      const dayNumber = sortedDates.indexOf(isoDate) + 1
+      const { data, error } = await sb
+        .from('event_dates')
+        .insert({ event_id: eventId, date: isoDate, label: dayLabel, day_number: dayNumber })
+        .select()
+        .single()
+      if (error) { toast.error(error.message); return }
+      setEventDates((prev) => [...prev, data as EventDate].sort((a, b) => a.date.localeCompare(b.date)))
+    }
+    toast.success('Schedule dates saved')
+  }
+
+  async function saveRegistrationSettings() {
+    setRegSaving(true)
+    const sb = createClient()
+    const { error } = await sb
+      .from('events')
+      .update({
+        registration_opens_at: event.registration_opens_at || null,
+        registration_closes_at: event.registration_closes_at || null,
+        registration_open: event.registration_open,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', eventId)
+    if (error) toast.error(error.message)
+    else toast.success('Registration settings saved')
+    setRegSaving(false)
   }
 
   function handleMapPhotoFile(file: File) {
@@ -1014,6 +1087,9 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
         venue_lat: event.venue_lat,
         venue_lng: event.venue_lng,
         venue_place_id: event.venue_place_id || null,
+        registration_opens_at: event.registration_opens_at || null,
+        registration_closes_at: event.registration_closes_at || null,
+        registration_open: event.registration_open,
         updated_at: new Date().toISOString(),
       })
       .eq('id', eventId)
@@ -1254,6 +1330,27 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
   // ── GENERAL SETTINGS (tabs) ─────────────────────────────────
   const sport = SPORTS.find((s) => s.name === event.sport)
   const evType = EVENT_TYPES.find((t) => t.id === event.event_type)
+
+  function getRegistrationStatus(ev: EventData): 'open' | 'closed' | 'not_set' {
+    const now = new Date()
+    if (ev.registration_open === true) return 'open'
+    if (ev.registration_open === false) return 'closed'
+    // Auto / date-based
+    if (ev.registration_opens_at && ev.registration_closes_at) {
+      const opens = new Date(ev.registration_opens_at)
+      const closes = new Date(ev.registration_closes_at)
+      if (now >= opens && now <= closes) return 'open'
+      if (now > closes) return 'closed'
+      return 'closed' // before window opens
+    }
+    if (ev.registration_opens_at) {
+      const opens = new Date(ev.registration_opens_at)
+      if (now >= opens) return 'open'
+    }
+    return 'not_set'
+  }
+
+  const registrationStatus = getRegistrationStatus(event)
 
   // ── SHARING TAB HELPERS ─────────────────────────────────────
   // Registration URL uses public-results domain (separate Vercel deployment).
@@ -1778,6 +1875,108 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                     + ADD DIVISION
                   </button>
                 )}
+              </div>
+            </Card>
+
+            {/* ── SCHEDULE DATES (D-11) ── */}
+            <Card title="Schedule Dates" icon={<Calendar size={14} />}>
+              <div>
+                {event.start_date && event.end_date ? (
+                  <MultiDatePicker
+                    startDate={event.start_date}
+                    endDate={event.end_date}
+                    selectedDates={eventDates.map((d) => d.date)}
+                    onToggleDate={toggleEventDate}
+                  />
+                ) : (
+                  <div className="font-cond text-[11px] text-muted">
+                    Set event start and end dates above to configure schedule dates.
+                  </div>
+                )}
+                {eventDates.length > 0 && (
+                  <div className="mt-3 font-cond text-[10px] text-muted">
+                    {eventDates.length} date{eventDates.length !== 1 ? 's' : ''} selected
+                  </div>
+                )}
+              </div>
+            </Card>
+
+            {/* ── REGISTRATION WINDOW (D-13, D-14, D-15) ── */}
+            <Card title="Registration Window" icon={<Calendar size={14} />}>
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className={lbl}>Registration Opens</label>
+                    <input
+                      type="datetime-local"
+                      className={inp}
+                      value={event.registration_opens_at}
+                      onChange={(e) => set('registration_opens_at', e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className={lbl}>Registration Closes</label>
+                    <input
+                      type="datetime-local"
+                      className={inp}
+                      value={event.registration_closes_at}
+                      onChange={(e) => set('registration_closes_at', e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                {/* Manual override toggle */}
+                <div>
+                  <label className={lbl}>Manual Override</label>
+                  <div className="flex items-center gap-3">
+                    <button
+                      role="switch"
+                      aria-checked={event.registration_open === true ? true : event.registration_open === false ? false : undefined}
+                      onClick={() => {
+                        // Cycle: null/auto → true/manual open → false/manual closed → null/auto
+                        if (event.registration_open === null || event.registration_open === undefined) {
+                          set('registration_open', true)
+                        } else if (event.registration_open === true) {
+                          set('registration_open', false)
+                        } else {
+                          set('registration_open', null)
+                        }
+                      }}
+                      className={
+                        event.registration_open === true
+                          ? 'px-4 py-2 rounded-lg font-cond text-[11px] font-black tracking-[.1em] uppercase bg-green-700 text-white transition-colors'
+                          : event.registration_open === false
+                            ? 'px-4 py-2 rounded-lg font-cond text-[11px] font-black tracking-[.1em] uppercase bg-red text-white transition-colors'
+                            : (event.registration_opens_at || event.registration_closes_at)
+                              ? 'px-4 py-2 rounded-lg font-cond text-[11px] font-black tracking-[.1em] uppercase bg-[#0B3D91] text-white transition-colors'
+                              : 'px-4 py-2 rounded-lg font-cond text-[11px] font-black tracking-[.1em] uppercase bg-[#1a2d50] text-muted transition-colors'
+                      }
+                    >
+                      {event.registration_open === true
+                        ? 'Override: Open'
+                        : event.registration_open === false
+                          ? 'Override: Closed'
+                          : (event.registration_opens_at || event.registration_closes_at)
+                            ? 'Auto'
+                            : 'OFF'}
+                    </button>
+                    <span className="font-cond text-[10px] text-muted">
+                      {event.registration_open === true
+                        ? 'Manually forced open — ignores dates'
+                        : event.registration_open === false
+                          ? 'Manually forced closed — ignores dates'
+                          : 'Date-based window (or no window if dates are empty)'}
+                    </span>
+                  </div>
+                </div>
+
+                <Btn
+                  variant="primary"
+                  onClick={saveRegistrationSettings}
+                  disabled={regSaving}
+                >
+                  {regSaving ? 'SAVING...' : 'SAVE REGISTRATION SETTINGS'}
+                </Btn>
               </div>
             </Card>
           </div>
@@ -3084,7 +3283,18 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
               <>
                 {/* Section 1: Registration Link */}
                 <div>
-                  <div className={sectionHdr}><QrCode size={14} /> REGISTRATION LINK</div>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className={sectionHdr} style={{ marginBottom: 0 }}><QrCode size={14} /> REGISTRATION LINK</div>
+                    {registrationStatus === 'open' && (
+                      <Pill variant="green">Registration Open</Pill>
+                    )}
+                    {registrationStatus === 'closed' && (
+                      <Pill variant="red">Registration Closed</Pill>
+                    )}
+                    {registrationStatus === 'not_set' && (
+                      <Pill variant="gray">Registration Window Not Set</Pill>
+                    )}
+                  </div>
                   <div className="flex items-center gap-3">
                     <input
                       className={cn(inp, 'cursor-default select-all')}
