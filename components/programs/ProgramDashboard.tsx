@@ -120,9 +120,10 @@ export function ProgramDashboard() {
       const teamIds = teamsList.map((t: any) => t.id)
       const { data: gamesData } = await sb
         .from('games')
-        .select('*, home_team:teams!games_home_team_id_fkey(id, name), away_team:teams!games_away_team_id_fkey(id, name), field:fields(id, name)')
+        .select('*, home_team:teams!games_home_team_id_fkey(id, name), away_team:teams!games_away_team_id_fkey(id, name), field:fields(id, name), event_date:event_dates(id, date, label)')
         .eq('event_id', portalEventId!)
         .or(`home_team_id.in.(${teamIds.join(',')}),away_team_id.in.(${teamIds.join(',')})`)
+        .order('event_date_id')
         .order('scheduled_time')
       setProgramGames((gamesData as Game[]) ?? [])
 
@@ -509,6 +510,9 @@ export function ProgramDashboard() {
                               >
                                 <div className="flex items-center gap-2 flex-1 min-w-0">
                                   <span className={`font-mono text-[11px] text-muted whitespace-nowrap ${isCancelled ? 'line-through' : ''}`}>
+                                    {(game.event_date as any)?.date
+                                      ? new Date((game.event_date as any).date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                                      : ''}{' '}
                                     {game.scheduled_time}
                                   </span>
                                   <span className="font-cond text-[12px] text-white font-black truncate">
