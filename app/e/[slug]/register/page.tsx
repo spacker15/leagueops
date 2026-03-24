@@ -18,7 +18,9 @@ export default async function RegisterPage({ params }: Props) {
     .from('events')
     .select('id, name, slug, location, logo_url')
     .eq('slug', params.slug)
-    .single()
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
 
   if (!event) notFound()
 
