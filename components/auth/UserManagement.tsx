@@ -17,6 +17,8 @@ interface UserRoleRow {
   is_active: boolean
   referee_id: number | null
   volunteer_id: number | null
+  program_id: number | null
+  coach_id: number | null
   created_at: string
   email?: string
 }
@@ -32,13 +34,18 @@ export function UserManagement() {
   const [inviteVolId, setInviteVolId] = useState('')
   const [inviteName, setInviteName] = useState('')
   const [invitePassword, setInvitePassword] = useState('')
+  const [inviteProgramId, setInviteProgramId] = useState('')
+  const [inviteCoachId, setInviteCoachId] = useState('')
   const [sending, setSending] = useState(false)
   const [refs, setRefs] = useState<any[]>([])
   const [vols, setVols] = useState<any[]>([])
+  const [programs, setPrograms] = useState<any[]>([])
+  const [coaches, setCoaches] = useState<any[]>([])
 
   useEffect(() => {
     loadUsers()
     loadRefVol()
+    loadProgramsCoaches()
   }, [])
 
   if (!eventId) return null
@@ -64,6 +71,16 @@ export function UserManagement() {
     setVols(v ?? [])
   }
 
+  async function loadProgramsCoaches() {
+    const sb = createClient()
+    const [{ data: p }, { data: c }] = await Promise.all([
+      sb.from('programs').select('id, name, short_name').order('name'),
+      sb.from('coaches').select('id, name, email').order('name'),
+    ])
+    setPrograms(p ?? [])
+    setCoaches(c ?? [])
+  }
+
   async function createUser() {
     if (!inviteEmail || !invitePassword) {
       toast.error('Email and password required')
@@ -83,6 +100,8 @@ export function UserManagement() {
         display_name: inviteName || inviteEmail,
         referee_id: inviteRefId ? Number(inviteRefId) : null,
         volunteer_id: inviteVolId ? Number(inviteVolId) : null,
+        program_id: inviteProgramId ? Number(inviteProgramId) : null,
+        coach_id: inviteCoachId ? Number(inviteCoachId) : null,
         event_id: eventId,
       }),
     })
@@ -97,6 +116,8 @@ export function UserManagement() {
       setInviteName('')
       setInviteRefId('')
       setInviteVolId('')
+      setInviteProgramId('')
+      setInviteCoachId('')
       loadUsers()
     }
     setSending(false)
@@ -115,6 +136,8 @@ export function UserManagement() {
     referee: 'text-yellow-400 bg-yellow-900/30',
     volunteer: 'text-green-400 bg-green-900/30',
     player: 'text-purple-400 bg-purple-900/30',
+    program_leader: 'text-orange-400 bg-orange-900/30',
+    coach: 'text-cyan-400 bg-cyan-900/30',
   }
 
   return (
@@ -164,6 +187,8 @@ export function UserManagement() {
                   <option value="league_admin">League Admin</option>
                   <option value="referee">Referee</option>
                   <option value="volunteer">Volunteer</option>
+                  <option value="program_leader">Program Leader</option>
+                  <option value="coach">Coach</option>
                 </select>
               </FormField>
 
@@ -195,6 +220,41 @@ export function UserManagement() {
                     {vols.map((v) => (
                       <option key={v.id} value={v.id}>
                         {v.name} ({v.role})
+                      </option>
+                    ))}
+                  </select>
+                </FormField>
+              )}
+
+              {inviteRole === 'program_leader' && (
+                <FormField label="Link to Program">
+                  <select
+                    className="w-full bg-surface border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400"
+                    value={inviteProgramId}
+                    onChange={(e) => setInviteProgramId(e.target.value)}
+                  >
+                    <option value="">Select program…</option>
+                    {programs.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                        {p.short_name ? ` (${p.short_name})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </FormField>
+              )}
+
+              {inviteRole === 'coach' && (
+                <FormField label="Link to Coach">
+                  <select
+                    className="w-full bg-surface border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400"
+                    value={inviteCoachId}
+                    onChange={(e) => setInviteCoachId(e.target.value)}
+                  >
+                    <option value="">Select coach…</option>
+                    {coaches.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name} ({c.email})
                       </option>
                     ))}
                   </select>
@@ -238,6 +298,8 @@ export function UserManagement() {
                     <div className="font-cond text-[10px] text-muted">
                       {u.referee_id && `Ref #${u.referee_id}`}
                       {u.volunteer_id && `Vol #${u.volunteer_id}`}
+                      {u.program_id && `Program #${u.program_id}`}
+                      {u.coach_id && `Coach #${u.coach_id}`}
                     </div>
                   </div>
                   <span

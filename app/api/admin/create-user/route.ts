@@ -42,7 +42,17 @@ export async function POST(req: NextRequest) {
   }
 
   // 4. Business logic
-  const { email, password, role, display_name, referee_id, volunteer_id, event_id } = result.data
+  const {
+    email,
+    password,
+    role,
+    display_name,
+    referee_id,
+    volunteer_id,
+    program_id,
+    coach_id,
+    event_id,
+  } = result.data
 
   // Use service role client to create auth user
   const adminSb = createAdminClient(
@@ -69,6 +79,8 @@ export async function POST(req: NextRequest) {
     display_name: display_name ?? email,
     referee_id: referee_id ?? null,
     volunteer_id: volunteer_id ?? null,
+    program_id: program_id ?? null,
+    coach_id: coach_id ?? null,
     event_id: event_id,
     is_active: true,
   })
@@ -77,6 +89,15 @@ export async function POST(req: NextRequest) {
     // Cleanup: delete the auth user if role insert failed
     await adminSb.auth.admin.deleteUser(newUser.user.id)
     return NextResponse.json({ error: roleError.message }, { status: 500 })
+  }
+
+  // For program_leader role, also insert into program_leaders table
+  if (role === 'program_leader' && program_id) {
+    await adminSb.from('program_leaders').insert({
+      user_id: newUser.user.id,
+      program_id,
+      is_primary: true,
+    })
   }
 
   // Log it
