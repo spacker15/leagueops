@@ -94,10 +94,14 @@ export function ProgramDashboard() {
   if (!portalEventId) return null
 
   async function loadData() {
-    if (!userRole?.program_id) return
+    if (!userRole?.program_id) {
+      setLoading(false)
+      return
+    }
     const sb = createClient()
     setLoading(true)
 
+    try {
     const [{ data: prog }, { data: regs }, { data: teamData }] = await Promise.all([
       sb.from('programs').select('*').eq('id', userRole.program_id).single(),
       sb
@@ -147,8 +151,11 @@ export function ProgramDashboard() {
       setPendingGameIds(pendingIds)
       setGameScrStatus(gameRequestStatus)
     }
-
-    setLoading(false)
+    } catch (err) {
+      console.error('ProgramDashboard loadData error:', err)
+    } finally {
+      setLoading(false)
+    }
   }
 
   async function loadPlayers(teamId: number) {
