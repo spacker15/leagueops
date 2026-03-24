@@ -2,7 +2,7 @@
 // LeagueOps — Global Types
 // ============================================================
 
-export type GameStatus = 'Scheduled' | 'Starting' | 'Live' | 'Halftime' | 'Final' | 'Delayed'
+export type GameStatus = 'Scheduled' | 'Starting' | 'Live' | 'Halftime' | 'Final' | 'Delayed' | 'Cancelled'
 export type Division = 'U10' | 'U12' | 'U14' | 'U16' | 'U18' | 'U12B' | 'U14B' | 'U16B' | 'Open'
 export type IncidentType =
   | 'Player Injury'
@@ -530,6 +530,46 @@ export interface CoachConflict {
   resolved: boolean
   // Joined
   coach?: Coach
+}
+
+// === Phase 8: Schedule Change Request Workflow ===
+
+export type RequestStatus = 'pending' | 'under_review' | 'approved' | 'denied' | 'partially_complete' | 'completed'
+export type RequestGameStatus = 'pending' | 'under_review' | 'approved' | 'denied' | 'rescheduled' | 'cancelled'
+export type RequestType = 'cancel' | 'reschedule'
+export type RequestReasonCategory = 'Coach conflict' | 'Team conflict' | 'Weather concern' | 'Venue issue' | 'Other'
+
+export interface ScheduleChangeRequest {
+  id: number
+  event_id: number
+  submitted_by: string
+  submitted_by_role: 'coach' | 'program_leader'
+  team_id: number
+  request_type: RequestType
+  reason_category: RequestReasonCategory
+  reason_details: string | null
+  status: RequestStatus
+  admin_notes: string | null
+  reviewed_by: string | null
+  reviewed_at: string | null
+  created_at: string
+  updated_at: string
+  // Joined
+  team?: Team
+  games?: ScheduleChangeRequestGame[]
+}
+
+export interface ScheduleChangeRequestGame {
+  id: number
+  request_id: number
+  game_id: number
+  status: RequestGameStatus
+  new_field_id: number | null
+  new_scheduled_time: string | null
+  processed_at: string | null
+  created_at: string
+  // Joined
+  game?: Game
 }
 
 // === Phase 7: Notification Infrastructure ===

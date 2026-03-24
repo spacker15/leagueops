@@ -22,6 +22,7 @@ export function statusColor(status: GameStatus): string {
     Halftime: 'text-yellow-400',
     Final: 'text-muted',
     Delayed: 'text-red-400',
+    Cancelled: 'text-muted',
   }
   return map[status] ?? 'text-muted'
 }
@@ -34,6 +35,7 @@ export function statusBg(status: GameStatus): string {
     Halftime: 'bg-yellow-900/30 text-yellow-400',
     Final: 'bg-gray-800/50 text-gray-400',
     Delayed: 'bg-red-900/30 text-red-400',
+    Cancelled: 'bg-gray-800/50 text-gray-400',
   }
   return map[status] ?? 'bg-gray-700 text-gray-300'
 }
