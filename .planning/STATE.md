@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Ready to plan
-stopped_at: Phase 8 context gathered
-last_updated: "2026-03-24T16:10:36.274Z"
+status: Executing Phase 08
+stopped_at: Completed 08-01-PLAN.md
+last_updated: "2026-03-24T16:56:39.490Z"
 progress:
   total_phases: 10
   completed_phases: 7
-  total_plans: 29
-  completed_plans: 29
+  total_plans: 34
+  completed_plans: 31
 ---
 
 # Project State: LeagueOps
@@ -18,7 +18,7 @@ progress:
 
 See: .planning/PROJECT.md (updated 2026-03-22)
 **Core value:** Tournament day operations must work reliably in real time — live scoring, field status, weather alerts, and referee assignments must be accurate and instant so that admins can run events from a single screen.
-**Current focus:** Phase 07 — notification-infrastructure
+**Current focus:** Phase 08 — schedule-change-request-workflow
 
 ## Phase Progress
 
@@ -37,8 +37,8 @@ See: .planning/PROJECT.md (updated 2026-03-22)
 
 ## Active Context
 
-**Last session:** 2026-03-24T16:10:36.271Z
-**Stopped at:** Phase 8 context gathered
+**Last session:** 2026-03-24T16:56:39.482Z
+**Stopped at:** Completed 08-01-PLAN.md
 **Plans completed:** 01-01 (Core Engine Refactor) — 7 tasks, 12 files, 19 min; 01-02 (New API Routes for CommandCenter) — 3 tasks, 3 files, 3 min; 05-01 (Phase 5 Foundation) — 2 tasks, 6 files, 2 min
 
 ## Performance Metrics
@@ -75,6 +75,8 @@ See: .planning/PROJECT.md (updated 2026-03-22)
 | Phase 07-notification-infrastructure P03 | 2 min | 2 tasks | 4 files |
 | Phase 07-notification-infrastructure P02 | 2 min | 1 tasks | 1 files |
 | Phase 07-notification-infrastructure P04 | 5 min | 2 tasks | 7 files |
+| Phase 08-schedule-change-request-workflow P02 | 2 min | 2 tasks | 2 files |
+| Phase 08-schedule-change-request-workflow P01 | 8 min | 2 tasks | 7 files |
 
 ## Decisions Log
 
@@ -142,3 +144,6 @@ See: .planning/PROJECT.md (updated 2026-03-22)
 | 07-04      | userRoleNames cast to string[] for ALERT_TYPE_ROLES includes() comparison — avoids TS2345 AppRole vs string mismatch |
 | 07-04      | NotificationDropdown uses inline style keyframe for fadeSlideDown — avoids global CSS dependency while meeting 150ms animation contract |
 | 07-04      | PushPermissionModal double-checks getPushPermission() before render — D-09 Pitfall 4 guard even when parent also checks |
+| 08-02      | overlaps() uses raw Date.getTime() arithmetic — date-fns only for calendar-level isSameDay/isAfter/differenceInCalendarDays per plan spec |
+| 08-02      | Field conflicts are hard filters (slot skipped); team conflicts are soft (slot included with homeTeamAvailable/awayTeamAvailable=false) |
+| 08-02      | teamAvailability empty array means all dates available — consistent with Phase 6 team_registrations schema |

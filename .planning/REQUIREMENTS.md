@@ -40,14 +40,14 @@ Requirements for this milestone. Each maps to roadmap phases.
 
 ### Schedule Change Requests
 
-- [ ] **SCR-01**: Coach/program leader can submit a schedule change request selecting affected game(s), reason, preferred alternative, and cancel vs reschedule
+- [x] **SCR-01**: Coach/program leader can submit a schedule change request selecting affected game(s), reason, preferred alternative, and cancel vs reschedule
 - [ ] **SCR-02**: System notifies admin (in-app + email) when a new schedule change request is submitted
 - [ ] **SCR-03**: Admin can review, approve, or deny schedule change requests
-- [ ] **SCR-04**: When admin approves a request, system auto-suggests available alternative time slots considering field, team, and referee availability
-- [ ] **SCR-05**: Admin selects from suggested slots and confirms the reschedule
-- [ ] **SCR-06**: Rescheduled game updated atomically (database transaction) to prevent double-bookings
+- [x] **SCR-04**: When admin approves a request, system auto-suggests available alternative time slots considering field, team, and referee availability
+- [x] **SCR-05**: Admin selects from suggested slots and confirms the reschedule
+- [x] **SCR-06**: Rescheduled game updated atomically (database transaction) to prevent double-bookings
 - [ ] **SCR-07**: All affected teams notified of schedule changes via notification system
-- [ ] **SCR-08**: Schedule change request has state machine: pending → under_review → approved → rescheduled (or denied)
+- [x] **SCR-08**: Schedule change request has state machine: pending → under_review → approved → rescheduled (or denied)
 
 ### Public Results Site
 
@@ -68,7 +68,7 @@ Requirements for this milestone. Each maps to roadmap phases.
 - [ ] **NOT-04**: Admin alert notifications for referee no-shows, registration deadlines, and ops issues
 - [x] **NOT-05**: Email delivery via Resend (3,000/month free tier)
 - [x] **NOT-06**: Browser push notifications via Web Push API (no app install required)
-- [ ] **NOT-07**: Users can set notification preferences (which channels, which alert types)
+- [x] **NOT-07**: Users can set notification preferences (which channels, which alert types)
 - [x] **NOT-08**: Deduplication prevents notification storms (e.g., single lightning alert doesn't trigger hundreds of messages)
 
 ### Responsive Design
