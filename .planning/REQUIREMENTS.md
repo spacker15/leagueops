@@ -67,7 +67,7 @@ Requirements for this milestone. Each maps to roadmap phases.
 - [ ] **NOT-03**: Schedule change notifications sent to all affected teams when games are rescheduled or cancelled
 - [ ] **NOT-04**: Admin alert notifications for referee no-shows, registration deadlines, and ops issues
 - [x] **NOT-05**: Email delivery via Resend (3,000/month free tier)
-- [ ] **NOT-06**: Browser push notifications via Web Push API (no app install required)
+- [x] **NOT-06**: Browser push notifications via Web Push API (no app install required)
 - [ ] **NOT-07**: Users can set notification preferences (which channels, which alert types)
 - [x] **NOT-08**: Deduplication prevents notification storms (e.g., single lightning alert doesn't trigger hundreds of messages)
 
