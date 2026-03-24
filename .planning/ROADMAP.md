@@ -17,7 +17,7 @@ created: 2026-03-22
 | 4     | RLS & Database Security          | 1/2 | In Progress|  |
 | 5     | Event Creation Enhancements      | 5/5 | Complete   | 2026-03-24 |
 | 6     | Registration Flow Enhancements   | 5/5 | Complete   | 2026-03-24 |
-| 7     | Notification Infrastructure      | 2/4 | In Progress|  |
+| 7     | Notification Infrastructure      | 3/4 | In Progress|  |
 | 8     | Schedule Change Request Workflow | SCR-01, SCR-02, SCR-03, SCR-04, SCR-05, SCR-06, SCR-07, SCR-08 | yes      | Phase 6, Phase 7          |
 | 9     | Public Results Site              | PUB-01, PUB-02, PUB-03, PUB-04, PUB-05, PUB-06, PUB-07, PUB-08 | yes      | Phase 4                   |
 | 10    | Responsive Design                | MOB-01, MOB-02, MOB-03, MOB-04, NOT-02, NOT-03, NOT-04         | yes      | Phase 7, Phase 8, Phase 9 |
@@ -213,11 +213,11 @@ Plans:
 **Requirements:** NOT-01, NOT-05, NOT-06, NOT-07, NOT-08
 **UI hint:** yes
 **Depends on:** Phase 1, Phase 4
-**Plans:** 2/4 plans executed
+**Plans:** 3/4 plans executed
 
 Plans:
 - [x] 07-01-PLAN.md — Foundation: packages, migration, types, helpers, email template (NOT-01, NOT-05, NOT-08)
-- [ ] 07-02-PLAN.md — Edge Function: process-notifications with dedup, storm cap, recipient resolution, email/push delivery (NOT-01, NOT-05, NOT-06, NOT-08)
+- [x] 07-02-PLAN.md — Edge Function: process-notifications with dedup, storm cap, recipient resolution, email/push delivery (NOT-01, NOT-05, NOT-06, NOT-08)
 - [x] 07-03-PLAN.md — Push infrastructure: service worker, push API routes, client subscription helper (NOT-06)
 - [ ] 07-04-PLAN.md — Notification UI: bell, dropdown, settings panel, toggle rows, push permission modal (NOT-07, NOT-06)
 
