@@ -176,6 +176,14 @@ Plans:
 **Requirements:** REG-01, REG-02, REG-03, REG-04, REG-05, REG-06, REG-07, REG-08
 **UI hint:** yes
 **Depends on:** Phase 2, Phase 4
+**Plans:** 5 plans
+
+Plans:
+- [ ] 06-01-PLAN.md — Foundation: schema migration, TypeScript types, coach conflicts engine (REG-06, REG-07)
+- [ ] 06-02-PLAN.md — Admin event setup: MultiDatePicker, registration window controls, status badge (REG-01)
+- [ ] 06-03-PLAN.md — Registration wizard Step 3: additional coaches, availability dates, multi-team UX (REG-02, REG-03, REG-08)
+- [ ] 06-04-PLAN.md — Coach self-registration token flow: server page, client form, API route (REG-04, REG-05)
+- [ ] 06-05-PLAN.md — Integration: program leader portal, registration enforcement, schedule engine wiring (REG-04, REG-07)
 
 ### Success Criteria
 
