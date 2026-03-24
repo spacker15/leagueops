@@ -1,9 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '@/lib/auth'
 import { AppProvider } from '@/lib/store'
 import { AppShell } from '@/components/AppShell'
+import type { TabName } from '@/components/AppShell'
 import { LoginPage } from '@/components/auth/LoginPage'
 import { RefereePortal } from '@/components/auth/RefereePortal'
 import { VolunteerPortal } from '@/components/auth/VolunteerPortal'
@@ -15,6 +16,16 @@ export default function Home() {
   const { user, userRole, loading } = useAuth()
   const [selectedEventId, setSelectedEventId] = useState<number | null>(null)
   const [isNewEvent, setIsNewEvent] = useState(false)
+  const [deepLinkTab, setDeepLinkTab] = useState<TabName | undefined>(undefined)
+
+  // Read ?tab= query param for deep links (e.g. from notifications: ?tab=requests)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      const tab = params.get('tab') as TabName | null
+      if (tab) setDeepLinkTab(tab)
+    }
+  }, [])
 
   if (loading) {
     return (
@@ -72,7 +83,7 @@ export default function Home() {
           setSelectedEventId(null)
           setIsNewEvent(false)
         }}
-        initialTab={isNewEvent ? 'settings' : 'dashboard'}
+        initialTab={deepLinkTab ?? (isNewEvent ? 'settings' : 'dashboard')}
       />
     </AppProvider>
   )

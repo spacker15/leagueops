@@ -26,10 +26,12 @@ import { EventSetupTab } from '@/components/settings/EventSetupTab'
 import { QRCodesPanel } from '@/components/auth/QRCodesPanel'
 import { ReportsTab } from '@/components/reports/ReportsTab'
 import { PaymentsTab } from '@/components/payments/PaymentsTab'
+import { ScheduleChangeRequestsTab } from '@/components/requests/ScheduleChangeRequestsTab'
 
 export type TabName =
   | 'dashboard'
   | 'schedule'
+  | 'requests'
   | 'checkin'
   | 'rosters'
   | 'qrcodes'
@@ -59,9 +61,14 @@ export function AppShell({
   const { state, eventId } = useApp()
   const { userRole, signOut, isAdmin } = useAuth()
 
+  const pendingRequestCount = (state.scheduleChangeRequests ?? []).filter(
+    (r) => r.status === 'pending'
+  ).length
+
   const ALL_TABS: { id: TabName; label: string; adminOnly?: boolean }[] = [
     { id: 'dashboard', label: 'Dashboard' },
     { id: 'schedule', label: 'Schedule' },
+    { id: 'requests', label: 'Requests', adminOnly: true },
     { id: 'checkin', label: 'Check-In & QR' },
     { id: 'rosters', label: 'Rosters' },
     { id: 'refs', label: 'Refs & Vols' },
@@ -127,12 +134,14 @@ export function AppShell({
         onSignOut={signOut}
         isAdmin={isAdmin}
         onChangeEvent={onChangeEvent}
+        pendingRequestCount={pendingRequestCount}
       />
       <StatusRow />
       <div className="flex flex-1 overflow-hidden">
         <main className="flex-1 overflow-y-auto min-w-0 tab-content">
           {activeTab === 'dashboard' && <DashboardTab />}
           {activeTab === 'schedule' && <ScheduleTab />}
+          {activeTab === 'requests' && <ScheduleChangeRequestsTab />}
           {activeTab === 'checkin' && <CheckInTab />}
           {activeTab === 'rosters' && <RostersTab />}
           {activeTab === 'qrcodes' && <QRCodesPanel />}

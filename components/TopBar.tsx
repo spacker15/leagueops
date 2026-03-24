@@ -55,6 +55,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'ADMIN',
     adminOnly: true,
     items: [
+      { id: 'requests', label: 'Requests' },
       { id: 'rules', label: 'Rules' },
       { id: 'fields', label: 'Fields' },
       { id: 'programs', label: 'Programs' },
@@ -74,6 +75,7 @@ interface Props {
   onSignOut?: () => void
   isAdmin?: boolean
   onChangeEvent?: () => void // ← ADD THIS LINE
+  pendingRequestCount?: number
 }
 
 export function TopBar({
@@ -84,6 +86,7 @@ export function TopBar({
   onSignOut,
   isAdmin,
   onChangeEvent,
+  pendingRequestCount = 0,
 }: Props) {
   const [openGroup, setOpenGroup] = useState<string | null>(null)
   const navRef = useRef<HTMLDivElement>(null)
@@ -239,11 +242,16 @@ export function TopBar({
                       )}
                       <span
                         className={cn(
-                          'font-cond text-[12px] font-black tracking-[0.08em]',
+                          'font-cond text-[12px] font-black tracking-[0.08em] flex items-center gap-1',
                           activeTab === item.id ? 'text-white' : 'text-[#5a6e9a]'
                         )}
                       >
                         {item.label.toUpperCase()}
+                        {item.id === 'requests' && pendingRequestCount > 0 && (
+                          <span className="font-mono text-[10px] font-black bg-navy rounded-full px-1.5 py-0.5 ml-1 text-white">
+                            {pendingRequestCount}
+                          </span>
+                        )}
                       </span>
                     </button>
                   ))}
