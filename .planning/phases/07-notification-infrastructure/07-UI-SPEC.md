@@ -35,6 +35,7 @@ Declared values (must be multiples of 4):
 |-------|-------|-------|
 | xs | 4px | Icon gaps, inline padding (`gap-1`, `px-1`) |
 | sm | 8px | Compact element spacing (`gap-2`, `px-2`, `py-2`) |
+| sm+ | 12px | Touch target padding, compact list rows (`p-3`, `py-3`) |
 | md | 16px | Default element spacing (`gap-4`, `px-4`, `p-4`) |
 | lg | 24px | Section padding (`p-6`, `gap-6`) |
 | xl | 32px | Layout gaps (`p-8`) |
@@ -42,8 +43,8 @@ Declared values (must be multiples of 4):
 | 3xl | 64px | Page-level spacing |
 
 Exceptions:
-- Bell icon touch target: minimum 44x44px (`p-2.5` = 10px padding on a 24px icon = 44px hit area) — accessibility requirement per ui-ux-pro-max skill
-- Notification dropdown item row: 40px height (`py-2.5` with 14px font) — compact list density matches CommandCenter pattern
+- Bell icon touch target: minimum 44x44px — `p-3` (12px padding on a 24px icon = 48px hit area) satisfies accessibility requirement per ui-ux-pro-max touch-target-size rule
+- Notification dropdown item row: `py-3` (12px) — compact list density at 38–40px effective height with 13px body font
 - Tab content padding: 12px 14px (`tab-content` CSS class) — existing pattern from globals.css, do not change
 
 Source: CLAUDE.md conventions + ui-ux-pro-max touch-target-size rule + globals.css `.tab-content`
@@ -55,13 +56,14 @@ Source: CLAUDE.md conventions + ui-ux-pro-max touch-target-size rule + globals.c
 | Role | Size | Weight | Line Height | Font | Usage |
 |------|------|--------|-------------|------|-------|
 | Body | 13px | 400 (regular) | 1.5 | Barlow (`font-sans`) | Notification body text, preference descriptions |
-| Label | 10px | 900 (black) | 1.2 | Barlow Condensed (`font-cond`) | Section headers, form field labels, badge text — uppercase + tracking-widest |
+| Label | 10px | 900 (black) | 1.2 | Barlow Condensed (`font-cond`) | Section headers, form field labels, badge text, unread count number — uppercase + tracking-widest |
 | Heading | 15px | 900 (black) | 1.2 | Barlow Condensed (`font-cond`) | Panel titles, modal headings, dropdown header |
-| Mono | 12px | 400 (regular) | 1.0 | Roboto Mono (`font-mono`) | Unread count badge number, timestamps |
+| Mono | 12px | 400 (regular) | 1.0 | Roboto Mono (`font-mono`) | Timestamps |
 
 Notes:
 - All label text is uppercase with `tracking-[.12em]` — matches existing `SectionHeader` pattern
-- Button text uses `font-cond font-bold tracking-wide uppercase` — matches existing `Btn` component
+- Button text uses `font-cond font-black tracking-wide uppercase` (weight 900) — matches existing `Btn` component; `font-bold` (700) is NOT used
+- Unread count badge number uses `font-mono text-[10px] font-black` — absorbed into the 10px Label size; `text-[9px]` is NOT used
 - Email templates: 16px body (Resend render target is email clients, not the app UI — override app typography rule)
 
 Source: CLAUDE.md Typography + `components/ui/index.tsx` patterns
@@ -122,19 +124,20 @@ Source: CONTEXT.md D-01, D-02, D-04 + CLAUDE.md UI Kit
 - Position: TopBar right section, between LIVE indicator and user pill
 - Icon: `Bell` from lucide-react, `size={16}`, color `#5a6e9a` (muted) at rest
 - Badge: absolute-positioned dot `w-2 h-2 rounded-full bg-red` when unread count > 0 (matches existing live dot pattern)
-- Unread count: `font-mono text-[9px] font-black` in `bg-navy rounded-full` pill, visible when count >= 1, max display "9+" above 9
+- Unread count: `font-mono text-[10px] font-black` in `bg-navy rounded-full` pill, visible when count >= 1, max display "9+" above 9
 - Click: opens `NotificationDropdown` below bell — do NOT use hover
 - Active state: Bell icon color `#ffffff` when dropdown open
-- Touch target: `p-2.5` wrapper = 44px minimum hit area (accessibility)
+- Touch target: `p-3` wrapper = 48px minimum hit area (accessibility) — satisfies 44px minimum
 - aria-label: `"Notifications — {N} unread"` or `"Notifications — no unread"`
 
 Source: CONTEXT.md D-04 + ui-ux-pro-max touch-target-size + aria-labels rules
 
 ### NotificationDropdown
+- Primary focal point: the notification list (the scrollable item stack) — it is the largest content region and the user's first scan target; the header row and footer link are secondary chrome anchoring the list
 - Width: 320px, max-height: 400px, overflow-y: auto
 - Background: `#061428`, border: `1px solid #1a2d50`, `rounded-b-xl shadow-2xl` — matches TopBar dropdown
 - Header row: "NOTIFICATIONS" label (`font-cond text-[10px] font-black tracking-widest text-muted uppercase`) + "Mark all read" ghost link
-- Notification list items: `px-4 py-2.5`, border-bottom `1px solid #1a2d50`, unread items `bg-surface-card`, read items `bg-transparent`
+- Notification list items: `px-4 py-3`, border-bottom `1px solid #1a2d50`, unread items `bg-surface-card`, read items `bg-transparent`
 - Each item: alert type pill (Pill component, appropriate variant) + 1-line summary + relative timestamp (`font-mono text-[10px] text-muted`)
 - Empty state: "No notifications yet" centered `font-cond text-[12px] text-muted` at 80px height
 - Footer link: "Notification Settings →" — opens `NotificationSettingsPanel` (sets active settings tab)
