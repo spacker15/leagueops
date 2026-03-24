@@ -103,7 +103,24 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     // Determine final status — if approved + cancel, we'll update to 'completed' after game updates
     let finalStatus: string = body.status
 
-    if (body.status === 'approved' && current.request_type === 'cancel') {
+    if (body.status === 'approved' && current.request_type === 'change_opponent') {
+      // Update all child game rows to approved
+      const games = (current.games ?? []) as Array<{ id: number; game_id: number }>
+      for (const reqGame of games) {
+        await supabase
+          .from('schedule_change_request_games')
+          .update({ status: 'approved' })
+          .eq('id', reqGame.id)
+      }
+
+      // Notify requester team
+      await insertNotification(current.event_id, 'schedule_change', 'team', current.team_id, {
+        title: 'Opponent change approved',
+        summary: `Your opponent change request has been approved`,
+        detail: body.admin_notes ?? 'Admin will update the schedule accordingly',
+        cta_url: `${process.env.NEXT_PUBLIC_APP_URL}?tab=schedule`,
+      })
+    } else if (body.status === 'approved' && current.request_type === 'cancel') {
       // D-17: Cancel all games in the request
       const games = (current.games ?? []) as Array<{
         id: number
