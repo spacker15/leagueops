@@ -6,7 +6,7 @@ import { Btn, Card, SectionHeader } from '@/components/ui'
 import { NotificationToggleRow } from './NotificationToggleRow'
 import toast from 'react-hot-toast'
 import { createClient } from '@/supabase/client'
-import { ALERT_TYPES, ALERT_TYPE_ROLES } from '@/lib/notifications'
+import { ALERT_TYPES, ALERT_TYPE_ROLES } from '@/lib/notification-constants'
 import type { AlertType, NotificationPreference } from '@/types'
 
 type PrefMap = Map<AlertType, { email_on: boolean; push_on: boolean }>
