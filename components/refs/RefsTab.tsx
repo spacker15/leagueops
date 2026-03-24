@@ -354,7 +354,6 @@ export function RefsTab() {
   const [addRefOpen, setAddRefOpen] = useState(false)
   const [addVolOpen, setAddVolOpen] = useState(false)
   const [newRefName, setNewRefName] = useState('')
-  const [newRefGrade, setNewRefGrade] = useState('Grade 5')
   const [newRefPhone, setNewRefPhone] = useState('')
   const [newRefEmail, setNewRefEmail] = useState('')
   const [newVolName, setNewVolName] = useState('')
@@ -372,7 +371,6 @@ export function RefsTab() {
     const { error } = await sb.from('referees').insert({
       event_id: eventId,
       name: newRefName.trim(),
-      grade_level: newRefGrade,
       phone: newRefPhone || null,
       email: newRefEmail || null,
     })
@@ -383,7 +381,6 @@ export function RefsTab() {
     }
     toast.success(`Referee "${newRefName.trim()}" added`)
     setNewRefName('')
-    setNewRefGrade('Grade 5')
     setNewRefPhone('')
     setNewRefEmail('')
     setAddRefOpen(false)
@@ -1295,7 +1292,7 @@ export function RefsTab() {
           {/* Inline add referee form */}
           {addRefOpen && (
             <div className="mb-4 p-4 bg-surface-card border border-yellow-800/40 rounded-lg">
-              <div className="grid grid-cols-2 gap-3 mb-3">
+              <div className="grid grid-cols-3 gap-3 mb-3">
                 <div>
                   <label className="font-cond text-[10px] font-bold tracking-wider text-muted block mb-1">
                     NAME *
@@ -1306,29 +1303,6 @@ export function RefsTab() {
                     onChange={(e) => setNewRefName(e.target.value)}
                     placeholder="Full name"
                   />
-                </div>
-                <div>
-                  <label className="font-cond text-[10px] font-bold tracking-wider text-muted block mb-1">
-                    GRADE LEVEL
-                  </label>
-                  <select
-                    className="w-full bg-surface border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-yellow-400"
-                    value={newRefGrade}
-                    onChange={(e) => setNewRefGrade(e.target.value)}
-                  >
-                    {[
-                      'Grade 1',
-                      'Grade 2',
-                      'Grade 3',
-                      'Grade 4',
-                      'Grade 5',
-                      'Grade 6',
-                      'Grade 7',
-                      'Grade 8',
-                    ].map((g) => (
-                      <option key={g}>{g}</option>
-                    ))}
-                  </select>
                 </div>
                 <div>
                   <label className="font-cond text-[10px] font-bold tracking-wider text-muted block mb-1">

@@ -37,7 +37,6 @@ export function UserManagement() {
   const [inviteProgramId, setInviteProgramId] = useState('')
   const [inviteCoachId, setInviteCoachId] = useState('')
   // Inline creation fields for refs/volunteers
-  const [newRefGrade, setNewRefGrade] = useState('Grade 5')
   const [newRefPhone, setNewRefPhone] = useState('')
   const [newVolRole, setNewVolRole] = useState('Score Table')
   const [newVolPhone, setNewVolPhone] = useState('')
@@ -105,7 +104,6 @@ export function UserManagement() {
         .insert({
           event_id: eventId,
           name: displayName,
-          grade_level: newRefGrade,
           phone: newRefPhone || null,
           email: inviteEmail,
         })
@@ -266,22 +264,6 @@ export function UserManagement() {
                   </FormField>
                   {inviteRefId === '__new__' && (
                     <div className="pl-3 border-l-2 border-yellow-800/50 space-y-2">
-                      <FormField label="Grade Level">
-                        <select
-                          className="w-full bg-surface border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400"
-                          value={newRefGrade}
-                          onChange={(e) => setNewRefGrade(e.target.value)}
-                        >
-                          <option>Grade 1</option>
-                          <option>Grade 2</option>
-                          <option>Grade 3</option>
-                          <option>Grade 4</option>
-                          <option>Grade 5</option>
-                          <option>Grade 6</option>
-                          <option>Grade 7</option>
-                          <option>Grade 8</option>
-                        </select>
-                      </FormField>
                       <FormField label="Phone (optional)">
                         <input
                           className="w-full bg-surface border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400"
