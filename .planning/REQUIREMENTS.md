@@ -34,8 +34,8 @@ Requirements for this milestone. Each maps to roadmap phases.
 - [ ] **REG-03**: Program leader can add coaches directly to a team with name, email, phone, and certifications
 - [ ] **REG-04**: System generates a unique coach self-registration link per program
 - [ ] **REG-05**: Coach can self-register via link — selects team, provides name, email, phone, certifications
-- [ ] **REG-06**: System detects when same coach is assigned to multiple teams in same or different divisions and flags the conflict
-- [ ] **REG-07**: Coach conflicts surfaced to admin during schedule generation as hard constraints (cannot schedule conflicting teams at same time)
+- [x] **REG-06**: System detects when same coach is assigned to multiple teams in same or different divisions and flags the conflict
+- [x] **REG-07**: Coach conflicts surfaced to admin during schedule generation as hard constraints (cannot schedule conflicting teams at same time)
 - [ ] **REG-08**: Program leader can register one or many teams in a single registration session
 
 ### Schedule Change Requests
