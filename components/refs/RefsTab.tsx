@@ -446,7 +446,10 @@ export function RefsTab() {
 
     const [{ data: refs }, { data: vols }] = await Promise.all([
       sb.from('ref_assignments').select('*, referee:referees(*)').in('game_id', gameIds),
-      sb.from('vol_assignments').select('*, volunteer:volunteers(*)').in('game_id', gameIds),
+      sb
+        .from('vol_assignments')
+        .select('*, volunteer:volunteers(*), referee:referees(*)')
+        .in('game_id', gameIds),
     ])
 
     const refAssigns: Assignment[] = (refs ?? []).map((r: any) => ({
@@ -461,9 +464,10 @@ export function RefsTab() {
     const volAssigns: Assignment[] = (vols ?? []).map((v: any) => ({
       id: v.id,
       game_id: v.game_id,
-      volunteer_id: v.volunteer_id,
-      role: v.volunteer?.role ?? 'Volunteer',
-      person_name: v.volunteer?.name ?? 'Unknown',
+      volunteer_id: v.volunteer_id ?? undefined,
+      referee_id: v.referee_id ?? undefined,
+      role: v.role ?? v.volunteer?.role ?? 'Volunteer',
+      person_name: v.volunteer?.name ?? v.referee?.name ?? 'Unknown',
       person_type: 'vol',
     }))
 
@@ -579,14 +583,20 @@ export function RefsTab() {
     }
   }
 
+  // Determine if a selected role is a volunteer position
+  const isVolRole = (role: string) => VOL_ROLES.includes(role)
+
   async function confirmAssignment() {
     if (!roleModal) return
     const sb = createClient()
     const { personId, personType, personName, targetType, targetId } = roleModal
 
+    // A ref assigned to a volunteer role gets saved as a vol_assignment using their referee_id
+    const assignAsVol = personType === 'ref' && isVolRole(selectedRole)
+
     if (targetType === 'game') {
       // Single game assignment
-      if (personType === 'ref') {
+      if (personType === 'ref' && !assignAsVol) {
         const { data, error } = await sb
           .from('ref_assignments')
           .upsert(
@@ -611,12 +621,17 @@ export function RefsTab() {
           },
         ])
       } else {
+        // Volunteer OR ref assigned to a vol role
+        const volId = assignAsVol ? undefined : personId
+        const refAsVolId = assignAsVol ? personId : undefined
         const { data, error } = await sb
           .from('vol_assignments')
-          .upsert(
-            { game_id: targetId, volunteer_id: personId },
-            { onConflict: 'game_id,volunteer_id' }
-          )
+          .insert({
+            game_id: targetId,
+            volunteer_id: volId ?? null,
+            referee_id: refAsVolId ?? null,
+            role: selectedRole,
+          })
           .select()
           .single()
         if (error) {
@@ -624,11 +639,20 @@ export function RefsTab() {
           return
         }
         setAssignments((prev) => [
-          ...prev.filter((a) => !(a.game_id === targetId && a.volunteer_id === personId)),
+          ...prev.filter((a) => {
+            if (assignAsVol)
+              return !(
+                a.game_id === targetId &&
+                a.referee_id === personId &&
+                a.person_type === 'vol'
+              )
+            return !(a.game_id === targetId && a.volunteer_id === personId)
+          }),
           {
             id: (data as any).id,
             game_id: targetId,
-            volunteer_id: personId,
+            volunteer_id: assignAsVol ? undefined : personId,
+            referee_id: assignAsVol ? personId : undefined,
             role: selectedRole,
             person_name: personName,
             person_type: 'vol',
@@ -653,7 +677,7 @@ export function RefsTab() {
         )
         if (already) continue
 
-        if (personType === 'ref') {
+        if (personType === 'ref' && !assignAsVol) {
           const { data, error } = await sb
             .from('ref_assignments')
             .upsert(
@@ -674,19 +698,27 @@ export function RefsTab() {
             count++
           }
         } else {
+          // Volunteer OR ref assigned to a vol role
+          const insertData: any = {
+            game_id: game.id,
+            role: selectedRole,
+          }
+          if (assignAsVol) {
+            insertData.referee_id = personId
+          } else {
+            insertData.volunteer_id = personId
+          }
           const { data, error } = await sb
             .from('vol_assignments')
-            .upsert(
-              { game_id: game.id, volunteer_id: personId },
-              { onConflict: 'game_id,volunteer_id' }
-            )
+            .insert(insertData)
             .select()
             .single()
           if (!error && data) {
             newAssigns.push({
               id: (data as any).id,
               game_id: game.id,
-              volunteer_id: personId,
+              volunteer_id: assignAsVol ? undefined : personId,
+              referee_id: assignAsVol ? personId : undefined,
               role: selectedRole,
               person_name: personName,
               person_type: 'vol',
@@ -748,11 +780,19 @@ export function RefsTab() {
     const sb = createClient()
     const gameIds = state.games.filter((g) => g.field_id === block.field_id).map((g) => g.id)
     if (block.person_type === 'ref') {
-      await sb
-        .from('ref_assignments')
-        .delete()
-        .in('game_id', gameIds)
-        .eq('referee_id', block.person_id)
+      // Remove from both ref_assignments AND vol_assignments (ref could be in vol role)
+      await Promise.all([
+        sb
+          .from('ref_assignments')
+          .delete()
+          .in('game_id', gameIds)
+          .eq('referee_id', block.person_id),
+        sb
+          .from('vol_assignments')
+          .delete()
+          .in('game_id', gameIds)
+          .eq('referee_id', block.person_id),
+      ])
     } else {
       await sb
         .from('vol_assignments')
@@ -1885,11 +1925,30 @@ export function RefsTab() {
                   value={selectedRole}
                   onChange={(e) => setSelectedRole(e.target.value)}
                 >
-                  {(roleModal.personType === 'ref' ? REF_ROLES : VOL_ROLES).map((r) => (
-                    <option key={r} value={r}>
-                      {r}
-                    </option>
-                  ))}
+                  {roleModal.personType === 'ref' ? (
+                    <>
+                      <optgroup label="Referee Roles">
+                        {REF_ROLES.map((r) => (
+                          <option key={r} value={r}>
+                            {r}
+                          </option>
+                        ))}
+                      </optgroup>
+                      <optgroup label="Volunteer Roles">
+                        {VOL_ROLES.map((r) => (
+                          <option key={r} value={r}>
+                            {r}
+                          </option>
+                        ))}
+                      </optgroup>
+                    </>
+                  ) : (
+                    VOL_ROLES.map((r) => (
+                      <option key={r} value={r}>
+                        {r}
+                      </option>
+                    ))
+                  )}
                 </select>
               </FormField>
 
