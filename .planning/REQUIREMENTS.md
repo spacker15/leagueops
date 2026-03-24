@@ -30,13 +30,13 @@ Requirements for this milestone. Each maps to roadmap phases.
 ### Registration Flow
 
 - [x] **REG-01**: Admin defines event schedule dates before registration opens
-- [ ] **REG-02**: Program leader can select team availability during registration — all dates or specific individual dates per team
-- [ ] **REG-03**: Program leader can add coaches directly to a team with name, email, phone, and certifications
+- [x] **REG-02**: Program leader can select team availability during registration — all dates or specific individual dates per team
+- [x] **REG-03**: Program leader can add coaches directly to a team with name, email, phone, and certifications
 - [x] **REG-04**: System generates a unique coach self-registration link per program
 - [x] **REG-05**: Coach can self-register via link — selects team, provides name, email, phone, certifications
 - [x] **REG-06**: System detects when same coach is assigned to multiple teams in same or different divisions and flags the conflict
 - [x] **REG-07**: Coach conflicts surfaced to admin during schedule generation as hard constraints (cannot schedule conflicting teams at same time)
-- [ ] **REG-08**: Program leader can register one or many teams in a single registration session
+- [x] **REG-08**: Program leader can register one or many teams in a single registration session
 
 ### Schedule Change Requests
 
