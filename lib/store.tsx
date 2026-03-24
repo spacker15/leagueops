@@ -209,6 +209,8 @@ interface ContextValue {
   ) => Promise<void>
   addField: (name: string, number: string, division?: string, complexId?: number) => Promise<void>
   deleteField: (fieldId: number) => Promise<void>
+  refreshRefs: () => Promise<void>
+  refreshVols: () => Promise<void>
   eventId: number
 }
 
@@ -337,7 +339,10 @@ export function AppProvider({
           filter: `event_id=eq.${eid}`,
         },
         (payload) => {
-          dispatch({ type: 'ADD_SCHEDULE_CHANGE_REQUEST', payload: payload.new as ScheduleChangeRequest })
+          dispatch({
+            type: 'ADD_SCHEDULE_CHANGE_REQUEST',
+            payload: payload.new as ScheduleChangeRequest,
+          })
         }
       )
       .on(
@@ -349,7 +354,10 @@ export function AppProvider({
           filter: `event_id=eq.${eid}`,
         },
         (payload) => {
-          dispatch({ type: 'UPDATE_SCHEDULE_CHANGE_REQUEST', payload: payload.new as ScheduleChangeRequest })
+          dispatch({
+            type: 'UPDATE_SCHEDULE_CHANGE_REQUEST',
+            payload: payload.new as ScheduleChangeRequest,
+          })
         }
       )
       .subscribe()
@@ -574,6 +582,18 @@ export function AppProvider({
     dispatch({ type: 'DELETE_FIELD', payload: fieldId })
   }, [])
 
+  const refreshRefs = useCallback(async () => {
+    if (!eventId) return
+    const refs = await db.getReferees(eventId)
+    dispatch({ type: 'SET_REFEREES', payload: refs })
+  }, [eventId])
+
+  const refreshVols = useCallback(async () => {
+    if (!eventId) return
+    const vols = await db.getVolunteers(eventId)
+    dispatch({ type: 'SET_VOLUNTEERS', payload: vols })
+  }, [eventId])
+
   return (
     <Ctx.Provider
       value={{
@@ -599,6 +619,8 @@ export function AppProvider({
         updateFieldDetails,
         addField,
         deleteField,
+        refreshRefs,
+        refreshVols,
         eventId: eventId ?? 0,
       }}
     >

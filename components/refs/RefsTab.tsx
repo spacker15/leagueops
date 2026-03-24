@@ -298,7 +298,15 @@ function DroppableFieldHeader({
 
 // ─── Main component ──────────────────────────────────────────
 export function RefsTab() {
-  const { state, toggleRefCheckin, toggleVolCheckin, currentDate, eventId } = useApp()
+  const {
+    state,
+    toggleRefCheckin,
+    toggleVolCheckin,
+    refreshRefs,
+    refreshVols,
+    currentDate,
+    eventId,
+  } = useApp()
   const [subTab, setSubTab] = useState<SubTab>('board')
   const [assignments, setAssignments] = useState<Assignment[]>([])
   const [blockAssignments, setBlockAssignments] = useState<BlockAssignment[]>([])
@@ -333,10 +341,82 @@ export function RefsTab() {
   } | null>(null)
   const [csvImporting, setCsvImporting] = useState(false)
   const [csvMismatches, setCsvMismatches] = useState<CsvMismatch[]>([])
-  const unresolvedMismatches = csvMismatches.filter(m => m.resolvedTo === null)
-  const skippedCsvValues = new Set(csvMismatches.filter(m => m.resolvedTo === '__skip__').map(m => m.csvValue.toLowerCase().trim()))
+  const unresolvedMismatches = csvMismatches.filter((m) => m.resolvedTo === null)
+  const skippedCsvValues = new Set(
+    csvMismatches
+      .filter((m) => m.resolvedTo === '__skip__')
+      .map((m) => m.csvValue.toLowerCase().trim())
+  )
   const refFileRef = useRef<HTMLInputElement>(null)
   const volFileRef = useRef<HTMLInputElement>(null)
+
+  // Add referee/volunteer inline
+  const [addRefOpen, setAddRefOpen] = useState(false)
+  const [addVolOpen, setAddVolOpen] = useState(false)
+  const [newRefName, setNewRefName] = useState('')
+  const [newRefGrade, setNewRefGrade] = useState('Grade 5')
+  const [newRefPhone, setNewRefPhone] = useState('')
+  const [newRefEmail, setNewRefEmail] = useState('')
+  const [newVolName, setNewVolName] = useState('')
+  const [newVolRole, setNewVolRole] = useState('Score Table')
+  const [newVolPhone, setNewVolPhone] = useState('')
+  const [addingSaving, setAddingSaving] = useState(false)
+
+  async function saveNewReferee() {
+    if (!newRefName.trim()) {
+      toast.error('Name is required')
+      return
+    }
+    setAddingSaving(true)
+    const sb = createClient()
+    const { error } = await sb.from('referees').insert({
+      event_id: eventId,
+      name: newRefName.trim(),
+      grade_level: newRefGrade,
+      phone: newRefPhone || null,
+      email: newRefEmail || null,
+    })
+    if (error) {
+      toast.error(error.message)
+      setAddingSaving(false)
+      return
+    }
+    toast.success(`Referee "${newRefName.trim()}" added`)
+    setNewRefName('')
+    setNewRefGrade('Grade 5')
+    setNewRefPhone('')
+    setNewRefEmail('')
+    setAddRefOpen(false)
+    setAddingSaving(false)
+    await refreshRefs()
+  }
+
+  async function saveNewVolunteer() {
+    if (!newVolName.trim()) {
+      toast.error('Name is required')
+      return
+    }
+    setAddingSaving(true)
+    const sb = createClient()
+    const { error } = await sb.from('volunteers').insert({
+      event_id: eventId,
+      name: newVolName.trim(),
+      role: newVolRole,
+      phone: newVolPhone || null,
+    })
+    if (error) {
+      toast.error(error.message)
+      setAddingSaving(false)
+      return
+    }
+    toast.success(`Volunteer "${newVolName.trim()}" added`)
+    setNewVolName('')
+    setNewVolRole('Score Table')
+    setNewVolPhone('')
+    setAddVolOpen(false)
+    setAddingSaving(false)
+    await refreshVols()
+  }
 
   // Load all assignments for today's games
   const loadAssignments = useCallback(async () => {
@@ -800,18 +880,21 @@ export function RefsTab() {
     }
 
     const headers = splitRow(lines[0]).map((h) => h.toLowerCase().replace(/\s+/g, '_'))
-    const rows = lines.slice(1).map((line) => {
-      const vals = splitRow(line)
-      const row: Record<string, string> = {}
-      headers.forEach((h, i) => {
-        row[h] = vals[i] ?? ''
+    const rows = lines
+      .slice(1)
+      .map((line) => {
+        const vals = splitRow(line)
+        const row: Record<string, string> = {}
+        headers.forEach((h, i) => {
+          row[h] = vals[i] ?? ''
+        })
+        return row
       })
-      return row
-    }).filter((r) => {
-      // skip empty rows
-      const vals = Object.values(r)
-      return vals.some((v) => v.trim() !== '')
-    })
+      .filter((r) => {
+        // skip empty rows
+        const vals = Object.values(r)
+        return vals.some((v) => v.trim() !== '')
+      })
 
     return { headers, rows }
   }
@@ -820,9 +903,15 @@ export function RefsTab() {
     const reader = new FileReader()
     reader.onload = (e) => {
       const text = e.target?.result as string
-      if (!text) { toast.error('Could not read file'); return }
+      if (!text) {
+        toast.error('Could not read file')
+        return
+      }
       const { headers, rows } = parseCSV(text)
-      if (rows.length === 0) { toast.error('No data rows found in CSV'); return }
+      if (rows.length === 0) {
+        toast.error('No data rows found in CSV')
+        return
+      }
 
       // Validate required columns
       const hasFirst = headers.includes('first_name')
@@ -834,9 +923,9 @@ export function RefsTab() {
 
       // Fuzzy match grade levels for referee CSV
       if (type === 'referee' && headers.includes('grade_level')) {
-        const gradeSet = new Set(state.referees.map(r => r.grade_level).filter(Boolean))
-        const gradeCandidates = [...gradeSet].map(g => ({ id: g, name: g }))
-        const gradeVals = rows.map(r => r.grade_level).filter(Boolean)
+        const gradeSet = new Set(state.referees.map((r) => r.grade_level).filter(Boolean))
+        const gradeCandidates = [...gradeSet].map((g) => ({ id: g, name: g }))
+        const gradeVals = rows.map((r) => r.grade_level).filter(Boolean)
         const mismatches = findCsvMismatches(gradeVals, gradeCandidates, 'grade_level')
         setCsvMismatches(mismatches)
       } else {
@@ -849,12 +938,17 @@ export function RefsTab() {
   }
 
   function resolveCsvMismatch(idx: number, value: string) {
-    setCsvMismatches(prev => prev.map((m, i) => i === idx ? { ...m, resolvedTo: value || null } : m))
+    setCsvMismatches((prev) =>
+      prev.map((m, i) => (i === idx ? { ...m, resolvedTo: value || null } : m))
+    )
   }
 
   async function confirmCSVImport() {
     if (!csvPreview) return
-    if (unresolvedMismatches.length > 0) { toast.error('Resolve all mismatches before importing'); return }
+    if (unresolvedMismatches.length > 0) {
+      toast.error('Resolve all mismatches before importing')
+      return
+    }
     setCsvImporting(true)
     const sb = createClient()
     const { type, rows } = csvPreview
@@ -868,8 +962,13 @@ export function RefsTab() {
     }
 
     try {
-      const filteredRows = rows.filter(r => {
-        if (type === 'referee' && r.grade_level && skippedCsvValues.has(r.grade_level.toLowerCase().trim())) return false
+      const filteredRows = rows.filter((r) => {
+        if (
+          type === 'referee' &&
+          r.grade_level &&
+          skippedCsvValues.has(r.grade_level.toLowerCase().trim())
+        )
+          return false
         return true
       })
 
@@ -907,7 +1006,9 @@ export function RefsTab() {
       }
 
       const skippedCount = rows.length - filteredRows.length
-      toast.success(`Imported ${records.length} ${type === 'referee' ? 'referee' : 'volunteer'}${records.length !== 1 ? 's' : ''}${skippedCount ? ` (${skippedCount} skipped)` : ''}`)
+      toast.success(
+        `Imported ${records.length} ${type === 'referee' ? 'referee' : 'volunteer'}${records.length !== 1 ? 's' : ''}${skippedCount ? ` (${skippedCount} skipped)` : ''}`
+      )
       setCsvPreview(null)
       setCsvMismatches([])
       setCsvImporting(false)
@@ -920,12 +1021,14 @@ export function RefsTab() {
   }
 
   function downloadTemplate(type: 'referee' | 'volunteer') {
-    const header = type === 'referee'
-      ? 'first_name,last_name,email,phone,grade_level'
-      : 'first_name,last_name,email,phone,role'
-    const example = type === 'referee'
-      ? '\nJohn,Doe,john@example.com,555-0100,Grade 7'
-      : '\nJane,Smith,jane@example.com,555-0200,Score Table'
+    const header =
+      type === 'referee'
+        ? 'first_name,last_name,email,phone,grade_level'
+        : 'first_name,last_name,email,phone,role'
+    const example =
+      type === 'referee'
+        ? '\nJohn,Doe,john@example.com,555-0100,Grade 7'
+        : '\nJane,Smith,jane@example.com,555-0200,Score Table'
     const blob = new Blob([header + example], { type: 'text/csv' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -1179,8 +1282,89 @@ export function RefsTab() {
                 <Link2 size={11} />
                 {copyingInvite === 'referee' ? 'COPYING...' : 'COPY INVITE LINK'}
               </button>
+              <button
+                onClick={() => setAddRefOpen(!addRefOpen)}
+                className="flex items-center gap-1.5 font-cond text-[11px] font-black tracking-wider px-3 py-1.5 rounded-lg bg-green-900/30 border border-green-700/50 text-green-300 hover:bg-green-900/50 transition-colors"
+              >
+                <UserPlus size={11} />
+                ADD REFEREE
+              </button>
             </div>
           </div>
+
+          {/* Inline add referee form */}
+          {addRefOpen && (
+            <div className="mb-4 p-4 bg-surface-card border border-yellow-800/40 rounded-lg">
+              <div className="grid grid-cols-2 gap-3 mb-3">
+                <div>
+                  <label className="font-cond text-[10px] font-bold tracking-wider text-muted block mb-1">
+                    NAME *
+                  </label>
+                  <input
+                    className="w-full bg-surface border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-yellow-400"
+                    value={newRefName}
+                    onChange={(e) => setNewRefName(e.target.value)}
+                    placeholder="Full name"
+                  />
+                </div>
+                <div>
+                  <label className="font-cond text-[10px] font-bold tracking-wider text-muted block mb-1">
+                    GRADE LEVEL
+                  </label>
+                  <select
+                    className="w-full bg-surface border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-yellow-400"
+                    value={newRefGrade}
+                    onChange={(e) => setNewRefGrade(e.target.value)}
+                  >
+                    {[
+                      'Grade 1',
+                      'Grade 2',
+                      'Grade 3',
+                      'Grade 4',
+                      'Grade 5',
+                      'Grade 6',
+                      'Grade 7',
+                      'Grade 8',
+                    ].map((g) => (
+                      <option key={g}>{g}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="font-cond text-[10px] font-bold tracking-wider text-muted block mb-1">
+                    EMAIL
+                  </label>
+                  <input
+                    className="w-full bg-surface border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-yellow-400"
+                    value={newRefEmail}
+                    onChange={(e) => setNewRefEmail(e.target.value)}
+                    placeholder="ref@example.com"
+                    type="email"
+                  />
+                </div>
+                <div>
+                  <label className="font-cond text-[10px] font-bold tracking-wider text-muted block mb-1">
+                    PHONE
+                  </label>
+                  <input
+                    className="w-full bg-surface border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-yellow-400"
+                    value={newRefPhone}
+                    onChange={(e) => setNewRefPhone(e.target.value)}
+                    placeholder="555-0100"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Btn variant="primary" size="sm" onClick={saveNewReferee} disabled={addingSaving}>
+                  {addingSaving ? 'SAVING...' : 'SAVE REFEREE'}
+                </Btn>
+                <Btn variant="ghost" size="sm" onClick={() => setAddRefOpen(false)}>
+                  CANCEL
+                </Btn>
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-[repeat(auto-fill,minmax(210px,1fr))] gap-2">
             {state.referees.map((ref) => {
               const rd = ref as any
@@ -1283,8 +1467,68 @@ export function RefsTab() {
                 <Link2 size={11} />
                 {copyingInvite === 'volunteer' ? 'COPYING...' : 'COPY INVITE LINK'}
               </button>
+              <button
+                onClick={() => setAddVolOpen(!addVolOpen)}
+                className="flex items-center gap-1.5 font-cond text-[11px] font-black tracking-wider px-3 py-1.5 rounded-lg bg-green-900/30 border border-green-700/50 text-green-300 hover:bg-green-900/50 transition-colors"
+              >
+                <UserPlus size={11} />
+                ADD VOLUNTEER
+              </button>
             </div>
           </div>
+
+          {/* Inline add volunteer form */}
+          {addVolOpen && (
+            <div className="mb-4 p-4 bg-surface-card border border-green-800/40 rounded-lg">
+              <div className="grid grid-cols-3 gap-3 mb-3">
+                <div>
+                  <label className="font-cond text-[10px] font-bold tracking-wider text-muted block mb-1">
+                    NAME *
+                  </label>
+                  <input
+                    className="w-full bg-surface border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-green-400"
+                    value={newVolName}
+                    onChange={(e) => setNewVolName(e.target.value)}
+                    placeholder="Full name"
+                  />
+                </div>
+                <div>
+                  <label className="font-cond text-[10px] font-bold tracking-wider text-muted block mb-1">
+                    ROLE
+                  </label>
+                  <select
+                    className="w-full bg-surface border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-green-400"
+                    value={newVolRole}
+                    onChange={(e) => setNewVolRole(e.target.value)}
+                  >
+                    {['Score Table', 'Clock', 'Field Marshal', 'Operations', 'Gate'].map((r) => (
+                      <option key={r}>{r}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="font-cond text-[10px] font-bold tracking-wider text-muted block mb-1">
+                    PHONE
+                  </label>
+                  <input
+                    className="w-full bg-surface border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-green-400"
+                    value={newVolPhone}
+                    onChange={(e) => setNewVolPhone(e.target.value)}
+                    placeholder="555-0100"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Btn variant="primary" size="sm" onClick={saveNewVolunteer} disabled={addingSaving}>
+                  {addingSaving ? 'SAVING...' : 'SAVE VOLUNTEER'}
+                </Btn>
+                <Btn variant="ghost" size="sm" onClick={() => setAddVolOpen(false)}>
+                  CANCEL
+                </Btn>
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-[repeat(auto-fill,minmax(210px,1fr))] gap-2 mb-6">
             {state.volunteers.map((vol) => (
               <div
@@ -1422,7 +1666,14 @@ export function RefsTab() {
               <Download size={11} />
               DOWNLOAD TEMPLATE
             </button>
-            <Btn variant="ghost" size="sm" onClick={() => { setCsvPreview(null); setCsvMismatches([]) }}>
+            <Btn
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setCsvPreview(null)
+                setCsvMismatches([])
+              }}
+            >
               CANCEL
             </Btn>
             <Btn
@@ -1433,7 +1684,9 @@ export function RefsTab() {
             >
               {unresolvedMismatches.length > 0
                 ? `RESOLVE ${unresolvedMismatches.length} MISMATCH${unresolvedMismatches.length !== 1 ? 'ES' : ''}`
-                : csvImporting ? 'IMPORTING...' : `IMPORT ${csvPreview?.rows.length ?? 0} ROWS`}
+                : csvImporting
+                  ? 'IMPORTING...'
+                  : `IMPORT ${csvPreview?.rows.length ?? 0} ROWS`}
             </Btn>
           </>
         }
@@ -1441,15 +1694,16 @@ export function RefsTab() {
         {csvPreview && (
           <div>
             <div className="font-cond text-[11px] text-muted mb-3">
-              Preview of {csvPreview.rows.length} row{csvPreview.rows.length !== 1 ? 's' : ''} to import.
-              Columns found: {csvPreview.headers.join(', ')}
+              Preview of {csvPreview.rows.length} row{csvPreview.rows.length !== 1 ? 's' : ''} to
+              import. Columns found: {csvPreview.headers.join(', ')}
             </div>
 
             {/* Mismatch Resolver */}
             {csvMismatches.length > 0 && (
               <div className="bg-yellow-900/20 border border-yellow-700/50 rounded p-3 mb-3">
                 <div className="text-yellow-400 font-cond text-sm font-bold mb-2">
-                  {csvMismatches.length} UNMATCHED GRADE LEVEL{csvMismatches.length !== 1 ? 'S' : ''} — RESOLVE BEFORE IMPORTING
+                  {csvMismatches.length} UNMATCHED GRADE LEVEL
+                  {csvMismatches.length !== 1 ? 'S' : ''} — RESOLVE BEFORE IMPORTING
                 </div>
                 {csvMismatches.map((mismatch, i) => (
                   <div key={i} className="flex items-center gap-2 py-1">
@@ -1458,17 +1712,25 @@ export function RefsTab() {
                     <select
                       className="bg-[#081428] border border-[#1a2d50] text-white px-2 py-0.5 rounded text-xs outline-none focus:border-blue-400 transition-colors"
                       value={mismatch.resolvedTo ?? ''}
-                      onChange={e => resolveCsvMismatch(i, e.target.value)}
+                      onChange={(e) => resolveCsvMismatch(i, e.target.value)}
                     >
                       <option value="">-- Select match --</option>
                       <option value="__skip__">Skip rows with this value</option>
-                      {mismatch.suggestions.map(s => (
-                        <option key={s.id} value={String(s.id)}>{s.name} {s.score < 1 ? `(${Math.round(s.score * 100)}% match)` : ''}</option>
+                      {mismatch.suggestions.map((s) => (
+                        <option key={s.id} value={String(s.id)}>
+                          {s.name} {s.score < 1 ? `(${Math.round(s.score * 100)}% match)` : ''}
+                        </option>
                       ))}
                     </select>
-                    {mismatch.resolvedTo === '__skip__' && <XCircle size={12} className="text-red-400" />}
-                    {mismatch.resolvedTo && mismatch.resolvedTo !== '__skip__' && <CheckCircle size={12} className="text-green-400" />}
-                    {!mismatch.resolvedTo && <AlertTriangle size={12} className="text-yellow-400" />}
+                    {mismatch.resolvedTo === '__skip__' && (
+                      <XCircle size={12} className="text-red-400" />
+                    )}
+                    {mismatch.resolvedTo && mismatch.resolvedTo !== '__skip__' && (
+                      <CheckCircle size={12} className="text-green-400" />
+                    )}
+                    {!mismatch.resolvedTo && (
+                      <AlertTriangle size={12} className="text-yellow-400" />
+                    )}
                   </div>
                 ))}
               </div>
@@ -1478,10 +1740,18 @@ export function RefsTab() {
               <table className="w-full border-collapse text-[12px]">
                 <thead>
                   <tr className="bg-navy sticky top-0">
-                    <th className="font-cond text-[10px] font-black tracking-widest text-muted px-3 py-1.5 text-left">#</th>
-                    <th className="font-cond text-[10px] font-black tracking-widest text-muted px-3 py-1.5 text-left">NAME</th>
-                    <th className="font-cond text-[10px] font-black tracking-widest text-muted px-3 py-1.5 text-left">EMAIL</th>
-                    <th className="font-cond text-[10px] font-black tracking-widest text-muted px-3 py-1.5 text-left">PHONE</th>
+                    <th className="font-cond text-[10px] font-black tracking-widest text-muted px-3 py-1.5 text-left">
+                      #
+                    </th>
+                    <th className="font-cond text-[10px] font-black tracking-widest text-muted px-3 py-1.5 text-left">
+                      NAME
+                    </th>
+                    <th className="font-cond text-[10px] font-black tracking-widest text-muted px-3 py-1.5 text-left">
+                      EMAIL
+                    </th>
+                    <th className="font-cond text-[10px] font-black tracking-widest text-muted px-3 py-1.5 text-left">
+                      PHONE
+                    </th>
                     <th className="font-cond text-[10px] font-black tracking-widest text-muted px-3 py-1.5 text-left">
                       {csvPreview.type === 'referee' ? 'GRADE' : 'ROLE'}
                     </th>
@@ -1492,9 +1762,21 @@ export function RefsTab() {
                     const name = `${row.first_name ?? ''} ${row.last_name ?? ''}`.trim()
                     const hasName = name.length > 0
                     const gradeVal = (row.grade_level || '').toLowerCase().trim()
-                    const isGradeSkipped = csvPreview.type === 'referee' && skippedCsvValues.has(gradeVal)
-                    const gradeHasMismatch = csvPreview.type === 'referee' && csvMismatches.some(m => m.csvValue.toLowerCase().trim() === gradeVal && !m.resolvedTo)
-                    const gradeIsResolved = csvPreview.type === 'referee' && csvMismatches.some(m => m.csvValue.toLowerCase().trim() === gradeVal && m.resolvedTo && m.resolvedTo !== '__skip__')
+                    const isGradeSkipped =
+                      csvPreview.type === 'referee' && skippedCsvValues.has(gradeVal)
+                    const gradeHasMismatch =
+                      csvPreview.type === 'referee' &&
+                      csvMismatches.some(
+                        (m) => m.csvValue.toLowerCase().trim() === gradeVal && !m.resolvedTo
+                      )
+                    const gradeIsResolved =
+                      csvPreview.type === 'referee' &&
+                      csvMismatches.some(
+                        (m) =>
+                          m.csvValue.toLowerCase().trim() === gradeVal &&
+                          m.resolvedTo &&
+                          m.resolvedTo !== '__skip__'
+                      )
                     return (
                       <tr
                         key={i}
@@ -1505,13 +1787,29 @@ export function RefsTab() {
                         )}
                       >
                         <td className="font-mono text-muted text-[10px] px-3 py-1.5">{i + 1}</td>
-                        <td className={cn('font-cond font-bold text-[11px] px-3 py-1.5', !hasName && 'text-red-400')}>
+                        <td
+                          className={cn(
+                            'font-cond font-bold text-[11px] px-3 py-1.5',
+                            !hasName && 'text-red-400'
+                          )}
+                        >
                           {hasName ? name : 'MISSING NAME'}
                         </td>
-                        <td className="font-mono text-[11px] px-3 py-1.5 text-blue-300">{row.email || '—'}</td>
+                        <td className="font-mono text-[11px] px-3 py-1.5 text-blue-300">
+                          {row.email || '—'}
+                        </td>
                         <td className="font-mono text-[11px] px-3 py-1.5">{row.phone || '—'}</td>
-                        <td className={cn('font-cond text-[11px] px-3 py-1.5', gradeHasMismatch ? 'text-yellow-400' : gradeIsResolved ? 'text-green-400' : '')}>
-                          {csvPreview.type === 'referee' ? (row.grade_level || '—') : (row.role || '—')}
+                        <td
+                          className={cn(
+                            'font-cond text-[11px] px-3 py-1.5',
+                            gradeHasMismatch
+                              ? 'text-yellow-400'
+                              : gradeIsResolved
+                                ? 'text-green-400'
+                                : ''
+                          )}
+                        >
+                          {csvPreview.type === 'referee' ? row.grade_level || '—' : row.role || '—'}
                         </td>
                       </tr>
                     )
