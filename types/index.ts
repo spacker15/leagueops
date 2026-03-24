@@ -40,6 +40,13 @@ export interface Event {
   venue_place_id?: string | null
   slug?: string
   status?: string
+  // Registration window fields (Phase 6 -- REG-01)
+  registration_opens_at?: string | null
+  registration_closes_at?: string | null
+  registration_open?: boolean
+  // Sharing fields (Phase 5 -- EVT-02)
+  primary_color?: string | null
+  logo_url?: string | null
 }
 
 export interface EventDate {
@@ -453,4 +460,74 @@ export interface WeatherEngineResult {
   games_affected: number
   lightning_active: boolean
   heat_protocol: HeatProtocolLevel
+}
+
+// ============================================================
+// Phase 6 — Registration Flow types
+// ============================================================
+
+export interface TeamRegistration {
+  id: number
+  program_id: number
+  event_id: number
+  team_name: string
+  division: string
+  head_coach_name: string | null
+  head_coach_email: string | null
+  head_coach_phone: string | null
+  player_count: number | null
+  notes: string | null
+  status: 'pending' | 'approved' | 'rejected' | 'waitlist'
+  team_id: number | null
+  reviewed_by: string | null
+  reviewed_at: string | null
+  rejection_note: string | null
+  created_at: string
+  available_date_ids?: number[] | null
+}
+
+export interface Coach {
+  id: number
+  name: string
+  email: string
+  phone: string | null
+  certifications: string | null
+  created_at: string
+}
+
+export interface CoachTeam {
+  id: number
+  coach_id: number
+  team_registration_id: number
+  event_id: number
+  role: 'head' | 'assistant'
+  added_by: 'program_leader' | 'self_registration' | 'admin'
+  created_at: string
+  // Joined relations
+  coach?: Coach
+  team_registration?: TeamRegistration
+}
+
+export interface CoachInvite {
+  id: number
+  program_id: number
+  event_id: number
+  token: string
+  is_active: boolean
+  expires_at: string | null
+  created_at: string
+  // Joined
+  programs?: { name: string }
+  events?: Pick<Event, 'name' | 'primary_color' | 'logo_url' | 'registration_closes_at' | 'registration_open'>
+}
+
+export interface CoachConflict {
+  id: number
+  coach_id: number
+  event_id: number
+  team_ids: number[]
+  detected_at: string
+  resolved: boolean
+  // Joined
+  coach?: Coach
 }
