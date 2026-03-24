@@ -18,6 +18,7 @@ import type {
   LogType,
   GameStatus,
   NotificationLogEntry,
+  ScheduleChangeRequest,
 } from '@/types'
 
 // ---- Events ----
@@ -659,4 +660,73 @@ export async function markNotificationRead(notificationId: number): Promise<void
     .from('notification_log')
     .update({ read_at: new Date().toISOString() })
     .eq('id', notificationId)
+}
+
+// ---- Schedule Change Requests ----
+
+/** Get all schedule change requests for an event, with joined games and team */
+export async function getScheduleChangeRequests(eventId: number): Promise<ScheduleChangeRequest[]> {
+  const sb = createClient()
+  const { data } = await sb
+    .from('schedule_change_requests')
+    .select('*, team:teams(*), games:schedule_change_request_games(*, game:games(*))')
+    .eq('event_id', eventId)
+    .order('created_at', { ascending: false })
+  return (data ?? []) as ScheduleChangeRequest[]
+}
+
+/** Insert a new schedule change request and its junction rows */
+export async function insertScheduleChangeRequest(
+  request: Omit<ScheduleChangeRequest, 'id' | 'created_at' | 'updated_at' | 'team' | 'games' | 'reviewed_by' | 'reviewed_at' | 'admin_notes'>,
+  gameIds: number[]
+): Promise<ScheduleChangeRequest | null> {
+  const sb = createClient()
+  const { data: inserted, error } = await sb
+    .from('schedule_change_requests')
+    .insert(request)
+    .select()
+    .single()
+  if (error || !inserted) return null
+
+  const junctionRows = gameIds.map((gameId) => ({
+    request_id: inserted.id,
+    game_id: gameId,
+    status: 'pending' as const,
+  }))
+  await sb.from('schedule_change_request_games').insert(junctionRows)
+
+  return inserted as ScheduleChangeRequest
+}
+
+/** Update the status, admin notes, reviewer info, and updated_at of a schedule change request */
+export async function updateScheduleChangeRequestStatus(
+  id: number,
+  status: string,
+  adminNotes?: string | null,
+  reviewedBy?: string
+): Promise<ScheduleChangeRequest | null> {
+  const sb = createClient()
+  const now = new Date().toISOString()
+  const updatePayload: Record<string, unknown> = {
+    status,
+    updated_at: now,
+  }
+  if (adminNotes !== undefined) updatePayload.admin_notes = adminNotes
+  if (reviewedBy !== undefined) updatePayload.reviewed_by = reviewedBy
+  if (status === 'approved' || status === 'denied') {
+    updatePayload.reviewed_at = now
+  }
+  const { data } = await sb
+    .from('schedule_change_requests')
+    .update(updatePayload)
+    .eq('id', id)
+    .select()
+    .single()
+  return (data ?? null) as ScheduleChangeRequest | null
+}
+
+/** Update the status of a single schedule_change_request_games row */
+export async function updateScheduleChangeRequestGameStatus(id: number, status: string): Promise<void> {
+  const sb = createClient()
+  await sb.from('schedule_change_request_games').update({ status }).eq('id', id)
 }
