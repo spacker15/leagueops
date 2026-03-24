@@ -150,11 +150,13 @@ export function RequestCard({ request, eventId }: RequestCardProps) {
             >
               {rg.game && (
                 <>
+                  {(rg.game as any).event_date?.date && (
+                    <span className="font-mono text-[12px] text-muted">
+                      {new Date((rg.game as any).event_date.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    </span>
+                  )}
                   <span className="font-mono text-[12px] text-muted">
-                    {format(new Date(rg.game.scheduled_time), 'MMM d')}
-                  </span>
-                  <span className="font-mono text-[12px] text-muted">
-                    {format(new Date(rg.game.scheduled_time), 'h:mm a')}
+                    {rg.game.scheduled_time}
                   </span>
                   {rg.game.field && (
                     <span className="text-[12px] text-muted">{rg.game.field.name}</span>

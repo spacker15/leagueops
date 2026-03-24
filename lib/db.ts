@@ -669,7 +669,7 @@ export async function getScheduleChangeRequests(eventId: number): Promise<Schedu
   const sb = createClient()
   const { data } = await sb
     .from('schedule_change_requests')
-    .select('*, team:teams(*), games:schedule_change_request_games(*, game:games(*))')
+    .select('*, team:teams(*), games:schedule_change_request_games(*, game:games(*, event_date:event_dates(id, date, label), home_team:teams!games_home_team_id_fkey(id, name), away_team:teams!games_away_team_id_fkey(id, name), field:fields(id, name)))')
     .eq('event_id', eventId)
     .order('created_at', { ascending: false })
   return (data ?? []) as ScheduleChangeRequest[]
