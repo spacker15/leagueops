@@ -531,3 +531,57 @@ export interface CoachConflict {
   // Joined
   coach?: Coach
 }
+
+// === Phase 7: Notification Infrastructure ===
+
+export type AlertType = 'weather_alert' | 'schedule_change' | 'admin_alert' | 'registration_update'
+export type NotificationScope = 'event' | 'team' | 'field'
+export type NotificationChannel = 'email' | 'push'
+export type NotificationStatus = 'pending' | 'processing' | 'delivered' | 'failed' | 'suppressed'
+
+export interface NotificationQueueRow {
+  id: number
+  event_id: number
+  alert_type: AlertType
+  scope: NotificationScope
+  scope_id: number | null
+  payload: { title: string; summary: string; detail: string; cta_url: string }
+  dedup_key: string
+  notification_sent_at: string | null
+  retry_count: number
+  next_retry_at: string | null
+  status: NotificationStatus
+  created_at: string
+}
+
+export interface NotificationPreference {
+  id: number
+  user_id: string
+  alert_type: AlertType
+  email_on: boolean
+  push_on: boolean
+  updated_at: string
+}
+
+export interface NotificationLogEntry {
+  id: number
+  queue_id: number
+  event_id: number
+  user_id: string
+  channel: NotificationChannel
+  status: 'delivered' | 'failed' | 'suppressed'
+  error_message: string | null
+  delivered_at: string
+  read_at: string | null
+  title: string | null
+  summary: string | null
+}
+
+export interface PushSubscriptionRow {
+  id: number
+  user_id: string
+  endpoint: string
+  p256dh: string
+  auth: string
+  created_at: string
+}
