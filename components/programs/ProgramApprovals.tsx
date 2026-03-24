@@ -7,7 +7,7 @@ import { createClient } from '@/supabase/client'
 import { useAuth } from '@/lib/auth'
 import { useApp } from '@/lib/store'
 import { cn, findCsvMismatches, type CsvMismatch } from '@/lib/utils'
-import { Btn, SectionHeader, Input, Select, FormField, Card } from '@/components/ui'
+import { Btn, SectionHeader, Input, Select, FormField, Card, Pill } from '@/components/ui'
 import toast from 'react-hot-toast'
 import { CheckCircle, XCircle, Clock, Users, Building2, RefreshCw, Plus, ChevronDown, ChevronUp, Upload, Download, X, AlertTriangle, Trash2, ChevronRight } from 'lucide-react'
 import { useRef } from 'react'
@@ -70,6 +70,10 @@ export function ProgramApprovals() {
   const [activeTab, setActiveTab] = useState<'programs' | 'config'>('programs')
   const [deletingId, setDeletingId] = useState<number | null>(null)
 
+  // Coach conflict badges
+  const [conflictsByTeam, setConflictsByTeam] = useState<Map<number, { coachName: string; otherTeamIds: number[] }[]>>(new Map())
+  const [expandedConflict, setExpandedConflict] = useState<Set<number>>(new Set())
+
   // Collapsed programs
   const [collapsedPrograms, setCollapsedPrograms] = useState<Set<number>>(new Set())
 
@@ -97,7 +101,7 @@ export function ProgramApprovals() {
   const load = useCallback(async () => {
     const sb = createClient()
     setLoading(true)
-    const [{ data: progs }, { data: teamsData }, { data: regs }, { data: divs }] = await Promise.all([
+    const [{ data: progs }, { data: teamsData }, { data: regs }, { data: divs }, { data: conflictRows }] = await Promise.all([
       sb.from('programs').select('*').eq('event_id', eventId).order('name'),
       sb.from('teams').select('*, programs(name)').eq('event_id', eventId!).order('division').order('name'),
       sb
@@ -107,11 +111,28 @@ export function ProgramApprovals() {
       eventId
         ? sb.from('registration_divisions').select('name').eq('event_id', eventId).eq('is_active', true).order('sort_order')
         : Promise.resolve({ data: [] }),
+      eventId
+        ? sb.from('coach_conflicts').select('id, coach_id, team_ids, resolved, coaches(name)').eq('event_id', eventId).eq('resolved', false)
+        : Promise.resolve({ data: [] }),
     ])
     setPrograms((progs as Program[]) ?? [])
     setTeams((teamsData as unknown as TeamRow[]) ?? [])
     setTeamRegs((regs as unknown as TeamReg[]) ?? [])
     setDivisions((divs ?? []).map((d: any) => d.name))
+
+    // Build conflictsByTeam lookup map
+    const byTeam = new Map<number, { coachName: string; otherTeamIds: number[] }[]>()
+    for (const conflict of (conflictRows ?? []) as any[]) {
+      const coachName = conflict.coaches?.name ?? 'Unknown Coach'
+      const teamIds: number[] = conflict.team_ids ?? []
+      for (const teamId of teamIds) {
+        const otherTeamIds = teamIds.filter((id: number) => id !== teamId)
+        if (!byTeam.has(teamId)) byTeam.set(teamId, [])
+        byTeam.get(teamId)!.push({ coachName, otherTeamIds })
+      }
+    }
+    setConflictsByTeam(byTeam)
+
     setLoading(false)
   }, [eventId])
 
@@ -1105,6 +1126,19 @@ export function ProgramApprovals() {
                                   <div className="w-3.5 h-3.5 rounded-sm border border-border flex-shrink-0" style={{ backgroundColor: team.color }} />
                                 )}
                                 <span className="font-cond font-bold text-[12px] text-white flex-1">{team.name}</span>
+                                {conflictsByTeam.has(team.id) && (
+                                  <div className="flex flex-col gap-0.5">
+                                    <button
+                                      onClick={() => setExpandedConflict(prev => { const n = new Set(prev); n.has(team.id) ? n.delete(team.id) : n.add(team.id); return n })}
+                                      aria-label={`Coach conflict: ${conflictsByTeam.get(team.id)?.map(c => c.coachName).join(', ')} also assigned to other teams`}
+                                    >
+                                      <Pill variant="yellow">COACH CONFLICT</Pill>
+                                    </button>
+                                    {expandedConflict.has(team.id) && conflictsByTeam.get(team.id)?.map((c, i) => (
+                                      <span key={i} className="text-[11px] text-[#5a6e9a]">Coach {c.coachName} is also assigned to other teams</span>
+                                    ))}
+                                  </div>
+                                )}
                                 <span className="font-cond text-[10px] text-muted">{team.association || ''}</span>
                                 <button
                                   onClick={() => deleteTeam(team)}
@@ -1164,6 +1198,19 @@ export function ProgramApprovals() {
                               <div className="w-3.5 h-3.5 rounded-sm border border-border flex-shrink-0" style={{ backgroundColor: team.color }} />
                             )}
                             <span className="font-cond font-bold text-[12px] text-white flex-1">{team.name}</span>
+                            {conflictsByTeam.has(team.id) && (
+                              <div className="flex flex-col gap-0.5">
+                                <button
+                                  onClick={() => setExpandedConflict(prev => { const n = new Set(prev); n.has(team.id) ? n.delete(team.id) : n.add(team.id); return n })}
+                                  aria-label={`Coach conflict: ${conflictsByTeam.get(team.id)?.map(c => c.coachName).join(', ')} also assigned to other teams`}
+                                >
+                                  <Pill variant="yellow">COACH CONFLICT</Pill>
+                                </button>
+                                {expandedConflict.has(team.id) && conflictsByTeam.get(team.id)?.map((c, i) => (
+                                  <span key={i} className="text-[11px] text-[#5a6e9a]">Coach {c.coachName} is also assigned to other teams</span>
+                                ))}
+                              </div>
+                            )}
                             <span className="font-cond text-[10px] text-muted">{team.association || ''}</span>
                             <button
                               onClick={() => deleteTeam(team)}
