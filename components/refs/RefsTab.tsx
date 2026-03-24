@@ -359,7 +359,26 @@ export function RefsTab() {
   const [newVolName, setNewVolName] = useState('')
   const [newVolRole, setNewVolRole] = useState('Score Table')
   const [newVolPhone, setNewVolPhone] = useState('')
+  const [newVolEmail, setNewVolEmail] = useState('')
   const [addingSaving, setAddingSaving] = useState(false)
+
+  async function sendInviteEmail(email: string, name: string, roleName: string) {
+    try {
+      const res = await fetch('/api/admin/send-invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, name, roleName, eventId }),
+      })
+      if (res.ok) {
+        toast.success(`Invite email sent to ${email}`)
+      } else {
+        const d = await res.json()
+        toast.error(d.error || 'Failed to send invite email')
+      }
+    } catch {
+      toast.error('Failed to send invite email')
+    }
+  }
 
   async function saveNewReferee() {
     if (!newRefName.trim()) {
@@ -380,6 +399,7 @@ export function RefsTab() {
       return
     }
     toast.success(`Referee "${newRefName.trim()}" added`)
+    if (newRefEmail) await sendInviteEmail(newRefEmail, newRefName.trim(), 'referee')
     setNewRefName('')
     setNewRefPhone('')
     setNewRefEmail('')
@@ -400,6 +420,7 @@ export function RefsTab() {
       name: newVolName.trim(),
       role: newVolRole,
       phone: newVolPhone || null,
+      email: newVolEmail || null,
     })
     if (error) {
       toast.error(error.message)
@@ -407,9 +428,11 @@ export function RefsTab() {
       return
     }
     toast.success(`Volunteer "${newVolName.trim()}" added`)
+    if (newVolEmail) await sendInviteEmail(newVolEmail, newVolName.trim(), 'volunteer')
     setNewVolName('')
     setNewVolRole('Score Table')
     setNewVolPhone('')
+    setNewVolEmail('')
     setAddVolOpen(false)
     setAddingSaving(false)
     await refreshVols()
@@ -1454,7 +1477,7 @@ export function RefsTab() {
           {/* Inline add volunteer form */}
           {addVolOpen && (
             <div className="mb-4 p-4 bg-surface-card border border-green-800/40 rounded-lg">
-              <div className="grid grid-cols-3 gap-3 mb-3">
+              <div className="grid grid-cols-2 gap-3 mb-3">
                 <div>
                   <label className="font-cond text-[10px] font-bold tracking-wider text-muted block mb-1">
                     NAME *
@@ -1464,6 +1487,18 @@ export function RefsTab() {
                     value={newVolName}
                     onChange={(e) => setNewVolName(e.target.value)}
                     placeholder="Full name"
+                  />
+                </div>
+                <div>
+                  <label className="font-cond text-[10px] font-bold tracking-wider text-muted block mb-1">
+                    EMAIL
+                  </label>
+                  <input
+                    className="w-full bg-surface border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-green-400"
+                    value={newVolEmail}
+                    onChange={(e) => setNewVolEmail(e.target.value)}
+                    placeholder="vol@example.com"
+                    type="email"
                   />
                 </div>
                 <div>

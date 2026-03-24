@@ -159,6 +159,24 @@ export function UserManagement() {
       toast.error(data.error)
     } else {
       toast.success(`User created: ${inviteEmail}`)
+      // Send invite email for applicable roles
+      if (['referee', 'volunteer', 'coach', 'program_leader'].includes(inviteRole)) {
+        try {
+          const emailRes = await fetch('/api/admin/send-invite', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              email: inviteEmail,
+              name: displayName,
+              roleName: inviteRole,
+              eventId,
+            }),
+          })
+          if (emailRes.ok) toast.success(`Invite email sent to ${inviteEmail}`)
+        } catch {
+          // Non-blocking — user still created
+        }
+      }
       setInviteEmail('')
       setInvitePassword('')
       setInviteName('')
