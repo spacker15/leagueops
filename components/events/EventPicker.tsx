@@ -176,13 +176,21 @@ export function EventPicker({ onSelectEvent }: Props) {
     const sb = createClient()
     const user = (await sb.auth.getUser()).data.user
 
-    const slug =
+    // Generate unique slug — check for duplicates and append suffix if needed
+    const baseSlug =
       newName
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-|-$/g, '') +
       '-' +
       new Date().getFullYear()
+
+    const { count } = await sb
+      .from('events')
+      .select('id', { count: 'exact', head: true })
+      .like('slug', `${baseSlug}%`)
+
+    const slug = count && count > 0 ? `${baseSlug}-${count + 1}` : baseSlug
 
     const eventInsert: Record<string, any> = {
       name: newName,
