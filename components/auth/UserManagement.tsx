@@ -36,6 +36,11 @@ export function UserManagement() {
   const [invitePassword, setInvitePassword] = useState('')
   const [inviteProgramId, setInviteProgramId] = useState('')
   const [inviteCoachId, setInviteCoachId] = useState('')
+  // Inline creation fields for refs/volunteers
+  const [newRefGrade, setNewRefGrade] = useState('Grade 5')
+  const [newRefPhone, setNewRefPhone] = useState('')
+  const [newVolRole, setNewVolRole] = useState('Score Table')
+  const [newVolPhone, setNewVolPhone] = useState('')
   const [sending, setSending] = useState(false)
   const [refs, setRefs] = useState<any[]>([])
   const [vols, setVols] = useState<any[]>([])
@@ -88,6 +93,51 @@ export function UserManagement() {
     }
     setSending(true)
     const sb = createClient()
+    const displayName = inviteName || inviteEmail
+
+    let refId = inviteRefId ? Number(inviteRefId) : null
+    let volId = inviteVolId ? Number(inviteVolId) : null
+
+    // Create new referee record inline if "new" selected
+    if (inviteRole === 'referee' && inviteRefId === '__new__') {
+      const { data: newRef, error } = await sb
+        .from('referees')
+        .insert({
+          event_id: eventId,
+          name: displayName,
+          grade_level: newRefGrade,
+          phone: newRefPhone || null,
+          email: inviteEmail,
+        })
+        .select('id')
+        .single()
+      if (error || !newRef) {
+        toast.error(error?.message ?? 'Failed to create referee')
+        setSending(false)
+        return
+      }
+      refId = newRef.id
+    }
+
+    // Create new volunteer record inline if "new" selected
+    if (inviteRole === 'volunteer' && inviteVolId === '__new__') {
+      const { data: newVol, error } = await sb
+        .from('volunteers')
+        .insert({
+          event_id: eventId,
+          name: displayName,
+          role: newVolRole,
+          phone: newVolPhone || null,
+        })
+        .select('id')
+        .single()
+      if (error || !newVol) {
+        toast.error(error?.message ?? 'Failed to create volunteer')
+        setSending(false)
+        return
+      }
+      volId = newVol.id
+    }
 
     // Create auth user via admin API (requires service role in API route)
     const res = await fetch('/api/admin/create-user', {
@@ -97,9 +147,9 @@ export function UserManagement() {
         email: inviteEmail,
         password: invitePassword,
         role: inviteRole,
-        display_name: inviteName || inviteEmail,
-        referee_id: inviteRefId ? Number(inviteRefId) : null,
-        volunteer_id: inviteVolId ? Number(inviteVolId) : null,
+        display_name: displayName,
+        referee_id: refId,
+        volunteer_id: volId,
         program_id: inviteProgramId ? Number(inviteProgramId) : null,
         coach_id: inviteCoachId ? Number(inviteCoachId) : null,
         event_id: eventId,
@@ -118,7 +168,12 @@ export function UserManagement() {
       setInviteVolId('')
       setInviteProgramId('')
       setInviteCoachId('')
+      setNewRefGrade('Grade 5')
+      setNewRefPhone('')
+      setNewVolRole('Score Table')
+      setNewVolPhone('')
       loadUsers()
+      loadRefVol()
     }
     setSending(false)
   }
@@ -193,37 +248,96 @@ export function UserManagement() {
               </FormField>
 
               {inviteRole === 'referee' && (
-                <FormField label="Link to Referee">
-                  <select
-                    className="w-full bg-surface border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400"
-                    value={inviteRefId}
-                    onChange={(e) => setInviteRefId(e.target.value)}
-                  >
-                    <option value="">Select referee…</option>
-                    {refs.map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {r.name} ({r.grade_level})
-                      </option>
-                    ))}
-                  </select>
-                </FormField>
+                <>
+                  <FormField label="Referee">
+                    <select
+                      className="w-full bg-surface border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400"
+                      value={inviteRefId}
+                      onChange={(e) => setInviteRefId(e.target.value)}
+                    >
+                      <option value="">Select referee…</option>
+                      <option value="__new__">+ Create new referee</option>
+                      {refs.map((r) => (
+                        <option key={r.id} value={r.id}>
+                          {r.name} ({r.grade_level})
+                        </option>
+                      ))}
+                    </select>
+                  </FormField>
+                  {inviteRefId === '__new__' && (
+                    <div className="pl-3 border-l-2 border-yellow-800/50 space-y-2">
+                      <FormField label="Grade Level">
+                        <select
+                          className="w-full bg-surface border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400"
+                          value={newRefGrade}
+                          onChange={(e) => setNewRefGrade(e.target.value)}
+                        >
+                          <option>Grade 1</option>
+                          <option>Grade 2</option>
+                          <option>Grade 3</option>
+                          <option>Grade 4</option>
+                          <option>Grade 5</option>
+                          <option>Grade 6</option>
+                          <option>Grade 7</option>
+                          <option>Grade 8</option>
+                        </select>
+                      </FormField>
+                      <FormField label="Phone (optional)">
+                        <input
+                          className="w-full bg-surface border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400"
+                          value={newRefPhone}
+                          onChange={(e) => setNewRefPhone(e.target.value)}
+                          placeholder="555-0100"
+                        />
+                      </FormField>
+                    </div>
+                  )}
+                </>
               )}
 
               {inviteRole === 'volunteer' && (
-                <FormField label="Link to Volunteer">
-                  <select
-                    className="w-full bg-surface border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400"
-                    value={inviteVolId}
-                    onChange={(e) => setInviteVolId(e.target.value)}
-                  >
-                    <option value="">Select volunteer…</option>
-                    {vols.map((v) => (
-                      <option key={v.id} value={v.id}>
-                        {v.name} ({v.role})
-                      </option>
-                    ))}
-                  </select>
-                </FormField>
+                <>
+                  <FormField label="Volunteer">
+                    <select
+                      className="w-full bg-surface border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400"
+                      value={inviteVolId}
+                      onChange={(e) => setInviteVolId(e.target.value)}
+                    >
+                      <option value="">Select volunteer…</option>
+                      <option value="__new__">+ Create new volunteer</option>
+                      {vols.map((v) => (
+                        <option key={v.id} value={v.id}>
+                          {v.name} ({v.role})
+                        </option>
+                      ))}
+                    </select>
+                  </FormField>
+                  {inviteVolId === '__new__' && (
+                    <div className="pl-3 border-l-2 border-green-800/50 space-y-2">
+                      <FormField label="Volunteer Role">
+                        <select
+                          className="w-full bg-surface border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400"
+                          value={newVolRole}
+                          onChange={(e) => setNewVolRole(e.target.value)}
+                        >
+                          <option>Score Table</option>
+                          <option>Clock</option>
+                          <option>Field Marshal</option>
+                          <option>Operations</option>
+                          <option>Gate</option>
+                        </select>
+                      </FormField>
+                      <FormField label="Phone (optional)">
+                        <input
+                          className="w-full bg-surface border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400"
+                          value={newVolPhone}
+                          onChange={(e) => setNewVolPhone(e.target.value)}
+                          placeholder="555-0100"
+                        />
+                      </FormField>
+                    </div>
+                  )}
+                </>
               )}
 
               {inviteRole === 'program_leader' && (
