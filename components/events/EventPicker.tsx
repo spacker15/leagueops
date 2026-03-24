@@ -218,11 +218,7 @@ export function EventPicker({ onSelectEvent }: Props) {
       eventInsert.venue_lng = selectedLng
     }
 
-    const { data: ev, error } = await sb
-      .from('events')
-      .insert(eventInsert)
-      .select()
-      .single()
+    const { data: ev, error } = await sb.from('events').insert(eventInsert).select().single()
 
     if (error) {
       toast.error(error.message)
@@ -309,7 +305,7 @@ export function EventPicker({ onSelectEvent }: Props) {
         jobs.push(async () => {
           const { data } = await sb
             .from('teams')
-            .select('name,division,age_group,coach_name,coach_email')
+            .select('name,division,age_group,coach_name,coach_email,program_id')
             .eq('event_id', copySourceId)
           if (data?.length)
             await sb.from('teams').insert(data.map((t) => ({ ...t, event_id: newEventId })))
@@ -404,7 +400,13 @@ export function EventPicker({ onSelectEvent }: Props) {
     loadEvents()
   }
 
-  function handleVenueSelect(venue: { name: string; address: string; lat: number; lng: number; place_id: string }) {
+  function handleVenueSelect(venue: {
+    name: string
+    address: string
+    lat: number
+    lng: number
+    place_id: string
+  }) {
     setSelectedPlaceId(venue.place_id)
     setSelectedLat(venue.lat)
     setSelectedLng(venue.lng)
@@ -859,132 +861,132 @@ export function EventPicker({ onSelectEvent }: Props) {
             {events
               .filter((ev) => showArchived || ev.status !== 'archived')
               .map((ev) => {
-              const sport = SPORTS_EMOJI[ev.sport] ?? '🏆'
-              const color = ev.primary_color ?? '#0B3D91'
-              const isLive = ev.status === 'active'
-              const isArchived = ev.status === 'archived'
+                const sport = SPORTS_EMOJI[ev.sport] ?? '🏆'
+                const color = ev.primary_color ?? '#0B3D91'
+                const isLive = ev.status === 'active'
+                const isArchived = ev.status === 'archived'
 
-              return (
-                <div
-                  key={ev.id}
-                  className={cn(
-                    'group relative rounded-2xl overflow-hidden border transition-all cursor-pointer',
-                    isArchived ? 'opacity-50 hover:opacity-80' : 'hover:border-blue-400/60'
-                  )}
-                  style={{ background: '#081428', borderColor: isLive ? '#22c55e40' : '#1a2d50' }}
-                  onClick={() => onSelectEvent(ev.id)}
-                >
-                  <div className="h-1.5" style={{ background: color }} />
+                return (
+                  <div
+                    key={ev.id}
+                    className={cn(
+                      'group relative rounded-2xl overflow-hidden border transition-all cursor-pointer',
+                      isArchived ? 'opacity-50 hover:opacity-80' : 'hover:border-blue-400/60'
+                    )}
+                    style={{ background: '#081428', borderColor: isLive ? '#22c55e40' : '#1a2d50' }}
+                    onClick={() => onSelectEvent(ev.id)}
+                  >
+                    <div className="h-1.5" style={{ background: color }} />
 
-                  <div className="p-5">
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex items-center gap-3">
-                        {ev.logo_url ? (
-                          <img
-                            src={ev.logo_url}
-                            alt=""
-                            className="w-12 h-12 rounded-xl object-contain bg-white/5 p-1 flex-shrink-0"
-                          />
-                        ) : (
-                          <div
-                            className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl flex-shrink-0"
-                            style={{ background: color + '30', border: `1px solid ${color}40` }}
-                          >
-                            {sport}
-                          </div>
-                        )}
-                        <div>
-                          <div className="font-cond text-[16px] font-black text-white leading-tight">
-                            {ev.name}
-                          </div>
-                          <div className="font-cond text-[10px] text-[#5a6e9a] capitalize mt-0.5">
-                            {ev.sport} {ev.event_type}
+                    <div className="p-5">
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          {ev.logo_url ? (
+                            <img
+                              src={ev.logo_url}
+                              alt=""
+                              className="w-12 h-12 rounded-xl object-contain bg-white/5 p-1 flex-shrink-0"
+                            />
+                          ) : (
+                            <div
+                              className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl flex-shrink-0"
+                              style={{ background: color + '30', border: `1px solid ${color}40` }}
+                            >
+                              {sport}
+                            </div>
+                          )}
+                          <div>
+                            <div className="font-cond text-[16px] font-black text-white leading-tight">
+                              {ev.name}
+                            </div>
+                            <div className="font-cond text-[10px] text-[#5a6e9a] capitalize mt-0.5">
+                              {ev.sport} {ev.event_type}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                      <div
-                        className={cn(
-                          'font-cond text-[9px] font-black tracking-[.15em] px-2 py-1 rounded flex-shrink-0',
-                          isLive
-                            ? 'bg-green-900/40 text-green-400'
-                            : isArchived
-                              ? 'bg-amber-900/30 text-amber-500'
-                              : ev.status === 'completed'
-                                ? 'bg-gray-800 text-gray-500'
-                                : 'bg-[#0d1a2e] text-[#5a6e9a]'
-                        )}
-                      >
-                        {ev.status.toUpperCase()}
-                      </div>
-                    </div>
-
-                    <div className="space-y-1.5 mb-4">
-                      <div className="flex items-center gap-2 font-cond text-[11px] text-[#5a6e9a]">
-                        <MapPin size={11} className="flex-shrink-0" />
-                        <span className="truncate">{ev.location}</span>
-                      </div>
-                      <div className="flex items-center gap-2 font-cond text-[11px] text-[#5a6e9a]">
-                        <Calendar size={11} className="flex-shrink-0" />
-                        <span>
-                          {formatDate(ev.start_date)}
-                          {ev.end_date && ev.end_date !== ev.start_date
-                            ? ` – ${formatDate(ev.end_date)}`
-                            : ''}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between pt-3 border-t border-[#1a2d50]">
-                      {ev.event_code && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            copyCode(ev.id, ev.event_code!)
-                          }}
-                          className="flex items-center gap-1.5 font-mono text-[11px] font-bold text-[#5a6e9a] hover:text-white transition-colors"
-                          title="Copy event code"
-                        >
-                          {copiedCode === ev.id ? (
-                            <>
-                              <CheckCircle size={11} className="text-green-400" />{' '}
-                              <span className="text-green-400">Copied!</span>
-                            </>
-                          ) : (
-                            <>
-                              <Copy size={11} /> {ev.event_code}
-                            </>
+                        <div
+                          className={cn(
+                            'font-cond text-[9px] font-black tracking-[.15em] px-2 py-1 rounded flex-shrink-0',
+                            isLive
+                              ? 'bg-green-900/40 text-green-400'
+                              : isArchived
+                                ? 'bg-amber-900/30 text-amber-500'
+                                : ev.status === 'completed'
+                                  ? 'bg-gray-800 text-gray-500'
+                                  : 'bg-[#0d1a2e] text-[#5a6e9a]'
                           )}
-                        </button>
-                      )}
-                      {isArchived ? (
-                        <button
-                          onClick={(e) => unarchiveEvent(e, ev.id)}
-                          className="flex items-center gap-1.5 font-cond text-[10px] font-black tracking-[.08em] text-amber-500 hover:text-amber-400 transition-colors"
-                          title="Unarchive event"
                         >
-                          <ArchiveRestore size={12} /> UNARCHIVE
-                        </button>
-                      ) : (
-                        <button
-                          onClick={(e) => archiveEvent(e, ev.id)}
-                          className="flex items-center gap-1.5 font-cond text-[10px] font-black tracking-[.08em] text-[#5a6e9a] hover:text-amber-400 transition-colors opacity-0 group-hover:opacity-100"
-                          title="Archive event"
-                        >
-                          <Archive size={12} /> ARCHIVE
-                        </button>
-                      )}
-                      <div className="flex items-center gap-1.5 font-cond text-[11px] font-black tracking-[.08em] text-[#5a6e9a] group-hover:text-white transition-colors ml-auto">
-                        OPEN{' '}
-                        <ChevronRight
-                          size={13}
-                          className="group-hover:translate-x-0.5 transition-transform"
-                        />
+                          {ev.status.toUpperCase()}
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5 mb-4">
+                        <div className="flex items-center gap-2 font-cond text-[11px] text-[#5a6e9a]">
+                          <MapPin size={11} className="flex-shrink-0" />
+                          <span className="truncate">{ev.location}</span>
+                        </div>
+                        <div className="flex items-center gap-2 font-cond text-[11px] text-[#5a6e9a]">
+                          <Calendar size={11} className="flex-shrink-0" />
+                          <span>
+                            {formatDate(ev.start_date)}
+                            {ev.end_date && ev.end_date !== ev.start_date
+                              ? ` – ${formatDate(ev.end_date)}`
+                              : ''}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-3 border-t border-[#1a2d50]">
+                        {ev.event_code && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              copyCode(ev.id, ev.event_code!)
+                            }}
+                            className="flex items-center gap-1.5 font-mono text-[11px] font-bold text-[#5a6e9a] hover:text-white transition-colors"
+                            title="Copy event code"
+                          >
+                            {copiedCode === ev.id ? (
+                              <>
+                                <CheckCircle size={11} className="text-green-400" />{' '}
+                                <span className="text-green-400">Copied!</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy size={11} /> {ev.event_code}
+                              </>
+                            )}
+                          </button>
+                        )}
+                        {isArchived ? (
+                          <button
+                            onClick={(e) => unarchiveEvent(e, ev.id)}
+                            className="flex items-center gap-1.5 font-cond text-[10px] font-black tracking-[.08em] text-amber-500 hover:text-amber-400 transition-colors"
+                            title="Unarchive event"
+                          >
+                            <ArchiveRestore size={12} /> UNARCHIVE
+                          </button>
+                        ) : (
+                          <button
+                            onClick={(e) => archiveEvent(e, ev.id)}
+                            className="flex items-center gap-1.5 font-cond text-[10px] font-black tracking-[.08em] text-[#5a6e9a] hover:text-amber-400 transition-colors opacity-0 group-hover:opacity-100"
+                            title="Archive event"
+                          >
+                            <Archive size={12} /> ARCHIVE
+                          </button>
+                        )}
+                        <div className="flex items-center gap-1.5 font-cond text-[11px] font-black tracking-[.08em] text-[#5a6e9a] group-hover:text-white transition-colors ml-auto">
+                          OPEN{' '}
+                          <ChevronRight
+                            size={13}
+                            className="group-hover:translate-x-0.5 transition-transform"
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              )
-            })}
+                )
+              })}
           </div>
         )}
       </div>
