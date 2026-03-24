@@ -293,7 +293,10 @@ export function RequestCard({ request, eventId }: RequestCardProps) {
                     <div className="flex items-center gap-2 mb-2">
                       {rg.game && (
                         <span className="text-[12px] text-muted">
-                          {format(new Date(rg.game.scheduled_time), 'MMM d h:mm a')}
+                          {(rg.game as any).event_date?.date
+                            ? new Date((rg.game as any).event_date.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' '
+                            : ''}
+                          {rg.game.scheduled_time}
                           {rg.game.field && ` · ${rg.game.field.name}`}
                         </span>
                       )}
