@@ -35,7 +35,6 @@ Declared values (must be multiples of 4):
 |-------|-------|-------|
 | xs | 4px | Icon gaps, inline padding (`gap-1`, `px-1`) |
 | sm | 8px | Compact element spacing (`gap-2`, `px-2`, `py-2`) |
-| sm+ | 12px | Touch target padding, compact list rows (`p-3`, `py-3`) |
 | md | 16px | Default element spacing (`gap-4`, `px-4`, `p-4`) |
 | lg | 24px | Section padding (`p-6`, `gap-6`) |
 | xl | 32px | Layout gaps (`p-8`) |
