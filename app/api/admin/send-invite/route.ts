@@ -4,8 +4,6 @@ import { Resend } from 'resend'
 import { render } from '@react-email/render'
 import { InviteEmail } from '@/emails/InviteEmail'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
-
 export async function POST(req: NextRequest) {
   const sb = createClient()
 
@@ -58,6 +56,7 @@ export async function POST(req: NextRequest) {
 
   const fromAddress = process.env.RESEND_FROM_EMAIL || 'LeagueOps <noreply@leagueops.app>'
 
+  const resend = new Resend(process.env.RESEND_API_KEY)
   const { error } = await resend.emails.send({
     from: fromAddress,
     to: email,
