@@ -1259,7 +1259,8 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
   // Registration URL uses public-results domain (separate Vercel deployment).
   // CRITICAL: Do NOT use window.location.origin -- the /e/[slug]/register route
   // lives in apps/public-results which is deployed at a different domain.
-  const publicResultsUrl = process.env.NEXT_PUBLIC_PUBLIC_RESULTS_URL || ''
+  const publicResultsUrl = process.env.NEXT_PUBLIC_PUBLIC_RESULTS_URL
+    || (typeof window !== 'undefined' ? window.location.origin : '')
   const registrationUrl = event.slug
     ? `${publicResultsUrl}/e/${event.slug}/register`
     : ''
@@ -3119,7 +3120,7 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                 <div>
                   <div className={sectionHdr}><Share2 size={14} /> SHARE</div>
                   <div className="flex items-center gap-3">
-                    <a href={mailtoHref} className="inline-flex items-center gap-1.5 font-cond font-bold text-[11px] uppercase tracking-[.1em] text-[#5a6e9a] hover:text-white transition-colors px-3 py-2 rounded-lg border border-[#1a2d50] hover:border-[#2a3d60]">
+                    <a href={mailtoHref} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 font-cond font-bold text-[11px] uppercase tracking-[.1em] text-[#5a6e9a] hover:text-white transition-colors px-3 py-2 rounded-lg border border-[#1a2d50] hover:border-[#2a3d60]">
                       <Mail size={13} /> EMAIL
                     </a>
                     <a href={smsHref} className="inline-flex items-center gap-1.5 font-cond font-bold text-[11px] uppercase tracking-[.1em] text-[#5a6e9a] hover:text-white transition-colors px-3 py-2 rounded-lg border border-[#1a2d50] hover:border-[#2a3d60]">
