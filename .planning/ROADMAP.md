@@ -18,7 +18,7 @@ created: 2026-03-22
 | 5     | Event Creation Enhancements      | 5/5 | Complete   | 2026-03-24 |
 | 6     | Registration Flow Enhancements   | 5/5 | Complete   | 2026-03-24 |
 | 7     | Notification Infrastructure      | 4/4 | Complete   | 2026-03-24 |
-| 8     | Schedule Change Request Workflow | 2/5 | In Progress|  |
+| 8     | Schedule Change Request Workflow | 3/5 | In Progress|  |
 | 9     | Public Results Site              | PUB-01, PUB-02, PUB-03, PUB-04, PUB-05, PUB-06, PUB-07, PUB-08 | yes      | Phase 4                   |
 | 10    | Responsive Design                | MOB-01, MOB-02, MOB-03, MOB-04, NOT-02, NOT-03, NOT-04         | yes      | Phase 7, Phase 8, Phase 9 |
 
@@ -247,12 +247,12 @@ Plans:
 **Requirements:** SCR-01, SCR-02, SCR-03, SCR-04, SCR-05, SCR-06, SCR-07, SCR-08
 **UI hint:** yes
 **Depends on:** Phase 6, Phase 7
-**Plans:** 2/5 plans executed
+**Plans:** 3/5 plans executed
 
 Plans:
 - [x] 08-01-PLAN.md — Foundation: migration SQL, types, Zod schemas, db.ts CRUD, CSS badges (SCR-01, SCR-06, SCR-08)
 - [x] 08-02-PLAN.md — Slot suggestion engine with TDD tests (SCR-04, SCR-05)
-- [ ] 08-03-PLAN.md — API routes, state machine, store integration, notification wiring (SCR-02, SCR-03, SCR-06, SCR-07, SCR-08)
+- [x] 08-03-PLAN.md — API routes, state machine, store integration, notification wiring (SCR-02, SCR-03, SCR-06, SCR-07, SCR-08)
 - [ ] 08-04-PLAN.md — Coach submission UI: modal, game card button, request status badge (SCR-01)
 - [ ] 08-05-PLAN.md — Admin Requests tab, RequestCard, AppShell integration, slot panel (SCR-03, SCR-04, SCR-05)
 
