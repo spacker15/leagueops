@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: Executing Phase 06
-stopped_at: Completed 06-02-PLAN.md
-last_updated: "2026-03-24T11:10:38.812Z"
+stopped_at: Completed 06-03-PLAN.md
+last_updated: "2026-03-24T11:12:38.573Z"
 progress:
   total_phases: 10
   completed_phases: 5
   total_plans: 25
-  completed_plans: 23
+  completed_plans: 24
 ---
 
 # Project State: LeagueOps
@@ -37,8 +37,8 @@ See: .planning/PROJECT.md (updated 2026-03-22)
 
 ## Active Context
 
-**Last session:** 2026-03-24T11:10:38.809Z
-**Stopped at:** Completed 06-02-PLAN.md
+**Last session:** 2026-03-24T11:12:38.570Z
+**Stopped at:** Completed 06-03-PLAN.md
 **Plans completed:** 01-01 (Core Engine Refactor) — 7 tasks, 12 files, 19 min; 01-02 (New API Routes for CommandCenter) — 3 tasks, 3 files, 3 min; 05-01 (Phase 5 Foundation) — 2 tasks, 6 files, 2 min
 
 ## Performance Metrics
@@ -69,6 +69,7 @@ See: .planning/PROJECT.md (updated 2026-03-22)
 | Phase 06-registration-flow-enhancements P01 | 8 min | 2 tasks | 4 files |
 | Phase 06-registration-flow-enhancements P04 | 8 min | 2 tasks | 3 files |
 | Phase 06-registration-flow-enhancements P02 | 4 min | 1 tasks | 2 files |
+| Phase 06-registration-flow-enhancements P03 | 15 min | 1 tasks | 1 files |
 
 ## Decisions Log
 
@@ -122,3 +123,6 @@ See: .planning/PROJECT.md (updated 2026-03-22)
 | 05-03      | Registration URL uses NEXT_PUBLIC_PUBLIC_RESULTS_URL env var instead of window.location.origin -- /e/[slug]/register lives in separate apps/public-results Vercel deployment; window.location.origin fallback added for local dev |
 | 05-03      | maybeSingle() used instead of single() for slug lookup to prevent crash on duplicate slugs; unique slug enforcement added to createEvent() with up to 5 collision-retry attempts |
 | 05-03      | RLS policy fixes: owner_id fallback added to events SELECT/UPDATE policies; event_admins INSERT moved after user_roles INSERT to satisfy FK constraint |
+| 06-03      | detectCoachConflicts wrapped in try/catch — non-fatal; conflict detection failure must not block registration submission |
+| 06-03      | available_date_ids: [] (empty array) means all dates available — consistent with team_registrations schema from 06-01 |
+| 06-03      | Additional Coaches section collapsed by default; copy-from-team-1 deep copies additionalCoaches array to avoid shared references |

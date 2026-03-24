@@ -16,7 +16,7 @@ created: 2026-03-22
 | 3     | API Auth & Validation            | 3/3 | Complete   | 2026-03-23 |
 | 4     | RLS & Database Security          | 1/2 | In Progress|  |
 | 5     | Event Creation Enhancements      | 5/5 | Complete   | 2026-03-24 |
-| 6     | Registration Flow Enhancements   | 3/5 | In Progress|  |
+| 6     | Registration Flow Enhancements   | 4/5 | In Progress|  |
 | 7     | Notification Infrastructure      | NOT-01, NOT-05, NOT-06, NOT-07, NOT-08                         | yes      | Phase 1, Phase 4          |
 | 8     | Schedule Change Request Workflow | SCR-01, SCR-02, SCR-03, SCR-04, SCR-05, SCR-06, SCR-07, SCR-08 | yes      | Phase 6, Phase 7          |
 | 9     | Public Results Site              | PUB-01, PUB-02, PUB-03, PUB-04, PUB-05, PUB-06, PUB-07, PUB-08 | yes      | Phase 4                   |
@@ -176,12 +176,12 @@ Plans:
 **Requirements:** REG-01, REG-02, REG-03, REG-04, REG-05, REG-06, REG-07, REG-08
 **UI hint:** yes
 **Depends on:** Phase 2, Phase 4
-**Plans:** 3/5 plans executed
+**Plans:** 4/5 plans executed
 
 Plans:
 - [x] 06-01-PLAN.md — Foundation: schema migration, TypeScript types, coach conflicts engine (REG-06, REG-07)
 - [x] 06-02-PLAN.md — Admin event setup: MultiDatePicker, registration window controls, status badge (REG-01)
-- [ ] 06-03-PLAN.md — Registration wizard Step 3: additional coaches, availability dates, multi-team UX (REG-02, REG-03, REG-08)
+- [x] 06-03-PLAN.md — Registration wizard Step 3: additional coaches, availability dates, multi-team UX (REG-02, REG-03, REG-08)
 - [x] 06-04-PLAN.md — Coach self-registration token flow: server page, client form, API route (REG-04, REG-05)
 - [ ] 06-05-PLAN.md — Integration: program leader portal, registration enforcement, schedule engine wiring (REG-04, REG-07)
 
