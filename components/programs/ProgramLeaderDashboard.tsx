@@ -4,9 +4,11 @@ import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '@/lib/auth'
 import { createClient } from '@/supabase/client'
 import toast from 'react-hot-toast'
-import { Link, X, QrCode, Copy } from 'lucide-react'
+import { Link, X, QrCode, Copy, CalendarX } from 'lucide-react'
 import { QRCodeSVG, QRCodeCanvas } from 'qrcode.react'
 import { Btn, Modal, Pill } from '@/components/ui'
+import { ScheduleChangeRequestModal } from '@/components/schedule/ScheduleChangeRequestModal'
+import type { Game } from '@/types'
 
 // ─── Types ────────────────────────────────────────────────────
 
@@ -52,6 +54,14 @@ export function ProgramLeaderDashboard() {
   const [eventDates, setEventDates] = useState<EventDate[]>([])
   const [invite, setInvite] = useState<InviteState>({ token: null, is_active: false, url: null })
   const [loading, setLoading] = useState(true)
+
+  // Games and schedule change requests for Request Change button
+  const [programTeams, setProgramTeams] = useState<{ id: number; name: string }[]>([])
+  const [programGames, setProgramGames] = useState<Game[]>([])
+  const [pendingGameIds, setPendingGameIds] = useState<Set<number>>(new Set())
+  const [scrModalOpen, setScrModalOpen] = useState(false)
+  const [scrPreSelectedGameId, setScrPreSelectedGameId] = useState<number | undefined>()
+  const [scrTeamId, setScrTeamId] = useState<number | undefined>()
 
   // Invite UI state
   const [generatingInvite, setGeneratingInvite] = useState(false)
@@ -129,6 +139,45 @@ export function ProgramLeaderDashboard() {
       setInvite({ token: inviteData.token, is_active: true, url })
     } else {
       setInvite({ token: null, is_active: false, url: null })
+    }
+
+    // Load actual teams (from teams table) for this program to support Request Change
+    const { data: teamsData } = await sb
+      .from('teams')
+      .select('id, name')
+      .eq('program_id', programId!)
+      .eq('event_id', portalEventId!)
+
+    const teamsList = (teamsData ?? []) as { id: number; name: string }[]
+    setProgramTeams(teamsList)
+
+    if (teamsList.length > 0) {
+      const teamIds = teamsList.map((t) => t.id)
+
+      // Load games for program's teams
+      const { data: gamesData } = await sb
+        .from('games')
+        .select('*, home_team:teams!games_home_team_id_fkey(id, name), away_team:teams!games_away_team_id_fkey(id, name), field:fields(id, name)')
+        .eq('event_id', portalEventId!)
+        .or(`home_team_id.in.(${teamIds.join(',')}),away_team_id.in.(${teamIds.join(',')})`)
+        .order('scheduled_time')
+
+      setProgramGames((gamesData as Game[]) ?? [])
+
+      // Load pending schedule change request game IDs
+      const { data: scrData } = await sb
+        .from('schedule_change_requests')
+        .select('id, status, schedule_change_request_games(game_id, status)')
+        .eq('event_id', portalEventId!)
+        .in('team_id', teamIds)
+        .in('status', ['pending', 'under_review'])
+
+      const pendingIds = new Set<number>(
+        ((scrData ?? []) as any[])
+          .flatMap((r: any) => r.schedule_change_request_games ?? [])
+          .map((g: any) => g.game_id as number)
+      )
+      setPendingGameIds(pendingIds)
     }
 
     setLoading(false)
@@ -359,6 +408,67 @@ export function ProgramLeaderDashboard() {
                   {getAvailabilityLabel(team)}
                 </div>
               </div>
+
+              {/* Games section with Request Change buttons */}
+              {(() => {
+                const matchedTeam = programTeams.find(
+                  (t) => t.name.toLowerCase() === team.team_name.toLowerCase()
+                )
+                if (!matchedTeam) return null
+                const teamGames = programGames.filter(
+                  (g) => g.home_team_id === matchedTeam.id || g.away_team_id === matchedTeam.id
+                )
+                if (teamGames.length === 0) return null
+                return (
+                  <div className="mt-3">
+                    <div className="font-cond text-[10px] font-black tracking-[.12em] text-[#5a6e9a] uppercase mb-2">
+                      UPCOMING GAMES
+                    </div>
+                    <div className="space-y-1.5">
+                      {teamGames.map((game) => {
+                        const isPending = pendingGameIds.has(game.id)
+                        const isCancelled = game.status === 'Cancelled'
+                        const opponent =
+                          game.home_team_id === matchedTeam.id
+                            ? (game.away_team as any)?.name ?? `Team #${game.away_team_id}`
+                            : (game.home_team as any)?.name ?? `Team #${game.home_team_id}`
+                        return (
+                          <div
+                            key={game.id}
+                            className={`flex items-center justify-between gap-2 rounded-lg px-2.5 py-2 bg-[#040e24] border border-[#1e3060] ${isCancelled ? 'opacity-50' : ''}`}
+                          >
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                              <span className={`font-mono text-[11px] text-[#5a6e9a] whitespace-nowrap ${isCancelled ? 'line-through' : ''}`}>
+                                {game.scheduled_time}
+                              </span>
+                              <span className="font-cond text-[12px] text-white font-black truncate">
+                                vs {opponent}
+                              </span>
+                            </div>
+                            {!isCancelled && (
+                              <Btn
+                                variant="outline"
+                                size="sm"
+                                disabled={isPending}
+                                title={isPending ? 'Request pending' : undefined}
+                                aria-label="Request a schedule change for this game"
+                                onClick={() => {
+                                  setScrTeamId(matchedTeam.id)
+                                  setScrPreSelectedGameId(game.id)
+                                  setScrModalOpen(true)
+                                }}
+                              >
+                                <CalendarX size={11} className="inline mr-1" />
+                                Request Change
+                              </Btn>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              })()}
             </div>
           )
         })}
@@ -435,6 +545,23 @@ export function ProgramLeaderDashboard() {
           This will invalidate the current link. You can generate a new one after revoking.
         </div>
       </Modal>
+
+      {/* Schedule Change Request modal */}
+      {scrTeamId && (
+        <ScheduleChangeRequestModal
+          open={scrModalOpen}
+          onClose={() => {
+            setScrModalOpen(false)
+            setScrPreSelectedGameId(undefined)
+            setScrTeamId(undefined)
+          }}
+          preSelectedGameId={scrPreSelectedGameId}
+          teamId={scrTeamId}
+          teamGames={programGames.filter(
+            (g) => g.home_team_id === scrTeamId || g.away_team_id === scrTeamId
+          )}
+        />
+      )}
     </div>
   )
 }

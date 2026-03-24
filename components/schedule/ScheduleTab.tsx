@@ -2,10 +2,12 @@
 
 import { useState, useMemo, useCallback, useEffect } from 'react'
 import { useApp } from '@/lib/store'
+import { useAuth } from '@/lib/auth'
 import { StatusBadge, Modal, Btn, FormField, SectionHeader } from '@/components/ui'
+import { ScheduleChangeRequestModal } from '@/components/schedule/ScheduleChangeRequestModal'
 import { cn, nextStatusLabel, nextGameStatus, fuzzyMatch, findCsvMismatches, type CsvMismatch, type FuzzyResult } from '@/lib/utils'
 import toast from 'react-hot-toast'
-import type { GameStatus, OperationalConflict } from '@/types'
+import type { GameStatus, OperationalConflict, ScheduleChangeRequest } from '@/types'
 import { createClient } from '@/supabase/client'
 import { useRef } from 'react'
 import {
@@ -22,6 +24,7 @@ import {
   Upload,
   Download,
   Plus,
+  CalendarX,
 } from 'lucide-react'
 
 type ViewMode = 'table' | 'board'
@@ -131,6 +134,7 @@ interface FieldConflict extends OperationalConflict {
 
 export function ScheduleTab() {
   const { state, updateGameStatus, addGame, refreshGames, currentDate, eventId } = useApp()
+  const { userRole } = useAuth()
   const [viewMode, setViewMode] = useState<ViewMode>('board')
   const [fieldFilter, setFieldFilter] = useState('')
   const [divFilter, setDivFilter] = useState('')
@@ -165,6 +169,10 @@ export function ScheduleTab() {
   const [teamFilter, setTeamFilter] = useState<TeamFilter>('all')
   const [teamPickerOpen, setTeamPickerOpen] = useState(false)
   const followedSet = useMemo(() => new Set(followedTeams), [followedTeams])
+
+  // Schedule Change Request modal state
+  const [scrModalOpen, setScrModalOpen] = useState(false)
+  const [scrPreSelectedGameId, setScrPreSelectedGameId] = useState<number | undefined>()
 
   function toggleFollowTeam(id: number) {
     setFollowedTeams((prev) => {
@@ -864,6 +872,18 @@ export function ScheduleTab() {
 
   if (!eventId) return null
 
+  // Derive team context for SCR modal
+  const teamId = userRole?.team_id ?? undefined
+  const teamGames = teamId
+    ? state.games.filter((g) => g.home_team_id === teamId || g.away_team_id === teamId)
+    : []
+  const scrRequests = (state.scheduleChangeRequests ?? []) as ScheduleChangeRequest[]
+  const pendingRequestGameIds = new Set(
+    scrRequests
+      .filter((r) => r.status === 'pending' || r.status === 'under_review')
+      .flatMap((r) => (r.games ?? []).map((g) => g.game_id))
+  )
+
   const divisions = [...new Set(state.teams.map((t) => t.division))].sort()
   const criticalCount = conflicts.filter((c) => c.severity === 'critical').length
   const warningCount = conflicts.filter((c) => c.severity === 'warning').length
@@ -1265,20 +1285,24 @@ export function ScheduleTab() {
                     key={game.id}
                     className={cn(
                       'border-b border-border/50 hover:bg-white/5 transition-colors',
-                      game.status === 'Live'
-                        ? 'bg-green-900/10'
-                        : game.status === 'Delayed'
-                          ? 'bg-red-900/10'
-                          : hasConflict
-                            ? 'bg-yellow-900/8'
-                            : isFollowedGame
-                              ? 'bg-blue-900/8'
-                              : '',
+                      game.status === 'Cancelled'
+                        ? 'opacity-50'
+                        : game.status === 'Live'
+                          ? 'bg-green-900/10'
+                          : game.status === 'Delayed'
+                            ? 'bg-red-900/10'
+                            : hasConflict
+                              ? 'bg-yellow-900/8'
+                              : isFollowedGame
+                                ? 'bg-blue-900/8'
+                                : '',
                       isFollowedGame && 'border-l-2 border-l-blue-500'
                     )}
                   >
                     <td className="font-mono text-blue-300 text-[11px] px-3 py-2 whitespace-nowrap">
-                      {game.scheduled_time}
+                      <span className={game.status === 'Cancelled' ? 'line-through' : undefined}>
+                        {game.scheduled_time}
+                      </span>
                       {hasConflict && (
                         <span
                           className={cn(
@@ -1315,7 +1339,29 @@ export function ScheduleTab() {
                       </span>
                     </td>
                     <td className="px-3 py-2">
-                      <StatusBadge status={game.status} />
+                      <div className="flex items-center gap-1 flex-wrap">
+                        <StatusBadge status={game.status} />
+                        {scrRequests.some((r) => r.games?.some((g) => g.game_id === game.id)) && (
+                          <span
+                            className={`badge-request-${
+                              scrRequests
+                                .flatMap((r) => r.games ?? [])
+                                .find((g) => g.game_id === game.id)?.status ?? 'pending'
+                            }`}
+                            title={`Change request ${
+                              scrRequests
+                                .flatMap((r) => r.games ?? [])
+                                .find((g) => g.game_id === game.id)?.status ?? 'pending'
+                            }`}
+                          >
+                            {(
+                              scrRequests
+                                .flatMap((r) => r.games ?? [])
+                                .find((g) => g.game_id === game.id)?.status ?? 'pending'
+                            ).replace('_', ' ')}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-3 py-2 font-mono text-[11px]">
                       {['Live', 'Halftime', 'Final'].includes(game.status) ? (
@@ -1327,7 +1373,7 @@ export function ScheduleTab() {
                       )}
                     </td>
                     <td className="px-3 py-2">
-                      <div className="flex gap-1 items-center">
+                      <div className="flex gap-1 items-center flex-wrap">
                         {game.status !== 'Final' && (
                           <button
                             onClick={() => cycleStatus(game.id, game.status)}
@@ -1337,6 +1383,23 @@ export function ScheduleTab() {
                           </button>
                         )}
                         <QuickRescheduleBtn game={game} onRescheduled={loadConflicts} />
+                        {(userRole?.role === 'coach' || userRole?.role === 'program_leader') &&
+                          game.status !== 'Cancelled' && (
+                            <Btn
+                              variant="outline"
+                              size="sm"
+                              disabled={pendingRequestGameIds.has(game.id)}
+                              title={pendingRequestGameIds.has(game.id) ? 'Request pending' : undefined}
+                              aria-label="Request a schedule change for this game"
+                              onClick={() => {
+                                setScrPreSelectedGameId(game.id)
+                                setScrModalOpen(true)
+                              }}
+                            >
+                              <CalendarX size={12} className="inline mr-1" />
+                              Request Change
+                            </Btn>
+                          )}
                       </div>
                     </td>
                   </tr>
@@ -1357,6 +1420,13 @@ export function ScheduleTab() {
           onCycleStatus={cycleStatus}
           onRescheduled={loadConflicts}
           followedSet={followedSet}
+          pendingRequestGameIds={pendingRequestGameIds}
+          scheduleChangeRequests={scrRequests}
+          userRole={userRole}
+          onRequestChange={(gameId) => {
+            setScrPreSelectedGameId(gameId)
+            setScrModalOpen(true)
+          }}
         />
       )}
 
@@ -1840,6 +1910,20 @@ export function ScheduleTab() {
           </div>
         </div>
       )}
+
+      {/* Schedule Change Request modal */}
+      {teamId && (
+        <ScheduleChangeRequestModal
+          open={scrModalOpen}
+          onClose={() => {
+            setScrModalOpen(false)
+            setScrPreSelectedGameId(undefined)
+          }}
+          preSelectedGameId={scrPreSelectedGameId}
+          teamId={teamId}
+          teamGames={teamGames}
+        />
+      )}
     </div>
   )
 }
@@ -2045,6 +2129,10 @@ function ScheduleBoardView({
   onCycleStatus,
   onRescheduled,
   followedSet,
+  pendingRequestGameIds,
+  scheduleChangeRequests,
+  userRole,
+  onRequestChange,
 }: {
   fieldColumns: Array<{ field: any; games: any[] }>
   conflicts: any[]
@@ -2052,6 +2140,10 @@ function ScheduleBoardView({
   onCycleStatus: (id: number, status: GameStatus) => void
   onRescheduled: () => void
   followedSet: Set<number>
+  pendingRequestGameIds: Set<number>
+  scheduleChangeRequests: ScheduleChangeRequest[]
+  userRole: import('@/lib/auth').UserRole | null
+  onRequestChange: (gameId: number) => void
 }) {
   return (
     <div className="overflow-x-auto pb-3">
@@ -2150,6 +2242,10 @@ function ScheduleBoardView({
                     onCycleStatus={onCycleStatus}
                     onRescheduled={onRescheduled}
                     followedSet={followedSet}
+                    pendingRequestGameIds={pendingRequestGameIds}
+                    scheduleChangeRequests={scheduleChangeRequests}
+                    userRole={userRole}
+                    onRequestChange={onRequestChange}
                   />
                 ))}
               </div>
@@ -2169,6 +2265,10 @@ function GameCard({
   onCycleStatus,
   onRescheduled,
   followedSet,
+  pendingRequestGameIds,
+  scheduleChangeRequests,
+  userRole,
+  onRequestChange,
 }: {
   game: any
   hasConflict: boolean
@@ -2176,10 +2276,15 @@ function GameCard({
   onCycleStatus: (id: number, status: GameStatus) => void
   onRescheduled: () => void
   followedSet: Set<number>
+  pendingRequestGameIds: Set<number>
+  scheduleChangeRequests: ScheduleChangeRequest[]
+  userRole: import('@/lib/auth').UserRole | null
+  onRequestChange: (gameId: number) => void
 }) {
   const [expanded, setExpanded] = useState(false)
   const isLive = game.status === 'Live' || game.status === 'Halftime'
   const isFinal = game.status === 'Final'
+  const isCancelled = game.status === 'Cancelled'
   const isDelayed = game.status === 'Delayed'
   const isStarting = game.status === 'Starting'
   const isFollowedGame =
@@ -2187,31 +2292,35 @@ function GameCard({
     (followedSet.has(game.home_team_id) || followedSet.has(game.away_team_id))
 
   const borderColor =
-    hasConflict && conflict?.severity === 'critical'
-      ? 'border-red-600/70'
-      : hasConflict
-        ? 'border-yellow-600/60'
-        : isLive
-          ? 'border-green-600/60'
-          : isDelayed
-            ? 'border-red-600/50'
-            : isStarting
-              ? 'border-orange-500/60'
-              : isFinal
-                ? 'border-border/40'
-                : isFollowedGame
-                  ? 'border-blue-500/60'
-                  : 'border-border'
+    isCancelled
+      ? 'border-border/30'
+      : hasConflict && conflict?.severity === 'critical'
+        ? 'border-red-600/70'
+        : hasConflict
+          ? 'border-yellow-600/60'
+          : isLive
+            ? 'border-green-600/60'
+            : isDelayed
+              ? 'border-red-600/50'
+              : isStarting
+                ? 'border-orange-500/60'
+                : isFinal
+                  ? 'border-border/40'
+                  : isFollowedGame
+                    ? 'border-blue-500/60'
+                    : 'border-border'
 
-  const bgColor = isLive
-    ? 'bg-green-900/10'
-    : isDelayed
-      ? 'bg-red-900/10'
-      : isFinal
-        ? 'bg-surface-card/50'
-        : isFollowedGame
-          ? 'bg-blue-900/10'
-          : 'bg-surface-card'
+  const bgColor = isCancelled
+    ? 'bg-surface-card/30'
+    : isLive
+      ? 'bg-green-900/10'
+      : isDelayed
+        ? 'bg-red-900/10'
+        : isFinal
+          ? 'bg-surface-card/50'
+          : isFollowedGame
+            ? 'bg-blue-900/10'
+            : 'bg-surface-card'
 
   return (
     <div
@@ -2219,7 +2328,7 @@ function GameCard({
         'rounded-lg border overflow-hidden transition-all',
         borderColor,
         bgColor,
-        isFinal && 'opacity-75'
+        (isFinal || isCancelled) && 'opacity-50'
       )}
     >
       {/* Card header — time + status */}
@@ -2356,9 +2465,33 @@ function GameCard({
           </div>
         )}
 
+        {/* Request status badge */}
+        {scheduleChangeRequests.some((r) => r.games?.some((g) => g.game_id === game.id)) && (
+          <div className="mb-2">
+            <span
+              className={`badge-request-${
+                scheduleChangeRequests
+                  .flatMap((r) => r.games ?? [])
+                  .find((g) => g.game_id === game.id)?.status ?? 'pending'
+              }`}
+              title={`Change request ${
+                scheduleChangeRequests
+                  .flatMap((r) => r.games ?? [])
+                  .find((g) => g.game_id === game.id)?.status ?? 'pending'
+              }`}
+            >
+              {(
+                scheduleChangeRequests
+                  .flatMap((r) => r.games ?? [])
+                  .find((g) => g.game_id === game.id)?.status ?? 'pending'
+              ).replace('_', ' ')}
+            </span>
+          </div>
+        )}
+
         {/* Action buttons */}
-        {!isFinal && (
-          <div className="flex gap-1">
+        {!isFinal && !isCancelled && (
+          <div className="flex gap-1 flex-wrap">
             <button
               onClick={() => onCycleStatus(game.id, game.status)}
               className={cn(
@@ -2377,6 +2510,25 @@ function GameCard({
             <QuickRescheduleBtn game={game} onRescheduled={onRescheduled} />
           </div>
         )}
+
+        {/* Request Change button — visible to coaches and program leaders */}
+        {(userRole?.role === 'coach' || userRole?.role === 'program_leader') &&
+          !isCancelled && (
+            <div className="mt-1.5">
+              <Btn
+                variant="outline"
+                size="sm"
+                disabled={pendingRequestGameIds.has(game.id)}
+                title={pendingRequestGameIds.has(game.id) ? 'Request pending' : undefined}
+                aria-label="Request a schedule change for this game"
+                onClick={() => onRequestChange(game.id)}
+                className="w-full"
+              >
+                <CalendarX size={11} className="inline mr-1" />
+                Request Change
+              </Btn>
+            </div>
+          )}
       </div>
     </div>
   )
