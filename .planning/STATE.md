@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: Executing Phase 05
-stopped_at: Completed 05-04-PLAN.md
-last_updated: "2026-03-23T16:43:39.634Z"
+stopped_at: Completed 05-03-PLAN.md
+last_updated: "2026-03-24T02:07:06.594Z"
 progress:
   total_phases: 10
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 20
-  completed_plans: 19
+  completed_plans: 20
 ---
 
 # Project State: LeagueOps
@@ -37,8 +37,8 @@ See: .planning/PROJECT.md (updated 2026-03-22)
 
 ## Active Context
 
-**Last session:** 2026-03-23T16:43:39.630Z
-**Stopped at:** Completed 05-04-PLAN.md
+**Last session:** 2026-03-24T02:07:06.591Z
+**Stopped at:** Completed 05-03-PLAN.md
 **Plans completed:** 01-01 (Core Engine Refactor) — 7 tasks, 12 files, 19 min; 01-02 (New API Routes for CommandCenter) — 3 tasks, 3 files, 3 min; 05-01 (Phase 5 Foundation) — 2 tasks, 6 files, 2 min
 
 ## Performance Metrics
@@ -65,6 +65,7 @@ See: .planning/PROJECT.md (updated 2026-03-22)
 | Phase 05-event-creation-enhancements P01 | 2 min | 2 tasks | 6 files |
 | Phase 05-event-creation-enhancements P02 | 2 min | 2 tasks | 2 files |
 | Phase 05-event-creation-enhancements P04 | 1 min | 1 tasks | 1 files |
+| Phase 05-event-creation-enhancements P03 | 45 min | 2 tasks | 4 files |
 
 ## Decisions Log
 
@@ -115,3 +116,6 @@ See: .planning/PROJECT.md (updated 2026-03-22)
 | 05-02      | handleVenueSelect() in EventPicker owns all venue state updates -- delegates to VenueAutocompleteInput for search/select UX |
 | 05-02      | Complex update in EventSetupTab uses .is('lat', null).limit(1) filter to avoid overwriting manually-set complex coordinates |
 | 05-02      | CheckCircle kept in EventPicker lucide imports -- still used for copy event code feedback (unrelated to venue) |
+| 05-03      | Registration URL uses NEXT_PUBLIC_PUBLIC_RESULTS_URL env var instead of window.location.origin -- /e/[slug]/register lives in separate apps/public-results Vercel deployment; window.location.origin fallback added for local dev |
+| 05-03      | maybeSingle() used instead of single() for slug lookup to prevent crash on duplicate slugs; unique slug enforcement added to createEvent() with up to 5 collision-retry attempts |
+| 05-03      | RLS policy fixes: owner_id fallback added to events SELECT/UPDATE policies; event_admins INSERT moved after user_roles INSERT to satisfy FK constraint |
