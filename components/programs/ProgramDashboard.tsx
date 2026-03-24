@@ -787,6 +787,7 @@ export function ProgramDashboard() {
             setScrModalOpen(false)
             setScrPreSelectedGameId(undefined)
             setScrTeamId(undefined)
+            loadData()
           }}
           preSelectedGameId={scrPreSelectedGameId}
           teamId={scrTeamId}
