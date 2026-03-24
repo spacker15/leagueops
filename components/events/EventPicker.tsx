@@ -225,10 +225,7 @@ export function EventPicker({ onSelectEvent }: Props) {
 
     const newEventId = (ev as any).id
 
-    // Add creator as owner admin
-    await sb.from('event_admins').insert({ event_id: newEventId, user_id: user?.id, role: 'owner' })
-
-    // Add to user_roles
+    // Add to user_roles FIRST — event_admins RLS depends on user_event_ids() which reads user_roles
     await sb.from('user_roles').upsert(
       {
         user_id: user?.id,
@@ -239,6 +236,9 @@ export function EventPicker({ onSelectEvent }: Props) {
       },
       { onConflict: 'user_id,event_id,role' }
     )
+
+    // Add creator as owner admin (now passes RLS because user_roles row exists)
+    await sb.from('event_admins').insert({ event_id: newEventId, user_id: user?.id, role: 'owner' })
 
     // Create the primary complex
     await sb.from('complexes').insert({
