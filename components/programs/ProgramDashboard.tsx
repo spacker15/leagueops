@@ -548,7 +548,7 @@ export function ProgramDashboard() {
                                     CANCELLED
                                   </span>
                                 )}
-                                {!isCancelled && !isPending && !scrStatus && (
+                                {!isCancelled && !isPending && (
                                   <button
                                     onClick={() => {
                                       setScrTeamId(matchedTeam.id)
