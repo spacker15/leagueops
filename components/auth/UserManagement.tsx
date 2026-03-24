@@ -166,7 +166,6 @@ export function UserManagement() {
       setInviteVolId('')
       setInviteProgramId('')
       setInviteCoachId('')
-      setNewRefGrade('Grade 5')
       setNewRefPhone('')
       setNewVolRole('Score Table')
       setNewVolPhone('')
