@@ -56,13 +56,14 @@ Source: CLAUDE.md conventions + existing badge + button patterns in `components/
 | Body | 13px | 400 (regular) | 1.5 | Barlow (`font-sans`) | Request detail text, game rows in checkbox list, reason details, admin notes |
 | Label | 10px | 900 (black) | 1.2 | Barlow Condensed (`font-cond`) | Section headers, form field labels, badge text, status labels — uppercase + tracking-widest |
 | Heading | 15px | 900 (black) | 1.2 | Barlow Condensed (`font-cond`) | Modal title, tab heading, request card team name |
-| Mono | 12px | 400 (regular) | 1.0 | Roboto Mono (`font-mono`) | Game times, submitted-at timestamps, slot suggestion times |
+| Mono | 12px | 400 (regular) | 1.0 | Roboto Mono (`font-mono`) | Game times, submitted-at timestamps, slot suggestion times, game selection row date/time |
 
 Notes:
 - All label text is uppercase with `tracking-[.12em]` — matches existing `SectionHeader` pattern
 - Button text uses `font-cond font-black tracking-wide uppercase` (weight 900) — matches existing `Btn` component
 - Game row data (date, time, field, opponent) in modal checkbox list uses `text-[12px] text-muted` for secondary info, `text-[13px] text-white` for primary team/game identifier
 - `font-bold` (700) is NOT used — project convention is `font-black` (900) for emphasis
+- `font-semibold` (600) is NOT used anywhere in this phase — only weights 400 and 900 are permitted
 
 Source: CLAUDE.md Typography + `components/ui/index.tsx` patterns + Phase 7 UI-SPEC
 
@@ -79,7 +80,7 @@ Source: CLAUDE.md Typography + `components/ui/index.tsx` patterns + Phase 7 UI-S
 
 Accent reserved for:
 - `ScheduleChangeRequestModal` primary submit button ("Submit Request")
-- `ScheduleChangeRequestsTab` inline "Confirm" slot selection button
+- `ScheduleChangeRequestsTab` inline "Confirm Reschedule" slot selection button
 - Pending request count badge on the Requests tab navigation item
 - "Under Review" status indicator accent element (navy border-left on card)
 
@@ -106,7 +107,7 @@ New components to create for this phase:
 
 Reused existing components:
 - `Modal` — `ScheduleChangeRequestModal` wrapper (open, onClose, title, children, footer)
-- `Btn` — primary ("Submit Request", "Confirm"), danger ("Deny"), ghost ("Cancel"), outline ("Request Change" on game card)
+- `Btn` — primary ("Submit Request", "Confirm Reschedule"), danger ("Deny Request"), ghost ("Discard Request"), outline ("Request Change" on game card)
 - `StatusBadge` — extended with request statuses (pending, under_review, approved, denied, rescheduled, cancelled) — see Status Badge section below
 - `Card` — `RequestCard` outer container
 - `SectionHeader` — "PENDING REQUESTS", "UNDER REVIEW", "COMPLETED / DENIED" section dividers in Requests tab
@@ -164,17 +165,17 @@ Source: CONTEXT.md D-01, D-05, D-08
 - **Game Selection List (D-07):** Scrollable checkbox list, `max-h-[200px] overflow-y-auto`, border `border-[#1e3060] rounded-lg`
   - Each row: `flex items-center gap-3 px-3 py-2.5 border-b border-[#1e3060] last:border-0`
   - Checkbox: native `<input type="checkbox">` styled with `accent-[#0B3D91]` (navy)
-  - Row content: date + time (`font-mono text-[11px] text-muted`) | field name (`text-[12px] text-muted`) | opponent (`text-[12px] text-white font-semibold`) | division (`Pill` gray variant)
+  - Row content: date + time (`font-mono text-[12px] text-muted`) | field name (`text-[12px] text-muted`) | opponent (`text-[12px] text-white font-black`) | division (`Pill` gray variant)
   - Pre-checked game highlighted: `bg-[#0a1a3a]` background on that row
   - Filter: only future games (games where `scheduled_time > now`) — no past games in list
-  - Empty state: "No upcoming games." centered `font-cond text-[11px] text-muted`
+  - Empty state: "No upcoming games." centered `font-cond text-[12px] text-muted`
 - **Request Type Toggle (D-04):** Two-button toggle group — "Reschedule" and "Cancel" — not a `Select`
   - Inactive: `Btn` ghost variant
   - Active: `Btn` primary variant (navy)
   - Default selection: "Reschedule"
 - **Reason Category (D-03):** `FormField` label "Reason", `Select` with `bg-[#040e24]` — options: "Coach conflict", "Team conflict", "Weather concern", "Venue issue", "Other"
 - **Details (D-03):** `FormField` label "Additional Details (Optional)", `Textarea` with `placeholder="Describe the conflict or issue..."` — only shown, never required
-- **Footer (D-12):** `Btn` ghost "Cancel" + `Btn` primary "Submit Request" — Submit disabled until at least one game is checked AND reason category selected
+- **Footer (D-12):** `Btn` ghost "Discard Request" + `Btn` primary "Submit Request" — Submit disabled until at least one game is checked AND reason category selected
 - Submit loading state: "Submitting..." with `disabled` on `Btn` — prevent double-submit
 - Success: `toast.success('Request submitted.')`, modal closes
 - Error: `toast.error('Could not submit request. Try again.')`, modal stays open
@@ -194,8 +195,9 @@ Source: CONTEXT.md D-06
 ### ScheduleChangeRequestsTab — Admin View (SCR-03, D-09 through D-13)
 
 - Navigation: new tab "Requests" in `AppShell` — `adminOnly: true`
+- Primary visual anchor: the pending `RequestCard` list at the top of the tab — this is the first element in the visual hierarchy and receives focus when the tab mounts
 - Tab badge: pending count shown inline on tab label — `{label} ({count})` when count > 0; no badge rendering when count is 0
-  - Badge: `font-mono text-[9px] font-black bg-navy rounded-full px-1.5 py-0.5 ml-1 text-white`
+  - Badge: `font-mono text-[10px] font-black bg-navy rounded-full px-1.5 py-0.5 ml-1 text-white`
 - Layout: full-width `tab-content` — three status sections stacked vertically
 - **Section headers:** `SectionHeader` for "PENDING", "UNDER REVIEW", "COMPLETED / DENIED"
 - **Pending section** shown first, then Under Review, then Completed/Denied (collapsed by default if > 5 items)
@@ -206,15 +208,15 @@ Source: CONTEXT.md D-09, D-13
 ### RequestCard — Admin Request Card (D-10, D-11, D-12, D-20)
 
 - Container: `Card` component with `p-4 mb-3`
-- **Header row:** team name (`font-cond text-[14px] font-black text-white`) | request type pill (`Pill` — blue for reschedule, red for cancel) | status badge (request status) | submitted-at (`font-mono text-[10px] text-muted`) — all in `flex justify-between items-start`
-- **Games sub-list (D-10):** for each game in request — `flex gap-3 items-center py-1.5 border-b border-[#1a2d50] last:border-0` within an inner `Card` container: date (`font-mono text-[11px]`) + time + field name + "vs Opponent" (`text-[12px] text-white`) + per-game status badge
+- **Header row:** team name (`font-cond text-[15px] font-black text-white`) | request type pill (`Pill` — blue for reschedule, red for cancel) | status badge (request status) | submitted-at (`font-mono text-[10px] text-muted`) — all in `flex justify-between items-start`
+- **Games sub-list (D-10):** for each game in request — `flex gap-3 items-center py-1.5 border-b border-[#1a2d50] last:border-0` within an inner `Card` container: date (`font-mono text-[12px]`) + time + field name + "vs Opponent" (`text-[12px] text-white`) + per-game status badge
 - **Reason row:** category pill (`Pill` gray) + details text (`text-[12px] text-muted`) if provided
 - **Admin notes row:** shown only when `admin_notes` present — `text-[12px] text-muted italic` prefixed with "Admin: "
 - **Action row (inline, D-11):**
-  - State = pending or under_review: `Btn` outline "Mark Under Review" + `Btn` success "Approve" + `Btn` danger "Deny"
+  - State = pending or under_review: `Btn` outline "Mark Under Review" + `Btn` success "Approve Request" + `Btn` danger "Deny Request"
   - "Mark Under Review" only when status = pending (moves to under_review)
-  - "Approve" opens the inline slot suggestion expansion (reschedule) OR immediately cancels (cancel type) per D-17
-  - "Deny" expands a small inline `Textarea` for optional denial notes (`FormField` label "Denial reason (optional)") + `Btn` danger "Confirm Deny" + `Btn` ghost "Cancel"
+  - "Approve Request" opens the inline slot suggestion expansion (reschedule) OR immediately cancels (cancel type) per D-17
+  - "Deny Request" expands a small inline `Textarea` for optional denial notes (`FormField` label "Denial reason (optional)") + `Btn` danger "Confirm Deny" + `Btn` ghost "Go Back"
   - State = approved (reschedule): shows per-game inline slot suggestion panel (see Slot Suggestion section)
   - State = completed/denied: action row not rendered — card is read-only
 - Approve (cancel type) confirmation: inline prompt "Cancel this game? This cannot be undone." with `Btn` danger "Yes, Cancel Game" + `Btn` ghost "Go Back" — no modal required
@@ -223,9 +225,9 @@ Source: CONTEXT.md D-10, D-11, D-12, D-17, D-20
 
 ### Slot Suggestion Panel (SCR-04, SCR-05, D-18 through D-20)
 
-- Trigger: admin clicks "Approve" on a reschedule request — slot panel renders inline below the affected game row within the `RequestCard`
+- Trigger: admin clicks "Approve Request" on a reschedule request — slot panel renders inline below the affected game row within the `RequestCard`
 - Container: `bg-[#0a1a3a] border border-[#1e3060] rounded-lg p-3 mt-2`
-- Loading state: "Finding available slots..." with three animated dots (`animate-pulse`) — `font-cond text-[11px] text-muted`
+- Loading state: "Finding available slots..." with three animated dots (`animate-pulse`) — `font-cond text-[12px] text-muted`
 - **Slot list (D-18):** up to 5 ranked rows, each `flex items-center gap-3 px-3 py-2.5 border-b border-[#1a2d50] last:border-0 cursor-pointer hover:bg-[#0d2040] rounded`
   - Date + time: `font-mono text-[12px] text-white`
   - Field name: `text-[12px] text-muted`
@@ -235,7 +237,7 @@ Source: CONTEXT.md D-10, D-11, D-12, D-17, D-20
     - Red pill: "Conflict" (hard field/team conflict — should not be selected)
   - Selected slot: `bg-[#0B3D91]/20 border border-[#0B3D91]/40` ring to indicate selection
   - Admin selects a slot by clicking the row (not a radio button)
-- **Confirm row:** appears after a slot is selected — `Btn` primary "Confirm Reschedule" + `Btn` ghost "Cancel"
+- **Confirm row:** appears after a slot is selected — `Btn` primary "Confirm Reschedule" + `Btn` ghost "Go Back"
 - Empty state (no slots found): "No available slots found. Manual rescheduling required." `font-cond text-[12px] text-muted`
 - Error state: "Could not load slot suggestions. Try again." with `Btn` outline "Retry"
 - Multi-game requests (D-20): slot panel renders one game at a time — game rows show "Pending slot selection" until each is resolved
@@ -270,6 +272,7 @@ Source: CONTEXT.md D-21, D-22, D-23 + Phase 7 UI-SPEC D-06 pattern
 | Primary CTA — admin slot confirm | "Confirm Reschedule" |
 | Primary CTA — admin cancel approve | "Yes, Cancel Game" |
 | Secondary CTA — deny confirm | "Confirm Deny" |
+| Modal — secondary dismiss button | "Discard Request" |
 | Game card button | "Request Change" |
 | Modal title | "Request Schedule Change" |
 | Modal — request type label | "What do you need?" |
@@ -290,16 +293,18 @@ Source: CONTEXT.md D-21, D-22, D-23 + Phase 7 UI-SPEC D-06 pattern
 | Section header — under review | "UNDER REVIEW" |
 | Section header — completed | "COMPLETED / DENIED" |
 | RequestCard — mark under review | "Mark Under Review" |
-| RequestCard — approve | "Approve" |
-| RequestCard — deny | "Deny" |
+| RequestCard — approve | "Approve Request" |
+| RequestCard — deny | "Deny Request" |
 | Deny notes label | "Denial reason (optional)" |
 | Deny notes placeholder | "Explain why the request was denied..." |
+| Deny inline back button | "Go Back" |
 | Cancel game confirm prompt | "Cancel this game? This cannot be undone." |
 | Cancel game confirm button | "Yes, Cancel Game" |
 | Cancel game confirm back | "Go Back" |
 | Slot panel loading | "Finding available slots..." |
 | Slot panel empty state | "No available slots found. Manual rescheduling required." |
 | Slot panel error | "Could not load slot suggestions. Try again." |
+| Slot panel back button | "Go Back" |
 | Slot availability — available | "Available" |
 | Slot availability — partial conflict | "Partial" |
 | Slot availability — conflict | "Conflict" |
