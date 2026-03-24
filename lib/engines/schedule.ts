@@ -17,6 +17,7 @@ import {
   getForcedMatchups, getSkippedDates,
   type ScheduleRule, type ScheduleContext, type PlacedGame, type TeamInfo, type RuleOverride
 } from './schedule-rules'
+import { getConflictingTeamPairs } from './coach-conflicts'
 
 // ─── Types ────────────────────────────────────────────────────
 
@@ -236,6 +237,15 @@ export async function generateSchedule(
     }
   }
 
+  // Load coach conflict pairs for slot-level constraint (per REG-07, D-10)
+  // SLOT-LEVEL only — teams sharing a coach CAN play each other, just not simultaneously
+  const coachConflictPairs = await getConflictingTeamPairs(eventId, sb)
+
+  function teamsShareCoach(teamA: number, teamB: number): boolean {
+    const key = `${Math.min(teamA, teamB)}-${Math.max(teamA, teamB)}`
+    return coachConflictPairs.has(key)
+  }
+
   // Load schedule rules, weekly overrides, and admin rule overrides
   const scheduleRules = await loadScheduleRules(eventId, sb)
   const weeklyOverrides = await loadWeeklyOverrides(eventId, sb)
@@ -436,6 +446,21 @@ export async function generateSchedule(
       if (!fieldAllowsDivision(slot.fieldId, matchup.division)) continue
 
       if (!teamSlotUsed.has(homeKey) && !teamSlotUsed.has(awayKey)) {
+        // Check coach conflicts at slot level (per REG-07, D-10, Pitfall 1)
+        // Two teams sharing a coach cannot play simultaneously in the same slot with other shared-coach teams
+        if (coachConflictPairs.size > 0) {
+          const gamesInThisSlot = placedGames.filter(
+            g => g.event_date_id === slot.eventDateId && g.timeMinutes === slot.timeMinutes
+          )
+          const coachConflictInSlot = gamesInThisSlot.some(placed =>
+            teamsShareCoach(placed.home_team_id, matchup.home) ||
+            teamsShareCoach(placed.home_team_id, matchup.away) ||
+            teamsShareCoach(placed.away_team_id, matchup.home) ||
+            teamsShareCoach(placed.away_team_id, matchup.away)
+          )
+          if (coachConflictInSlot) continue
+        }
+
         // Evaluate slot rules if we have team info
         if (homeTeam && awayTeam) {
           const ctx: ScheduleContext = {
