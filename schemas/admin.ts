@@ -7,10 +7,10 @@ export const createUserSchema = z.object({
   role: z.enum(['admin', 'league_admin', 'referee', 'volunteer', 'program_leader', 'coach']),
   event_id: z.number().int().positive(),
   display_name: z.string().optional(),
-  referee_id: z.number().int().positive().optional(),
-  volunteer_id: z.number().int().positive().optional(),
-  program_id: z.number().int().positive().optional(),
-  coach_id: z.number().int().positive().optional(),
+  referee_id: z.number().int().positive().nullable().optional(),
+  volunteer_id: z.number().int().positive().nullable().optional(),
+  program_id: z.number().int().positive().nullable().optional(),
+  coach_id: z.number().int().positive().nullable().optional(),
 })
 
 export type CreateUserInput = z.infer<typeof createUserSchema>

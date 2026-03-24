@@ -156,7 +156,7 @@ export function UserManagement() {
 
     const data = await res.json()
     if (data.error) {
-      toast.error(data.error)
+      toast.error(typeof data.error === 'string' ? data.error : 'Failed to create user')
     } else {
       toast.success(`User created: ${inviteEmail}`)
       // Send invite email for applicable roles
