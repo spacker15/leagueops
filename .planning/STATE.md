@@ -144,6 +144,9 @@ See: .planning/PROJECT.md (updated 2026-03-22)
 | 07-04      | userRoleNames cast to string[] for ALERT_TYPE_ROLES includes() comparison — avoids TS2345 AppRole vs string mismatch |
 | 07-04      | NotificationDropdown uses inline style keyframe for fadeSlideDown — avoids global CSS dependency while meeting 150ms animation contract |
 | 07-04      | PushPermissionModal double-checks getPushPermission() before render — D-09 Pitfall 4 guard even when parent also checks |
+| 08-01      | GameStatus 'Cancelled' requires updating all Record<GameStatus, string> exhaustive maps in lib/utils.ts and components/ui/index.tsx |
+| 08-01      | reschedule_game uses SECURITY DEFINER with atomic conflict check before updating games and junction table |
+| 08-01      | insertScheduleChangeRequest inserts request first then junction rows to satisfy FK constraint on request_id |
 | 08-02      | overlaps() uses raw Date.getTime() arithmetic — date-fns only for calendar-level isSameDay/isAfter/differenceInCalendarDays per plan spec |
 | 08-02      | Field conflicts are hard filters (slot skipped); team conflicts are soft (slot included with homeTeamAvailable/awayTeamAvailable=false) |
 | 08-02      | teamAvailability empty array means all dates available — consistent with Phase 6 team_registrations schema |
