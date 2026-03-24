@@ -82,6 +82,7 @@ export function ProgramDashboard() {
   // Schedule change request state
   const [programGames, setProgramGames] = useState<Game[]>([])
   const [pendingGameIds, setPendingGameIds] = useState<Set<number>>(new Set())
+  const [gameScrStatus, setGameScrStatus] = useState<Map<number, string>>(new Map())
   const [scrModalOpen, setScrModalOpen] = useState(false)
   const [scrPreSelectedGameId, setScrPreSelectedGameId] = useState<number | undefined>()
   const [scrTeamId, setScrTeamId] = useState<number | undefined>()
@@ -129,15 +130,22 @@ export function ProgramDashboard() {
 
       const { data: scrData } = await sb
         .from('schedule_change_requests')
-        .select('id, status, schedule_change_request_games(game_id)')
+        .select('id, status, schedule_change_request_games(game_id, status)')
         .eq('event_id', portalEventId!)
         .in('team_id', teamIds)
-        .in('status', ['pending', 'under_review'])
-      setPendingGameIds(new Set(
-        ((scrData ?? []) as any[])
-          .flatMap((r: any) => r.schedule_change_request_games ?? [])
-          .map((g: any) => g.game_id as number)
-      ))
+      const pendingIds = new Set<number>()
+      const gameRequestStatus = new Map<number, string>()
+      for (const r of (scrData ?? []) as any[]) {
+        for (const g of r.schedule_change_request_games ?? []) {
+          if (['pending', 'under_review'].includes(r.status)) {
+            pendingIds.add(g.game_id)
+          }
+          // Track the most recent game-level status
+          gameRequestStatus.set(g.game_id, g.status)
+        }
+      }
+      setPendingGameIds(pendingIds)
+      setGameScrStatus(gameRequestStatus)
     }
 
     setLoading(false)
@@ -499,6 +507,7 @@ export function ProgramDashboard() {
                           {teamGames.map((game) => {
                             const isPending = pendingGameIds.has(game.id)
                             const isCancelled = game.status === 'Cancelled'
+                            const scrStatus = gameScrStatus.get(game.id)
                             const opponent =
                               game.home_team_id === matchedTeam.id
                                 ? (game.away_team as any)?.name ?? `Team #${game.away_team_id}`
@@ -524,7 +533,22 @@ export function ProgramDashboard() {
                                     REQUEST PENDING
                                   </span>
                                 )}
-                                {!isCancelled && !isPending && (
+                                {!isPending && scrStatus === 'rescheduled' && (
+                                  <span className="badge-request-approved font-cond text-[9px] font-black tracking-wider px-2 py-0.5 rounded">
+                                    RESCHEDULED
+                                  </span>
+                                )}
+                                {!isPending && scrStatus === 'denied' && (
+                                  <span className="badge-request-denied font-cond text-[9px] font-black tracking-wider px-2 py-0.5 rounded">
+                                    DENIED
+                                  </span>
+                                )}
+                                {!isPending && scrStatus === 'cancelled' && (
+                                  <span className="badge-request-approved font-cond text-[9px] font-black tracking-wider px-2 py-0.5 rounded">
+                                    CANCELLED
+                                  </span>
+                                )}
+                                {!isCancelled && !isPending && !scrStatus && (
                                   <button
                                     onClick={() => {
                                       setScrTeamId(matchedTeam.id)
