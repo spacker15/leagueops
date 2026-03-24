@@ -16,6 +16,7 @@ import type {
   OpsLogEntry,
   LogType,
   GameStatus,
+  ScheduleChangeRequest,
 } from '@/types'
 import * as db from '@/lib/db'
 import { createClient } from '@/supabase/client'
@@ -38,6 +39,7 @@ interface State {
   lightningActive: boolean
   lightningSecondsLeft: number
   loading: boolean
+  scheduleChangeRequests: ScheduleChangeRequest[]
 }
 
 type Action =
@@ -65,6 +67,9 @@ type Action =
   | { type: 'UPDATE_FIELD'; payload: Field }
   | { type: 'ADD_FIELD'; payload: Field }
   | { type: 'DELETE_FIELD'; payload: number }
+  | { type: 'SET_SCHEDULE_CHANGE_REQUESTS'; payload: ScheduleChangeRequest[] }
+  | { type: 'ADD_SCHEDULE_CHANGE_REQUEST'; payload: ScheduleChangeRequest }
+  | { type: 'UPDATE_SCHEDULE_CHANGE_REQUEST'; payload: ScheduleChangeRequest }
 
 function reducer(state: State, action: Action): State {
   switch (action.type) {
@@ -140,6 +145,17 @@ function reducer(state: State, action: Action): State {
       return { ...state, fields: [...state.fields, action.payload] }
     case 'DELETE_FIELD':
       return { ...state, fields: state.fields.filter((f) => f.id !== action.payload) }
+    case 'SET_SCHEDULE_CHANGE_REQUESTS':
+      return { ...state, scheduleChangeRequests: action.payload }
+    case 'ADD_SCHEDULE_CHANGE_REQUEST':
+      return { ...state, scheduleChangeRequests: [action.payload, ...state.scheduleChangeRequests] }
+    case 'UPDATE_SCHEDULE_CHANGE_REQUEST':
+      return {
+        ...state,
+        scheduleChangeRequests: state.scheduleChangeRequests.map((r) =>
+          r.id === action.payload.id ? action.payload : r
+        ),
+      }
     default:
       return state
   }
@@ -161,6 +177,7 @@ const initialState: State = {
   lightningActive: false,
   lightningSecondsLeft: 1800,
   loading: true,
+  scheduleChangeRequests: [],
 }
 
 interface ContextValue {
@@ -223,6 +240,7 @@ export function AppProvider({
         medical,
         weather,
         opsLog,
+        scheduleChangeRequests,
       ] = await Promise.all([
         db.getEvent(eid),
         db.getEventDates(eid),
@@ -234,6 +252,7 @@ export function AppProvider({
         db.getMedicalIncidents(eid),
         db.getWeatherAlerts(eid),
         db.getOpsLog(eid),
+        db.getScheduleChangeRequests(eid),
       ])
       dispatch({
         type: 'INIT',
@@ -248,6 +267,7 @@ export function AppProvider({
           medicalIncidents: medical,
           weatherAlerts: weather,
           opsLog,
+          scheduleChangeRequests,
         },
       })
     }
@@ -305,8 +325,38 @@ export function AppProvider({
         }
       )
       .subscribe()
+
+    const scrSub = sb
+      .channel('schedule_change_requests')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'schedule_change_requests',
+          filter: `event_id=eq.${eid}`,
+        },
+        (payload) => {
+          dispatch({ type: 'ADD_SCHEDULE_CHANGE_REQUEST', payload: payload.new as ScheduleChangeRequest })
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'schedule_change_requests',
+          filter: `event_id=eq.${eid}`,
+        },
+        (payload) => {
+          dispatch({ type: 'UPDATE_SCHEDULE_CHANGE_REQUEST', payload: payload.new as ScheduleChangeRequest })
+        }
+      )
+      .subscribe()
+
     return () => {
       sb.removeChannel(sub)
+      sb.removeChannel(scrSub)
     }
   }, [eventId]) // ONLY eventId -- currentDate read from ref
 
