@@ -74,7 +74,7 @@ export function RequestCard({ request, eventId }: RequestCardProps) {
       )
       if (!res.ok) throw new Error('Failed')
       const data = await res.json()
-      setSlotSuggestions((prev) => ({ ...prev, [requestGame.id]: data.slots ?? [] }))
+      setSlotSuggestions((prev) => ({ ...prev, [requestGame.id]: data.data ?? [] }))
     } catch {
       setSlotErrors((prev) => ({ ...prev, [requestGame.id]: true }))
     } finally {
