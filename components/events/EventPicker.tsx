@@ -177,13 +177,12 @@ export function EventPicker({ onSelectEvent }: Props) {
     const user = (await sb.auth.getUser()).data.user
 
     // Generate unique slug — check for duplicates and append suffix if needed
-    const baseSlug =
-      newName
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-|-$/g, '') +
-      '-' +
-      new Date().getFullYear()
+    const year = new Date().getFullYear().toString()
+    const nameSlug = newName
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '')
+    const baseSlug = nameSlug.endsWith(`-${year}`) ? nameSlug : `${nameSlug}-${year}`
 
     const { count } = await sb
       .from('events')
