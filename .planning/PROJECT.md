@@ -31,8 +31,13 @@ Tournament day operations must work reliably in real time — live scoring, fiel
 - ✓ Player check-in with QR codes — existing
 - ✓ Program registration wizard (3-step: account → program → teams) — existing
 - ✓ Program approval workflow (admin approves programs/teams) — existing
-- ✓ Program leader dashboard (manage teams, rosters) — existing
+- ✓ Program leader dashboard (manage teams, rosters, coaches, invite links) — existing
 - ✓ NFYLL-format CSV roster import/export — existing
+- ✓ Coach management (direct add in wizard + self-registration links) — Validated in Phase 6
+- ✓ Team availability date selection during registration — Validated in Phase 6
+- ✓ Registration window enforcement (date-based + manual toggle) — Validated in Phase 6
+- ✓ Coach conflict detection engine (schedule hard constraints) — Validated in Phase 6
+- ✓ Multi-team registration UX (copy coaches, team counter) — Validated in Phase 6
 - ✓ Incident and medical incident logging — existing
 - ✓ Interactive park map (drag/resize/rotate/color fields) — existing
 - ✓ Configurable rules engine (35 rules per event) — existing
@@ -53,13 +58,13 @@ Tournament day operations must work reliably in real time — live scoring, fiel
 - [ ] EVT-01: Google Maps integration for complex lookup — search, save lat/lng, address, place ID when creating events
 - [ ] EVT-02: Generate shareable registration link + QR code per event for social media/email distribution
 
-**Registration Flow Enhancements**
-- [ ] REG-01: Admin defines event schedule/dates before registration opens
-- [ ] REG-02: Program leader selects team availability during registration (all dates or specific dates per team)
-- [ ] REG-03: Program leader can add coaches directly with contact info (name, email, phone, certifications)
-- [ ] REG-04: Generate coach self-registration link per program — coaches register themselves to a specific team
-- [ ] REG-05: Conflict detection at registration — flag when same coach coaches multiple teams in same/different divisions
-- [ ] REG-06: Program leaders can register one or many teams in a single session
+**Registration Flow Enhancements** ✓ Completed in Phase 6
+- [x] REG-01: Admin defines event schedule/dates before registration opens
+- [x] REG-02: Program leader selects team availability during registration (all dates or specific dates per team)
+- [x] REG-03: Program leader can add coaches directly with contact info (name, email, phone, certifications)
+- [x] REG-04: Generate coach self-registration link per program — coaches register themselves to a specific team
+- [x] REG-05: Conflict detection at registration — flag when same coach coaches multiple teams in same/different divisions
+- [x] REG-06: Program leaders can register one or many teams in a single session
 
 **Schedule Change Request Workflow**
 - [ ] SCH-01: Coaches/program leaders can submit schedule conflict requests (select games, reason, preferred alternative, cancel vs reschedule)
@@ -99,7 +104,7 @@ Tournament day operations must work reliably in real time — live scoring, fiel
 
 ## Context
 
-**Current state:** App is live and actively used for events. Single event has been the primary use case so far, but multi-event support is urgently needed. The codebase has significant security gaps (open RLS, unauthenticated API routes) that were acceptable during initial development but must be fixed before scaling.
+**Current state:** App is live with multi-event support, RLS security, authenticated API routes, and full registration flow. Phase 6 added coach management (direct add + self-registration links), team availability selection, registration window enforcement, coach conflict detection as schedule engine constraints, and multi-team registration UX improvements.
 
 **Technical debt highlights:**
 - `event_id = 1` hardcoded in ~60 places across engines, components, and API routes
@@ -153,4 +158,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-22 after initialization*
+*Last updated: 2026-03-24 after Phase 6 completion*
