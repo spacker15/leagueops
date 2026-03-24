@@ -50,7 +50,7 @@ Exceptions:
 | 80px × 80px | Coach invite QR thumbnail container | Matches Phase 5 QR thumbnail pattern (D-19) |
 | 256px × 256px | Coach invite QR preview in modal | Matches Phase 5 QR preview modal pattern |
 | 512px × 512px | Hidden canvas for PNG export of coach invite QR | Phase 5 established pattern — not visible |
-| 12px (`px-3 py-3`) | Multi-date picker day cells | Compact calendar grid — matches existing dropdown item pattern |
+| 12px (`px-3 py-3`) | Multi-date picker day cells | Compact square cell — matches `ConflictsTab.tsx` conflict card `p-3` (12px uniform padding) as the established codebase precedent for compact 12px padding blocks |
 
 ---
 
@@ -60,13 +60,12 @@ Exceptions:
 |------|------|--------|-------------|------|--------|
 | Body / input text | 13px | 400 (regular) | 1.5 | Barlow (sans) | EventSetupTab `inp` variable + JoinClient.tsx `inp` |
 | Label | 10px | 900 (black) | 1.2 | Barlow Condensed | EventSetupTab `lbl` variable (`font-cond font-black tracking-[.12em]`) |
-| Section header | 12px | 900 (black) | 1.2 | Barlow Condensed | EventSetupTab `sectionHdr` variable |
-| Wizard step heading | 18–22px | 900 (black) | 1.2 | Barlow Condensed | JoinClient.tsx `font-cond font-black text-[18px]` pattern |
-| Registration closed page heading | 24px | 900 (black) | 1.2 | Barlow Condensed | `app/e/[slug]/register/page.tsx` existing `text-[24px]` pattern |
-| Status badge / pill text | 10px | 700 (bold) | n/a | Barlow Condensed | Pill component built-in |
-| Muted body text (sublabels, help text) | 12px | 400 (regular) | 1.5 | Barlow Condensed | `text-[12px] text-[#5a6e9a] leading-relaxed` pattern from register page |
+| Section header / muted sublabels / compact indicators | 12px | 900 (black) for headers; 400 (regular) for muted text | 1.2 (headers) / 1.5 (muted) | Barlow Condensed | EventSetupTab `sectionHdr` variable; `text-[12px] text-[#5a6e9a] leading-relaxed` pattern from register page |
+| Wizard step headings / display headings | 18–24px | 900 (black) | 1.2 | Barlow Condensed | JoinClient.tsx `font-cond font-black text-[18px]` pattern; registration closed page `text-[24px]` at upper end of range |
 
-**Weights declared for this phase: 400 (regular) and 900 (black).** Button text uses the `Btn` component's internal `font-bold` class (700) — the phase does not declare or override it. Pill component text uses its internal `font-bold` — same treatment.
+**Sizes declared for this phase: 10px, 12px, 13px, 18–24px (4 sizes). No 11px usages — all former `text-[11px]` elements use `text-[12px]`.**
+
+**Weights declared for this phase: 400 (regular) and 900 (black).** Button text uses the `Btn` component's internal `font-bold` class (700) — the phase does not declare or override it. Pill component text uses its internal `font-bold` — same treatment. Status badge / pill text uses the Pill component's built-in styling at 10px bold.
 
 ---
 
@@ -168,7 +167,7 @@ Components needed for this phase (existing or new):
 | Event dates exist, "Available All Dates" ON (default) | Toggle in active (navy) state; individual date checkboxes hidden | `available_date_ids` = null (means all dates) |
 | "Available All Dates" toggled OFF | Toggle inactive; individual date checkboxes appear for each `event_date` record | Program leader checks specific dates |
 | Date checked | Checkbox with navy fill, white checkmark | Date ID added to `available_date_ids` array |
-| No dates selected after unchecking all | Inline warning: `text-[#f87171] text-[11px]` "Select at least one date or toggle 'Available All Dates'" | Prevents form submission with empty availability |
+| No dates selected after unchecking all | Inline warning: `text-[#f87171] text-[12px]` "Select at least one date or toggle 'Available All Dates'" | Prevents form submission with empty availability |
 
 **Additional Coaches subsection (per team):**
 
@@ -185,7 +184,7 @@ Components needed for this phase (existing or new):
 | Condition | Visual | Behavior |
 |-----------|--------|----------|
 | On teams 2+ only | Ghost Btn "COPY FROM TEAM 1" above coach and dates sections | Copies head coach name/email/phone from team 1 into current team's head coach fields; copies availability dates selection |
-| Team count indicator | `font-cond text-[11px] text-muted` "Team 3 of 5" shown in team section header | Updates as teams are added/removed |
+| Team count indicator | `font-cond text-[12px] text-muted` "Team 3 of 5" shown in team section header | Updates as teams are added/removed |
 
 ### Registration Closed / Window Enforcement — `/e/[slug]/register`
 
@@ -206,7 +205,7 @@ Page background: `#060e1e` (matching existing register page). Card: `border bord
 |---------|--------------|
 | Page background | `#020810` (`surface.DEFAULT`) |
 | Card | `bg-[#081428] border border-[#1a2d50] rounded-b-2xl p-8` with `h-1.5` navy accent bar at top (same as JoinClient.tsx pattern) |
-| Event branding | Logo (if available) + event name (18px font-black condensed) + "Coach Registration" subtitle (11px, navy, uppercase tracking) |
+| Event branding | Logo (if available) + event name (18px font-black condensed) + "Coach Registration" subtitle (12px, navy, uppercase tracking) |
 | Form fields | Name (2-col: first/last), Email, Phone, Certifications (textarea), Team (Select — pre-filtered to program's teams) |
 | Submit button | Btn variant="primary" size="lg" "COMPLETE REGISTRATION" |
 | Submitting state | Button disabled + spinner icon, copy: "REGISTERING..." |
@@ -229,7 +228,7 @@ Page background: `#060e1e` (matching existing register page). Card: `border bord
 |---------|--------------|
 | Coach section per team | Collapsible section within each team card in `ProgramDashboard` |
 | Coach list | Avatar + name + email + certifications per coach, Pill variant="blue" for each |
-| Coach count | `font-cond text-[11px] text-muted` "N Coaches" |
+| Coach count | `font-cond text-[12px] text-muted` "N Coaches" |
 | "Generate Invite Link" | Btn variant="ghost" size="sm" with `Link` icon |
 | Generated link display | Read-only input (`inp` class + `cursor-default select-all`) + "COPY" ghost Btn + QR icon Btn that opens QR modal |
 | QR modal for coach invite | Same pattern as Phase 5 QR modal — 256px, black-on-white, download SVG/PNG |
