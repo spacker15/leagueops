@@ -213,6 +213,13 @@ Plans:
 **Requirements:** NOT-01, NOT-05, NOT-06, NOT-07, NOT-08
 **UI hint:** yes
 **Depends on:** Phase 1, Phase 4
+**Plans:** 4 plans
+
+Plans:
+- [ ] 07-01-PLAN.md — Foundation: packages, migration, types, helpers, email template (NOT-01, NOT-05, NOT-08)
+- [ ] 07-02-PLAN.md — Edge Function: process-notifications with dedup, storm cap, recipient resolution, email/push delivery (NOT-01, NOT-05, NOT-06, NOT-08)
+- [ ] 07-03-PLAN.md — Push infrastructure: service worker, push API routes, client subscription helper (NOT-06)
+- [ ] 07-04-PLAN.md — Notification UI: bell, dropdown, settings panel, toggle rows, push permission modal (NOT-07, NOT-06)
 
 ### Success Criteria
 
@@ -317,4 +324,4 @@ Plans:
 
 ---
 
-_Last updated: 2026-03-23_
+_Last updated: 2026-03-24_
