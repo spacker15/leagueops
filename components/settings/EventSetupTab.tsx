@@ -326,6 +326,10 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
   const [expandedRule, setExpandedRule] = useState<number | null>(null)
   const [showAddRule, setShowAddRule] = useState(false)
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set())
+  const [addRuleTemplate, setAddRuleTemplate] = useState('')
+  const [addRuleScope, setAddRuleScope] = useState<'global' | 'division'>('global')
+  const [addRuleDivision, setAddRuleDivision] = useState('')
+  const [ruleDivisions, setRuleDivisions] = useState<string[]>([])
   // Copy rules state
   const [showCopyRules, setShowCopyRules] = useState(false)
   const [copySourceEventId, setCopySourceEventId] = useState<number | null>(null)
@@ -378,6 +382,13 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
     if (settingsTab === 'rules' && eventId) {
       loadRules()
       loadOverrideContext()
+      const sb = createClient()
+      sb.from('registration_divisions')
+        .select('name')
+        .eq('event_id', eventId)
+        .eq('is_active', true)
+        .order('sort_order')
+        .then(({ data }) => setRuleDivisions((data ?? []).map((d: { name: string }) => d.name)))
     }
   }, [settingsTab, eventId])
 
@@ -528,7 +539,7 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
     }
   }
 
-  async function addStandardRule(templateKey: string) {
+  async function addStandardRule(templateKey: string, division?: string) {
     const templates: Record<
       string,
       { rule_name: string; conditions: Record<string, unknown>; notes: string }
@@ -551,20 +562,22 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
     }
     const tpl = templates[templateKey]
     if (!tpl) return
-    if (rules.some((r) => r.rule_name === tpl.rule_name)) {
-      toast.error(`"${tpl.rule_name}" already exists`)
+    const ruleName = division ? `${tpl.rule_name} (${division})` : tpl.rule_name
+    if (rules.some((r) => r.rule_name === ruleName)) {
+      toast.error(`"${ruleName}" already exists`)
       return
     }
     await addRule({
-      rule_name: tpl.rule_name,
+      rule_name: ruleName,
       rule_type: 'constraint',
-      category: 'global',
+      category: division ? 'division' : 'global',
+      scope_division: division ?? null,
       action: 'block',
       enforcement: 'hard',
       conditions: tpl.conditions,
       action_params: {},
-      priority: 100,
-      notes: tpl.notes,
+      priority: division ? 90 : 100,
+      notes: division ? `${tpl.notes} — applies to ${division} only` : tpl.notes,
     })
   }
 
@@ -2387,109 +2400,6 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                 />
               </div>
             </Card>
-
-            {/* Season Game Days - only for season/league */}
-            {(event.event_type === 'season' || event.event_type === 'league') && (
-              <Card title="Season Game Days" icon={<Calendar size={14} />}>
-                <div className="space-y-4">
-                  <div className="font-cond text-[11px] text-muted">
-                    Select which days of the week games will be played and set the start/end times
-                    for each day.
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((dayLabel, dayIdx) => {
-                      const isChecked = gameDays[dayIdx]?.is_active ?? false
-                      return (
-                        <button
-                          key={dayIdx}
-                          type="button"
-                          onClick={() => {
-                            setGameDays((prev) => ({
-                              ...prev,
-                              [dayIdx]: {
-                                start_time: prev[dayIdx]?.start_time ?? '09:00',
-                                end_time: prev[dayIdx]?.end_time ?? '17:00',
-                                is_active: !isChecked,
-                              },
-                            }))
-                          }}
-                          className={cn(
-                            'font-cond text-[12px] font-black tracking-[.08em] uppercase px-4 py-2 rounded-lg border transition-colors',
-                            isChecked
-                              ? 'bg-blue-600/20 border-blue-500 text-blue-400'
-                              : 'bg-transparent border-[#1a2d50] text-muted hover:text-white hover:border-[#2a3d60]'
-                          )}
-                        >
-                          {dayLabel}
-                        </button>
-                      )
-                    })}
-                  </div>
-                  {Object.entries(gameDays)
-                    .filter(([, v]) => v.is_active)
-                    .sort(([a], [b]) => Number(a) - Number(b))
-                    .map(([dayIdx, val]) => {
-                      const dayLabels = [
-                        'Sunday',
-                        'Monday',
-                        'Tuesday',
-                        'Wednesday',
-                        'Thursday',
-                        'Friday',
-                        'Saturday',
-                      ]
-                      return (
-                        <div
-                          key={dayIdx}
-                          className="flex items-center gap-4 bg-[#0a1c35] border border-[#1a2d50] rounded-lg px-4 py-3"
-                        >
-                          <span className="font-cond text-[12px] font-black tracking-[.08em] text-white uppercase w-24">
-                            {dayLabels[Number(dayIdx)]}
-                          </span>
-                          <div className="flex items-center gap-2">
-                            <label className={lbl + ' mb-0'}>Start</label>
-                            <input
-                              type="time"
-                              className={inp + ' w-32 font-mono'}
-                              value={val.start_time}
-                              onChange={(e) =>
-                                setGameDays((prev) => ({
-                                  ...prev,
-                                  [dayIdx]: { ...prev[Number(dayIdx)], start_time: e.target.value },
-                                }))
-                              }
-                            />
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <label className={lbl + ' mb-0'}>End</label>
-                            <input
-                              type="time"
-                              className={inp + ' w-32 font-mono'}
-                              value={val.end_time}
-                              onChange={(e) =>
-                                setGameDays((prev) => ({
-                                  ...prev,
-                                  [dayIdx]: { ...prev[Number(dayIdx)], end_time: e.target.value },
-                                }))
-                              }
-                            />
-                          </div>
-                        </div>
-                      )
-                    })}
-                  {Object.values(gameDays).some((v) => v.is_active) && (
-                    <button
-                      type="button"
-                      onClick={saveGameDays}
-                      disabled={gameDaysSaving}
-                      className="font-cond text-[11px] font-black tracking-[.08em] uppercase px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors disabled:opacity-50"
-                    >
-                      {gameDaysSaving ? 'Saving...' : 'Save Game Days'}
-                    </button>
-                  )}
-                </div>
-              </Card>
-            )}
           </div>
         )}
 
@@ -2507,19 +2417,59 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                 >
                   <Copy size={12} /> COPY RULES FROM EVENT
                 </button>
-                <select
-                  className="bg-[#040e24] border border-[#1a2d50] text-white font-cond text-[11px] font-bold px-3 py-2 rounded-lg outline-none"
-                  value=""
-                  onChange={(e) => {
-                    if (e.target.value) addStandardRule(e.target.value)
-                    e.target.value = ''
-                  }}
-                >
-                  <option value="">+ Add Standard Rule</option>
-                  <option value="no_back_to_back">No Back-to-Back Games</option>
-                  <option value="max_games_per_day">Max Games Per Day</option>
-                  <option value="no_repeat_matchups">No Repeat Matchups</option>
-                </select>
+                <div className="flex items-center gap-2">
+                  <select
+                    className="bg-[#040e24] border border-[#1a2d50] text-white font-cond text-[11px] font-bold px-2 py-2 rounded-lg outline-none"
+                    value={addRuleScope}
+                    onChange={(e) => setAddRuleScope(e.target.value as 'global' | 'division')}
+                  >
+                    <option value="global">Global</option>
+                    <option value="division">By Division</option>
+                  </select>
+                  {addRuleScope === 'division' && (
+                    <select
+                      className="bg-[#040e24] border border-[#1a2d50] text-white font-cond text-[11px] font-bold px-2 py-2 rounded-lg outline-none"
+                      value={addRuleDivision}
+                      onChange={(e) => setAddRuleDivision(e.target.value)}
+                    >
+                      <option value="">Select Division</option>
+                      {ruleDivisions.map((d) => (
+                        <option key={d} value={d}>
+                          {d}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  <select
+                    className="bg-[#040e24] border border-[#1a2d50] text-white font-cond text-[11px] font-bold px-2 py-2 rounded-lg outline-none"
+                    value={addRuleTemplate}
+                    onChange={(e) => setAddRuleTemplate(e.target.value)}
+                  >
+                    <option value="">Select Rule</option>
+                    <option value="no_back_to_back">No Back-to-Back Games</option>
+                    <option value="max_games_per_day">Max Games Per Day</option>
+                    <option value="no_repeat_matchups">No Repeat Matchups</option>
+                  </select>
+                  <button
+                    onClick={() => {
+                      if (!addRuleTemplate) return
+                      if (addRuleScope === 'division' && !addRuleDivision) {
+                        toast.error('Select a division')
+                        return
+                      }
+                      addStandardRule(
+                        addRuleTemplate,
+                        addRuleScope === 'division' ? addRuleDivision : undefined
+                      )
+                      setAddRuleTemplate('')
+                      setAddRuleDivision('')
+                    }}
+                    disabled={!addRuleTemplate || (addRuleScope === 'division' && !addRuleDivision)}
+                    className="flex items-center gap-1.5 font-cond font-black text-[11px] tracking-[.1em] px-4 py-2 rounded-lg bg-red hover:bg-red/80 text-white transition-colors disabled:opacity-40"
+                  >
+                    <Plus size={12} /> ADD
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -3653,118 +3603,87 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
               </div>
             ) : (
               <>
-                {/* Section 1: Registration Link */}
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <div className={sectionHdr} style={{ marginBottom: 0 }}>
-                      <QrCode size={14} /> REGISTRATION LINK
+                {/* Registration */}
+                <Card title="Registration" icon={<QrCode size={14} />}>
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      {registrationStatus === 'open' && <Pill variant="green">Open</Pill>}
+                      {registrationStatus === 'closed' && <Pill variant="red">Closed</Pill>}
+                      {registrationStatus === 'not_set' && (
+                        <Pill variant="gray">Window Not Set</Pill>
+                      )}
                     </div>
-                    {registrationStatus === 'open' && (
-                      <Pill variant="green">Registration Open</Pill>
-                    )}
-                    {registrationStatus === 'closed' && (
-                      <Pill variant="red">Registration Closed</Pill>
-                    )}
-                    {registrationStatus === 'not_set' && (
-                      <Pill variant="gray">Registration Window Not Set</Pill>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <input
-                      className={cn(inp, 'cursor-default select-all')}
-                      value={registrationUrl}
-                      readOnly
-                      onClick={(e) => (e.target as HTMLInputElement).select()}
-                    />
-                    <Btn variant="primary" size="sm" onClick={copyRegistrationLink}>
-                      {linkCopied ? <Check size={13} /> : <Copy size={13} />}
-                      <span className="ml-1.5">{linkCopied ? 'COPIED' : 'COPY LINK'}</span>
-                    </Btn>
-                  </div>
-                </div>
-
-                {/* Section 2: QR Code */}
-                <div>
-                  <div className={sectionHdr}>
-                    <QrCode size={14} /> QR CODE
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <div className="w-20 h-20 bg-white rounded p-1 flex-shrink-0">
-                      <QRCodeSVG
+                    <div className="flex items-center gap-3">
+                      <input
+                        className={cn(inp, 'cursor-default select-all')}
                         value={registrationUrl}
-                        size={72}
-                        bgColor="#ffffff"
-                        fgColor="#000000"
-                        level="M"
+                        readOnly
+                        onClick={(e) => (e.target as HTMLInputElement).select()}
                       />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="font-cond text-[12px] font-black text-white truncate">
-                        {event.name}
-                      </div>
-                      <div className="text-[10px] text-[#5a6e9a] truncate mt-0.5">
-                        {registrationUrl}
-                      </div>
-                      <Btn
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setShowQRModal(true)}
-                        className="mt-2"
-                      >
-                        PREVIEW
+                      <Btn variant="primary" size="sm" onClick={copyRegistrationLink}>
+                        {linkCopied ? <Check size={13} /> : <Copy size={13} />}
+                        <span className="ml-1.5">{linkCopied ? 'COPIED' : 'COPY'}</span>
                       </Btn>
                     </div>
+                    <div className="flex items-center gap-3">
+                      <div className="w-16 h-16 bg-white rounded p-1 flex-shrink-0">
+                        <QRCodeSVG
+                          value={registrationUrl}
+                          size={56}
+                          bgColor="#ffffff"
+                          fgColor="#000000"
+                          level="M"
+                        />
+                      </div>
+                      <div className="flex gap-2">
+                        <Btn variant="ghost" size="sm" onClick={() => setShowQRModal(true)}>
+                          PREVIEW
+                        </Btn>
+                        <a
+                          href={mailtoHref}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 font-cond font-bold text-[10px] uppercase tracking-[.1em] text-[#5a6e9a] hover:text-white transition-colors px-2.5 py-1.5 rounded border border-[#1a2d50]"
+                        >
+                          <Mail size={11} /> EMAIL
+                        </a>
+                        <a
+                          href={smsHref}
+                          className="inline-flex items-center gap-1 font-cond font-bold text-[10px] uppercase tracking-[.1em] text-[#5a6e9a] hover:text-white transition-colors px-2.5 py-1.5 rounded border border-[#1a2d50]"
+                        >
+                          <MessageSquare size={11} /> TEXT
+                        </a>
+                      </div>
+                    </div>
                   </div>
-                </div>
+                </Card>
 
-                {/* Section 3: Share */}
-                <div>
-                  <div className={sectionHdr}>
-                    <Share2 size={14} /> SHARE
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <a
-                      href={mailtoHref}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 font-cond font-bold text-[11px] uppercase tracking-[.1em] text-[#5a6e9a] hover:text-white transition-colors px-3 py-2 rounded-lg border border-[#1a2d50] hover:border-[#2a3d60]"
-                    >
-                      <Mail size={13} /> EMAIL
-                    </a>
-                    <a
-                      href={smsHref}
-                      className="inline-flex items-center gap-1.5 font-cond font-bold text-[11px] uppercase tracking-[.1em] text-[#5a6e9a] hover:text-white transition-colors px-3 py-2 rounded-lg border border-[#1a2d50] hover:border-[#2a3d60]"
-                    >
-                      <MessageSquare size={13} /> TEXT
-                    </a>
-                  </div>
-                </div>
+                {/* Public Results Site */}
+                <Card title="Public Results Site" icon={<Globe size={14} />}>
+                  <ShareLinkSection
+                    label=""
+                    url={`${process.env.NEXT_PUBLIC_PUBLIC_RESULTS_URL ?? 'https://public-results-gamma.vercel.app'}/e/${event.slug}`}
+                  />
+                </Card>
 
-                {/* Section 4: Public Results Site */}
-                <ShareLinkSection
-                  label="PUBLIC RESULTS SITE"
-                  url={`${process.env.NEXT_PUBLIC_PUBLIC_RESULTS_URL ?? 'https://public-results-gamma.vercel.app'}/e/${event.slug}`}
-                />
+                {/* Referee Sign-up */}
+                <Card title="Referee Sign-up" icon={<Users size={14} />}>
+                  <InviteLinkSection eventId={eventId!} type="referee" label="" />
+                </Card>
 
-                {/* Section 5: Referee & Volunteer Sign-up */}
-                <InviteLinkSection eventId={eventId!} type="referee" label="REFEREE SIGN-UP LINK" />
-                <InviteLinkSection
-                  eventId={eventId!}
-                  type="volunteer"
-                  label="VOLUNTEER SIGN-UP LINK"
-                />
+                {/* Volunteer Sign-up */}
+                <Card title="Volunteer Sign-up" icon={<Users size={14} />}>
+                  <InviteLinkSection eventId={eventId!} type="volunteer" label="" />
+                </Card>
 
-                {/* Section 6: Player Check-in */}
-                <div>
-                  <div className={sectionHdr}>
-                    <Users size={14} /> PLAYER CHECK-IN
-                  </div>
-                  <div className="text-[11px] text-[#5a6e9a] font-cond">
+                {/* Player Check-in */}
+                <Card title="Player Check-in" icon={<Users size={14} />}>
+                  <div className="font-cond text-[11px] text-[#5a6e9a]">
                     Individual player QR codes are managed in the{' '}
                     <span className="text-white font-bold">QR Codes</span> tab. Each player gets a
                     unique check-in link.
                   </div>
-                </div>
+                </Card>
 
                 {/* Hidden canvas for PNG export -- always mounted (not conditionally rendered) */}
                 <div style={{ display: 'none' }}>
@@ -4099,24 +4018,25 @@ function RefRequirementsCard({
       .eq('is_active', true)
       .order('sort_order')
       .then(({ data }) => {
-        setDivisions((data ?? []).map((d: { name: string }) => d.name))
+        const divNames = (data ?? []).map((d: { name: string }) => d.name)
+        setDivisions(divNames)
+        // Auto-populate all divisions into ref_requirements if not already there
+        const updated = { ...value }
+        let changed = false
+        divNames.forEach((d: string) => {
+          if (!updated[d]) {
+            updated[d] = { adult: 2, youth: 0 }
+            changed = true
+          }
+        })
+        if (changed) onChange(updated)
       })
   }, [eventId])
 
-  // Separate division rows from 'default'
-  const divRows = Object.entries(value)
-    .filter(([k]) => k !== 'default')
-    .sort(([a], [b]) => a.localeCompare(b))
   const def = value['default'] ?? { adult: 2, youth: 0 }
 
   function updateRule(div: string, field: 'adult' | 'youth', n: number) {
     onChange({ ...value, [div]: { ...value[div], [field]: Math.max(0, n) } })
-  }
-
-  function removeRule(div: string) {
-    const next = { ...value }
-    delete next[div]
-    onChange(next)
   }
 
   const numInp =
@@ -4131,7 +4051,7 @@ function RefRequirementsCard({
       </div>
 
       {/* Column headers */}
-      <div className="grid grid-cols-[1fr_80px_80px_32px] gap-2 mb-1 px-1">
+      <div className="grid grid-cols-[1fr_80px_80px] gap-2 mb-1 px-1">
         <span className="font-cond text-[9px] font-black tracking-[.12em] text-muted uppercase">
           Division
         </span>
@@ -4141,47 +4061,43 @@ function RefRequirementsCard({
         <span className="font-cond text-[9px] font-black tracking-[.12em] text-[#34d399] uppercase text-center">
           Youth Refs
         </span>
-        <span />
       </div>
 
       <div className="space-y-1.5">
-        {divRows.map(([div, rule]) => (
-          <div
-            key={div}
-            className="grid grid-cols-[1fr_80px_80px_32px] gap-2 items-center px-1 py-1 rounded hover:bg-[#050f20] group"
-          >
-            <span className="font-cond text-[13px] font-bold text-white">{div}</span>
-            <div className="flex justify-center">
-              <input
-                type="number"
-                min={0}
-                max={9}
-                className={numInp}
-                value={rule.adult}
-                onChange={(e) => updateRule(div, 'adult', Number(e.target.value))}
-              />
-            </div>
-            <div className="flex justify-center">
-              <input
-                type="number"
-                min={0}
-                max={9}
-                className={numInp}
-                value={rule.youth}
-                onChange={(e) => updateRule(div, 'youth', Number(e.target.value))}
-              />
-            </div>
-            <button
-              onClick={() => removeRule(div)}
-              className="opacity-0 group-hover:opacity-100 flex items-center justify-center w-7 h-7 rounded hover:bg-red/20 transition-all"
+        {divisions.map((div) => {
+          const rule = value[div] ?? { adult: 2, youth: 0 }
+          return (
+            <div
+              key={div}
+              className="grid grid-cols-[1fr_80px_80px] gap-2 items-center px-1 py-1 rounded hover:bg-[#050f20]"
             >
-              <Trash2 size={12} className="text-red-400" />
-            </button>
-          </div>
-        ))}
+              <span className="font-cond text-[13px] font-bold text-white">{div}</span>
+              <div className="flex justify-center">
+                <input
+                  type="number"
+                  min={0}
+                  max={9}
+                  className={numInp}
+                  value={rule.adult}
+                  onChange={(e) => updateRule(div, 'adult', Number(e.target.value))}
+                />
+              </div>
+              <div className="flex justify-center">
+                <input
+                  type="number"
+                  min={0}
+                  max={9}
+                  className={numInp}
+                  value={rule.youth}
+                  onChange={(e) => updateRule(div, 'youth', Number(e.target.value))}
+                />
+              </div>
+            </div>
+          )
+        })}
 
         {/* Default row */}
-        <div className="grid grid-cols-[1fr_80px_80px_32px] gap-2 items-center px-1 py-1 rounded border-t border-[#1a2d50] mt-2 pt-3">
+        <div className="grid grid-cols-[1fr_80px_80px] gap-2 items-center px-1 py-1 rounded border-t border-[#1a2d50] mt-2 pt-3">
           <span className="font-cond text-[11px] font-black tracking-[.08em] text-muted uppercase">
             All Other Divisions
           </span>
@@ -4205,35 +4121,8 @@ function RefRequirementsCard({
               onChange={(e) => updateRule('default', 'youth', Number(e.target.value))}
             />
           </div>
-          <span />
         </div>
       </div>
-
-      {/* Add division dropdown */}
-      {(() => {
-        const available = divisions.filter((d) => !value[d])
-        if (available.length === 0) return null
-        return (
-          <div className="mt-4 pt-4 border-t border-[#1a2d50]">
-            <select
-              className="bg-[#040e24] border border-[#1a2d50] text-white font-cond text-[12px] font-bold px-3 py-2 rounded-lg outline-none w-full"
-              value=""
-              onChange={(e) => {
-                if (e.target.value) {
-                  onChange({ ...value, [e.target.value]: { adult: 2, youth: 0 } })
-                }
-              }}
-            >
-              <option value="">+ Add Division</option>
-              {available.map((d) => (
-                <option key={d} value={d}>
-                  {d}
-                </option>
-              ))}
-            </select>
-          </div>
-        )
-      })()}
     </Card>
   )
 }
