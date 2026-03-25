@@ -156,3 +156,6 @@ See: .planning/PROJECT.md (updated 2026-03-22)
 | 08-03      | Approved cancel requests immediately transition to 'completed' after updating all game statuses — no intermediate state needed |
 | 08-03      | Reschedule route uses 'partially_complete' when some junction games still pending, 'completed' only when all resolved |
 | 08-03      | Store uses separate 'schedule_change_requests' Supabase channel rather than adding to leagueops-realtime channel to keep concerns separate |
+| 09-00      | vi.mock('@/lib/supabase') required in standings.test.ts — supabase singleton initializes at import time causing test failure without env vars |
+| 09-00      | BracketRound type defined inline in bracket-shape.test.ts since Plan 01 will add it to data.ts — avoids cross-wave dependency in Wave 0 |
+| 09-00      | Standing interface uses abbreviated fields (w/l/t/gf/ga/gd/pts) in data.ts — tests adapted to match actual implementation not plan spec |
