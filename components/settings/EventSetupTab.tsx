@@ -120,6 +120,8 @@ interface EventData {
   back_to_back_warning: boolean
   // Public flags
   public_schedule: boolean
+  public_standings: boolean
+  public_results: boolean
   show_brackets: boolean
   show_team_list: boolean
   show_seeding: boolean
@@ -197,6 +199,8 @@ const DEFAULT_EVENT: Omit<EventData, 'id'> = {
   highlight_schedule_changes: 0,
   back_to_back_warning: true,
   public_schedule: false,
+  public_standings: true,
+  public_results: true,
   show_brackets: true,
   show_team_list: true,
   show_seeding: false,
@@ -277,7 +281,15 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
   const [permSaving, setPermSaving] = useState(false)
   // Division timing overrides
   const [divisionTimings, setDivisionTimings] = useState<
-    Record<string, { schedule_increment?: number; time_between_games?: number; periods_per_game?: number; minutes_per_period?: number }>
+    Record<
+      string,
+      {
+        schedule_increment?: number
+        time_between_games?: number
+        periods_per_game?: number
+        minutes_per_period?: number
+      }
+    >
   >({})
   const [divisionNames, setDivisionNames] = useState<string[]>([])
   const [expandedDivision, setExpandedDivision] = useState<string | null>(null)
@@ -288,8 +300,24 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
   >({})
   const [gameDaysSaving, setGameDaysSaving] = useState(false)
   // Divisions state (general tab)
-  const [divisions, setDivisions] = useState<{ id: number; name: string; age_group: string; gender: string; sort_order: number; is_active: boolean; max_teams: number | null; color: string }[]>([])
-  const [newDiv, setNewDiv] = useState({ name: '', age_group: '', gender: 'Coed', color: '#0B3D91' })
+  const [divisions, setDivisions] = useState<
+    {
+      id: number
+      name: string
+      age_group: string
+      gender: string
+      sort_order: number
+      is_active: boolean
+      max_teams: number | null
+      color: string
+    }[]
+  >([])
+  const [newDiv, setNewDiv] = useState({
+    name: '',
+    age_group: '',
+    gender: 'Coed',
+    color: '#0B3D91',
+  })
   const [addingDiv, setAddingDiv] = useState(false)
   const [divSaving, setDivSaving] = useState(false)
   // Rules tab state
@@ -304,10 +332,20 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
   const [copyableEvents, setCopyableEvents] = useState<{ id: number; name: string }[]>([])
   // Rule overrides state
   const [ruleOverrides, setRuleOverrides] = useState<Record<number, any[]>>({})
-  const [overrideTeams, setOverrideTeams] = useState<{ id: number; name: string; division: string }[]>([])
+  const [overrideTeams, setOverrideTeams] = useState<
+    { id: number; name: string; division: string }[]
+  >([])
   const [overrideEventDates, setOverrideEventDates] = useState<{ id: number; date: string }[]>([])
   const [addingOverrideForRule, setAddingOverrideForRule] = useState<number | null>(null)
-  const [overrideForm, setOverrideForm] = useState({ scope_type: 'global' as string, reason: '', home_team_id: '', away_team_id: '', scope_team_id: '', scope_event_date_id: '', override_action: 'allow' as string })
+  const [overrideForm, setOverrideForm] = useState({
+    scope_type: 'global' as string,
+    reason: '',
+    home_team_id: '',
+    away_team_id: '',
+    scope_team_id: '',
+    scope_event_date_id: '',
+    override_action: 'allow' as string,
+  })
   // Sharing tab state
   const [showQRModal, setShowQRModal] = useState(false)
   const [linkCopied, setLinkCopied] = useState(false)
@@ -362,11 +400,14 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
       .eq('rule_id', ruleId)
       .eq('event_id', eventId)
       .order('created_at', { ascending: false })
-    setRuleOverrides(prev => ({ ...prev, [ruleId]: data ?? [] }))
+    setRuleOverrides((prev) => ({ ...prev, [ruleId]: data ?? [] }))
   }
 
   async function createOverride(ruleId: number) {
-    if (!overrideForm.reason.trim()) { toast.error('Reason is required'); return }
+    if (!overrideForm.reason.trim()) {
+      toast.error('Reason is required')
+      return
+    }
     const sb = createClient()
     const payload: Record<string, any> = {
       event_id: eventId,
@@ -377,23 +418,43 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
       enabled: true,
     }
     if (overrideForm.scope_type === 'matchup') {
-      if (!overrideForm.home_team_id || !overrideForm.away_team_id) { toast.error('Select both teams for matchup override'); return }
+      if (!overrideForm.home_team_id || !overrideForm.away_team_id) {
+        toast.error('Select both teams for matchup override')
+        return
+      }
       payload.home_team_id = Number(overrideForm.home_team_id)
       payload.away_team_id = Number(overrideForm.away_team_id)
     }
     if (overrideForm.scope_type === 'team') {
-      if (!overrideForm.scope_team_id) { toast.error('Select a team'); return }
+      if (!overrideForm.scope_team_id) {
+        toast.error('Select a team')
+        return
+      }
       payload.scope_team_id = Number(overrideForm.scope_team_id)
     }
     if (overrideForm.scope_type === 'week') {
-      if (!overrideForm.scope_event_date_id) { toast.error('Select an event date'); return }
+      if (!overrideForm.scope_event_date_id) {
+        toast.error('Select an event date')
+        return
+      }
       payload.scope_event_date_id = Number(overrideForm.scope_event_date_id)
     }
     const { error } = await sb.from('schedule_rule_overrides').insert(payload)
-    if (error) { toast.error('Failed to create override: ' + error.message); return }
+    if (error) {
+      toast.error('Failed to create override: ' + error.message)
+      return
+    }
     toast.success('Override created')
     setAddingOverrideForRule(null)
-    setOverrideForm({ scope_type: 'global', reason: '', home_team_id: '', away_team_id: '', scope_team_id: '', scope_event_date_id: '', override_action: 'allow' })
+    setOverrideForm({
+      scope_type: 'global',
+      reason: '',
+      home_team_id: '',
+      away_team_id: '',
+      scope_team_id: '',
+      scope_event_date_id: '',
+      override_action: 'allow',
+    })
     loadOverridesForRule(ruleId)
   }
 
@@ -432,7 +493,7 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
         body: JSON.stringify({ id: ruleId, enabled }),
       })
       if (!res.ok) throw new Error('Failed to update rule')
-      setRules(prev => prev.map(r => r.id === ruleId ? { ...r, enabled } : r))
+      setRules((prev) => prev.map((r) => (r.id === ruleId ? { ...r, enabled } : r)))
       toast.success(`Rule ${enabled ? 'enabled' : 'disabled'}`)
     } catch {
       toast.error('Failed to toggle rule')
@@ -443,7 +504,7 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
     try {
       const res = await fetch(`/api/schedule-rules?id=${ruleId}`, { method: 'DELETE' })
       if (!res.ok) throw new Error('Failed to delete rule')
-      setRules(prev => prev.filter(r => r.id !== ruleId))
+      setRules((prev) => prev.filter((r) => r.id !== ruleId))
       toast.success('Rule deleted')
     } catch {
       toast.error('Failed to delete rule')
@@ -459,7 +520,7 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
       })
       if (!res.ok) throw new Error('Failed to create rule')
       const json = await res.json()
-      setRules(prev => [...prev, json.rule])
+      setRules((prev) => [...prev, json.rule])
       setShowAddRule(false)
       toast.success('Rule created')
     } catch {
@@ -469,11 +530,7 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
 
   async function loadCopyableEvents() {
     const sb = createClient()
-    const { data } = await sb
-      .from('events')
-      .select('id, name')
-      .neq('id', eventId)
-      .order('name')
+    const { data } = await sb.from('events').select('id, name').neq('id', eventId).order('name')
     setCopyableEvents(data ?? [])
     setShowCopyRules(true)
   }
@@ -487,7 +544,10 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
       .select('*')
       .eq('event_id', sourceEventId)
 
-    if (fetchErr || !sourceRules) { toast.error('Failed to load source rules'); return }
+    if (fetchErr || !sourceRules) {
+      toast.error('Failed to load source rules')
+      return
+    }
 
     // Insert as new rules for current event
     const newRules = sourceRules.map(({ id, event_id, created_at, updated_at, ...rule }: any) => ({
@@ -501,9 +561,12 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
       .from('schedule_rules')
       .upsert(newRules, { onConflict: 'event_id,rule_name' })
 
-    if (insertErr) { toast.error(insertErr.message); return }
+    if (insertErr) {
+      toast.error(insertErr.message)
+      return
+    }
 
-    const sourceName = copyableEvents.find(e => e.id === sourceEventId)?.name ?? 'event'
+    const sourceName = copyableEvents.find((e) => e.id === sourceEventId)?.name ?? 'event'
     toast.success(`Copied ${newRules.length} rules from ${sourceName}`)
     setShowCopyRules(false)
     setCopySourceEventId(null)
@@ -521,11 +584,16 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
     const names = (divs ?? []).map((d: any) => d.name as string)
     setDivisionNames(names)
 
-    const { data: timings } = await sb
-      .from('division_timing')
-      .select('*')
-      .eq('event_id', eventId)
-    const map: Record<string, { schedule_increment?: number; time_between_games?: number; periods_per_game?: number; minutes_per_period?: number }> = {}
+    const { data: timings } = await sb.from('division_timing').select('*').eq('event_id', eventId)
+    const map: Record<
+      string,
+      {
+        schedule_increment?: number
+        time_between_games?: number
+        periods_per_game?: number
+        minutes_per_period?: number
+      }
+    > = {}
     for (const t of timings ?? []) {
       map[(t as any).division_name] = {
         schedule_increment: (t as any).schedule_increment ?? undefined,
@@ -541,7 +609,13 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
     setDivTimingSaving(true)
     const sb = createClient()
     const vals = divisionTimings[divName]
-    if (!vals || (vals.schedule_increment == null && vals.time_between_games == null && vals.periods_per_game == null && vals.minutes_per_period == null)) {
+    if (
+      !vals ||
+      (vals.schedule_increment == null &&
+        vals.time_between_games == null &&
+        vals.periods_per_game == null &&
+        vals.minutes_per_period == null)
+    ) {
       // Delete override if all blank
       await sb.from('division_timing').delete().eq('event_id', eventId).eq('division_name', divName)
     } else {
@@ -578,10 +652,7 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
 
   async function loadGameDays() {
     const sb = createClient()
-    const { data } = await sb
-      .from('season_game_days')
-      .select('*')
-      .eq('event_id', eventId)
+    const { data } = await sb.from('season_game_days').select('*').eq('event_id', eventId)
     const map: Record<number, { start_time: string; end_time: string; is_active: boolean }> = {}
     for (const row of data ?? []) {
       map[(row as any).day_of_week] = {
@@ -654,6 +725,8 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
         highlight_schedule_changes: d.highlight_schedule_changes ?? 0,
         back_to_back_warning: d.back_to_back_warning ?? true,
         public_schedule: d.public_schedule ?? false,
+        public_standings: d.public_standings ?? true,
+        public_results: d.public_results ?? true,
         show_brackets: d.show_brackets ?? true,
         show_team_list: d.show_team_list ?? true,
         show_seeding: d.show_seeding ?? false,
@@ -700,7 +773,9 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
         venue_lng: d.venue_lng ?? null,
         venue_place_id: d.venue_place_id ?? null,
         registration_opens_at: d.registration_opens_at ? d.registration_opens_at.slice(0, 16) : '',
-        registration_closes_at: d.registration_closes_at ? d.registration_closes_at.slice(0, 16) : '',
+        registration_closes_at: d.registration_closes_at
+          ? d.registration_closes_at.slice(0, 16)
+          : '',
         registration_open: d.registration_open ?? null,
       })
       setLogoPreview(d.logo_url ?? null)
@@ -718,11 +793,7 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
   async function loadEventDates() {
     if (!eventId) return
     const sb = createClient()
-    const { data } = await sb
-      .from('event_dates')
-      .select('*')
-      .eq('event_id', eventId)
-      .order('date')
+    const { data } = await sb.from('event_dates').select('*').eq('event_id', eventId).order('date')
     setEventDates((data as EventDate[]) ?? [])
   }
 
@@ -733,7 +804,10 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
     if (existing) {
       // Delete it
       const { error } = await sb.from('event_dates').delete().eq('id', existing.id)
-      if (error) { toast.error(error.message); return }
+      if (error) {
+        toast.error(error.message)
+        return
+      }
       setEventDates((prev) => prev.filter((d) => d.id !== existing.id))
     } else {
       // Insert new entry -- day_number is sequential based on sorted dates
@@ -747,8 +821,13 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
         .insert({ event_id: eventId, date: isoDate, label: dayLabel, day_number: dayNumber })
         .select()
         .single()
-      if (error) { toast.error(error.message); return }
-      setEventDates((prev) => [...prev, data as EventDate].sort((a, b) => a.date.localeCompare(b.date)))
+      if (error) {
+        toast.error(error.message)
+        return
+      }
+      setEventDates((prev) =>
+        [...prev, data as EventDate].sort((a, b) => a.date.localeCompare(b.date))
+      )
     }
     toast.success('Schedule dates saved')
   }
@@ -1046,6 +1125,8 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
         highlight_schedule_changes: event.highlight_schedule_changes,
         back_to_back_warning: event.back_to_back_warning,
         public_schedule: event.public_schedule,
+        public_standings: event.public_standings,
+        public_results: event.public_results,
         show_brackets: event.show_brackets,
         show_team_list: event.show_team_list,
         show_seeding: event.show_seeding,
@@ -1356,11 +1437,10 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
   // Registration URL uses public-results domain (separate Vercel deployment).
   // CRITICAL: Do NOT use window.location.origin -- the /e/[slug]/register route
   // lives in apps/public-results which is deployed at a different domain.
-  const publicResultsUrl = process.env.NEXT_PUBLIC_PUBLIC_RESULTS_URL
-    || (typeof window !== 'undefined' ? window.location.origin : '')
-  const registrationUrl = event.slug
-    ? `${publicResultsUrl}/e/${event.slug}/register`
-    : ''
+  const publicResultsUrl =
+    process.env.NEXT_PUBLIC_PUBLIC_RESULTS_URL ||
+    (typeof window !== 'undefined' ? window.location.origin : '')
+  const registrationUrl = event.slug ? `${publicResultsUrl}/e/${event.slug}/register` : ''
 
   function copyRegistrationLink() {
     if (!registrationUrl) return
@@ -1560,7 +1640,8 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                       set('venue_place_id', venue.place_id)
                       // Per D-03: also update associated complex record
                       const sb = createClient()
-                      await sb.from('complexes')
+                      await sb
+                        .from('complexes')
                         .update({ address: venue.address, lat: venue.lat, lng: venue.lng })
                         .eq('event_id', eventId)
                         .is('lat', null)
@@ -1764,9 +1845,15 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                         onClick={() => toggleDivisionActive(d.id, !d.is_active)}
                         className={cn(
                           'w-3 h-3 rounded-full border-2 transition-colors',
-                          d.is_active ? 'bg-green-400 border-green-400' : 'bg-transparent border-[#5a6e9a]'
+                          d.is_active
+                            ? 'bg-green-400 border-green-400'
+                            : 'bg-transparent border-[#5a6e9a]'
                         )}
-                        title={d.is_active ? 'Active — click to deactivate' : 'Inactive — click to activate'}
+                        title={
+                          d.is_active
+                            ? 'Active — click to deactivate'
+                            : 'Inactive — click to activate'
+                        }
                       />
                       <label className="relative cursor-pointer" title="Change division color">
                         <span
@@ -1780,7 +1867,12 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                           className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                         />
                       </label>
-                      <span className={cn('font-cond text-[12px] font-bold', d.is_active ? 'text-white' : 'text-muted')}>
+                      <span
+                        className={cn(
+                          'font-cond text-[12px] font-bold',
+                          d.is_active ? 'text-white' : 'text-muted'
+                        )}
+                      >
                         {d.name}
                       </span>
                       {d.age_group && (
@@ -1860,7 +1952,10 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                         {divSaving ? 'SAVING...' : 'ADD DIVISION'}
                       </button>
                       <button
-                        onClick={() => { setAddingDiv(false); setNewDiv({ name: '', age_group: '', gender: 'Coed', color: '#0B3D91' }) }}
+                        onClick={() => {
+                          setAddingDiv(false)
+                          setNewDiv({ name: '', age_group: '', gender: 'Coed', color: '#0B3D91' })
+                        }}
                         className="font-cond text-[10px] font-bold tracking-wider text-muted px-3 py-1.5 rounded hover:text-white transition-colors"
                       >
                         CANCEL
@@ -1931,10 +2026,19 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                   <div className="flex items-center gap-3">
                     <button
                       role="switch"
-                      aria-checked={event.registration_open === true ? true : event.registration_open === false ? false : undefined}
+                      aria-checked={
+                        event.registration_open === true
+                          ? true
+                          : event.registration_open === false
+                            ? false
+                            : undefined
+                      }
                       onClick={() => {
                         // Cycle: null/auto → true/manual open → false/manual closed → null/auto
-                        if (event.registration_open === null || event.registration_open === undefined) {
+                        if (
+                          event.registration_open === null ||
+                          event.registration_open === undefined
+                        ) {
                           set('registration_open', true)
                         } else if (event.registration_open === true) {
                           set('registration_open', false)
@@ -1947,7 +2051,7 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                           ? 'px-4 py-2 rounded-lg font-cond text-[11px] font-black tracking-[.1em] uppercase bg-green-700 text-white transition-colors'
                           : event.registration_open === false
                             ? 'px-4 py-2 rounded-lg font-cond text-[11px] font-black tracking-[.1em] uppercase bg-red text-white transition-colors'
-                            : (event.registration_opens_at || event.registration_closes_at)
+                            : event.registration_opens_at || event.registration_closes_at
                               ? 'px-4 py-2 rounded-lg font-cond text-[11px] font-black tracking-[.1em] uppercase bg-[#0B3D91] text-white transition-colors'
                               : 'px-4 py-2 rounded-lg font-cond text-[11px] font-black tracking-[.1em] uppercase bg-[#1a2d50] text-muted transition-colors'
                       }
@@ -1956,7 +2060,7 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                         ? 'Override: Open'
                         : event.registration_open === false
                           ? 'Override: Closed'
-                          : (event.registration_opens_at || event.registration_closes_at)
+                          : event.registration_opens_at || event.registration_closes_at
                             ? 'Auto'
                             : 'OFF'}
                     </button>
@@ -1970,11 +2074,7 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                   </div>
                 </div>
 
-                <Btn
-                  variant="primary"
-                  onClick={saveRegistrationSettings}
-                  disabled={regSaving}
-                >
+                <Btn variant="primary" onClick={saveRegistrationSettings} disabled={regSaving}>
                   {regSaving ? 'SAVING...' : 'SAVE REGISTRATION SETTINGS'}
                 </Btn>
               </div>
@@ -2041,16 +2141,25 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
             <Card title="Division Timing Overrides" icon={<Sliders size={14} />}>
               {divisionNames.length === 0 ? (
                 <div className="font-cond text-[11px] text-muted">
-                  No active divisions found. Add divisions in the registration settings to configure per-division timing.
+                  No active divisions found. Add divisions in the registration settings to configure
+                  per-division timing.
                 </div>
               ) : (
                 <div className="space-y-1">
                   {divisionNames.map((divName) => {
                     const isOpen = expandedDivision === divName
                     const vals = divisionTimings[divName]
-                    const hasOverride = vals && (vals.schedule_increment != null || vals.time_between_games != null || vals.periods_per_game != null || vals.minutes_per_period != null)
+                    const hasOverride =
+                      vals &&
+                      (vals.schedule_increment != null ||
+                        vals.time_between_games != null ||
+                        vals.periods_per_game != null ||
+                        vals.minutes_per_period != null)
                     return (
-                      <div key={divName} className="border border-[#1a2d50] rounded-lg overflow-hidden">
+                      <div
+                        key={divName}
+                        className="border border-[#1a2d50] rounded-lg overflow-hidden"
+                      >
                         <button
                           type="button"
                           onClick={() => setExpandedDivision(isOpen ? null : divName)}
@@ -2059,9 +2168,14 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                           <div className="flex items-center gap-2">
                             <ChevronRight
                               size={12}
-                              className={cn('text-muted transition-transform', isOpen && 'rotate-90')}
+                              className={cn(
+                                'text-muted transition-transform',
+                                isOpen && 'rotate-90'
+                              )}
                             />
-                            <span className="font-cond text-[13px] font-bold text-white">{divName}</span>
+                            <span className="font-cond text-[13px] font-bold text-white">
+                              {divName}
+                            </span>
                           </div>
                           {hasOverride ? (
                             <span className="font-cond text-[9px] font-black tracking-[.12em] text-blue-400 uppercase">
@@ -2085,7 +2199,11 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                                   value={vals?.schedule_increment ?? ''}
                                   placeholder={String(event.schedule_increment)}
                                   onChange={(e) =>
-                                    setDivTiming(divName, 'schedule_increment', e.target.value === '' ? undefined : Number(e.target.value))
+                                    setDivTiming(
+                                      divName,
+                                      'schedule_increment',
+                                      e.target.value === '' ? undefined : Number(e.target.value)
+                                    )
                                   }
                                 />
                                 <div className="font-cond text-[9px] text-muted mt-1">
@@ -2101,7 +2219,11 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                                   value={vals?.time_between_games ?? ''}
                                   placeholder={String(event.time_between_games)}
                                   onChange={(e) =>
-                                    setDivTiming(divName, 'time_between_games', e.target.value === '' ? undefined : Number(e.target.value))
+                                    setDivTiming(
+                                      divName,
+                                      'time_between_games',
+                                      e.target.value === '' ? undefined : Number(e.target.value)
+                                    )
                                   }
                                 />
                                 <div className="font-cond text-[9px] text-muted mt-1">
@@ -2117,7 +2239,11 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                                   value={vals?.periods_per_game ?? ''}
                                   placeholder={String(event.periods_per_game)}
                                   onChange={(e) =>
-                                    setDivTiming(divName, 'periods_per_game', e.target.value === '' ? undefined : Number(e.target.value))
+                                    setDivTiming(
+                                      divName,
+                                      'periods_per_game',
+                                      e.target.value === '' ? undefined : Number(e.target.value)
+                                    )
                                   }
                                 />
                                 <div className="font-cond text-[9px] text-muted mt-1">
@@ -2133,7 +2259,11 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                                   value={vals?.minutes_per_period ?? ''}
                                   placeholder={String(event.minutes_per_period)}
                                   onChange={(e) =>
-                                    setDivTiming(divName, 'minutes_per_period', e.target.value === '' ? undefined : Number(e.target.value))
+                                    setDivTiming(
+                                      divName,
+                                      'minutes_per_period',
+                                      e.target.value === '' ? undefined : Number(e.target.value)
+                                    )
                                   }
                                 />
                                 <div className="font-cond text-[9px] text-muted mt-1">
@@ -2156,7 +2286,11 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                                   onClick={async () => {
                                     clearDivisionTiming(divName)
                                     const sb = createClient()
-                                    await sb.from('division_timing').delete().eq('event_id', eventId).eq('division_name', divName)
+                                    await sb
+                                      .from('division_timing')
+                                      .delete()
+                                      .eq('event_id', eventId)
+                                      .eq('division_name', divName)
                                     toast.success(`Override cleared for ${divName}`)
                                   }}
                                   className="font-cond text-[11px] font-black tracking-[.08em] uppercase px-4 py-1.5 bg-transparent border border-[#1a2d50] text-muted hover:text-white hover:border-red-500 rounded-lg transition-colors"
@@ -2202,7 +2336,8 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
               <Card title="Season Game Days" icon={<Calendar size={14} />}>
                 <div className="space-y-4">
                   <div className="font-cond text-[11px] text-muted">
-                    Select which days of the week games will be played and set the start/end times for each day.
+                    Select which days of the week games will be played and set the start/end times
+                    for each day.
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((dayLabel, dayIdx) => {
@@ -2237,7 +2372,15 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                     .filter(([, v]) => v.is_active)
                     .sort(([a], [b]) => Number(a) - Number(b))
                     .map(([dayIdx, val]) => {
-                      const dayLabels = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+                      const dayLabels = [
+                        'Sunday',
+                        'Monday',
+                        'Tuesday',
+                        'Wednesday',
+                        'Thursday',
+                        'Friday',
+                        'Saturday',
+                      ]
                       return (
                         <div
                           key={dayIdx}
@@ -2320,16 +2463,26 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
             {showCopyRules && (
               <div className="bg-[#081428] border border-[#1a2d50] rounded-xl p-4 space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="font-cond font-bold text-[12px] tracking-[.08em] text-white uppercase">Select Source Event</span>
-                  <button onClick={() => { setShowCopyRules(false); setCopySourceEventId(null) }} className="text-muted hover:text-white">
+                  <span className="font-cond font-bold text-[12px] tracking-[.08em] text-white uppercase">
+                    Select Source Event
+                  </span>
+                  <button
+                    onClick={() => {
+                      setShowCopyRules(false)
+                      setCopySourceEventId(null)
+                    }}
+                    className="text-muted hover:text-white"
+                  >
                     <X size={14} />
                   </button>
                 </div>
                 {copyableEvents.length === 0 ? (
-                  <div className="text-center py-4 text-muted font-cond text-[12px]">No other events found.</div>
+                  <div className="text-center py-4 text-muted font-cond text-[12px]">
+                    No other events found.
+                  </div>
                 ) : (
                   <div className="space-y-1 max-h-48 overflow-y-auto">
-                    {copyableEvents.map(ev => (
+                    {copyableEvents.map((ev) => (
                       <button
                         key={ev.id}
                         onClick={() => setCopySourceEventId(ev.id)}
@@ -2357,28 +2510,42 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
             )}
 
             {rulesLoading ? (
-              <div className="text-center py-8 text-muted font-cond text-[12px]">Loading rules...</div>
+              <div className="text-center py-8 text-muted font-cond text-[12px]">
+                Loading rules...
+              </div>
             ) : rules.length === 0 ? (
               <div className="text-center py-8 text-muted font-cond text-[12px]">
                 No schedule rules configured. Click "Add Rule" to create one.
               </div>
             ) : (
               (() => {
-                const CATEGORIES = ['global', 'division', 'program', 'team', 'weekly', 'season'] as const
-                const grouped = CATEGORIES.map(cat => ({
+                const CATEGORIES = [
+                  'global',
+                  'division',
+                  'program',
+                  'team',
+                  'weekly',
+                  'season',
+                ] as const
+                const grouped = CATEGORIES.map((cat) => ({
                   category: cat,
-                  rules: rules.filter(r => r.category === cat),
-                })).filter(g => g.rules.length > 0)
+                  rules: rules.filter((r) => r.category === cat),
+                })).filter((g) => g.rules.length > 0)
 
                 return grouped.map(({ category, rules: catRules }) => (
-                  <div key={category} className="bg-[#081428] border border-[#1a2d50] rounded-xl overflow-hidden">
+                  <div
+                    key={category}
+                    className="bg-[#081428] border border-[#1a2d50] rounded-xl overflow-hidden"
+                  >
                     <button
-                      onClick={() => setCollapsedCategories(prev => {
-                        const next = new Set(prev)
-                        if (next.has(category)) next.delete(category)
-                        else next.add(category)
-                        return next
-                      })}
+                      onClick={() =>
+                        setCollapsedCategories((prev) => {
+                          const next = new Set(prev)
+                          if (next.has(category)) next.delete(category)
+                          else next.add(category)
+                          return next
+                        })
+                      }
                       className="w-full flex items-center justify-between px-5 py-3 border-b border-[#1a2d50] hover:bg-[#0c1a35] transition-colors"
                     >
                       <div className="flex items-center gap-2">
@@ -2405,7 +2572,9 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                           <div key={rule.id}>
                             <div
                               className="flex items-center gap-3 px-5 py-2.5 hover:bg-[#0c1a35] cursor-pointer transition-colors"
-                              onClick={() => setExpandedRule(expandedRule === rule.id ? null : rule.id)}
+                              onClick={() =>
+                                setExpandedRule(expandedRule === rule.id ? null : rule.id)
+                              }
                             >
                               {/* Enable toggle */}
                               <button
@@ -2427,10 +2596,12 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                               </button>
 
                               {/* Rule name */}
-                              <span className={cn(
-                                'font-cond text-[12px] font-bold flex-1 min-w-0 truncate',
-                                rule.enabled ? 'text-white' : 'text-muted'
-                              )}>
+                              <span
+                                className={cn(
+                                  'font-cond text-[12px] font-bold flex-1 min-w-0 truncate',
+                                  rule.enabled ? 'text-white' : 'text-muted'
+                                )}
+                              >
                                 {rule.rule_name}
                               </span>
 
@@ -2440,12 +2611,16 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                               </span>
 
                               {/* Enforcement badge */}
-                              <span className={cn(
-                                'font-cond text-[9px] font-bold tracking-wider px-2 py-0.5 rounded uppercase flex-shrink-0',
-                                rule.enforcement === 'hard' ? 'bg-red-900/40 text-red-400' :
-                                rule.enforcement === 'soft' ? 'bg-yellow-900/40 text-yellow-400' :
-                                'bg-gray-800 text-gray-400'
-                              )}>
+                              <span
+                                className={cn(
+                                  'font-cond text-[9px] font-bold tracking-wider px-2 py-0.5 rounded uppercase flex-shrink-0',
+                                  rule.enforcement === 'hard'
+                                    ? 'bg-red-900/40 text-red-400'
+                                    : rule.enforcement === 'soft'
+                                      ? 'bg-yellow-900/40 text-yellow-400'
+                                      : 'bg-gray-800 text-gray-400'
+                                )}
+                              >
                                 {rule.enforcement}
                               </span>
 
@@ -2458,7 +2633,8 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation()
-                                  if (confirm(`Delete rule "${rule.rule_name}"?`)) deleteRule(rule.id)
+                                  if (confirm(`Delete rule "${rule.rule_name}"?`))
+                                    deleteRule(rule.id)
                                 }}
                                 className="text-muted hover:text-red-400 transition-colors flex-shrink-0"
                               >
@@ -2487,14 +2663,15 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                                     </pre>
                                   </div>
                                 )}
-                                {rule.action_params && Object.keys(rule.action_params).length > 0 && (
-                                  <div>
-                                    <div className={lbl}>Action Params</div>
-                                    <pre className="text-[10px] text-gray-400 bg-[#081428] rounded p-2 overflow-auto max-h-32 font-mono">
-                                      {JSON.stringify(rule.action_params, null, 2)}
-                                    </pre>
-                                  </div>
-                                )}
+                                {rule.action_params &&
+                                  Object.keys(rule.action_params).length > 0 && (
+                                    <div>
+                                      <div className={lbl}>Action Params</div>
+                                      <pre className="text-[10px] text-gray-400 bg-[#081428] rounded p-2 overflow-auto max-h-32 font-mono">
+                                        {JSON.stringify(rule.action_params, null, 2)}
+                                      </pre>
+                                    </div>
+                                  )}
                                 {rule.notes && (
                                   <div>
                                     <div className={lbl}>Notes</div>
@@ -2514,7 +2691,15 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                                           setAddingOverrideForRule(null)
                                         } else {
                                           setAddingOverrideForRule(rule.id)
-                                          setOverrideForm({ scope_type: 'global', reason: '', home_team_id: '', away_team_id: '', scope_team_id: '', scope_event_date_id: '', override_action: 'allow' })
+                                          setOverrideForm({
+                                            scope_type: 'global',
+                                            reason: '',
+                                            home_team_id: '',
+                                            away_team_id: '',
+                                            scope_team_id: '',
+                                            scope_event_date_id: '',
+                                            override_action: 'allow',
+                                          })
                                           if (!ruleOverrides[rule.id]) loadOverridesForRule(rule.id)
                                         }
                                       }}
@@ -2528,34 +2713,52 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                                   {(ruleOverrides[rule.id] ?? []).length > 0 && (
                                     <div className="space-y-1 mb-2">
                                       {(ruleOverrides[rule.id] ?? []).map((ov: any) => (
-                                        <div key={ov.id} className={cn(
-                                          'flex items-center gap-2 px-2 py-1.5 rounded text-[10px]',
-                                          ov.enabled ? 'bg-[#081428]' : 'bg-[#081428]/50 opacity-60'
-                                        )}>
-                                          <span className={cn(
-                                            'font-cond font-bold px-1.5 py-0.5 rounded uppercase tracking-wider',
-                                            ov.override_action === 'allow' ? 'bg-green-900/40 text-green-400' : 'bg-red-900/40 text-red-400'
-                                          )}>
+                                        <div
+                                          key={ov.id}
+                                          className={cn(
+                                            'flex items-center gap-2 px-2 py-1.5 rounded text-[10px]',
+                                            ov.enabled
+                                              ? 'bg-[#081428]'
+                                              : 'bg-[#081428]/50 opacity-60'
+                                          )}
+                                        >
+                                          <span
+                                            className={cn(
+                                              'font-cond font-bold px-1.5 py-0.5 rounded uppercase tracking-wider',
+                                              ov.override_action === 'allow'
+                                                ? 'bg-green-900/40 text-green-400'
+                                                : 'bg-red-900/40 text-red-400'
+                                            )}
+                                          >
                                             {ov.override_action}
                                           </span>
                                           <span className="font-cond font-bold text-muted uppercase px-1.5 py-0.5 rounded bg-[#1a2d50]">
                                             {ov.scope_type}
                                           </span>
-                                          <span className="text-gray-300 flex-1 truncate">{ov.reason}</span>
+                                          <span className="text-gray-300 flex-1 truncate">
+                                            {ov.reason}
+                                          </span>
                                           <button
-                                            onClick={() => toggleOverride(ov.id, rule.id, !ov.enabled)}
+                                            onClick={() =>
+                                              toggleOverride(ov.id, rule.id, !ov.enabled)
+                                            }
                                             className={cn(
                                               'w-6 h-3 rounded-full transition-colors flex-shrink-0 relative',
                                               ov.enabled ? 'bg-green-600' : 'bg-gray-700'
                                             )}
                                           >
-                                            <span className={cn(
-                                              'absolute top-0.5 w-2 h-2 rounded-full bg-white transition-all',
-                                              ov.enabled ? 'left-3.5' : 'left-0.5'
-                                            )} />
+                                            <span
+                                              className={cn(
+                                                'absolute top-0.5 w-2 h-2 rounded-full bg-white transition-all',
+                                                ov.enabled ? 'left-3.5' : 'left-0.5'
+                                              )}
+                                            />
                                           </button>
                                           <button
-                                            onClick={() => { if (confirm('Delete this override?')) deleteOverride(ov.id, rule.id) }}
+                                            onClick={() => {
+                                              if (confirm('Delete this override?'))
+                                                deleteOverride(ov.id, rule.id)
+                                            }}
                                             className="text-muted hover:text-red-400 transition-colors flex-shrink-0"
                                           >
                                             <Trash2 size={10} />
@@ -2566,7 +2769,10 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                                   )}
 
                                   {!ruleOverrides[rule.id] && (
-                                    <button onClick={() => loadOverridesForRule(rule.id)} className="text-[10px] text-blue-400 hover:underline font-cond">
+                                    <button
+                                      onClick={() => loadOverridesForRule(rule.id)}
+                                      className="text-[10px] text-blue-400 hover:underline font-cond"
+                                    >
                                       Load overrides...
                                     </button>
                                   )}
@@ -2577,7 +2783,16 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                                       <div className="grid grid-cols-2 gap-2">
                                         <div>
                                           <div className={lbl}>Scope</div>
-                                          <select className={inp} value={overrideForm.scope_type} onChange={e => setOverrideForm(f => ({ ...f, scope_type: e.target.value }))}>
+                                          <select
+                                            className={inp}
+                                            value={overrideForm.scope_type}
+                                            onChange={(e) =>
+                                              setOverrideForm((f) => ({
+                                                ...f,
+                                                scope_type: e.target.value,
+                                              }))
+                                            }
+                                          >
                                             <option value="global">Global</option>
                                             <option value="matchup">Matchup</option>
                                             <option value="team">Team</option>
@@ -2586,7 +2801,16 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                                         </div>
                                         <div>
                                           <div className={lbl}>Action</div>
-                                          <select className={inp} value={overrideForm.override_action} onChange={e => setOverrideForm(f => ({ ...f, override_action: e.target.value }))}>
+                                          <select
+                                            className={inp}
+                                            value={overrideForm.override_action}
+                                            onChange={(e) =>
+                                              setOverrideForm((f) => ({
+                                                ...f,
+                                                override_action: e.target.value,
+                                              }))
+                                            }
+                                          >
                                             <option value="allow">Allow (bypass rule)</option>
                                             <option value="block">Block (enforce extra)</option>
                                           </select>
@@ -2597,16 +2821,42 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                                         <div className="grid grid-cols-2 gap-2">
                                           <div>
                                             <div className={lbl}>Home Team</div>
-                                            <select className={inp} value={overrideForm.home_team_id} onChange={e => setOverrideForm(f => ({ ...f, home_team_id: e.target.value }))}>
+                                            <select
+                                              className={inp}
+                                              value={overrideForm.home_team_id}
+                                              onChange={(e) =>
+                                                setOverrideForm((f) => ({
+                                                  ...f,
+                                                  home_team_id: e.target.value,
+                                                }))
+                                              }
+                                            >
                                               <option value="">-- Select --</option>
-                                              {overrideTeams.map(t => <option key={t.id} value={t.id}>{t.name} ({t.division})</option>)}
+                                              {overrideTeams.map((t) => (
+                                                <option key={t.id} value={t.id}>
+                                                  {t.name} ({t.division})
+                                                </option>
+                                              ))}
                                             </select>
                                           </div>
                                           <div>
                                             <div className={lbl}>Away Team</div>
-                                            <select className={inp} value={overrideForm.away_team_id} onChange={e => setOverrideForm(f => ({ ...f, away_team_id: e.target.value }))}>
+                                            <select
+                                              className={inp}
+                                              value={overrideForm.away_team_id}
+                                              onChange={(e) =>
+                                                setOverrideForm((f) => ({
+                                                  ...f,
+                                                  away_team_id: e.target.value,
+                                                }))
+                                              }
+                                            >
                                               <option value="">-- Select --</option>
-                                              {overrideTeams.map(t => <option key={t.id} value={t.id}>{t.name} ({t.division})</option>)}
+                                              {overrideTeams.map((t) => (
+                                                <option key={t.id} value={t.id}>
+                                                  {t.name} ({t.division})
+                                                </option>
+                                              ))}
                                             </select>
                                           </div>
                                         </div>
@@ -2615,9 +2865,22 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                                       {overrideForm.scope_type === 'team' && (
                                         <div>
                                           <div className={lbl}>Team</div>
-                                          <select className={inp} value={overrideForm.scope_team_id} onChange={e => setOverrideForm(f => ({ ...f, scope_team_id: e.target.value }))}>
+                                          <select
+                                            className={inp}
+                                            value={overrideForm.scope_team_id}
+                                            onChange={(e) =>
+                                              setOverrideForm((f) => ({
+                                                ...f,
+                                                scope_team_id: e.target.value,
+                                              }))
+                                            }
+                                          >
                                             <option value="">-- Select --</option>
-                                            {overrideTeams.map(t => <option key={t.id} value={t.id}>{t.name} ({t.division})</option>)}
+                                            {overrideTeams.map((t) => (
+                                              <option key={t.id} value={t.id}>
+                                                {t.name} ({t.division})
+                                              </option>
+                                            ))}
                                           </select>
                                         </div>
                                       )}
@@ -2625,23 +2888,52 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                                       {overrideForm.scope_type === 'week' && (
                                         <div>
                                           <div className={lbl}>Event Date</div>
-                                          <select className={inp} value={overrideForm.scope_event_date_id} onChange={e => setOverrideForm(f => ({ ...f, scope_event_date_id: e.target.value }))}>
+                                          <select
+                                            className={inp}
+                                            value={overrideForm.scope_event_date_id}
+                                            onChange={(e) =>
+                                              setOverrideForm((f) => ({
+                                                ...f,
+                                                scope_event_date_id: e.target.value,
+                                              }))
+                                            }
+                                          >
                                             <option value="">-- Select --</option>
-                                            {overrideEventDates.map(d => <option key={d.id} value={d.id}>{d.date}</option>)}
+                                            {overrideEventDates.map((d) => (
+                                              <option key={d.id} value={d.id}>
+                                                {d.date}
+                                              </option>
+                                            ))}
                                           </select>
                                         </div>
                                       )}
 
                                       <div>
                                         <div className={lbl}>Reason (required)</div>
-                                        <input className={inp} placeholder="Why is this override needed?" value={overrideForm.reason} onChange={e => setOverrideForm(f => ({ ...f, reason: e.target.value }))} />
+                                        <input
+                                          className={inp}
+                                          placeholder="Why is this override needed?"
+                                          value={overrideForm.reason}
+                                          onChange={(e) =>
+                                            setOverrideForm((f) => ({
+                                              ...f,
+                                              reason: e.target.value,
+                                            }))
+                                          }
+                                        />
                                       </div>
 
                                       <div className="flex gap-2 justify-end">
-                                        <button onClick={() => setAddingOverrideForRule(null)} className="font-cond font-black text-[10px] tracking-[.08em] px-3 py-1.5 rounded border border-[#1a2d50] text-muted hover:text-white transition-colors">
+                                        <button
+                                          onClick={() => setAddingOverrideForRule(null)}
+                                          className="font-cond font-black text-[10px] tracking-[.08em] px-3 py-1.5 rounded border border-[#1a2d50] text-muted hover:text-white transition-colors"
+                                        >
                                           CANCEL
                                         </button>
-                                        <button onClick={() => createOverride(rule.id)} className="font-cond font-black text-[10px] tracking-[.08em] px-3 py-1.5 rounded bg-red hover:bg-red/80 text-white transition-colors">
+                                        <button
+                                          onClick={() => createOverride(rule.id)}
+                                          className="font-cond font-black text-[10px] tracking-[.08em] px-3 py-1.5 rounded bg-red hover:bg-red/80 text-white transition-colors"
+                                        >
                                           CREATE OVERRIDE
                                         </button>
                                       </div>
@@ -2661,10 +2953,7 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
 
             {/* Add Rule Form */}
             {showAddRule && (
-              <AddRuleForm
-                onSubmit={addRule}
-                onCancel={() => setShowAddRule(false)}
-              />
+              <AddRuleForm onSubmit={addRule} onCancel={() => setShowAddRule(false)} />
             )}
           </div>
         )}
@@ -2681,6 +2970,18 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                   onChange={(v) => set('public_schedule', v)}
                   highlight={!event.public_schedule && event.status === 'draft'}
                   highlightMsg="Switch status to Active to enable"
+                />
+                <Toggle
+                  label="Show Standings"
+                  help="Show standings tab on public results page"
+                  value={event.public_standings}
+                  onChange={(v) => set('public_standings', v)}
+                />
+                <Toggle
+                  label="Show Results"
+                  help="Show results tab on public results page"
+                  value={event.public_results}
+                  onChange={(v) => set('public_results', v)}
                 />
                 <Toggle
                   label="Allow Public to Post Scores"
@@ -3275,8 +3576,12 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
               <div className="border border-[#1a2d50] bg-[#030d20] rounded-lg p-6 flex items-center gap-3">
                 <Lock size={14} className="text-[#5a6e9a] flex-shrink-0" />
                 <div>
-                  <div className="font-cond text-[12px] font-black text-white mb-1">Registration link available after publishing</div>
-                  <div className="text-[11px] text-[#5a6e9a]">Publish this event to generate the registration link and QR code.</div>
+                  <div className="font-cond text-[12px] font-black text-white mb-1">
+                    Registration link available after publishing
+                  </div>
+                  <div className="text-[11px] text-[#5a6e9a]">
+                    Publish this event to generate the registration link and QR code.
+                  </div>
                 </div>
               </div>
             ) : (
@@ -3284,7 +3589,9 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                 {/* Section 1: Registration Link */}
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <div className={sectionHdr} style={{ marginBottom: 0 }}><QrCode size={14} /> REGISTRATION LINK</div>
+                    <div className={sectionHdr} style={{ marginBottom: 0 }}>
+                      <QrCode size={14} /> REGISTRATION LINK
+                    </div>
                     {registrationStatus === 'open' && (
                       <Pill variant="green">Registration Open</Pill>
                     )}
@@ -3311,15 +3618,32 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
 
                 {/* Section 2: QR Code */}
                 <div>
-                  <div className={sectionHdr}><QrCode size={14} /> QR CODE</div>
+                  <div className={sectionHdr}>
+                    <QrCode size={14} /> QR CODE
+                  </div>
                   <div className="flex items-center gap-4">
                     <div className="w-20 h-20 bg-white rounded p-1 flex-shrink-0">
-                      <QRCodeSVG value={registrationUrl} size={72} bgColor="#ffffff" fgColor="#000000" level="M" />
+                      <QRCodeSVG
+                        value={registrationUrl}
+                        size={72}
+                        bgColor="#ffffff"
+                        fgColor="#000000"
+                        level="M"
+                      />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="font-cond text-[12px] font-black text-white truncate">{event.name}</div>
-                      <div className="text-[10px] text-[#5a6e9a] truncate mt-0.5">{registrationUrl}</div>
-                      <Btn variant="ghost" size="sm" onClick={() => setShowQRModal(true)} className="mt-2">
+                      <div className="font-cond text-[12px] font-black text-white truncate">
+                        {event.name}
+                      </div>
+                      <div className="text-[10px] text-[#5a6e9a] truncate mt-0.5">
+                        {registrationUrl}
+                      </div>
+                      <Btn
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setShowQRModal(true)}
+                        className="mt-2"
+                      >
                         PREVIEW
                       </Btn>
                     </div>
@@ -3328,12 +3652,22 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
 
                 {/* Section 3: Share */}
                 <div>
-                  <div className={sectionHdr}><Share2 size={14} /> SHARE</div>
+                  <div className={sectionHdr}>
+                    <Share2 size={14} /> SHARE
+                  </div>
                   <div className="flex items-center gap-3">
-                    <a href={mailtoHref} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 font-cond font-bold text-[11px] uppercase tracking-[.1em] text-[#5a6e9a] hover:text-white transition-colors px-3 py-2 rounded-lg border border-[#1a2d50] hover:border-[#2a3d60]">
+                    <a
+                      href={mailtoHref}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 font-cond font-bold text-[11px] uppercase tracking-[.1em] text-[#5a6e9a] hover:text-white transition-colors px-3 py-2 rounded-lg border border-[#1a2d50] hover:border-[#2a3d60]"
+                    >
                       <Mail size={13} /> EMAIL
                     </a>
-                    <a href={smsHref} className="inline-flex items-center gap-1.5 font-cond font-bold text-[11px] uppercase tracking-[.1em] text-[#5a6e9a] hover:text-white transition-colors px-3 py-2 rounded-lg border border-[#1a2d50] hover:border-[#2a3d60]">
+                    <a
+                      href={smsHref}
+                      className="inline-flex items-center gap-1.5 font-cond font-bold text-[11px] uppercase tracking-[.1em] text-[#5a6e9a] hover:text-white transition-colors px-3 py-2 rounded-lg border border-[#1a2d50] hover:border-[#2a3d60]"
+                    >
                       <MessageSquare size={13} /> TEXT
                     </a>
                   </div>
@@ -3341,13 +3675,34 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
 
                 {/* Hidden canvas for PNG export -- always mounted (not conditionally rendered) */}
                 <div style={{ display: 'none' }}>
-                  <QRCodeCanvas ref={canvasRef} value={registrationUrl} size={512} bgColor="#ffffff" fgColor="#000000" level="M" />
+                  <QRCodeCanvas
+                    ref={canvasRef}
+                    value={registrationUrl}
+                    size={512}
+                    bgColor="#ffffff"
+                    fgColor="#000000"
+                    level="M"
+                  />
                 </div>
 
                 {/* QR Preview Modal */}
-                <Modal open={showQRModal} onClose={() => setShowQRModal(false)} title="Registration QR Code">
-                  <div className="flex flex-col items-center gap-3 p-6 bg-white rounded-lg mx-auto" style={{ maxWidth: 300 }}>
-                    <QRCodeSVG ref={svgRef} value={registrationUrl} size={256} bgColor="#ffffff" fgColor="#000000" level="M" />
+                <Modal
+                  open={showQRModal}
+                  onClose={() => setShowQRModal(false)}
+                  title="Registration QR Code"
+                >
+                  <div
+                    className="flex flex-col items-center gap-3 p-6 bg-white rounded-lg mx-auto"
+                    style={{ maxWidth: 300 }}
+                  >
+                    <QRCodeSVG
+                      ref={svgRef}
+                      value={registrationUrl}
+                      size={256}
+                      bgColor="#ffffff"
+                      fgColor="#000000"
+                      level="M"
+                    />
                     <div className="text-black font-bold text-[14px] text-center">{event.name}</div>
                   </div>
                   <div className="flex gap-3 justify-center mt-4">
@@ -3781,7 +4136,13 @@ const RULE_CATEGORIES = ['global', 'division', 'program', 'team', 'weekly', 'sea
 const RULE_ACTIONS = ['block', 'allow', 'force', 'warn', 'set_param'] as const
 const RULE_ENFORCEMENTS = ['hard', 'soft', 'info'] as const
 
-function AddRuleForm({ onSubmit, onCancel }: { onSubmit: (data: any) => void; onCancel: () => void }) {
+function AddRuleForm({
+  onSubmit,
+  onCancel,
+}: {
+  onSubmit: (data: any) => void
+  onCancel: () => void
+}) {
   const [form, setForm] = useState({
     rule_name: '',
     rule_type: 'constraint' as string,
@@ -3848,7 +4209,7 @@ function AddRuleForm({ onSubmit, onCancel }: { onSubmit: (data: any) => void; on
           <input
             className={formInp}
             value={form.rule_name}
-            onChange={(e) => setForm(f => ({ ...f, rule_name: e.target.value }))}
+            onChange={(e) => setForm((f) => ({ ...f, rule_name: e.target.value }))}
             placeholder="e.g. No back-to-back games"
           />
         </div>
@@ -3859,10 +4220,12 @@ function AddRuleForm({ onSubmit, onCancel }: { onSubmit: (data: any) => void; on
             <select
               className={formInp}
               value={form.rule_type}
-              onChange={(e) => setForm(f => ({ ...f, rule_type: e.target.value }))}
+              onChange={(e) => setForm((f) => ({ ...f, rule_type: e.target.value }))}
             >
-              {RULE_TYPES.map(t => (
-                <option key={t} value={t}>{t}</option>
+              {RULE_TYPES.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
               ))}
             </select>
           </div>
@@ -3871,10 +4234,12 @@ function AddRuleForm({ onSubmit, onCancel }: { onSubmit: (data: any) => void; on
             <select
               className={formInp}
               value={form.category}
-              onChange={(e) => setForm(f => ({ ...f, category: e.target.value }))}
+              onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
             >
-              {RULE_CATEGORIES.map(c => (
-                <option key={c} value={c}>{c}</option>
+              {RULE_CATEGORIES.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
               ))}
             </select>
           </div>
@@ -3886,10 +4251,12 @@ function AddRuleForm({ onSubmit, onCancel }: { onSubmit: (data: any) => void; on
             <select
               className={formInp}
               value={form.action}
-              onChange={(e) => setForm(f => ({ ...f, action: e.target.value }))}
+              onChange={(e) => setForm((f) => ({ ...f, action: e.target.value }))}
             >
-              {RULE_ACTIONS.map(a => (
-                <option key={a} value={a}>{a}</option>
+              {RULE_ACTIONS.map((a) => (
+                <option key={a} value={a}>
+                  {a}
+                </option>
               ))}
             </select>
           </div>
@@ -3898,10 +4265,12 @@ function AddRuleForm({ onSubmit, onCancel }: { onSubmit: (data: any) => void; on
             <select
               className={formInp}
               value={form.enforcement}
-              onChange={(e) => setForm(f => ({ ...f, enforcement: e.target.value }))}
+              onChange={(e) => setForm((f) => ({ ...f, enforcement: e.target.value }))}
             >
-              {RULE_ENFORCEMENTS.map(e => (
-                <option key={e} value={e}>{e}</option>
+              {RULE_ENFORCEMENTS.map((e) => (
+                <option key={e} value={e}>
+                  {e}
+                </option>
               ))}
             </select>
           </div>
@@ -3911,7 +4280,7 @@ function AddRuleForm({ onSubmit, onCancel }: { onSubmit: (data: any) => void; on
               type="number"
               className={formInp}
               value={form.priority}
-              onChange={(e) => setForm(f => ({ ...f, priority: parseInt(e.target.value) || 0 }))}
+              onChange={(e) => setForm((f) => ({ ...f, priority: parseInt(e.target.value) || 0 }))}
             />
           </div>
         </div>
@@ -3921,7 +4290,7 @@ function AddRuleForm({ onSubmit, onCancel }: { onSubmit: (data: any) => void; on
           <textarea
             className={cn(formInp, 'font-mono text-[11px] h-20 resize-y')}
             value={form.conditions}
-            onChange={(e) => setForm(f => ({ ...f, conditions: e.target.value }))}
+            onChange={(e) => setForm((f) => ({ ...f, conditions: e.target.value }))}
             placeholder='{"type": "same_division_only"}'
           />
         </div>
@@ -3931,8 +4300,8 @@ function AddRuleForm({ onSubmit, onCancel }: { onSubmit: (data: any) => void; on
           <textarea
             className={cn(formInp, 'font-mono text-[11px] h-20 resize-y')}
             value={form.action_params}
-            onChange={(e) => setForm(f => ({ ...f, action_params: e.target.value }))}
-            placeholder='{}'
+            onChange={(e) => setForm((f) => ({ ...f, action_params: e.target.value }))}
+            placeholder="{}"
           />
         </div>
 
@@ -3941,7 +4310,7 @@ function AddRuleForm({ onSubmit, onCancel }: { onSubmit: (data: any) => void; on
           <input
             className={formInp}
             value={form.notes}
-            onChange={(e) => setForm(f => ({ ...f, notes: e.target.value }))}
+            onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
             placeholder="Optional notes"
           />
         </div>

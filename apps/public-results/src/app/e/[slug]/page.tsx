@@ -31,7 +31,9 @@ export default async function EventPage({ params, searchParams }: Props) {
     getPublicStandings(event.id),
   ])
 
-  const activeTab = searchParams.tab ?? 'standings'
+  const defaultTab =
+    event.public_standings !== false ? 'standings' : event.public_schedule ? 'schedule' : 'live'
+  const activeTab = searchParams.tab ?? defaultTab
   const divFilter = searchParams.div ?? 'ALL'
   const scheduleView = (searchParams.view ?? 'team') as string
   const activeDay = searchParams.day ? Number(searchParams.day) : 1
@@ -41,10 +43,13 @@ export default async function EventPage({ params, searchParams }: Props) {
   const finalGames = games.filter((g) => g.status === 'Final')
   const liveGames = games.filter((g) => g.status === 'Live' || g.status === 'Halftime')
 
+  const showStandings = event.public_standings !== false
+  const showResults = event.public_results !== false
+
   const tabs = [
-    { id: 'standings', label: 'Standings' },
+    ...(showStandings ? [{ id: 'standings', label: 'Standings' }] : []),
     ...(event.public_schedule ? [{ id: 'schedule', label: `Schedule (${games.length})` }] : []),
-    { id: 'results', label: `Results (${finalGames.length})` },
+    ...(showResults ? [{ id: 'results', label: `Results (${finalGames.length})` }] : []),
     { id: 'live', label: `Live (${liveGames.length})`, highlight: liveGames.length > 0 },
     ...(event.has_bracket && bracket.format ? [{ id: 'bracket', label: 'Bracket' }] : []),
   ]
