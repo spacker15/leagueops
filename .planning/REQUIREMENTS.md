@@ -41,24 +41,24 @@ Requirements for this milestone. Each maps to roadmap phases.
 ### Schedule Change Requests
 
 - [x] **SCR-01**: Coach/program leader can submit a schedule change request selecting affected game(s), reason, preferred alternative, and cancel vs reschedule
-- [ ] **SCR-02**: System notifies admin (in-app + email) when a new schedule change request is submitted
-- [ ] **SCR-03**: Admin can review, approve, or deny schedule change requests
+- [x] **SCR-02**: System notifies admin (in-app + email) when a new schedule change request is submitted
+- [x] **SCR-03**: Admin can review, approve, or deny schedule change requests
 - [x] **SCR-04**: When admin approves a request, system auto-suggests available alternative time slots considering field, team, and referee availability
 - [x] **SCR-05**: Admin selects from suggested slots and confirms the reschedule
 - [x] **SCR-06**: Rescheduled game updated atomically (database transaction) to prevent double-bookings
-- [ ] **SCR-07**: All affected teams notified of schedule changes via notification system
+- [x] **SCR-07**: All affected teams notified of schedule changes via notification system
 - [x] **SCR-08**: Schedule change request has state machine: pending → under_review → approved → rescheduled (or denied)
 
 ### Public Results Site
 
-- [ ] **PUB-01**: Parents/spectators can view live game scores without login via apps/public-results
-- [ ] **PUB-02**: Game schedules viewable by team, by field, and by time slot
-- [ ] **PUB-03**: Division standings with win/loss records displayed
-- [ ] **PUB-04**: Tournament bracket visualization
-- [ ] **PUB-05**: QR code per event/team that takes parents directly to their team's filtered view
-- [ ] **PUB-06**: Parents can search for events and find teams via browse or QR scan
-- [ ] **PUB-07**: Live scores update in real time via Supabase Realtime (scoped subscription, not per-visitor WebSocket for standings)
-- [ ] **PUB-08**: Public site works on mobile without horizontal scrolling
+- [x] **PUB-01**: Parents/spectators can view live game scores without login via apps/public-results
+- [x] **PUB-02**: Game schedules viewable by team, by field, and by time slot
+- [x] **PUB-03**: Division standings with win/loss records displayed
+- [x] **PUB-04**: Tournament bracket visualization
+- [x] **PUB-05**: QR code per event/team that takes parents directly to their team's filtered view
+- [x] **PUB-06**: Parents can search for events and find teams via browse or QR scan
+- [x] **PUB-07**: Live scores update in real time via Supabase Realtime (scoped subscription, not per-visitor WebSocket for standings)
+- [x] **PUB-08**: Public site works on mobile without horizontal scrolling
 
 ### Notifications
 
