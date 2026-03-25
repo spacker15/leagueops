@@ -1726,7 +1726,7 @@ export function ScheduleTab() {
                 type="time"
                 value={agTime}
                 onChange={(e) => setAgTime(e.target.value)}
-                className="bg-[#040e24] border border-border text-white px-1.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400 w-[70px]"
+                className="bg-[#040e24] border border-border text-white px-1.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400 w-[100px]"
                 title="Custom time"
               />
             </div>
