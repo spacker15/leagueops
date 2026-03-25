@@ -7,6 +7,12 @@ import { NotificationToggleRow } from './NotificationToggleRow'
 import toast from 'react-hot-toast'
 import { createClient } from '@/supabase/client'
 import { ALERT_TYPES, ALERT_TYPE_ROLES } from '@/lib/notification-constants'
+import {
+  isPushSupported,
+  getPushPermission,
+  subscribeToPush,
+  unsubscribeFromPush,
+} from '@/lib/push'
 import type { AlertType, NotificationPreference } from '@/types'
 
 type PrefMap = Map<AlertType, { email_on: boolean; push_on: boolean }>
@@ -15,6 +21,11 @@ export function NotificationSettingsPanel() {
   const { user, userRoles } = useAuth()
   const [prefs, setPrefs] = useState<PrefMap>(new Map())
   const [saving, setSaving] = useState(false)
+  const [pushSupported, setPushSupported] = useState(false)
+  const [pushPermission, setPushPermission] = useState<NotificationPermission | 'unsupported'>(
+    'unsupported'
+  )
+  const [pushSubscribing, setPushSubscribing] = useState(false)
 
   // Load preferences on mount — hooks before guard per CLAUDE.md
   useEffect(() => {
@@ -33,6 +44,12 @@ export function NotificationSettingsPanel() {
       })
   }, [user])
 
+  // Check push support on mount
+  useEffect(() => {
+    setPushSupported(isPushSupported())
+    setPushPermission(getPushPermission())
+  }, [])
+
   // Early return after all hooks
   if (!user) return null
 
@@ -48,6 +65,42 @@ export function NotificationSettingsPanel() {
       next.set(alertType, { ...current, [field]: value })
       return next
     })
+  }
+
+  async function handleEnablePush() {
+    setPushSubscribing(true)
+    try {
+      const ok = await subscribeToPush()
+      if (ok) {
+        setPushPermission('granted')
+        toast.success('Push notifications enabled')
+      } else {
+        const perm = getPushPermission()
+        setPushPermission(perm)
+        if (perm === 'denied') {
+          toast.error('Notifications blocked. Enable in browser settings.')
+        } else {
+          toast.error('Could not enable push notifications')
+        }
+      }
+    } catch {
+      toast.error('Push subscription failed')
+    } finally {
+      setPushSubscribing(false)
+    }
+  }
+
+  async function handleDisablePush() {
+    setPushSubscribing(true)
+    try {
+      await unsubscribeFromPush()
+      setPushPermission('default')
+      toast.success('Push notifications disabled')
+    } catch {
+      toast.error('Could not disable push notifications')
+    } finally {
+      setPushSubscribing(false)
+    }
   }
 
   async function handleSave() {
@@ -80,6 +133,39 @@ export function NotificationSettingsPanel() {
   return (
     <div className="space-y-6">
       <SectionHeader>Notification Preferences</SectionHeader>
+
+      {/* Push notification subscription */}
+      {pushSupported && (
+        <Card>
+          <div className="flex items-center justify-between">
+            <div>
+              <span className="font-cond font-bold text-sm text-white">Push Notifications</span>
+              <p className="text-[11px] text-muted mt-0.5">
+                {pushPermission === 'granted'
+                  ? 'Receiving push notifications on this device'
+                  : pushPermission === 'denied'
+                    ? 'Blocked by browser — enable in browser settings'
+                    : 'Get real-time alerts on this device'}
+              </p>
+            </div>
+            {pushPermission === 'granted' ? (
+              <Btn variant="ghost" size="sm" onClick={handleDisablePush} disabled={pushSubscribing}>
+                {pushSubscribing ? 'Disabling...' : 'Disable'}
+              </Btn>
+            ) : pushPermission !== 'denied' ? (
+              <Btn
+                variant="primary"
+                size="sm"
+                onClick={handleEnablePush}
+                disabled={pushSubscribing}
+              >
+                {pushSubscribing ? 'Enabling...' : 'Enable'}
+              </Btn>
+            ) : null}
+          </div>
+        </Card>
+      )}
+
       {visibleAlertTypes.map((alertType) => (
         <Card key={alertType.value}>
           <NotificationToggleRow

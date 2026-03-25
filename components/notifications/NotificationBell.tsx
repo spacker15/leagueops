@@ -5,12 +5,14 @@ import { Bell } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
 import { createClient } from '@/supabase/client'
 import { NotificationDropdown } from './NotificationDropdown'
+import { NotificationSettingsPanel } from './NotificationSettingsPanel'
 import * as db from '@/lib/db'
 
 export function NotificationBell() {
   const { user } = useAuth()
   const [unreadCount, setUnreadCount] = useState(0)
   const [isOpen, setIsOpen] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
   const bellRef = useRef<HTMLDivElement>(null)
   const bellButtonRef = useRef<HTMLButtonElement>(null)
 
@@ -46,15 +48,13 @@ export function NotificationBell() {
   }, [user])
 
   // Outside click handler
-  const handleMouseDown = useCallback(
-    (e: MouseEvent) => {
-      if (bellRef.current && !bellRef.current.contains(e.target as Node)) {
-        setIsOpen(false)
-        bellButtonRef.current?.focus()
-      }
-    },
-    []
-  )
+  const handleMouseDown = useCallback((e: MouseEvent) => {
+    if (bellRef.current && !bellRef.current.contains(e.target as Node)) {
+      setIsOpen(false)
+      setShowSettings(false)
+      bellButtonRef.current?.focus()
+    }
+  }, [])
 
   useEffect(() => {
     document.addEventListener('mousedown', handleMouseDown)
@@ -66,6 +66,7 @@ export function NotificationBell() {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === 'Escape' && isOpen) {
         setIsOpen(false)
+        setShowSettings(false)
         bellButtonRef.current?.focus()
       }
     }
@@ -97,7 +98,7 @@ export function NotificationBell() {
           </span>
         )}
       </button>
-      {isOpen && (
+      {isOpen && !showSettings && (
         <NotificationDropdown
           userId={user.id}
           onClose={() => {
@@ -105,7 +106,36 @@ export function NotificationBell() {
             bellButtonRef.current?.focus()
           }}
           onUnreadChange={setUnreadCount}
+          onOpenSettings={() => setShowSettings(true)}
         />
+      )}
+      {isOpen && showSettings && (
+        <div
+          className="absolute right-0 top-full mt-1 w-96 max-h-[500px] overflow-y-auto bg-[#061428] border border-[#1a2d50] rounded-b-xl shadow-2xl z-50"
+          style={{ animation: 'fadeSlideDown 150ms ease-out' }}
+        >
+          <div className="flex items-center justify-between px-4 py-2 border-b border-[#1a2d50]">
+            <button
+              onClick={() => setShowSettings(false)}
+              className="font-cond text-[10px] font-black tracking-wide text-muted hover:text-white transition-colors duration-150"
+            >
+              ← Back
+            </button>
+            <button
+              onClick={() => {
+                setShowSettings(false)
+                setIsOpen(false)
+                bellButtonRef.current?.focus()
+              }}
+              className="font-cond text-[10px] font-black tracking-wide text-muted hover:text-white transition-colors duration-150"
+            >
+              Close
+            </button>
+          </div>
+          <div className="p-4">
+            <NotificationSettingsPanel />
+          </div>
+        </div>
       )}
     </div>
   )

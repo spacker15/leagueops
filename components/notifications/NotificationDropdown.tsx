@@ -9,9 +9,10 @@ interface Props {
   userId: string
   onClose: () => void
   onUnreadChange: (count: number) => void
+  onOpenSettings?: () => void
 }
 
-export function NotificationDropdown({ userId, onClose, onUnreadChange }: Props) {
+export function NotificationDropdown({ userId, onClose, onUnreadChange, onOpenSettings }: Props) {
   const [notifications, setNotifications] = useState<NotificationLogEntry[]>([])
 
   useEffect(() => {
@@ -30,9 +31,7 @@ export function NotificationDropdown({ userId, onClose, onUnreadChange }: Props)
       setNotifications((prev) =>
         prev.map((n) => (n.id === notif.id ? { ...n, read_at: new Date().toISOString() } : n))
       )
-      onUnreadChange(
-        notifications.filter((n) => !n.read_at && n.id !== notif.id).length
-      )
+      onUnreadChange(notifications.filter((n) => !n.read_at && n.id !== notif.id).length)
     }
   }
 
@@ -98,7 +97,7 @@ export function NotificationDropdown({ userId, onClose, onUnreadChange }: Props)
         {/* Footer */}
         <div className="px-4 py-2 border-t border-[#1a2d50]">
           <button
-            onClick={onClose}
+            onClick={onOpenSettings ?? onClose}
             className="font-cond text-[10px] font-black tracking-wide text-muted hover:text-white transition-colors duration-150 w-full text-left"
             role="menuitem"
           >
