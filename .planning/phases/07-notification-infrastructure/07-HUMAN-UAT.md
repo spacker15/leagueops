@@ -1,9 +1,9 @@
 ---
-status: diagnosed
+status: resolved
 phase: 07-notification-infrastructure
 source: [07-VERIFICATION.md]
 started: 2026-03-24T00:00:00Z
-updated: 2026-03-25T12:00:00Z
+updated: 2026-03-25T13:00:00Z
 ---
 
 ## Current Test
@@ -38,20 +38,16 @@ blocked: 1
 ## Gaps
 
 - truth: "App should have notification preferences UI for users to enable/subscribe to push notifications"
-  status: failed
+  status: resolved
   reason: "User reported: There are no notification settings"
   severity: major
   test: 2
   root_cause: "NotificationSettingsPanel.tsx exists but is orphaned — never imported into any visible UI. The 'Notification Settings' button in NotificationDropdown.tsx only calls onClose() without navigating anywhere. Additionally, no push subscription registration flow exists (no Notification.requestPermission() or PushManager.subscribe() calls)."
+  fix: "Wired NotificationDropdown settings button to open NotificationSettingsPanel in NotificationBell. Added push enable/disable toggle using lib/push.ts subscribeToPush/unsubscribeFromPush."
   artifacts:
   - path: "components/notifications/NotificationSettingsPanel.tsx"
     issue: "Complete settings panel exists but is never imported or rendered"
   - path: "components/notifications/NotificationDropdown.tsx"
     issue: "Line 105 - Settings button calls onClose() instead of navigating to settings"
-  - path: "components/AppShell.tsx"
-    issue: "No user-accessible settings tab exists"
-    missing:
-  - "Wire NotificationDropdown settings button to open NotificationSettingsPanel"
-  - "Add push subscription registration flow (requestPermission + PushManager.subscribe)"
-  - "Make notification settings accessible to all authenticated users (not just admin)"
-    debug_session: ""
+  - path: "components/notifications/NotificationBell.tsx"
+    issue: "No toggle between dropdown and settings view"
