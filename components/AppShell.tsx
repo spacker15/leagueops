@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useApp } from '@/lib/store'
 import { useAuth } from '@/lib/auth'
+import { Cloud, X as XIcon } from 'lucide-react'
 import { TopBar } from '@/components/TopBar'
 import { StatusRow } from '@/components/StatusRow'
 import { RightPanel } from '@/components/RightPanel'
@@ -58,6 +59,20 @@ export function AppShell({
   initialTab?: TabName
 }) {
   const [activeTab, setActiveTab] = useState<TabName>(initialTab ?? 'dashboard')
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const [isLg, setIsLg] = useState(true) // default true for SSR/initial render
+
+  useEffect(() => {
+    const mql = window.matchMedia('(min-width: 1024px)')
+    setIsLg(mql.matches)
+    const handler = (e: MediaQueryListEvent) => {
+      setIsLg(e.matches)
+      if (e.matches) setDrawerOpen(false) // close drawer when resizing to desktop
+    }
+    mql.addEventListener('change', handler)
+    return () => mql.removeEventListener('change', handler)
+  }, [])
+
   const { state, eventId } = useApp()
   const { userRole, signOut, isAdmin } = useAuth()
 
@@ -160,8 +175,50 @@ export function AppShell({
           {activeTab === 'settings' && <EventSetupTab eventId={eventId} />}
           {activeTab === 'reports' && <ReportsTab />}
         </main>
-        <RightPanel onNavigate={setActiveTab} />
+        {isLg && <RightPanel onNavigate={setActiveTab} />}
       </div>
+
+      {/* Mobile FAB for RightPanel - only below lg, only when drawer is closed */}
+      {!isLg && !drawerOpen && (
+        <button
+          className="fixed bottom-4 right-4 z-40 w-14 h-14 rounded-full bg-navy flex items-center justify-center shadow-xl border border-border"
+          onClick={() => setDrawerOpen(true)}
+          aria-label="Open weather and alerts panel"
+        >
+          <Cloud size={22} className={state.lightningActive ? 'text-yellow-400' : 'text-white'} />
+          {state.lightningActive && (
+            <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-red animate-pulse" />
+          )}
+        </button>
+      )}
+
+      {/* Bottom drawer - only below lg, only when drawer is open */}
+      {!isLg && drawerOpen && (
+        <div className="fixed inset-0 z-50">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setDrawerOpen(false)} />
+          <div
+            className="absolute bottom-0 left-0 right-0 rounded-t-2xl bg-surface-card border-t border-border"
+            style={{ maxHeight: '80vh', overflowY: 'auto' }}
+          >
+            {/* Drag handle */}
+            <div className="flex justify-center pt-3 pb-1">
+              <div className="w-10 h-1 rounded-full bg-border" />
+            </div>
+            {/* Close button */}
+            <div className="flex justify-end px-4">
+              <button onClick={() => setDrawerOpen(false)} className="text-muted hover:text-white">
+                <XIcon size={16} />
+              </button>
+            </div>
+            <RightPanel
+              onNavigate={(tab) => {
+                setActiveTab(tab)
+                setDrawerOpen(false)
+              }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   )
 }

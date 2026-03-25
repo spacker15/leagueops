@@ -137,12 +137,12 @@ export function Modal({
   if (!open) return null
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/75 backdrop-blur-sm"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose()
       }}
     >
-      <div className="bg-[#060f2a] border border-[#1e3060] rounded-xl w-[580px] max-w-[95vw] max-h-[88vh] overflow-y-auto shadow-2xl">
+      <div className="bg-[#060f2a] border border-[#1e3060] sm:rounded-xl w-full sm:w-[580px] sm:max-w-[95vw] max-h-screen sm:max-h-[88vh] overflow-y-auto shadow-2xl">
         <div className="flex justify-between items-center px-5 py-3.5 border-b border-[#1e3060]">
           <span className="font-cond text-[15px] font-black tracking-wide text-white">{title}</span>
           <button onClick={onClose} className="text-muted hover:text-white transition-colors">
