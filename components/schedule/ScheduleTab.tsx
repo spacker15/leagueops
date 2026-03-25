@@ -211,6 +211,15 @@ export function ScheduleTab() {
   const [agAway, setAgAway] = useState('')
   const [agDiv, setAgDiv] = useState('')
   const [agTime, setAgTime] = useState('08:00')
+  const [fieldAvailability, setFieldAvailability] = useState<import('@/types').FieldAvailability[]>(
+    []
+  )
+
+  // Load field availability
+  useEffect(() => {
+    if (!eventId) return
+    import('@/lib/db').then((db) => db.getFieldAvailability(eventId)).then(setFieldAvailability)
+  }, [eventId])
 
   const loadConflicts = useCallback(async () => {
     if (!eventId) return
@@ -1688,18 +1697,30 @@ export function ScheduleTab() {
                 value={agTime}
                 onChange={(e) => setAgTime(e.target.value)}
               >
-                {Array.from({ length: 56 }, (_, i) => {
-                  const totalMin = 7 * 60 + i * 15
-                  const hh = Math.floor(totalMin / 60)
-                  const mm = totalMin % 60
-                  const label = `${hh > 12 ? hh - 12 : hh === 0 ? 12 : hh}:${String(mm).padStart(2, '0')} ${hh >= 12 ? 'PM' : 'AM'}`
-                  const value = `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`
-                  return (
-                    <option key={value} value={value}>
-                      {label}
+                {(() => {
+                  const fa =
+                    agField && currentDate
+                      ? fieldAvailability.find(
+                          (a) =>
+                            a.field_id === Number(agField) && a.event_date_id === currentDate.id
+                        )
+                      : null
+                  const startMin = fa ? timeToMin(fa.available_from) : 7 * 60
+                  const endMin = fa ? timeToMin(fa.available_to) : 21 * 60
+                  const slots: { label: string; value: string }[] = []
+                  for (let m = startMin; m <= endMin; m += 15) {
+                    const hh = Math.floor(m / 60)
+                    const mm = m % 60
+                    const label = `${hh > 12 ? hh - 12 : hh === 0 ? 12 : hh}:${String(mm).padStart(2, '0')} ${hh >= 12 ? 'PM' : 'AM'}`
+                    const value = `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`
+                    slots.push({ label, value })
+                  }
+                  return slots.map((s) => (
+                    <option key={s.value} value={s.value}>
+                      {s.label}
                     </option>
-                  )
-                })}
+                  ))
+                })()}
               </select>
               <input
                 type="time"
