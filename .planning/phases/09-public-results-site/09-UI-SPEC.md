@@ -38,7 +38,9 @@ No shadcn gate applies — this is not a React/Next.js app with an interactive a
 | 8     | 32px | Content area padding-top (py-6 = 24px, max section gap) |
 | 20    | 80px | Empty state vertical padding (py-20)                    |
 
-**Touch targets:** Minimum 44px tall for all interactive tab links and day navigation buttons (use `py-2.5` = 10px × 2 + content).
+**Touch targets:** Minimum 44px tall for all interactive tab links and day navigation buttons. Use `py-3` (12px top + bottom) plus content height to reach 44px minimum.
+
+**Sub-view toggle buttons:** Use `py-2` (8px top + bottom) for the compact toggle row between tab bar and day navigation.
 
 **Container:** `max-w-5xl mx-auto px-4` — fixed across all pages. No wider containers.
 
@@ -54,30 +56,31 @@ No shadcn gate applies — this is not a React/Next.js app with an interactive a
 
 **Type scale — exactly 4 sizes:**
 
-| Role               | Size | Weight        | Font      | Line-Height | Usage                                                    |
-| ------------------ | ---- | ------------- | --------- | ----------- | -------------------------------------------------------- |
-| Score / Stat large | 18px | 700 (bold)    | font-mono | 1.2         | GameResultCard scores, StatPill values                   |
-| Score medium       | 16px | 700 (bold)    | font-mono | 1.2         | Schedule inline scores                                   |
-| Body / Card label  | 14px | 700 (bold)    | font-cond | 1.4         | Team names in GameResultCard                             |
-| Body small         | 13px | 400 (regular) | font-cond | 1.4         | Event location, association text, event page descriptors |
+| Role                       | Size | Weight     | Font      | Line-Height | Tracking         | Usage                                                                                                              |
+| -------------------------- | ---- | ---------- | --------- | ----------- | ---------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Score / Stat large         | 18px | 700 (bold) | font-mono | 1.2         | —                | GameResultCard scores, StatPill values, schedule inline scores                                                     |
+| Body / Card label          | 14px | 700 (bold) | font-cond | 1.4         | —                | Team names in GameResultCard, selected team header in ByTeamView, field name headers in ByFieldView                |
+| Body small / Section label | 12px | 700 (bold) | font-cond | 1.4         | tracking-[.12em] | Team name in bracket card, event location, time group labels, round labels, format labels, status badges           |
+| Micro label                | 10px | 700 (bold) | font-cond | 1.2         | tracking-[.15em] | Division group headings, field name under time, column headers, QR caption, seed numbers, tab labels, footer brand |
 
-**Label / meta scale (2 sizes — not body text):**
+**All label text (12px and 10px roles):** UPPERCASE always. No mixed-case labels.
 
-| Role            | Size   | Weight      | Font      | Tracking         | Usage                                                    |
-| --------------- | ------ | ----------- | --------- | ---------------- | -------------------------------------------------------- |
-| Section label   | 11px   | 900 (black) | font-cond | tracking-[.12em] | Live indicator, tab labels, status badges                |
-| Micro label     | 10px   | 900 (black) | font-cond | tracking-[.15em] | Division headings, field name under time, column headers |
-| Eyebrow / brand | 9–10px | 900 (black) | font-cond | tracking-[.12em] | StatPill label, table footnote, footer                   |
+**Weights in use:** 400 (regular) and 700 (bold) only. Two weights total.
 
-**All label text:** UPPERCASE always. No mixed-case labels.
+- `font-bold` (700) — all headings, labels, scores, team names, status badges
+- `font-normal` (400) — body descriptors, secondary/muted text (event location text, association text, event page descriptors)
 
-**Weights in use:** 400 (regular), 700 (bold), 900 (black/font-black). Three weights total — acceptable because font-cond black is used exclusively for uppercase labels at micro sizes, not body copy.
+> Note: The existing codebase uses `font-black` (900) for uppercase label text. During implementation, replace all `font-black` and `font-[900]` occurrences in this phase's new components with `font-bold`. Do not change weight in unmodified existing components (ScheduleSection, StandingsSection, GameResultCard) unless they are being restructured as part of this phase.
 
 ---
 
 ## 4. Color Contract
 
 **Theme:** Dark navy only. No light mode. No toggle.
+
+### Focal Point
+
+**Primary visual anchor:** GameResultCard score numerals (`font-mono text-[18px] font-bold`) on the Results and Live tabs. EventCard name text (`font-cond text-[14px] font-bold text-white`) on the Homepage. These are the dominant focal elements that draw the viewer's eye first within each primary view.
 
 ### 60 / 30 / 10 Split
 
@@ -154,7 +157,7 @@ Location: apps/public-results/src/components/EventSearchFilter.tsx
 Type: 'use client'
 ```
 
-- `<input>` with `placeholder="Search events or locations..."` in Barlow Condensed 13px, `text-white bg-[#081428] border border-[#1a2d50] rounded-lg px-3 py-2` — full width on mobile, max-w-sm on desktop
+- `<input>` with `placeholder="Search events or locations..."` in Barlow Condensed 12px, `text-white bg-[#081428] border border-[#1a2d50] rounded-lg px-3 py-2` — full width on mobile, max-w-sm on desktop
 - Filters pre-loaded event list client-side (no API call)
 - Filters on `event.name` and `event.location` (case-insensitive substring match)
 - Clear button (`×`) appears when input has text — `text-[#5a6e9a] hover:text-white`
@@ -172,9 +175,9 @@ Sub-view toggle row (D-01):
 
 - Row: `flex items-center gap-1 mt-3 mb-4` below main tab bar
 - Toggle buttons rendered as `<Link>` (not `<button>`) for shareability
-- Active: `bg-[#0B3D91] text-white rounded-md px-3 py-1.5`
-- Inactive: `text-[#5a6e9a] hover:text-white rounded-md px-3 py-1.5 transition-colors`
-- Font: `font-cond text-[11px] font-black tracking-[.1em] uppercase`
+- Active: `bg-[#0B3D91] text-white rounded-md px-3 py-2`
+- Inactive: `text-[#5a6e9a] hover:text-white rounded-md px-3 py-2 transition-colors`
+- Font: `font-cond text-[10px] font-bold tracking-[.1em] uppercase`
 - Labels: "By Team" · "By Field" · "By Time"
 
 Day navigation tabs (D-05):
@@ -194,9 +197,9 @@ Type: server component
 - Team type-ahead: `<input>` client island (inline `'use client'` wrapper or small island component)
 - Type-ahead filters team list as user types — no server round-trip
 - Team list: scrollable `<div className="space-y-1">` with division group headings
-- Division group heading: `font-cond text-[10px] font-black tracking-[.15em] text-[#5a6e9a] uppercase` (matches existing pattern)
-- Team row: `bg-[#081428] border border-[#1a2d50] rounded-lg px-3 py-2.5` — clicking navigates to `?tab=schedule&view=team&team=[id]`
-- Selected team header: team name in `font-cond text-[15px] font-black text-white` + back link
+- Division group heading: `font-cond text-[10px] font-bold tracking-[.15em] text-[#5a6e9a] uppercase` (matches existing pattern)
+- Team row: `bg-[#081428] border border-[#1a2d50] rounded-lg px-3 py-3` — clicking navigates to `?tab=schedule&view=team&team=[id]`
+- Selected team header: team name in `font-cond text-[14px] font-bold text-white` + back link
 - Game list: reuse existing game row pattern from ScheduleSection
 
 #### ByFieldView (D-03)
@@ -207,7 +210,7 @@ Type: server component
 ```
 
 - One card per field: `bg-[#081428] border border-[#1a2d50] rounded-xl p-4`
-- Field name header: `font-cond text-[13px] font-black text-white` + game count badge in muted
+- Field name header: `font-cond text-[12px] font-bold text-white` + game count badge in muted
 - Games listed vertically in time order within field card — reuse game row inner layout
 - Games separated by `border-b border-[#1a2d50]/40` dividers
 - Empty field card (no games for selected day): not rendered — only fields with games appear
@@ -219,7 +222,7 @@ Location: apps/public-results/src/components/schedule/ByTimeView.tsx
 Type: server component
 ```
 
-- Group heading: `font-cond text-[11px] font-black tracking-[.12em] text-[#5a6e9a] uppercase mb-2` — time slot label (e.g., "9:00 AM")
+- Group heading: `font-cond text-[12px] font-bold tracking-[.12em] text-[#5a6e9a] uppercase mb-2` — time slot label (e.g., "9:00 AM")
 - Game rows under each time group: compact two-line layout (home team / away team with score)
 - Field name shown as secondary line: `font-cond text-[10px] text-[#5a6e9a]` below division
 - Layout: `space-y-6` between time groups, `space-y-2` within group
@@ -232,7 +235,7 @@ Type: server component (data from page)
 ```
 
 - Only rendered when `event.has_bracket === true` (or bracket data non-empty)
-- Shows format label: "Single Elimination" or "Double Elimination" — `font-cond text-[10px] font-black tracking-[.15em] text-[#5a6e9a] uppercase mb-4`
+- Shows format label: "Single Elimination" or "Double Elimination" — `font-cond text-[10px] font-bold tracking-[.15em] text-[#5a6e9a] uppercase mb-4`
 - Double-elimination: `<DoubleEliminationBracket>` (winners bracket on top, `mb-8` gap, then losers bracket)
 - Single-elimination: `<SingleEliminationBracket>`
 - Mobile scroll wrapper (D-10): `<div className="overflow-x-auto -mx-4 px-4">` — enables horizontal scroll + pinch-zoom at OS level
@@ -247,7 +250,7 @@ Type: server component (pure rendering)
 - Layout: CSS flexbox row of round columns — `flex items-start gap-0`
 - Each round column: `flex flex-col` with `justify-around` spacing determined by round depth (2^n spacing)
 - Minimum rendered width: `min-w-[640px]` (ensures readability before horizontal scroll kicks in)
-- Round label: `font-cond text-[10px] font-black tracking-[.15em] text-[#5a6e9a] uppercase text-center mb-3`
+- Round label: `font-cond text-[10px] font-bold tracking-[.15em] text-[#5a6e9a] uppercase text-center mb-3`
 
 #### DoubleEliminationBracket
 
@@ -271,11 +274,11 @@ Type: server component (receives liveGames as prop for score overlay)
 - Background: `bg-[#081428] border border-[#1a2d50] rounded-lg overflow-hidden`
 - Team slot: two rows, each `px-3 py-2 border-b border-[#1a2d50]/50 last:border-0`
 - Team name: `font-cond text-[12px] font-bold text-white truncate` — `text-[#5a6e9a]` for TBD seed
-- Score: `font-mono text-[14px] font-bold text-white tabular-nums` — right-aligned
+- Score: `font-mono text-[18px] font-bold text-white tabular-nums` — right-aligned
 - Winner highlight: `bg-[#0B3D91]/20` background on winning team row
 - Live indicator: `text-green-400` score + left border `border-l-2 border-green-400` on card when live (D-11)
 - Connector lines: `border-r border-[#1a2d50]` right edge of card + `border-t border-[#1a2d50]` connecting to next round — pure CSS, no SVG
-- Seed number: `font-cond text-[9px] text-[#5a6e9a] mr-1` prepended to team name slot
+- Seed number: `font-cond text-[10px] text-[#5a6e9a] mr-1` prepended to team name slot
 
 #### LiveScoresClient
 
@@ -312,7 +315,7 @@ Rendered by: LiveScoresClient on subscription failure
 ```
 
 - `bg-yellow-900/20 border border-yellow-500/30 rounded-lg px-4 py-2`
-- Text: `font-cond text-[11px] font-black text-yellow-400 uppercase tracking-[.1em]` — "Live scores unavailable — reload to retry"
+- Text: `font-cond text-[10px] font-bold text-yellow-400 uppercase tracking-[.1em]` — "Live scores unavailable — reload to retry"
 - Non-blocking: page content still renders; only this banner indicates degraded state
 - Auto-dismiss: not auto-dismissed — stays visible until page reload
 
@@ -473,7 +476,7 @@ No entrance animations (fade-in, slide-in) — not warranted for a data display 
 | QR code alt         | `QRCodeSVG` receives `aria-label="QR code for {team.name} schedule"` via component props                             |
 | Bracket cards       | Each `BracketMatchupCard` has implicit row semantics; use `aria-label="{home} vs {away}"` on card container          |
 | Color-only state    | Win/loss status is communicated by both color (green-400/red-400) AND a text label ("W"/"L") — not color alone       |
-| Minimum tap target  | 44px height on all interactive elements via `py-2.5` + content                                                       |
+| Minimum tap target  | 44px height on all interactive elements via `py-3` (12px) + content height                                           |
 
 ---
 
@@ -495,7 +498,7 @@ No entrance animations (fade-in, slide-in) — not warranted for a data display 
 | -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
 | Color tokens (`#081428`, `#1a2d50`, `#5a6e9a`, `#0B3D91`, `#D62828`) | Extracted from `app/e/[slug]/page.tsx` and `tailwind.config.js` (codebase)                               |
 | Font families (font-cond, font-mono)                                 | `tailwind.config.js` + layout.tsx (codebase)                                                             |
-| Type sizes (9–18px range)                                            | Extracted from existing components in `app/e/[slug]/page.tsx` (codebase)                                 |
+| Type scale consolidated to 4 sizes (10px, 12px, 14px, 18px)          | Extracted from existing components; collapsed per checker revision (2026-03-24)                          |
 | Score flash animation (D-13)                                         | CONTEXT.md decision                                                                                      |
 | Live subscription — one channel per page                             | CONTEXT.md D-12, RESEARCH.md Pattern 1                                                                   |
 | Schedule sub-view URL params                                         | CONTEXT.md D-01–D-05, RESEARCH.md Pattern 2                                                              |
@@ -511,6 +514,16 @@ No entrance animations (fade-in, slide-in) — not warranted for a data display 
 | ConnectionErrorBanner                                                | Claude's discretion (specified in CONTEXT.md as discretion area)                                         |
 | Score flash CSS keyframe details                                     | Claude's discretion (D-13 stated "smooth green flash" — spec provides exact implementation)              |
 | ISR for bracket data (revalidate 60s)                                | Claude's discretion (specified in CONTEXT.md as discretion area) — set to 60s matching completed results |
+
+### Checker Revisions Applied (2026-03-24)
+
+| Issue                            | Fix Applied                                                                                                                         |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| >4 font sizes declared           | Collapsed 9 sizes (9–18px) to 4 sizes: 10px, 12px, 14px, 18px. All component specs updated to use only these 4.                     |
+| 3 font weights (400/700/900)     | Reduced to 2 weights: 400 (regular) and 700 (bold). All `font-black`/`font-[900]` replaced with `font-bold` in new component specs. |
+| py-2.5 (10px) not multiple of 4  | Replaced with `py-3` (12px) in touch target spec and ByTeamView team row.                                                           |
+| py-1.5 (6px) not multiple of 4   | Replaced with `py-2` (8px) in sub-view toggle button active/inactive styles.                                                        |
+| No explicit focal point declared | Added focal point statement in §4 Color Contract: score numerals (Results/Live) and EventCard name (Homepage).                      |
 
 ---
 
@@ -528,4 +541,5 @@ Per CONTEXT.md `<deferred>` and REQUIREMENTS.md Out of Scope:
 
 _Phase: 09-public-results-site_
 _UI-SPEC created: 2026-03-24_
+_UI-SPEC revised: 2026-03-24 (checker revision — typography collapsed, spacing fixed, focal point added)_
 _Status: draft — ready for checker validation_
