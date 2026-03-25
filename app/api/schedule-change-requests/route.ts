@@ -145,12 +145,16 @@ export async function POST(req: NextRequest) {
     const teamName = teamRow?.name ?? 'Unknown team'
 
     // Trigger admin notification (SCR-02, D-21, D-23)
-    await insertNotification(eventId, 'schedule_change', 'event', null, {
-      title: 'New schedule change request',
-      summary: `${teamName} requested changes to ${body.game_ids.length} game(s)`,
-      detail: `Reason: ${body.reason_category}. ${body.reason_details ?? ''}`.trim(),
-      cta_url: `${process.env.NEXT_PUBLIC_APP_URL}?tab=requests&id=${insertedRequest.id}`,
-    })
+    try {
+      await insertNotification(eventId, 'schedule_change', 'event', null, {
+        title: 'New schedule change request',
+        summary: `${teamName} requested changes to ${body.game_ids.length} game(s)`,
+        detail: `Reason: ${body.reason_category}. ${body.reason_details ?? ''}`.trim(),
+        cta_url: `${process.env.NEXT_PUBLIC_APP_URL}?tab=requests&id=${insertedRequest.id}`,
+      })
+    } catch (notifErr) {
+      console.error('Failed to insert new-request admin notification:', notifErr)
+    }
 
     return NextResponse.json({ data: insertedRequest }, { status: 201 })
   } catch (err) {

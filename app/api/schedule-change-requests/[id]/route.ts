@@ -103,7 +103,19 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     // Determine final status — if approved + cancel, we'll update to 'completed' after game updates
     let finalStatus: string = body.status
 
-    if (body.status === 'approved' && current.request_type === 'change_opponent') {
+    if (body.status === 'approved' && current.request_type === 'reschedule') {
+      // Notify requester that their reschedule request was approved (admin will now pick a slot)
+      try {
+        await insertNotification(current.event_id, 'schedule_change', 'team', current.team_id, {
+          title: 'Schedule Change Request Approved',
+          summary: `Your reschedule request has been approved — admin will select a new time slot`,
+          detail: body.admin_notes ?? 'Admin is reviewing available slots',
+          cta_url: `${process.env.NEXT_PUBLIC_APP_URL}?tab=schedule`,
+        })
+      } catch (notifErr) {
+        console.error('Failed to insert reschedule-approved notification:', notifErr)
+      }
+    } else if (body.status === 'approved' && current.request_type === 'change_opponent') {
       // Update all child game rows to approved
       const games = (current.games ?? []) as Array<{ id: number; game_id: number }>
       for (const reqGame of games) {
@@ -114,12 +126,16 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       }
 
       // Notify requester team
-      await insertNotification(current.event_id, 'schedule_change', 'team', current.team_id, {
-        title: 'Opponent change approved',
-        summary: `Your opponent change request has been approved`,
-        detail: body.admin_notes ?? 'Admin will update the schedule accordingly',
-        cta_url: `${process.env.NEXT_PUBLIC_APP_URL}?tab=schedule`,
-      })
+      try {
+        await insertNotification(current.event_id, 'schedule_change', 'team', current.team_id, {
+          title: 'Opponent change approved',
+          summary: `Your opponent change request has been approved`,
+          detail: body.admin_notes ?? 'Admin will update the schedule accordingly',
+          cta_url: `${process.env.NEXT_PUBLIC_APP_URL}?tab=schedule`,
+        })
+      } catch (notifErr) {
+        console.error('Failed to insert change_opponent-approved notification:', notifErr)
+      }
     } else if (body.status === 'approved' && current.request_type === 'cancel') {
       // D-17: Cancel all games in the request
       const games = (current.games ?? []) as Array<{
@@ -154,19 +170,35 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
           const homeTeamName = game.home_team?.name ?? 'Home team'
           const awayTeamName = game.away_team?.name ?? 'Away team'
 
-          await insertNotification(current.event_id, 'schedule_change', 'team', game.home_team_id, {
-            title: 'Game cancelled',
-            summary: `Your game on ${gameDate} has been cancelled`,
-            detail: `${homeTeamName} vs ${awayTeamName} — cancelled by admin`,
-            cta_url: `${process.env.NEXT_PUBLIC_APP_URL}?tab=schedule`,
-          })
+          try {
+            await insertNotification(
+              current.event_id,
+              'schedule_change',
+              'team',
+              game.home_team_id,
+              {
+                title: 'Game cancelled',
+                summary: `Your game on ${gameDate} has been cancelled`,
+                detail: `${homeTeamName} vs ${awayTeamName} — cancelled by admin`,
+                cta_url: `${process.env.NEXT_PUBLIC_APP_URL}?tab=schedule`,
+              }
+            )
 
-          await insertNotification(current.event_id, 'schedule_change', 'team', game.away_team_id, {
-            title: 'Game cancelled',
-            summary: `Your game on ${gameDate} has been cancelled`,
-            detail: `${homeTeamName} vs ${awayTeamName} — cancelled by admin`,
-            cta_url: `${process.env.NEXT_PUBLIC_APP_URL}?tab=schedule`,
-          })
+            await insertNotification(
+              current.event_id,
+              'schedule_change',
+              'team',
+              game.away_team_id,
+              {
+                title: 'Game cancelled',
+                summary: `Your game on ${gameDate} has been cancelled`,
+                detail: `${homeTeamName} vs ${awayTeamName} — cancelled by admin`,
+                cta_url: `${process.env.NEXT_PUBLIC_APP_URL}?tab=schedule`,
+              }
+            )
+          } catch (notifErr) {
+            console.error('Failed to insert cancel-approved notifications:', notifErr)
+          }
         }
       }
 
@@ -183,12 +215,16 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       }
 
       // Notify requester team (D-21 point 3)
-      await insertNotification(current.event_id, 'schedule_change', 'team', current.team_id, {
-        title: 'Schedule change request denied',
-        summary: `Your request for ${games.length} game(s) was denied`,
-        detail: body.admin_notes ?? 'No reason provided',
-        cta_url: `${process.env.NEXT_PUBLIC_APP_URL}?tab=schedule`,
-      })
+      try {
+        await insertNotification(current.event_id, 'schedule_change', 'team', current.team_id, {
+          title: 'Schedule change request denied',
+          summary: `Your request for ${games.length} game(s) was denied`,
+          detail: body.admin_notes ?? 'No reason provided',
+          cta_url: `${process.env.NEXT_PUBLIC_APP_URL}?tab=schedule`,
+        })
+      } catch (notifErr) {
+        console.error('Failed to insert denied notification:', notifErr)
+      }
     }
 
     // Update the request

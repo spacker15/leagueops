@@ -128,19 +128,35 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       const awayTeamName = gameRow.away_team?.name ?? 'Away team'
 
       // Notify both teams (SCR-07, D-21, D-22)
-      await insertNotification(request.event_id, 'schedule_change', 'team', gameRow.home_team_id, {
-        title: 'Game rescheduled',
-        summary: `Your game has been moved to ${formatNewTime}`,
-        detail: `${homeTeamName} vs ${awayTeamName} — new time: ${formatNewTime} at ${fieldName}`,
-        cta_url: `${process.env.NEXT_PUBLIC_APP_URL}?tab=schedule`,
-      })
+      try {
+        await insertNotification(
+          request.event_id,
+          'schedule_change',
+          'team',
+          gameRow.home_team_id,
+          {
+            title: 'Game rescheduled',
+            summary: `Your game has been moved to ${formatNewTime}`,
+            detail: `${homeTeamName} vs ${awayTeamName} — new time: ${formatNewTime} at ${fieldName}`,
+            cta_url: `${process.env.NEXT_PUBLIC_APP_URL}?tab=schedule`,
+          }
+        )
 
-      await insertNotification(request.event_id, 'schedule_change', 'team', gameRow.away_team_id, {
-        title: 'Game rescheduled',
-        summary: `Your game has been moved to ${formatNewTime}`,
-        detail: `${homeTeamName} vs ${awayTeamName} — new time: ${formatNewTime} at ${fieldName}`,
-        cta_url: `${process.env.NEXT_PUBLIC_APP_URL}?tab=schedule`,
-      })
+        await insertNotification(
+          request.event_id,
+          'schedule_change',
+          'team',
+          gameRow.away_team_id,
+          {
+            title: 'Game rescheduled',
+            summary: `Your game has been moved to ${formatNewTime}`,
+            detail: `${homeTeamName} vs ${awayTeamName} — new time: ${formatNewTime} at ${fieldName}`,
+            cta_url: `${process.env.NEXT_PUBLIC_APP_URL}?tab=schedule`,
+          }
+        )
+      } catch (notifErr) {
+        console.error('Failed to insert reschedule notifications:', notifErr)
+      }
     }
 
     return NextResponse.json({ data: { success: true } })
