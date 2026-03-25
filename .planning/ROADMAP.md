@@ -9,18 +9,18 @@ created: 2026-03-22
 
 ## Overview
 
-| Phase | Name                             | Requirements                                                   | UI          | Depends On                |
-| ----- | -------------------------------- | -------------------------------------------------------------- | ----------- | ------------------------- |
-| 1     | Engine Client Refactor           | 5/5                                                            | Complete    | 2026-03-22                |
-| 2     | Hardcode Removal & Event Context | 5/5                                                            | Complete    | 2026-03-22                |
-| 3     | API Auth & Validation            | 3/3                                                            | Complete    | 2026-03-23                |
-| 4     | RLS & Database Security          | 1/2                                                            | In Progress |                           |
-| 5     | Event Creation Enhancements      | 5/5                                                            | Complete    | 2026-03-24                |
-| 6     | Registration Flow Enhancements   | 5/5                                                            | Complete    | 2026-03-24                |
-| 7     | Notification Infrastructure      | 4/4                                                            | Complete    | 2026-03-24                |
-| 8     | Schedule Change Request Workflow | 5/5                                                            | Complete    | 2026-03-24                |
-| 9     | Public Results Site              | 6/6 | Complete   | 2026-03-25 |
-| 10    | Responsive Design                | MOB-01, MOB-02, MOB-03, MOB-04, NOT-02, NOT-03, NOT-04         | yes         | Phase 7, Phase 8, Phase 9 |
+| Phase | Name                             | Requirements                                           | UI          | Depends On                |
+| ----- | -------------------------------- | ------------------------------------------------------ | ----------- | ------------------------- |
+| 1     | Engine Client Refactor           | 5/5                                                    | Complete    | 2026-03-22                |
+| 2     | Hardcode Removal & Event Context | 5/5                                                    | Complete    | 2026-03-22                |
+| 3     | API Auth & Validation            | 3/3                                                    | Complete    | 2026-03-23                |
+| 4     | RLS & Database Security          | 1/2                                                    | In Progress |                           |
+| 5     | Event Creation Enhancements      | 5/5                                                    | Complete    | 2026-03-24                |
+| 6     | Registration Flow Enhancements   | 5/5                                                    | Complete    | 2026-03-24                |
+| 7     | Notification Infrastructure      | 4/4                                                    | Complete    | 2026-03-24                |
+| 8     | Schedule Change Request Workflow | 5/5                                                    | Complete    | 2026-03-24                |
+| 9     | Public Results Site              | 6/6                                                    | Complete    | 2026-03-25                |
+| 10    | Responsive Design                | MOB-01, MOB-02, MOB-03, MOB-04, NOT-02, NOT-03, NOT-04 | yes         | Phase 7, Phase 8, Phase 9 |
 
 ---
 
@@ -326,6 +326,13 @@ Plans:
 **Requirements:** MOB-01, MOB-02, MOB-03, MOB-04, NOT-02, NOT-03, NOT-04
 **UI hint:** yes
 **Depends on:** Phase 7, Phase 8, Phase 9
+**Plans:** 3 plans
+
+Plans:
+
+- [ ] 10-01-PLAN.md — Mobile navigation + RightPanel bottom drawer + modal full-screen (MOB-02, MOB-04)
+- [ ] 10-02-PLAN.md — Responsive layouts for Dashboard/Schedule/CheckIn + touch drag-drop (MOB-01, MOB-03)
+- [ ] 10-03-PLAN.md — Notification wiring: weather alerts, schedule change gaps, admin ops alerts (NOT-02, NOT-03, NOT-04)
 
 ### Success Criteria
 
@@ -346,4 +353,4 @@ Plans:
 
 ---
 
-_Last updated: 2026-03-24_
+_Last updated: 2026-03-25_
