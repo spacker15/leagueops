@@ -9,18 +9,18 @@ created: 2026-03-22
 
 ## Overview
 
-| Phase | Name                             | Requirements                                                   | UI       | Depends On                |
-| ----- | -------------------------------- | -------------------------------------------------------------- | -------- | ------------------------- |
-| 1     | Engine Client Refactor           | 5/5                                                            | Complete | 2026-03-22                |
-| 2     | Hardcode Removal & Event Context | 5/5 | Complete   | 2026-03-22 |
-| 3     | API Auth & Validation            | 3/3 | Complete   | 2026-03-23 |
-| 4     | RLS & Database Security          | 1/2 | In Progress|  |
-| 5     | Event Creation Enhancements      | 5/5 | Complete   | 2026-03-24 |
-| 6     | Registration Flow Enhancements   | 5/5 | Complete   | 2026-03-24 |
-| 7     | Notification Infrastructure      | 4/4 | Complete   | 2026-03-24 |
-| 8     | Schedule Change Request Workflow | 5/5 | Complete   | 2026-03-24 |
-| 9     | Public Results Site              | PUB-01, PUB-02, PUB-03, PUB-04, PUB-05, PUB-06, PUB-07, PUB-08 | yes      | Phase 4                   |
-| 10    | Responsive Design                | MOB-01, MOB-02, MOB-03, MOB-04, NOT-02, NOT-03, NOT-04         | yes      | Phase 7, Phase 8, Phase 9 |
+| Phase | Name                             | Requirements                                                   | UI          | Depends On                |
+| ----- | -------------------------------- | -------------------------------------------------------------- | ----------- | ------------------------- |
+| 1     | Engine Client Refactor           | 5/5                                                            | Complete    | 2026-03-22                |
+| 2     | Hardcode Removal & Event Context | 5/5                                                            | Complete    | 2026-03-22                |
+| 3     | API Auth & Validation            | 3/3                                                            | Complete    | 2026-03-23                |
+| 4     | RLS & Database Security          | 1/2                                                            | In Progress |                           |
+| 5     | Event Creation Enhancements      | 5/5                                                            | Complete    | 2026-03-24                |
+| 6     | Registration Flow Enhancements   | 5/5                                                            | Complete    | 2026-03-24                |
+| 7     | Notification Infrastructure      | 4/4                                                            | Complete    | 2026-03-24                |
+| 8     | Schedule Change Request Workflow | 5/5                                                            | Complete    | 2026-03-24                |
+| 9     | Public Results Site              | PUB-01, PUB-02, PUB-03, PUB-04, PUB-05, PUB-06, PUB-07, PUB-08 | yes         | Phase 4                   |
+| 10    | Responsive Design                | MOB-01, MOB-02, MOB-03, MOB-04, NOT-02, NOT-03, NOT-04         | yes         | Phase 7, Phase 8, Phase 9 |
 
 ---
 
@@ -145,6 +145,7 @@ Plans:
 **Plans:** 5/5 plans complete
 
 Plans:
+
 - [x] 05-00-PLAN.md — Wave 0: Test stub scaffolding (EVT-01 through EVT-06)
 - [x] 05-01-PLAN.md — Foundation: migration, types, package install, route fix, VenueAutocompleteInput component
 - [x] 05-02-PLAN.md — Wire VenueAutocompleteInput into EventPicker + EventSetupTab
@@ -179,6 +180,7 @@ Plans:
 **Plans:** 5/5 plans complete
 
 Plans:
+
 - [x] 06-01-PLAN.md — Foundation: schema migration, TypeScript types, coach conflicts engine (REG-06, REG-07)
 - [x] 06-02-PLAN.md — Admin event setup: MultiDatePicker, registration window controls, status badge (REG-01)
 - [x] 06-03-PLAN.md — Registration wizard Step 3: additional coaches, availability dates, multi-team UX (REG-02, REG-03, REG-08)
@@ -216,6 +218,7 @@ Plans:
 **Plans:** 4/4 plans complete
 
 Plans:
+
 - [x] 07-01-PLAN.md — Foundation: packages, migration, types, helpers, email template (NOT-01, NOT-05, NOT-08)
 - [x] 07-02-PLAN.md — Edge Function: process-notifications with dedup, storm cap, recipient resolution, email/push delivery (NOT-01, NOT-05, NOT-06, NOT-08)
 - [x] 07-03-PLAN.md — Push infrastructure: service worker, push API routes, client subscription helper (NOT-06)
@@ -250,6 +253,7 @@ Plans:
 **Plans:** 5/5 plans complete
 
 Plans:
+
 - [x] 08-01-PLAN.md — Foundation: migration SQL, types, Zod schemas, db.ts CRUD, CSS badges (SCR-01, SCR-06, SCR-08)
 - [x] 08-02-PLAN.md — Slot suggestion engine with TDD tests (SCR-04, SCR-05)
 - [x] 08-03-PLAN.md — API routes, state machine, store integration, notification wiring (SCR-02, SCR-03, SCR-06, SCR-07, SCR-08)
@@ -283,6 +287,15 @@ Plans:
 **Requirements:** PUB-01, PUB-02, PUB-03, PUB-04, PUB-05, PUB-06, PUB-07, PUB-08
 **UI hint:** yes
 **Depends on:** Phase 4
+**Plans:** 5 plans
+
+Plans:
+
+- [ ] 09-01-PLAN.md — Foundation: DB migration (bracket tables, indexes, RLS), data layer extensions, groupBy utility, scoreFlash CSS, qrcode.react install (PUB-01, PUB-03, PUB-04, PUB-07)
+- [ ] 09-02-PLAN.md — Schedule sub-views: ScheduleTabWithSubViews, ByTeamView, ByFieldView, ByTimeView, TeamSearchInput (PUB-02, PUB-08)
+- [ ] 09-03-PLAN.md — LiveScoresClient: Realtime subscription, score flash tracking, ConnectionErrorBanner (PUB-01, PUB-07)
+- [ ] 09-04-PLAN.md — Bracket tab: BracketMatchupCard, SingleEliminationBracket, DoubleEliminationBracket, BracketTab (PUB-04)
+- [ ] 09-05-PLAN.md — Integration: wire all components into event page + homepage, EventSearchFilter, EventQRCode, loading skeleton (PUB-01 through PUB-08)
 
 ### Success Criteria
 
