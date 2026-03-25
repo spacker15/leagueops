@@ -9,18 +9,18 @@ created: 2026-03-22
 
 ## Overview
 
-| Phase | Name                             | Requirements                                           | UI          | Depends On                |
-| ----- | -------------------------------- | ------------------------------------------------------ | ----------- | ------------------------- |
-| 1     | Engine Client Refactor           | 5/5                                                    | Complete    | 2026-03-22                |
-| 2     | Hardcode Removal & Event Context | 5/5                                                    | Complete    | 2026-03-22                |
-| 3     | API Auth & Validation            | 3/3                                                    | Complete    | 2026-03-23                |
-| 4     | RLS & Database Security          | 1/2                                                    | In Progress |                           |
-| 5     | Event Creation Enhancements      | 5/5                                                    | Complete    | 2026-03-24                |
-| 6     | Registration Flow Enhancements   | 5/5                                                    | Complete    | 2026-03-24                |
-| 7     | Notification Infrastructure      | 4/4                                                    | Complete    | 2026-03-24                |
-| 8     | Schedule Change Request Workflow | 5/5                                                    | Complete    | 2026-03-24                |
-| 9     | Public Results Site              | 6/6                                                    | Complete    | 2026-03-25                |
-| 10    | Responsive Design                | 4/4 | Complete   | 2026-03-25 |
+| Phase | Name                             | Requirements | UI          | Depends On |
+| ----- | -------------------------------- | ------------ | ----------- | ---------- |
+| 1     | Engine Client Refactor           | 5/5          | Complete    | 2026-03-22 |
+| 2     | Hardcode Removal & Event Context | 5/5          | Complete    | 2026-03-22 |
+| 3     | API Auth & Validation            | 3/3          | Complete    | 2026-03-23 |
+| 4     | RLS & Database Security          | 1/2          | In Progress |            |
+| 5     | Event Creation Enhancements      | 5/5          | Complete    | 2026-03-24 |
+| 6     | Registration Flow Enhancements   | 5/5          | Complete    | 2026-03-24 |
+| 7     | Notification Infrastructure      | 4/4          | Complete    | 2026-03-24 |
+| 8     | Schedule Change Request Workflow | 5/5          | Complete    | 2026-03-24 |
+| 9     | Public Results Site              | 6/6          | Complete    | 2026-03-25 |
+| 10    | Responsive Design                | 4/4          | Complete    | 2026-03-25 |
 
 ---
 
