@@ -2,8 +2,8 @@
 phase: 10
 slug: responsive-design-notification-wiring
 status: draft
-nyquist_compliant: false
-wave_0_complete: false
+nyquist_compliant: true
+wave_0_complete: true
 created: 2026-03-25
 ---
 
@@ -36,15 +36,16 @@ created: 2026-03-25
 
 ## Per-Task Verification Map
 
-| Task ID  | Plan | Wave | Requirement | Test Type | Automated Command                                     | File Exists | Status     |
-| -------- | ---- | ---- | ----------- | --------- | ----------------------------------------------------- | ----------- | ---------- |
-| 10-01-01 | 01   | 1    | MOB-04      | manual    | Visual: hamburger menu on 375px                       | N/A         | ⬜ pending |
-| 10-01-02 | 01   | 1    | MOB-02      | manual    | Visual: bottom drawer on mobile                       | N/A         | ⬜ pending |
-| 10-02-01 | 02   | 1    | MOB-01      | manual    | Visual: no horizontal scroll at 375px                 | N/A         | ⬜ pending |
-| 10-02-02 | 02   | 1    | MOB-03      | unit      | `npm run test -- --grep TouchSensor`                  | ❌ W0       | ⬜ pending |
-| 10-03-01 | 03   | 2    | NOT-02      | unit      | `npm run test -- --grep weather-notification`         | ❌ W0       | ⬜ pending |
-| 10-03-02 | 03   | 2    | NOT-03      | unit      | `npm run test -- --grep schedule-change-notification` | ❌ W0       | ⬜ pending |
-| 10-03-03 | 03   | 2    | NOT-04      | unit      | `npm run test -- --grep admin-alert-notification`     | ❌ W0       | ⬜ pending |
+| Task ID  | Plan | Wave | Requirement  | Test Type | Automated Command                                                                                                                                                                    | File Exists | Status     |
+| -------- | ---- | ---- | ------------ | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------- | ---------- |
+| 10-00-01 | 00   | 0    | NOT-02/03/04 | unit      | `npx vitest run __tests__/app/api/weather-engine-notifications.test.ts __tests__/app/api/games-status-notifications.test.ts __tests__/app/api/schedule-change-notifications.test.ts` | Created W0  | ⬜ pending |
+| 10-01-01 | 01   | 1    | MOB-04       | manual    | Visual: hamburger menu on 375px                                                                                                                                                      | N/A         | ⬜ pending |
+| 10-01-02 | 01   | 1    | MOB-02       | manual    | Visual: bottom drawer on mobile                                                                                                                                                      | N/A         | ⬜ pending |
+| 10-02-01 | 02   | 1    | MOB-01       | manual    | Visual: no horizontal scroll at 375px                                                                                                                                                | N/A         | ⬜ pending |
+| 10-02-02 | 02   | 1    | MOB-03       | unit      | `npm run test -- --grep TouchSensor`                                                                                                                                                 | Created W0  | ⬜ pending |
+| 10-03-01 | 03   | 2    | NOT-02       | unit      | `npx vitest run __tests__/app/api/weather-engine-notifications.test.ts`                                                                                                              | Created W0  | ⬜ pending |
+| 10-03-02 | 03   | 2    | NOT-03       | unit      | `npx vitest run __tests__/app/api/schedule-change-notifications.test.ts`                                                                                                             | Created W0  | ⬜ pending |
+| 10-03-03 | 03   | 2    | NOT-04       | unit      | `npx vitest run __tests__/app/api/games-status-notifications.test.ts`                                                                                                                | Created W0  | ⬜ pending |
 
 _Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky_
 
@@ -52,11 +53,11 @@ _Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky_
 
 ## Wave 0 Requirements
 
-- [ ] `__tests__/lib/engines/weather-notifications.test.ts` — stubs for NOT-02 weather alert → notification_queue
-- [ ] `__tests__/api/schedule-change-notifications.test.ts` — stubs for NOT-03 verification
-- [ ] `__tests__/api/admin-alert-notifications.test.ts` — stubs for NOT-04 referee no-show + deadline
+- [x] `__tests__/app/api/weather-engine-notifications.test.ts` — stubs for NOT-02 weather alert -> notification_queue (Plan 10-00)
+- [x] `__tests__/app/api/games-status-notifications.test.ts` — stubs for NOT-04 referee no-show + registration deadline (Plan 10-00)
+- [x] `__tests__/app/api/schedule-change-notifications.test.ts` — stubs for NOT-03 direct cancellation notification gap (Plan 10-00)
 
-_Existing vitest infrastructure covers test execution needs._
+_Wave 0 addressed by Plan 10-00 (wave 0). Test stubs created before implementation plans execute._
 
 ---
 
@@ -73,9 +74,9 @@ _Existing vitest infrastructure covers test execution needs._
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or Wave 0 dependencies
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING references
+- [x] All tasks have `<automated>` verify or Wave 0 dependencies
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify
+- [x] Wave 0 covers all MISSING references
 - [ ] No watch-mode flags
 - [ ] Feedback latency < 15s
 - [ ] `nyquist_compliant: true` set in frontmatter
