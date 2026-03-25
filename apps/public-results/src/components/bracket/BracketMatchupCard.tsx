@@ -1,3 +1,4 @@
+'use client'
 import type { BracketMatchup } from '@/lib/data'
 
 interface Props {
@@ -24,7 +25,8 @@ export function BracketMatchupCard({ matchup, liveGameIds, liveScores, flashingI
 
   const teamTop = matchup.team_top
   const teamBottom = matchup.team_bottom
-  const isTopWinner = matchup.winner_id !== null && teamTop !== null && matchup.winner_id === teamTop.id
+  const isTopWinner =
+    matchup.winner_id !== null && teamTop !== null && matchup.winner_id === teamTop.id
   const isBottomWinner =
     matchup.winner_id !== null && teamBottom !== null && matchup.winner_id === teamBottom.id
 

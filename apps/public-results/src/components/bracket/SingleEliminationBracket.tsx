@@ -1,3 +1,4 @@
+'use client'
 import type { BracketRound } from '@/lib/data'
 import { BracketMatchupCard } from './BracketMatchupCard'
 

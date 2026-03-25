@@ -9,6 +9,7 @@ export function getSupabaseClient(): SupabaseClient {
   if (!_client) {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL
     const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    console.log('[supabase] url defined:', !!url, 'key defined:', !!key)
     if (!url || !key) {
       throw new Error('Supabase environment variables are not configured.')
     }

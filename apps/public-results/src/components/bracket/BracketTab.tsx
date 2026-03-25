@@ -1,3 +1,4 @@
+'use client'
 import type { BracketRound } from '@/lib/data'
 import { SingleEliminationBracket } from './SingleEliminationBracket'
 import { DoubleEliminationBracket } from './DoubleEliminationBracket'

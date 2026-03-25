@@ -1,3 +1,4 @@
+'use client'
 import Link from 'next/link'
 import type { PublicGame, PublicTeam, PublicEventDate } from '@/lib/data'
 import { ByTeamView } from './ByTeamView'
@@ -49,9 +50,7 @@ export function ScheduleTabWithSubViews({
             key={sv.id}
             href={`/e/${slug}?tab=schedule&view=${sv.id}&day=${activeDay}&div=${divFilter}`}
             className={`font-cond text-[10px] font-bold tracking-[.1em] uppercase rounded-md px-3 py-2 transition-colors ${
-              activeView === sv.id
-                ? 'bg-[#0B3D91] text-white'
-                : 'text-[#5a6e9a] hover:text-white'
+              activeView === sv.id ? 'bg-[#0B3D91] text-white' : 'text-[#5a6e9a] hover:text-white'
             }`}
           >
             {sv.label}

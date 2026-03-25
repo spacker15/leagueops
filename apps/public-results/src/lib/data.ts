@@ -35,21 +35,31 @@ export interface PublicTeam {
 export async function getPublicEvents(): Promise<PublicEvent[]> {
   const { data, error } = await supabase
     .from('events')
-    .select('id, name, slug, location, start_date, end_date, logo_url, public_schedule, has_bracket')
+    .select(
+      'id, name, slug, location, start_date, end_date, logo_url, public_schedule, has_bracket'
+    )
     .order('start_date', { ascending: false })
 
-  if (error) throw error
+  if (error) {
+    console.error('[getPublicEvents]', error.message, error.code, error.details)
+    throw error
+  }
   return (data ?? []) as PublicEvent[]
 }
 
 export async function getPublicEventBySlug(slug: string): Promise<PublicEvent | null> {
   const { data, error } = await supabase
     .from('events')
-    .select('id, name, slug, location, start_date, end_date, logo_url, public_schedule, has_bracket')
+    .select(
+      'id, name, slug, location, start_date, end_date, logo_url, public_schedule, has_bracket'
+    )
     .eq('slug', slug)
     .single()
 
-  if (error) return null
+  if (error) {
+    console.error('[getPublicEventBySlug]', slug, error.message, error.code, error.details)
+    return null
+  }
   return data as PublicEvent
 }
 

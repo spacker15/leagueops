@@ -1,3 +1,4 @@
+'use client'
 import type { PublicGame } from '@/lib/data'
 import { groupBy } from '@/lib/utils'
 
@@ -31,9 +32,7 @@ export function ByFieldView({ games }: Props) {
         const fieldGames = [...byField[fieldName]].sort((a, b) =>
           (a.scheduled_time ?? '').localeCompare(b.scheduled_time ?? '')
         )
-        const isLiveField = fieldGames.some(
-          (g) => g.status === 'Live' || g.status === 'Halftime'
-        )
+        const isLiveField = fieldGames.some((g) => g.status === 'Live' || g.status === 'Halftime')
 
         return (
           <div
@@ -56,7 +55,9 @@ export function ByFieldView({ games }: Props) {
                 <div key={game.id} className="py-2 first:pt-0 last:pb-0 flex items-center gap-3">
                   {/* Time */}
                   <div className="w-12 shrink-0">
-                    <div className="font-mono text-[12px] text-white">{game.scheduled_time ?? '—'}</div>
+                    <div className="font-mono text-[12px] text-white">
+                      {game.scheduled_time ?? '—'}
+                    </div>
                   </div>
 
                   {/* Teams + scores */}

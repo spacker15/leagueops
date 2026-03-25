@@ -1,3 +1,4 @@
+'use client'
 import Link from 'next/link'
 import type { PublicGame, PublicTeam } from '@/lib/data'
 import { TeamSearchInput } from './TeamSearchInput'
@@ -23,7 +24,9 @@ function GameRow({ game }: { game: PublicGame }) {
     >
       <div className="w-14 shrink-0 text-center">
         <div className="font-mono text-[12px] text-white">{game.scheduled_time ?? '—'}</div>
-        <div className="font-cond text-[10px] text-[#5a6e9a] uppercase">{game.field?.name ?? ''}</div>
+        <div className="font-cond text-[10px] text-[#5a6e9a] uppercase">
+          {game.field?.name ?? ''}
+        </div>
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between">
@@ -61,9 +64,7 @@ export function ByTeamView({ games, teams, slug, activeDay, divFilter, teamId }:
   // Single team mode
   if (teamId !== null) {
     const team = teams.find((t) => t.id === teamId)
-    const teamGames = games.filter(
-      (g) => g.home_team?.id === teamId || g.away_team?.id === teamId
-    )
+    const teamGames = games.filter((g) => g.home_team?.id === teamId || g.away_team?.id === teamId)
     const sorted = [...teamGames].sort((a, b) =>
       (a.scheduled_time ?? '').localeCompare(b.scheduled_time ?? '')
     )
@@ -79,9 +80,7 @@ export function ByTeamView({ games, teams, slug, activeDay, divFilter, teamId }:
         </Link>
 
         {/* Team name header */}
-        {team && (
-          <div className="font-cond text-[14px] font-bold text-white mb-3">{team.name}</div>
-        )}
+        {team && <div className="font-cond text-[14px] font-bold text-white mb-3">{team.name}</div>}
 
         {/* Games */}
         {sorted.length === 0 ? (
@@ -105,12 +104,7 @@ export function ByTeamView({ games, teams, slug, activeDay, divFilter, teamId }:
   return (
     <div>
       {/* Client island for type-ahead search + team list */}
-      <TeamSearchInput
-        teams={teams}
-        slug={slug}
-        activeDay={activeDay}
-        divFilter={divFilter}
-      />
+      <TeamSearchInput teams={teams} slug={slug} activeDay={activeDay} divFilter={divFilter} />
     </div>
   )
 }
