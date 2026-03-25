@@ -39,34 +39,51 @@ export function getPushPermission(): NotificationPermission | 'unsupported' {
  * @returns true if subscription succeeded, false otherwise
  */
 export async function subscribeToPush(): Promise<boolean> {
-  if (!isPushSupported()) return false
-  if (Notification.permission === 'denied') return false
+  if (!isPushSupported()) {
+    console.warn('[push] Not supported in this browser')
+    return false
+  }
+  if (Notification.permission === 'denied') {
+    console.warn('[push] Permission denied by user')
+    return false
+  }
 
   try {
+    console.log('[push] Registering service worker...')
     const registration = await navigator.serviceWorker.register('/sw.js', {
       scope: '/',
       updateViaCache: 'none',
     })
+    console.log('[push] Service worker registered')
 
     // Check for existing subscription
     const existing = await registration.pushManager.getSubscription()
-    if (existing) return true // Already subscribed
+    if (existing) {
+      console.log('[push] Already subscribed')
+      return true
+    }
 
     // Request permission
+    console.log('[push] Requesting permission...')
     const permission = await Notification.requestPermission()
-    if (permission !== 'granted') return false
+    if (permission !== 'granted') {
+      console.warn('[push] Permission not granted:', permission)
+      return false
+    }
 
     // Subscribe with VAPID key
     const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
     if (!vapidKey) {
-      console.error('NEXT_PUBLIC_VAPID_PUBLIC_KEY not set')
+      console.error('[push] NEXT_PUBLIC_VAPID_PUBLIC_KEY not set')
       return false
     }
+    console.log('[push] VAPID key found, subscribing...')
 
     const subscription = await registration.pushManager.subscribe({
       userVisibleOnly: true,
       applicationServerKey: urlBase64ToUint8Array(vapidKey),
     })
+    console.log('[push] Browser subscription created')
 
     // Save to server
     const response = await fetch('/api/push/subscribe', {
@@ -81,9 +98,16 @@ export async function subscribeToPush(): Promise<boolean> {
       }),
     })
 
+    if (!response.ok) {
+      const text = await response.text()
+      console.error('[push] Server save failed:', response.status, text)
+    } else {
+      console.log('[push] Subscription saved to server')
+    }
+
     return response.ok
   } catch (err) {
-    console.error('Push subscription failed:', err)
+    console.error('[push] Subscription failed:', err)
     return false
   }
 }

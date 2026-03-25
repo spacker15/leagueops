@@ -78,13 +78,16 @@ export function NotificationSettingsPanel() {
         const perm = getPushPermission()
         setPushPermission(perm)
         if (perm === 'denied') {
-          toast.error('Notifications blocked. Enable in browser settings.')
+          toast.error('Notifications blocked by browser. Check site settings.')
+        } else if (!process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY) {
+          toast.error('Push not configured (missing VAPID key)')
         } else {
-          toast.error('Could not enable push notifications')
+          toast.error('Could not enable push — check browser console for details')
         }
       }
-    } catch {
-      toast.error('Push subscription failed')
+    } catch (err) {
+      console.error('Push enable error:', err)
+      toast.error('Push subscription failed: ' + (err instanceof Error ? err.message : 'unknown'))
     } finally {
       setPushSubscribing(false)
     }
