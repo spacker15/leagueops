@@ -528,6 +528,46 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
     }
   }
 
+  async function addStandardRule(templateKey: string) {
+    const templates: Record<
+      string,
+      { rule_name: string; conditions: Record<string, unknown>; notes: string }
+    > = {
+      no_back_to_back: {
+        rule_name: 'No Back-to-Back Games',
+        conditions: { min_gap_slots: 1 },
+        notes: 'Teams must have at least 1 time slot gap between games',
+      },
+      max_games_per_day: {
+        rule_name: 'Max Games Per Day',
+        conditions: { max_games_per_day: 3 },
+        notes: 'Teams cannot play more than 3 games in a single day',
+      },
+      no_repeat_matchups: {
+        rule_name: 'No Repeat Matchups',
+        conditions: { max_meetings: 1 },
+        notes: 'Teams cannot play each other more than once',
+      },
+    }
+    const tpl = templates[templateKey]
+    if (!tpl) return
+    if (rules.some((r) => r.rule_name === tpl.rule_name)) {
+      toast.error(`"${tpl.rule_name}" already exists`)
+      return
+    }
+    await addRule({
+      rule_name: tpl.rule_name,
+      rule_type: 'constraint',
+      category: 'global',
+      action: 'block',
+      enforcement: 'hard',
+      conditions: tpl.conditions,
+      action_params: {},
+      priority: 100,
+      notes: tpl.notes,
+    })
+  }
+
   async function loadCopyableEvents() {
     const sb = createClient()
     const { data } = await sb.from('events').select('id, name').neq('id', eventId).order('name')
@@ -2005,6 +2045,7 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                               prev.map((d) => (d.id === ed.id ? { ...d, label: newLabel } : d))
                             )
                           }}
+                          onDelete={() => toggleEventDate(ed.date)}
                         />
                       ))}
                   </div>
@@ -2466,12 +2507,19 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                 >
                   <Copy size={12} /> COPY RULES FROM EVENT
                 </button>
-                <button
-                  onClick={() => setShowAddRule(true)}
-                  className="flex items-center gap-1.5 font-cond font-black text-[11px] tracking-[.1em] px-4 py-2 rounded-lg bg-red hover:bg-red/80 text-white transition-colors"
+                <select
+                  className="bg-[#040e24] border border-[#1a2d50] text-white font-cond text-[11px] font-bold px-3 py-2 rounded-lg outline-none"
+                  value=""
+                  onChange={(e) => {
+                    if (e.target.value) addStandardRule(e.target.value)
+                    e.target.value = ''
+                  }}
                 >
-                  <Plus size={12} /> ADD RULE
-                </button>
+                  <option value="">+ Add Standard Rule</option>
+                  <option value="no_back_to_back">No Back-to-Back Games</option>
+                  <option value="max_games_per_day">Max Games Per Day</option>
+                  <option value="no_repeat_matchups">No Repeat Matchups</option>
+                </select>
               </div>
             </div>
 
@@ -2673,21 +2721,23 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                                 </div>
                                 {rule.conditions && Object.keys(rule.conditions).length > 0 && (
                                   <div>
-                                    <div className={lbl}>Conditions</div>
-                                    <pre className="text-[10px] text-gray-400 bg-[#081428] rounded p-2 overflow-auto max-h-32 font-mono">
-                                      {JSON.stringify(rule.conditions, null, 2)}
-                                    </pre>
+                                    <div className={lbl}>Parameters</div>
+                                    <div className="space-y-1">
+                                      {Object.entries(
+                                        rule.conditions as Record<string, unknown>
+                                      ).map(([key, val]) => (
+                                        <div key={key} className="flex items-center gap-2">
+                                          <span className="font-cond text-[11px] text-muted capitalize">
+                                            {key.replace(/_/g, ' ')}:
+                                          </span>
+                                          <span className="font-mono text-[12px] text-white font-bold">
+                                            {String(val)}
+                                          </span>
+                                        </div>
+                                      ))}
+                                    </div>
                                   </div>
                                 )}
-                                {rule.action_params &&
-                                  Object.keys(rule.action_params).length > 0 && (
-                                    <div>
-                                      <div className={lbl}>Action Params</div>
-                                      <pre className="text-[10px] text-gray-400 bg-[#081428] rounded p-2 overflow-auto max-h-32 font-mono">
-                                        {JSON.stringify(rule.action_params, null, 2)}
-                                      </pre>
-                                    </div>
-                                  )}
                                 {rule.notes && (
                                   <div>
                                     <div className={lbl}>Notes</div>
@@ -3154,6 +3204,7 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
             <RefRequirementsCard
               value={event.ref_requirements}
               onChange={(v) => set('ref_requirements', v)}
+              eventId={eventId}
             />
           </div>
         )}
@@ -3689,6 +3740,32 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                   </div>
                 </div>
 
+                {/* Section 4: Public Results Site */}
+                <ShareLinkSection
+                  label="PUBLIC RESULTS SITE"
+                  url={`${process.env.NEXT_PUBLIC_PUBLIC_RESULTS_URL ?? 'https://public-results-gamma.vercel.app'}/e/${event.slug}`}
+                />
+
+                {/* Section 5: Referee & Volunteer Sign-up */}
+                <InviteLinkSection eventId={eventId!} type="referee" label="REFEREE SIGN-UP LINK" />
+                <InviteLinkSection
+                  eventId={eventId!}
+                  type="volunteer"
+                  label="VOLUNTEER SIGN-UP LINK"
+                />
+
+                {/* Section 6: Player Check-in */}
+                <div>
+                  <div className={sectionHdr}>
+                    <Users size={14} /> PLAYER CHECK-IN
+                  </div>
+                  <div className="text-[11px] text-[#5a6e9a] font-cond">
+                    Individual player QR codes are managed in the{' '}
+                    <span className="text-white font-bold">QR Codes</span> tab. Each player gets a
+                    unique check-in link.
+                  </div>
+                </div>
+
                 {/* Hidden canvas for PNG export -- always mounted (not conditionally rendered) */}
                 <div style={{ display: 'none' }}>
                   <QRCodeCanvas
@@ -4005,11 +4082,26 @@ type RefRules = Record<string, { adult: number; youth: number }>
 function RefRequirementsCard({
   value,
   onChange,
+  eventId,
 }: {
   value: RefRules
   onChange: (v: RefRules) => void
+  eventId: number | undefined
 }) {
-  const [newDiv, setNewDiv] = useState('')
+  const [divisions, setDivisions] = useState<string[]>([])
+
+  useEffect(() => {
+    if (!eventId) return
+    const sb = createClient()
+    sb.from('registration_divisions')
+      .select('name')
+      .eq('event_id', eventId)
+      .eq('is_active', true)
+      .order('sort_order')
+      .then(({ data }) => {
+        setDivisions((data ?? []).map((d: { name: string }) => d.name))
+      })
+  }, [eventId])
 
   // Separate division rows from 'default'
   const divRows = Object.entries(value)
@@ -4025,13 +4117,6 @@ function RefRequirementsCard({
     const next = { ...value }
     delete next[div]
     onChange(next)
-  }
-
-  function addRule() {
-    const d = newDiv.trim()
-    if (!d || value[d]) return
-    onChange({ ...value, [d]: { adult: 2, youth: 0 } })
-    setNewDiv('')
   }
 
   const numInp =
@@ -4124,23 +4209,31 @@ function RefRequirementsCard({
         </div>
       </div>
 
-      {/* Add division row */}
-      <div className="flex items-center gap-2 mt-4 pt-4 border-t border-[#1a2d50]">
-        <input
-          value={newDiv}
-          onChange={(e) => setNewDiv(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && addRule()}
-          placeholder="Division name (e.g. U8, U12B)"
-          className="flex-1 bg-[#050f20] border border-[#1a2d50] text-white px-3 py-1.5 rounded text-[12px] font-cond outline-none focus:border-blue-400 placeholder:text-[#1a2d50] transition-colors"
-        />
-        <button
-          onClick={addRule}
-          disabled={!newDiv.trim() || !!value[newDiv.trim()]}
-          className="flex items-center gap-1.5 font-cond text-[11px] font-black tracking-[.08em] px-3 py-1.5 rounded border border-[#1a2d50] text-muted hover:text-white hover:border-blue-400 disabled:opacity-30 transition-all"
-        >
-          <Plus size={12} /> ADD
-        </button>
-      </div>
+      {/* Add division dropdown */}
+      {(() => {
+        const available = divisions.filter((d) => !value[d])
+        if (available.length === 0) return null
+        return (
+          <div className="mt-4 pt-4 border-t border-[#1a2d50]">
+            <select
+              className="bg-[#040e24] border border-[#1a2d50] text-white font-cond text-[12px] font-bold px-3 py-2 rounded-lg outline-none w-full"
+              value=""
+              onChange={(e) => {
+                if (e.target.value) {
+                  onChange({ ...value, [e.target.value]: { adult: 2, youth: 0 } })
+                }
+              }}
+            >
+              <option value="">+ Add Division</option>
+              {available.map((d) => (
+                <option key={d} value={d}>
+                  {d}
+                </option>
+              ))}
+            </select>
+          </div>
+        )
+      })()}
     </Card>
   )
 }
@@ -4355,9 +4448,11 @@ function AddRuleForm({
 function GameDayLabelRow({
   eventDate,
   onUpdate,
+  onDelete,
 }: {
   eventDate: { id: number; date: string; day_number: number; label: string }
   onUpdate: (newLabel: string) => void
+  onDelete: () => void
 }) {
   const [editing, setEditing] = useState(false)
   const [value, setValue] = useState(eventDate.label)
@@ -4419,11 +4514,138 @@ function GameDayLabelRow({
         </span>
       )}
       {!editing && (
+        <>
+          <button
+            onClick={() => setEditing(true)}
+            className="text-muted hover:text-white transition-colors"
+          >
+            <Pencil size={11} />
+          </button>
+          <button
+            onClick={onDelete}
+            className="text-muted hover:text-red-400 transition-colors"
+            title="Remove game day"
+          >
+            <Trash2 size={11} />
+          </button>
+        </>
+      )}
+    </div>
+  )
+}
+
+// ─── Share Link Helpers ────────────────────────────────────────────────────────
+
+function ShareLinkSection({ label, url }: { label: string; url: string }) {
+  const [copied, setCopied] = useState(false)
+  const copy = () => {
+    navigator.clipboard.writeText(url)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+  return (
+    <div>
+      <div className="font-cond text-[10px] font-black tracking-[.12em] text-[#5a6e9a] uppercase mb-2 flex items-center gap-2">
+        <Globe size={14} /> {label}
+      </div>
+      <div className="flex items-center gap-3">
+        <input
+          className="flex-1 bg-[#081428] border border-[#1a2d50] text-white px-3 py-2 rounded text-[12px] outline-none cursor-default select-all"
+          value={url}
+          readOnly
+          onClick={(e) => (e.target as HTMLInputElement).select()}
+        />
         <button
-          onClick={() => setEditing(true)}
-          className="text-muted hover:text-white transition-colors"
+          onClick={copy}
+          className="flex items-center gap-1.5 font-cond font-black text-[10px] tracking-[.1em] px-3 py-2 rounded-lg bg-navy hover:bg-navy/80 text-white transition-colors shrink-0"
         >
-          <Pencil size={11} />
+          {copied ? <Check size={13} /> : <Copy size={13} />}
+          <span>{copied ? 'COPIED' : 'COPY'}</span>
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function InviteLinkSection({
+  eventId,
+  type,
+  label,
+}: {
+  eventId: number
+  type: 'referee' | 'volunteer'
+  label: string
+}) {
+  const [url, setUrl] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [copied, setCopied] = useState(false)
+
+  useEffect(() => {
+    const sb = createClient()
+    sb.from('registration_invites')
+      .select('token')
+      .eq('event_id', eventId)
+      .eq('type', type)
+      .eq('is_active', true)
+      .limit(1)
+      .then(({ data }) => {
+        if (data && data.length > 0) {
+          setUrl(`${window.location.origin}/join/${data[0].token}`)
+        }
+        setLoading(false)
+      })
+  }, [eventId, type])
+
+  const generate = async () => {
+    const sb = createClient()
+    const token = crypto.randomUUID().replace(/-/g, '')
+    const { error } = await sb
+      .from('registration_invites')
+      .insert({ event_id: eventId, type, token, is_active: true })
+    if (error) {
+      toast.error(error.message)
+      return
+    }
+    setUrl(`${window.location.origin}/join/${token}`)
+    toast.success(`${type} sign-up link generated`)
+  }
+
+  const copy = () => {
+    if (!url) return
+    navigator.clipboard.writeText(url)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  return (
+    <div>
+      <div className="font-cond text-[10px] font-black tracking-[.12em] text-[#5a6e9a] uppercase mb-2 flex items-center gap-2">
+        <Users size={14} /> {label}
+      </div>
+      {loading ? (
+        <div className="text-[11px] text-muted font-cond">Loading...</div>
+      ) : url ? (
+        <div className="flex items-center gap-3">
+          <input
+            className="flex-1 bg-[#081428] border border-[#1a2d50] text-white px-3 py-2 rounded text-[12px] outline-none cursor-default select-all"
+            value={url}
+            readOnly
+            onClick={(e) => (e.target as HTMLInputElement).select()}
+          />
+          <button
+            onClick={copy}
+            className="flex items-center gap-1.5 font-cond font-black text-[10px] tracking-[.1em] px-3 py-2 rounded-lg bg-navy hover:bg-navy/80 text-white transition-colors shrink-0"
+          >
+            {copied ? <Check size={13} /> : <Copy size={13} />}
+            <span>{copied ? 'COPIED' : 'COPY'}</span>
+          </button>
+        </div>
+      ) : (
+        <button
+          onClick={generate}
+          className="flex items-center gap-1.5 font-cond font-black text-[11px] tracking-[.1em] px-4 py-2 rounded-lg border border-[#1a2d50] text-[#5a6e9a] hover:text-white hover:border-blue-400 transition-colors"
+        >
+          <Plus size={12} /> GENERATE LINK
         </button>
       )}
     </div>

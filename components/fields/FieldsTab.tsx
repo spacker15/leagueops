@@ -1,13 +1,13 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useApp } from '@/lib/store'
 import { cn } from '@/lib/utils'
 import toast from 'react-hot-toast'
-import { Plus, Pencil, Trash2, Check, X, Layout } from 'lucide-react'
+import { Plus, Pencil, Trash2, Check, X, Layout, Clock } from 'lucide-react'
 import * as db from '@/lib/db'
 import { createClient } from '@/supabase/client'
-import type { Complex } from '@/types'
+import type { Complex, FieldAvailability } from '@/types'
 
 const inp =
   'bg-[#081428] border border-[#1a2d50] text-white px-2.5 py-1.5 rounded text-[12px] outline-none focus:border-blue-400 transition-colors w-full'
@@ -49,11 +49,16 @@ export function FieldsTab() {
   // field_id -> division names
   const [fieldDivMap, setFieldDivMap] = useState<Record<number, string[]>>({})
 
+  // Field availability
+  const [availExpandedId, setAvailExpandedId] = useState<number | null>(null)
+  const [fieldAvail, setFieldAvail] = useState<FieldAvailability[]>([])
+
   useEffect(() => {
     if (state.event?.id) {
       db.getComplexes(state.event.id).then((data) => setComplexes(data as Complex[]))
       loadDivOptions()
       loadFieldDivisions()
+      db.getFieldAvailability(state.event.id).then(setFieldAvail)
     }
   }, [state.event?.id])
 
@@ -88,9 +93,11 @@ export function FieldsTab() {
     await sb.from('field_divisions').delete().eq('field_id', fieldId)
     // Insert new
     if (divNames.length > 0) {
-      await sb.from('field_divisions').insert(
-        divNames.map((d) => ({ field_id: fieldId, division_name: d, event_id: state.event?.id }))
-      )
+      await sb
+        .from('field_divisions')
+        .insert(
+          divNames.map((d) => ({ field_id: fieldId, division_name: d, event_id: state.event?.id }))
+        )
     }
     setFieldDivMap((prev) => ({ ...prev, [fieldId]: divNames }))
   }
@@ -105,7 +112,12 @@ export function FieldsTab() {
       return
     }
     setAdding(true)
-    await addField(newName.trim(), newNumber.trim(), newDivisions.join(', '), newComplexId || undefined)
+    await addField(
+      newName.trim(),
+      newNumber.trim(),
+      newDivisions.join(', '),
+      newComplexId || undefined
+    )
     // Save field-division assignments after field is created
     // The new field will be in state after addField refreshes
     if (newDivisions.length > 0) {
@@ -193,7 +205,11 @@ export function FieldsTab() {
           <span
             key={d}
             className="font-cond text-[10px] font-bold px-1.5 py-0.5 rounded"
-            style={{ backgroundColor: getDivColor(d) + '30', color: getDivColor(d), border: `1px solid ${getDivColor(d)}40` }}
+            style={{
+              backgroundColor: getDivColor(d) + '30',
+              color: getDivColor(d),
+              border: `1px solid ${getDivColor(d)}40`,
+            }}
           >
             {d}
           </span>
@@ -203,8 +219,15 @@ export function FieldsTab() {
   }
 
   // Division multi-select checkboxes
-  function DivSelect({ selected, onChange }: { selected: string[]; onChange: (v: string[]) => void }) {
-    if (divOptions.length === 0) return <span className="text-[10px] text-muted font-cond">No divisions configured</span>
+  function DivSelect({
+    selected,
+    onChange,
+  }: {
+    selected: string[]
+    onChange: (v: string[]) => void
+  }) {
+    if (divOptions.length === 0)
+      return <span className="text-[10px] text-muted font-cond">No divisions configured</span>
     return (
       <div className="flex flex-wrap gap-1.5">
         {divOptions.map((d) => {
@@ -218,7 +241,11 @@ export function FieldsTab() {
                 'font-cond text-[10px] font-bold px-2 py-1 rounded border transition-colors',
                 active ? 'text-white' : 'text-muted border-[#1a2d50] hover:text-white'
               )}
-              style={active ? { backgroundColor: d.color + '30', borderColor: d.color, color: d.color } : undefined}
+              style={
+                active
+                  ? { backgroundColor: d.color + '30', borderColor: d.color, color: d.color }
+                  : undefined
+              }
             >
               {d.name}
             </button>
@@ -296,7 +323,9 @@ export function FieldsTab() {
         </div>
         {divOptions.length > 0 && (
           <div className="mt-3">
-            <label className="font-cond text-[10px] text-muted block mb-1.5">Divisions (select which divisions can play on this field)</label>
+            <label className="font-cond text-[10px] text-muted block mb-1.5">
+              Divisions (select which divisions can play on this field)
+            </label>
             <DivSelect selected={newDivisions} onChange={setNewDivisions} />
           </div>
         )}
@@ -331,130 +360,168 @@ export function FieldsTab() {
             </thead>
             <tbody>
               {fields.map((field, i) => (
-                <tr
-                  key={field.id}
-                  className={cn(
-                    'border-b border-[#0d1a2e] last:border-0 group',
-                    editId === field.id
-                      ? 'bg-[#0a1e35]'
-                      : i % 2 === 0
-                        ? 'bg-transparent'
-                        : 'bg-white/[0.015]'
-                  )}
-                >
-                  {editId === field.id ? (
-                    <>
-                      <td className="px-3 py-2">
-                        <input
-                          className={cn(inp, 'w-14')}
-                          value={editVals.number}
-                          onChange={(e) => setEditVals((v) => ({ ...v, number: e.target.value }))}
-                        />
-                      </td>
-                      <td className="px-3 py-2">
-                        <input
-                          className={inp}
-                          value={editVals.name}
-                          autoFocus
-                          onChange={(e) => setEditVals((v) => ({ ...v, name: e.target.value }))}
-                          onKeyDown={(e) => e.key === 'Enter' && saveEdit()}
-                        />
-                      </td>
-                      <td className="px-3 py-2">
-                        <DivSelect
-                          selected={editVals.divisions}
-                          onChange={(v) => setEditVals((prev) => ({ ...prev, divisions: v }))}
-                        />
-                      </td>
-                      {complexes.length > 0 && (
+                <React.Fragment key={field.id}>
+                  <tr
+                    className={cn(
+                      'border-b border-[#0d1a2e] last:border-0 group',
+                      editId === field.id
+                        ? 'bg-[#0a1e35]'
+                        : i % 2 === 0
+                          ? 'bg-transparent'
+                          : 'bg-white/[0.015]'
+                    )}
+                  >
+                    {editId === field.id ? (
+                      <>
                         <td className="px-3 py-2">
-                          <select
-                            className={inp}
-                            value={editVals.complex_id ?? ''}
-                            onChange={(e) =>
-                              setEditVals((v) => ({
-                                ...v,
-                                complex_id: e.target.value ? Number(e.target.value) : null,
-                              }))
-                            }
-                          >
-                            <option value="">No complex</option>
-                            {complexes.map((c) => (
-                              <option key={c.id} value={c.id}>
-                                {c.name}
-                              </option>
-                            ))}
-                          </select>
-                        </td>
-                      )}
-                      <td className="px-3 py-2">
-                        <div className="flex gap-1">
-                          <button
-                            onClick={saveEdit}
-                            className="w-7 h-7 flex items-center justify-center rounded bg-green-700 hover:bg-green-600 text-white"
-                          >
-                            <Check size={12} />
-                          </button>
-                          <button
-                            onClick={() => setEditId(null)}
-                            className="w-7 h-7 flex items-center justify-center rounded bg-[#1a2d50] hover:bg-[#1a3060] text-muted hover:text-white"
-                          >
-                            <X size={12} />
-                          </button>
-                        </div>
-                      </td>
-                    </>
-                  ) : (
-                    <>
-                      <td className="px-4 py-3">
-                        <span className="font-cond font-black text-[18px] text-white/20">
-                          {field.number || '—'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <div
-                            className="w-3 h-3 rounded-sm flex-shrink-0"
-                            style={{ background: field.map_color ?? '#1a6b1a' }}
+                          <input
+                            className={cn(inp, 'w-14')}
+                            value={editVals.number}
+                            onChange={(e) => setEditVals((v) => ({ ...v, number: e.target.value }))}
                           />
-                          <span className="font-cond font-bold text-[13px] text-white">
-                            {field.name}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <DivChips divs={fieldDivMap[field.id] ?? (field.division ? [field.division] : [])} />
-                      </td>
-                      {complexes.length > 0 && (
-                        <td className="px-4 py-3">
-                          {complexName(field.complex_id) ? (
-                            <span className="font-cond text-[11px] font-bold px-2 py-0.5 rounded bg-[#1a2d50] text-green-300">
-                              {complexName(field.complex_id)}
-                            </span>
-                          ) : (
-                            <span className="font-cond text-[11px] text-muted/40">—</span>
-                          )}
                         </td>
-                      )}
-                      <td className="px-3 py-3">
-                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button
-                            onClick={() => startEdit(field)}
-                            className="w-7 h-7 flex items-center justify-center rounded hover:bg-[#1a2d50] text-muted hover:text-white transition-colors"
-                          >
-                            <Pencil size={12} />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(field.id, field.name)}
-                            className="w-7 h-7 flex items-center justify-center rounded hover:bg-red/20 text-muted hover:text-red-400 transition-colors"
-                          >
-                            <Trash2 size={12} />
-                          </button>
-                        </div>
+                        <td className="px-3 py-2">
+                          <input
+                            className={inp}
+                            value={editVals.name}
+                            autoFocus
+                            onChange={(e) => setEditVals((v) => ({ ...v, name: e.target.value }))}
+                            onKeyDown={(e) => e.key === 'Enter' && saveEdit()}
+                          />
+                        </td>
+                        <td className="px-3 py-2">
+                          <DivSelect
+                            selected={editVals.divisions}
+                            onChange={(v) => setEditVals((prev) => ({ ...prev, divisions: v }))}
+                          />
+                        </td>
+                        {complexes.length > 0 && (
+                          <td className="px-3 py-2">
+                            <select
+                              className={inp}
+                              value={editVals.complex_id ?? ''}
+                              onChange={(e) =>
+                                setEditVals((v) => ({
+                                  ...v,
+                                  complex_id: e.target.value ? Number(e.target.value) : null,
+                                }))
+                              }
+                            >
+                              <option value="">No complex</option>
+                              {complexes.map((c) => (
+                                <option key={c.id} value={c.id}>
+                                  {c.name}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
+                        )}
+                        <td className="px-3 py-2">
+                          <div className="flex gap-1">
+                            <button
+                              onClick={saveEdit}
+                              className="w-7 h-7 flex items-center justify-center rounded bg-green-700 hover:bg-green-600 text-white"
+                            >
+                              <Check size={12} />
+                            </button>
+                            <button
+                              onClick={() => setEditId(null)}
+                              className="w-7 h-7 flex items-center justify-center rounded bg-[#1a2d50] hover:bg-[#1a3060] text-muted hover:text-white"
+                            >
+                              <X size={12} />
+                            </button>
+                          </div>
+                        </td>
+                      </>
+                    ) : (
+                      <>
+                        <td className="px-4 py-3">
+                          <span className="font-cond font-black text-[18px] text-white/20">
+                            {field.number || '—'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <div
+                              className="w-3 h-3 rounded-sm flex-shrink-0"
+                              style={{ background: field.map_color ?? '#1a6b1a' }}
+                            />
+                            <span className="font-cond font-bold text-[13px] text-white">
+                              {field.name}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <DivChips
+                            divs={fieldDivMap[field.id] ?? (field.division ? [field.division] : [])}
+                          />
+                        </td>
+                        {complexes.length > 0 && (
+                          <td className="px-4 py-3">
+                            {complexName(field.complex_id) ? (
+                              <span className="font-cond text-[11px] font-bold px-2 py-0.5 rounded bg-[#1a2d50] text-green-300">
+                                {complexName(field.complex_id)}
+                              </span>
+                            ) : (
+                              <span className="font-cond text-[11px] text-muted/40">—</span>
+                            )}
+                          </td>
+                        )}
+                        <td className="px-3 py-3">
+                          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              onClick={() =>
+                                setAvailExpandedId(availExpandedId === field.id ? null : field.id)
+                              }
+                              className={cn(
+                                'w-7 h-7 flex items-center justify-center rounded hover:bg-[#1a2d50] transition-colors',
+                                availExpandedId === field.id
+                                  ? 'text-blue-400'
+                                  : 'text-muted hover:text-white'
+                              )}
+                              title="Field availability"
+                            >
+                              <Clock size={12} />
+                            </button>
+                            <button
+                              onClick={() => startEdit(field)}
+                              className="w-7 h-7 flex items-center justify-center rounded hover:bg-[#1a2d50] text-muted hover:text-white transition-colors"
+                            >
+                              <Pencil size={12} />
+                            </button>
+                            <button
+                              onClick={() => handleDelete(field.id, field.name)}
+                              className="w-7 h-7 flex items-center justify-center rounded hover:bg-red/20 text-muted hover:text-red-400 transition-colors"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        </td>
+                      </>
+                    )}
+                  </tr>
+                  {availExpandedId === field.id && (
+                    <tr>
+                      <td
+                        colSpan={complexes.length > 0 ? 5 : 4}
+                        className="bg-[#060e1e] px-4 py-3 border-b border-[#1a2d50]"
+                      >
+                        <FieldAvailabilityEditor
+                          fieldId={field.id}
+                          eventId={state.event!.id}
+                          eventDates={state.eventDates}
+                          availability={fieldAvail.filter((a) => a.field_id === field.id)}
+                          onSaved={(updated) => {
+                            setFieldAvail((prev) => {
+                              const withoutField = prev.filter((a) => a.field_id !== field.id)
+                              return [...withoutField, ...updated]
+                            })
+                          }}
+                        />
                       </td>
-                    </>
+                    </tr>
                   )}
-                </tr>
+                </React.Fragment>
               ))}
             </tbody>
           </table>
@@ -462,9 +529,156 @@ export function FieldsTab() {
       )}
 
       <div className="mt-4 font-cond text-[10px] text-muted">
-        Assign divisions to fields to control which games can be scheduled on each field.
-        Fields with no divisions assigned will accept any division.
+        Assign divisions to fields to control which games can be scheduled on each field. Fields
+        with no divisions assigned will accept any division.
       </div>
+    </div>
+  )
+}
+
+// ─── Field Availability Editor ─────────────────────────────────────────────────
+
+function FieldAvailabilityEditor({
+  fieldId,
+  eventId,
+  eventDates,
+  availability,
+  onSaved,
+}: {
+  fieldId: number
+  eventId: number
+  eventDates: { id: number; date: string; day_number: number; label: string }[]
+  availability: FieldAvailability[]
+  onSaved: (updated: FieldAvailability[]) => void
+}) {
+  const sorted = [...eventDates].sort((a, b) => a.day_number - b.day_number)
+  const availMap = new Map(availability.map((a) => [a.event_date_id, a]))
+  const [local, setLocal] = useState<Record<number, { from: string; to: string }>>({})
+  const [bulkFrom, setBulkFrom] = useState('08:00')
+  const [bulkTo, setBulkTo] = useState('17:00')
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    const init: Record<number, { from: string; to: string }> = {}
+    sorted.forEach((ed) => {
+      const existing = availMap.get(ed.id)
+      init[ed.id] = {
+        from: existing?.available_from?.slice(0, 5) ?? '08:00',
+        to: existing?.available_to?.slice(0, 5) ?? '17:00',
+      }
+    })
+    setLocal(init)
+  }, [fieldId, availability.length])
+
+  const setTime = (edId: number, field: 'from' | 'to', val: string) => {
+    setLocal((prev) => ({ ...prev, [edId]: { ...prev[edId], [field]: val } }))
+  }
+
+  const applyBulk = () => {
+    const next: Record<number, { from: string; to: string }> = {}
+    sorted.forEach((ed) => {
+      next[ed.id] = { from: bulkFrom, to: bulkTo }
+    })
+    setLocal(next)
+  }
+
+  const saveAll = async () => {
+    setSaving(true)
+    const rows = sorted.map((ed) => ({
+      field_id: fieldId,
+      event_date_id: ed.id,
+      event_id: eventId,
+      available_from: local[ed.id]?.from ?? '08:00',
+      available_to: local[ed.id]?.to ?? '17:00',
+    }))
+    const sb = createClient()
+    const { data, error } = await sb
+      .from('field_availability')
+      .upsert(rows, { onConflict: 'field_id,event_date_id' })
+      .select()
+    setSaving(false)
+    if (error) {
+      toast.error(error.message)
+      return
+    }
+    onSaved((data as FieldAvailability[]) ?? [])
+    toast.success('Availability saved')
+  }
+
+  const dateLabel = (ed: { date: string; label: string; day_number: number }) => {
+    try {
+      const d = new Date(ed.date + 'T00:00:00')
+      return `${ed.label} — ${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+    } catch {
+      return ed.label
+    }
+  }
+
+  if (sorted.length === 0) {
+    return (
+      <div className="font-cond text-[11px] text-muted">
+        No game days configured. Add event dates in Settings first.
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <span className="font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase">
+          Availability by Game Day
+        </span>
+        <div className="flex items-center gap-2">
+          <input
+            type="time"
+            value={bulkFrom}
+            onChange={(e) => setBulkFrom(e.target.value)}
+            className="bg-[#081428] border border-[#1a2d50] text-white px-1.5 py-0.5 rounded text-[11px] outline-none"
+          />
+          <span className="text-muted text-[10px]">to</span>
+          <input
+            type="time"
+            value={bulkTo}
+            onChange={(e) => setBulkTo(e.target.value)}
+            className="bg-[#081428] border border-[#1a2d50] text-white px-1.5 py-0.5 rounded text-[11px] outline-none"
+          />
+          <button
+            onClick={applyBulk}
+            className="font-cond text-[9px] font-black tracking-[.1em] px-2 py-1 rounded bg-[#1a2d50] hover:bg-[#1a3060] text-white transition-colors"
+          >
+            APPLY ALL
+          </button>
+        </div>
+      </div>
+      <div className="grid gap-1.5">
+        {sorted.map((ed) => (
+          <div key={ed.id} className="flex items-center gap-3">
+            <span className="font-cond text-[11px] text-muted w-40 truncate shrink-0">
+              {dateLabel(ed)}
+            </span>
+            <input
+              type="time"
+              value={local[ed.id]?.from ?? '08:00'}
+              onChange={(e) => setTime(ed.id, 'from', e.target.value)}
+              className="bg-[#081428] border border-[#1a2d50] text-white px-1.5 py-0.5 rounded text-[11px] outline-none focus:border-blue-400"
+            />
+            <span className="text-muted text-[10px]">to</span>
+            <input
+              type="time"
+              value={local[ed.id]?.to ?? '17:00'}
+              onChange={(e) => setTime(ed.id, 'to', e.target.value)}
+              className="bg-[#081428] border border-[#1a2d50] text-white px-1.5 py-0.5 rounded text-[11px] outline-none focus:border-blue-400"
+            />
+          </div>
+        ))}
+      </div>
+      <button
+        onClick={saveAll}
+        disabled={saving}
+        className="font-cond text-[10px] font-black tracking-[.1em] px-4 py-1.5 rounded bg-navy hover:bg-navy/80 text-white transition-colors disabled:opacity-50"
+      >
+        {saving ? 'SAVING...' : 'SAVE AVAILABILITY'}
+      </button>
     </div>
   )
 }

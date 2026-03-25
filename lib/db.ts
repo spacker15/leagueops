@@ -3,6 +3,7 @@ import type {
   Event,
   EventDate,
   Field,
+  FieldAvailability,
   Team,
   Player,
   Game,
@@ -107,10 +108,61 @@ export async function deleteField(fieldId: number): Promise<void> {
   await sb.from('fields').delete().eq('id', fieldId)
 }
 
+// ---- Field Availability ----
+export async function getFieldAvailability(eventId: number): Promise<FieldAvailability[]> {
+  const sb = createClient()
+  const { data } = await sb.from('field_availability').select('*').eq('event_id', eventId)
+  return data ?? []
+}
+
+export async function upsertFieldAvailability(
+  fieldId: number,
+  eventDateId: number,
+  eventId: number,
+  availableFrom: string,
+  availableTo: string
+): Promise<void> {
+  const sb = createClient()
+  await sb
+    .from('field_availability')
+    .upsert(
+      {
+        field_id: fieldId,
+        event_date_id: eventDateId,
+        event_id: eventId,
+        available_from: availableFrom,
+        available_to: availableTo,
+      },
+      { onConflict: 'field_id,event_date_id' }
+    )
+}
+
+export async function bulkSetFieldAvailability(
+  fieldId: number,
+  eventId: number,
+  eventDateIds: number[],
+  availableFrom: string,
+  availableTo: string
+): Promise<void> {
+  const sb = createClient()
+  const rows = eventDateIds.map((edId) => ({
+    field_id: fieldId,
+    event_date_id: edId,
+    event_id: eventId,
+    available_from: availableFrom,
+    available_to: availableTo,
+  }))
+  await sb.from('field_availability').upsert(rows, { onConflict: 'field_id,event_date_id' })
+}
+
 // ---- Teams ----
 export async function getTeams(eventId: number): Promise<Team[]> {
   const sb = createClient()
-  const { data } = await sb.from('teams').select('*, programs(name)').eq('event_id', eventId).order('division')
+  const { data } = await sb
+    .from('teams')
+    .select('*, programs(name)')
+    .eq('event_id', eventId)
+    .order('division')
   return data ?? []
 }
 
@@ -669,7 +721,9 @@ export async function getScheduleChangeRequests(eventId: number): Promise<Schedu
   const sb = createClient()
   const { data } = await sb
     .from('schedule_change_requests')
-    .select('*, team:teams(*), games:schedule_change_request_games(*, game:games(*, event_date:event_dates(id, date, label), home_team:teams!games_home_team_id_fkey(id, name), away_team:teams!games_away_team_id_fkey(id, name), field:fields(id, name)))')
+    .select(
+      '*, team:teams(*), games:schedule_change_request_games(*, game:games(*, event_date:event_dates(id, date, label), home_team:teams!games_home_team_id_fkey(id, name), away_team:teams!games_away_team_id_fkey(id, name), field:fields(id, name)))'
+    )
     .eq('event_id', eventId)
     .order('created_at', { ascending: false })
   return (data ?? []) as ScheduleChangeRequest[]
@@ -677,7 +731,17 @@ export async function getScheduleChangeRequests(eventId: number): Promise<Schedu
 
 /** Insert a new schedule change request and its junction rows */
 export async function insertScheduleChangeRequest(
-  request: Omit<ScheduleChangeRequest, 'id' | 'created_at' | 'updated_at' | 'team' | 'games' | 'reviewed_by' | 'reviewed_at' | 'admin_notes'>,
+  request: Omit<
+    ScheduleChangeRequest,
+    | 'id'
+    | 'created_at'
+    | 'updated_at'
+    | 'team'
+    | 'games'
+    | 'reviewed_by'
+    | 'reviewed_at'
+    | 'admin_notes'
+  >,
   gameIds: number[]
 ): Promise<ScheduleChangeRequest | null> {
   const sb = createClient()
@@ -726,7 +790,10 @@ export async function updateScheduleChangeRequestStatus(
 }
 
 /** Update the status of a single schedule_change_request_games row */
-export async function updateScheduleChangeRequestGameStatus(id: number, status: string): Promise<void> {
+export async function updateScheduleChangeRequestGameStatus(
+  id: number,
+  status: string
+): Promise<void> {
   const sb = createClient()
   await sb.from('schedule_change_request_games').update({ status }).eq('id', id)
 }

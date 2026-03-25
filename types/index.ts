@@ -2,7 +2,14 @@
 // LeagueOps — Global Types
 // ============================================================
 
-export type GameStatus = 'Scheduled' | 'Starting' | 'Live' | 'Halftime' | 'Final' | 'Delayed' | 'Cancelled'
+export type GameStatus =
+  | 'Scheduled'
+  | 'Starting'
+  | 'Live'
+  | 'Halftime'
+  | 'Final'
+  | 'Delayed'
+  | 'Cancelled'
 export type Division = 'U10' | 'U12' | 'U14' | 'U16' | 'U18' | 'U12B' | 'U14B' | 'U16B' | 'Open'
 export type IncidentType =
   | 'Player Injury'
@@ -73,6 +80,15 @@ export interface Field {
   map_opacity?: number
   map_shape?: string
   created_at: string
+}
+
+export interface FieldAvailability {
+  id: number
+  field_id: number
+  event_date_id: number
+  event_id: number
+  available_from: string
+  available_to: string
 }
 
 export interface Team {
@@ -518,7 +534,10 @@ export interface CoachInvite {
   created_at: string
   // Joined
   programs?: { name: string }
-  events?: Pick<Event, 'name' | 'primary_color' | 'logo_url' | 'registration_closes_at' | 'registration_open'>
+  events?: Pick<
+    Event,
+    'name' | 'primary_color' | 'logo_url' | 'registration_closes_at' | 'registration_open'
+  >
 }
 
 export interface CoachConflict {
@@ -534,10 +553,27 @@ export interface CoachConflict {
 
 // === Phase 8: Schedule Change Request Workflow ===
 
-export type RequestStatus = 'pending' | 'under_review' | 'approved' | 'denied' | 'partially_complete' | 'completed'
-export type RequestGameStatus = 'pending' | 'under_review' | 'approved' | 'denied' | 'rescheduled' | 'cancelled'
+export type RequestStatus =
+  | 'pending'
+  | 'under_review'
+  | 'approved'
+  | 'denied'
+  | 'partially_complete'
+  | 'completed'
+export type RequestGameStatus =
+  | 'pending'
+  | 'under_review'
+  | 'approved'
+  | 'denied'
+  | 'rescheduled'
+  | 'cancelled'
 export type RequestType = 'cancel' | 'reschedule' | 'change_opponent'
-export type RequestReasonCategory = 'Coach conflict' | 'Team conflict' | 'Weather concern' | 'Venue issue' | 'Other'
+export type RequestReasonCategory =
+  | 'Coach conflict'
+  | 'Team conflict'
+  | 'Weather concern'
+  | 'Venue issue'
+  | 'Other'
 
 export interface ScheduleChangeRequest {
   id: number
