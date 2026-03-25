@@ -226,7 +226,7 @@ export function DashboardTab() {
         </span>
       </div>
 
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-3">
         {fields.map((field) => {
           const fieldGames = state.games
             .filter((g) => g.field_id === field.id)

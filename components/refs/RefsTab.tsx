@@ -9,6 +9,10 @@ import {
   pointerWithin,
   useDraggable,
   useDroppable,
+  MouseSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
 } from '@dnd-kit/core'
 import { useApp } from '@/lib/store'
 import { Avatar, Pill, Modal, Btn, FormField } from '@/components/ui'
@@ -493,6 +497,16 @@ export function RefsTab() {
   useEffect(() => {
     loadConflicts()
   }, [loadConflicts])
+
+  const sensors = useSensors(
+    useSensor(MouseSensor),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 200,
+        tolerance: 5,
+      },
+    })
+  )
 
   if (!eventId) return null
 
@@ -1156,6 +1170,7 @@ export function RefsTab() {
       {/* ═══ ASSIGNMENT BOARD ════════════════════════════════════ */}
       {subTab === 'board' && (
         <DndContext
+          sensors={sensors}
           collisionDetection={pointerWithin}
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}

@@ -597,7 +597,7 @@ export function CheckInTab() {
             <>
               {/* ── LIST VIEW ── */}
               {viewMode === 'list' && (
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <RosterList
                     label={selectedGame.home_team?.name ?? 'Home'}
                     players={homePlayers}
@@ -643,7 +643,7 @@ export function CheckInTab() {
                           <Printer size={10} className="inline mr-1" /> PRINT TEAM
                         </Btn>
                       </div>
-                      <div className="grid grid-cols-[repeat(auto-fill,minmax(175px,1fr))] gap-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(175px,1fr))] gap-3">
                         {players.map((p) => (
                           <PlayerCard
                             key={p.id}
