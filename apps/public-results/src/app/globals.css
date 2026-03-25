@@ -34,3 +34,17 @@ body {
   background: var(--border);
   border-radius: 2px;
 }
+
+@keyframes scoreFlash {
+  0% {
+    background-color: rgba(74, 222, 128, 0.25);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+.score-flash {
+  animation: scoreFlash 600ms ease-out forwards;
+  border-radius: 4px;
+  padding: 0 2px;
+}
