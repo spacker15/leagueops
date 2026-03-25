@@ -4433,10 +4433,12 @@ function ShareLinkSection({ label, url }: { label: string; url: string }) {
     setTimeout(() => setCopied(false), 2000)
   }
   return (
-    <div>
-      <div className="font-cond text-[10px] font-black tracking-[.12em] text-[#5a6e9a] uppercase mb-2 flex items-center gap-2">
-        <Globe size={14} /> {label}
-      </div>
+    <div className="space-y-3">
+      {label && (
+        <div className="font-cond text-[10px] font-black tracking-[.12em] text-[#5a6e9a] uppercase flex items-center gap-2">
+          <Globe size={14} /> {label}
+        </div>
+      )}
       <div className="flex items-center gap-3">
         <input
           className="flex-1 bg-[#081428] border border-[#1a2d50] text-white px-3 py-2 rounded text-[12px] outline-none cursor-default select-all"
@@ -4451,6 +4453,12 @@ function ShareLinkSection({ label, url }: { label: string; url: string }) {
           {copied ? <Check size={13} /> : <Copy size={13} />}
           <span>{copied ? 'COPIED' : 'COPY'}</span>
         </button>
+      </div>
+      <div className="flex items-center gap-3">
+        <div className="w-16 h-16 bg-white rounded p-1 flex-shrink-0">
+          <QRCodeSVG value={url} size={56} bgColor="#ffffff" fgColor="#000000" level="M" />
+        </div>
+        <div className="font-cond text-[10px] text-[#5a6e9a] break-all">{url}</div>
       </div>
     </div>
   )
@@ -4514,20 +4522,28 @@ function InviteLinkSection({
       {loading ? (
         <div className="text-[11px] text-muted font-cond">Loading...</div>
       ) : url ? (
-        <div className="flex items-center gap-3">
-          <input
-            className="flex-1 bg-[#081428] border border-[#1a2d50] text-white px-3 py-2 rounded text-[12px] outline-none cursor-default select-all"
-            value={url}
-            readOnly
-            onClick={(e) => (e.target as HTMLInputElement).select()}
-          />
-          <button
-            onClick={copy}
-            className="flex items-center gap-1.5 font-cond font-black text-[10px] tracking-[.1em] px-3 py-2 rounded-lg bg-navy hover:bg-navy/80 text-white transition-colors shrink-0"
-          >
-            {copied ? <Check size={13} /> : <Copy size={13} />}
-            <span>{copied ? 'COPIED' : 'COPY'}</span>
-          </button>
+        <div className="space-y-3">
+          <div className="flex items-center gap-3">
+            <input
+              className="flex-1 bg-[#081428] border border-[#1a2d50] text-white px-3 py-2 rounded text-[12px] outline-none cursor-default select-all"
+              value={url}
+              readOnly
+              onClick={(e) => (e.target as HTMLInputElement).select()}
+            />
+            <button
+              onClick={copy}
+              className="flex items-center gap-1.5 font-cond font-black text-[10px] tracking-[.1em] px-3 py-2 rounded-lg bg-navy hover:bg-navy/80 text-white transition-colors shrink-0"
+            >
+              {copied ? <Check size={13} /> : <Copy size={13} />}
+              <span>{copied ? 'COPIED' : 'COPY'}</span>
+            </button>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="w-16 h-16 bg-white rounded p-1 flex-shrink-0">
+              <QRCodeSVG value={url} size={56} bgColor="#ffffff" fgColor="#000000" level="M" />
+            </div>
+            <div className="font-cond text-[10px] text-[#5a6e9a] break-all">{url}</div>
+          </div>
         </div>
       ) : (
         <button
