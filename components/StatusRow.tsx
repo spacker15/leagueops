@@ -3,6 +3,7 @@
 import { useApp } from '@/lib/store'
 import { cn } from '@/lib/utils'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { format, parseISO } from 'date-fns'
 
 const PILLS = [
   { key: 'Scheduled', label: 'SCHED', activeColor: '#60a5fa', bg: '#071830' },
@@ -78,7 +79,16 @@ export function StatusRow() {
         </button>
 
         <div className="font-cond text-[13px] font-black text-white tracking-wide px-1 min-w-[155px] text-center">
-          {currentDate?.label ?? '—'}
+          {currentDate ? (
+            <>
+              {currentDate.label}
+              <span className="text-muted font-bold text-[11px] ml-2">
+                {format(parseISO(currentDate.date), 'MMM d, yyyy')}
+              </span>
+            </>
+          ) : (
+            '—'
+          )}
         </div>
 
         <button

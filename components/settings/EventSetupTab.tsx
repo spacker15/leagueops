@@ -1989,8 +1989,24 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                   </div>
                 )}
                 {eventDates.length > 0 && (
-                  <div className="mt-3 font-cond text-[10px] text-muted">
-                    {eventDates.length} date{eventDates.length !== 1 ? 's' : ''} selected
+                  <div className="mt-4 space-y-2">
+                    <div className="font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase">
+                      Game Day Names
+                    </div>
+                    {eventDates
+                      .slice()
+                      .sort((a, b) => a.day_number - b.day_number)
+                      .map((ed) => (
+                        <GameDayLabelRow
+                          key={ed.id}
+                          eventDate={ed}
+                          onUpdate={(newLabel) => {
+                            setEventDates((prev) =>
+                              prev.map((d) => (d.id === ed.id ? { ...d, label: newLabel } : d))
+                            )
+                          }}
+                        />
+                      ))}
                   </div>
                 )}
               </div>
@@ -4330,6 +4346,86 @@ function AddRuleForm({
           </button>
         </div>
       </div>
+    </div>
+  )
+}
+
+// ─── Game Day Label Editor ─────────────────────────────────────────────────────
+
+function GameDayLabelRow({
+  eventDate,
+  onUpdate,
+}: {
+  eventDate: { id: number; date: string; day_number: number; label: string }
+  onUpdate: (newLabel: string) => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const [value, setValue] = useState(eventDate.label)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (editing) inputRef.current?.focus()
+  }, [editing])
+
+  const save = async () => {
+    const trimmed = value.trim()
+    if (!trimmed || trimmed === eventDate.label) {
+      setValue(eventDate.label)
+      setEditing(false)
+      return
+    }
+    const sb = createClient()
+    const { error } = await sb.from('event_dates').update({ label: trimmed }).eq('id', eventDate.id)
+    if (error) {
+      toast.error(error.message)
+      return
+    }
+    onUpdate(trimmed)
+    setEditing(false)
+    toast.success('Label updated')
+  }
+
+  const dateStr = (() => {
+    try {
+      const d = new Date(eventDate.date + 'T00:00:00')
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    } catch {
+      return eventDate.date
+    }
+  })()
+
+  return (
+    <div className="flex items-center gap-3 py-1.5 px-3 rounded-lg bg-surface-card border border-border">
+      <span className="font-mono text-[10px] text-muted w-6 shrink-0">{eventDate.day_number}</span>
+      <span className="font-cond text-[11px] text-muted w-24 shrink-0">{dateStr}</span>
+      {editing ? (
+        <input
+          ref={inputRef}
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') save()
+            if (e.key === 'Escape') {
+              setValue(eventDate.label)
+              setEditing(false)
+            }
+          }}
+          onBlur={save}
+          className="flex-1 bg-[#040e24] border border-blue-400 text-white px-2 py-0.5 rounded text-[12px] font-cond font-bold outline-none"
+        />
+      ) : (
+        <span className="flex-1 font-cond text-[12px] font-bold text-white truncate">
+          {eventDate.label}
+        </span>
+      )}
+      {!editing && (
+        <button
+          onClick={() => setEditing(true)}
+          className="text-muted hover:text-white transition-colors"
+        >
+          <Pencil size={11} />
+        </button>
+      )}
     </div>
   )
 }
