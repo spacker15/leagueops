@@ -1,45 +1,65 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { getPublicEventBySlug, getPublicGames, getPublicTeams, computeStandings } from '@/lib/data'
-import type { PublicGame, Standing } from '@/lib/data'
+import {
+  getPublicEventBySlug,
+  getPublicGames,
+  getPublicTeams,
+  getPublicEventDates,
+  getPublicBracket,
+  getPublicStandings,
+} from '@/lib/data'
+import type { PublicGame, ViewStanding } from '@/lib/data'
+import { groupBy } from '@/lib/utils'
+import { LiveScoresClient } from './LiveScoresClient'
+import { ScheduleTabWithSubViews } from '@/components/schedule/ScheduleTabWithSubViews'
+import { BracketTab } from '@/components/bracket/BracketTab'
+import { EventQRCode } from '@/components/EventQRCode'
 
-export const revalidate = 30 // revalidate every 30 seconds
+export const revalidate = 30 // ISR: revalidate every 30 seconds (per D-16)
 
 interface Props {
   params: { slug: string }
-  searchParams: { tab?: string; div?: string }
+  searchParams: { tab?: string; div?: string; view?: string; day?: string; team?: string }
 }
 
 export default async function EventPage({ params, searchParams }: Props) {
   const event = await getPublicEventBySlug(params.slug)
   if (!event) notFound()
 
-  const [games, teams] = await Promise.all([getPublicGames(event.id), getPublicTeams(event.id)])
+  const [games, teams, eventDates, bracket, viewStandings] = await Promise.all([
+    getPublicGames(event.id),
+    getPublicTeams(event.id),
+    getPublicEventDates(event.id),
+    getPublicBracket(event.id),
+    getPublicStandings(event.id),
+  ])
 
   const activeTab = searchParams.tab ?? 'standings'
   const divFilter = searchParams.div ?? 'ALL'
+  const scheduleView = (searchParams.view ?? 'team') as string
+  const activeDay = searchParams.day ? Number(searchParams.day) : 1
+  const teamId = searchParams.team ? Number(searchParams.team) : null
 
   const divisions = ['ALL', ...Array.from(new Set(teams.map((t) => t.division))).sort()]
 
   const finalGames = games.filter((g) => g.status === 'Final')
   const liveGames = games.filter((g) => g.status === 'Live' || g.status === 'Halftime')
 
-  const allStandings = computeStandings(teams, games)
-  const byDivision = groupBy(allStandings, (s) => s.division)
-
-  const scheduledGames = games.filter((g) => g.status !== 'Final')
+  // Group standings by division from PostgreSQL view
+  const standingsByDivision = groupBy(viewStandings, (s) => s.division)
 
   const tabs = [
     { id: 'standings', label: 'Standings' },
     ...(event.public_schedule ? [{ id: 'schedule', label: `Schedule (${games.length})` }] : []),
     { id: 'results', label: `Results (${finalGames.length})` },
     { id: 'live', label: `Live (${liveGames.length})`, highlight: liveGames.length > 0 },
+    ...(event.has_bracket && bracket.format ? [{ id: 'bracket', label: 'Bracket' }] : []),
   ]
 
   return (
     <div className="space-y-5">
       {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-[#5a6e9a] font-cond text-[11px] font-bold tracking-[.1em] uppercase">
+      <div className="flex items-center gap-2 text-[#5a6e9a] font-cond text-[10px] font-bold tracking-[.1em] uppercase">
         <Link href="/" className="hover:text-white transition-colors">
           All Events
         </Link>
@@ -58,26 +78,38 @@ export default async function EventPage({ params, searchParams }: Props) {
               className="w-14 h-14 object-contain rounded"
             />
           )}
-          <div>
-            <h1 className="font-cond text-[20px] font-black text-white">{event.name}</h1>
-            <div className="font-cond text-[13px] text-[#5a6e9a] mt-0.5">{event.location}</div>
+          <div className="flex-1 min-w-0">
+            <h1 className="font-cond text-[20px] font-bold text-white">{event.name}</h1>
+            <div className="font-cond text-[12px] text-[#5a6e9a] mt-0.5">{event.location}</div>
           </div>
-          <div className="ml-auto flex gap-3">
+          <div className="ml-auto flex gap-3 shrink-0">
             <StatPill label="Teams" value={teams.length} />
             <StatPill label="Games" value={games.length} />
             <StatPill label="Final" value={finalGames.length} />
             {liveGames.length > 0 && <StatPill label="Live" value={liveGames.length} highlight />}
           </div>
+          {/* QR code: visible on desktop, collapsed on mobile */}
+          <div className="hidden lg:block shrink-0">
+            <EventQRCode slug={params.slug} size={80} />
+          </div>
         </div>
+        <details className="lg:hidden mt-3">
+          <summary className="font-cond text-[10px] font-bold text-[#5a6e9a] uppercase tracking-[.1em] cursor-pointer">
+            Show QR Code
+          </summary>
+          <div className="mt-2">
+            <EventQRCode slug={params.slug} />
+          </div>
+        </details>
       </div>
 
       {/* Tab bar */}
-      <div className="flex items-center gap-1 border-b border-[#1a2d50] pb-0">
+      <div className="flex items-center gap-1 flex-wrap border-b border-[#1a2d50] pb-0">
         {tabs.map((tab) => (
           <Link
             key={tab.id}
             href={`/e/${params.slug}?tab=${tab.id}`}
-            className={`relative px-4 py-2 font-cond text-[11px] font-black tracking-[.1em] uppercase transition-colors ${
+            className={`relative px-4 py-3 font-cond text-[10px] font-bold tracking-[.1em] uppercase transition-colors ${
               activeTab === tab.id ? 'text-white' : 'text-[#5a6e9a] hover:text-white'
             } ${tab.highlight ? 'text-green-400' : ''}`}
           >
@@ -94,8 +126,8 @@ export default async function EventPage({ params, searchParams }: Props) {
             {divisions.map((d) => (
               <Link
                 key={d}
-                href={`/e/${params.slug}?tab=standings&div=${d}`}
-                className={`px-2.5 py-1 rounded font-cond text-[10px] font-black tracking-[.1em] uppercase transition-colors ${
+                href={`/e/${params.slug}?tab=${activeTab}&div=${d}`}
+                className={`px-2.5 py-1 rounded font-cond text-[10px] font-bold tracking-[.1em] uppercase transition-colors ${
                   divFilter === d ? 'bg-[#0B3D91] text-white' : 'text-[#5a6e9a] hover:text-white'
                 }`}
               >
@@ -106,13 +138,57 @@ export default async function EventPage({ params, searchParams }: Props) {
         )}
       </div>
 
-      {/* Content */}
-      {activeTab === 'standings' && (
-        <StandingsSection byDivision={byDivision} divFilter={divFilter} />
-      )}
-      {activeTab === 'schedule' && <ScheduleSection games={games} divFilter={divFilter} />}
-      {activeTab === 'results' && <ResultsSection games={finalGames} />}
-      {activeTab === 'live' && <LiveSection games={liveGames} />}
+      {/* Content wrapped in LiveScoresClient for real-time updates */}
+      <LiveScoresClient initialGames={liveGames} eventId={event.id}>
+        {(currentLiveGames, flashingIds) => {
+          const liveGameIds = new Set(currentLiveGames.map((g) => g.id))
+          const liveScores = new Map(
+            currentLiveGames.map((g) => [
+              g.id,
+              { home_score: g.home_score, away_score: g.away_score },
+            ])
+          )
+
+          return (
+            <>
+              {activeTab === 'standings' && (
+                <StandingsSection
+                  standingsByDivision={standingsByDivision}
+                  divFilter={divFilter}
+                />
+              )}
+              {activeTab === 'schedule' && (
+                <ScheduleTabWithSubViews
+                  games={games}
+                  teams={teams}
+                  eventDates={eventDates}
+                  slug={params.slug}
+                  view={scheduleView}
+                  activeDay={activeDay}
+                  teamId={teamId}
+                  divFilter={divFilter}
+                />
+              )}
+              {activeTab === 'results' && <ResultsSection games={finalGames} />}
+              {activeTab === 'live' && (
+                <LiveSectionEnhanced
+                  games={currentLiveGames}
+                  allGames={games}
+                  flashingIds={flashingIds}
+                />
+              )}
+              {activeTab === 'bracket' && bracket.format && (
+                <BracketTab
+                  bracket={bracket}
+                  liveGameIds={liveGameIds}
+                  liveScores={liveScores}
+                  flashingIds={flashingIds}
+                />
+              )}
+            </>
+          )
+        }}
+      </LiveScoresClient>
     </div>
   )
 }
@@ -120,13 +196,13 @@ export default async function EventPage({ params, searchParams }: Props) {
 // ─── Sections ────────────────────────────────────────────────────────────────
 
 function StandingsSection({
-  byDivision,
+  standingsByDivision,
   divFilter,
 }: {
-  byDivision: Record<string, Standing[]>
+  standingsByDivision: Record<string, ViewStanding[]>
   divFilter: string
 }) {
-  const entries = Object.entries(byDivision)
+  const entries = Object.entries(standingsByDivision)
     .filter(([div]) => divFilter === 'ALL' || div === divFilter)
     .sort(([a], [b]) => a.localeCompare(b))
 
@@ -137,20 +213,26 @@ function StandingsSection({
   return (
     <div className="space-y-6">
       {entries.map(([division, rows]) => {
-        const sorted = [...rows].sort((a, b) => b.pts - a.pts || b.gd - a.gd || b.gf - a.gf)
+        // Already sorted by Supabase query, but sort locally too for safety
+        const sorted = [...rows].sort(
+          (a, b) =>
+            b.wins - a.wins ||
+            b.goal_diff - a.goal_diff ||
+            b.points_for - a.points_for
+        )
         return (
           <div key={division}>
-            <div className="font-cond text-[10px] font-black tracking-[.15em] text-[#5a6e9a] uppercase mb-2">
+            <div className="font-cond text-[10px] font-bold tracking-[.15em] text-[#5a6e9a] uppercase mb-2">
               {division}
             </div>
-            <div className="bg-[#081428] border border-[#1a2d50] rounded-xl overflow-hidden">
-              <table className="w-full text-[13px]">
+            <div className="bg-[#081428] border border-[#1a2d50] rounded-xl overflow-hidden overflow-x-auto">
+              <table className="w-full text-[12px]">
                 <thead>
                   <tr className="border-b border-[#1a2d50]">
-                    {['#', 'Team', 'GP', 'W', 'L', 'T', 'GF', 'GA', 'GD', 'PTS'].map((h) => (
+                    {['#', 'Team', 'W', 'L', 'T', 'GF', 'GA', 'GD'].map((h) => (
                       <th
                         key={h}
-                        className={`font-cond text-[10px] font-black tracking-[.12em] text-[#5a6e9a] uppercase py-2.5 ${
+                        className={`font-cond text-[10px] font-bold tracking-[.12em] text-[#5a6e9a] uppercase py-2 ${
                           h === 'Team' ? 'text-left px-4' : 'text-center px-2'
                         }`}
                       >
@@ -161,103 +243,42 @@ function StandingsSection({
                 </thead>
                 <tbody>
                   {sorted.map((s, i) => (
-                    <tr key={s.teamId} className="border-b border-[#1a2d50]/50 last:border-0">
-                      <td className="text-center px-2 py-2.5 font-mono text-[#5a6e9a] text-[11px]">
+                    <tr key={s.team_id} className="border-b border-[#1a2d50]/50 last:border-0">
+                      <td className="text-center px-2 py-2 font-mono text-[#5a6e9a] text-[10px]">
                         {i + 1}
                       </td>
-                      <td className="px-4 py-2.5">
-                        <span className="font-cond font-bold text-white">{s.name}</span>
+                      <td className="px-4 py-2">
+                        <span className="font-cond font-bold text-white">{s.team_name}</span>
                         {s.association && (
-                          <span className="ml-1.5 text-[#5a6e9a] text-[11px]">{s.association}</span>
+                          <span className="ml-1.5 text-[#5a6e9a] text-[10px]">
+                            {s.association}
+                          </span>
                         )}
                       </td>
-                      <td className="text-center px-2 py-2.5 font-mono text-white">{s.gp}</td>
-                      <td className="text-center px-2 py-2.5 font-mono text-green-400 font-bold">
-                        {s.w}
+                      <td className="text-center px-2 py-2 font-mono text-green-400 font-bold">
+                        {s.wins}
                       </td>
-                      <td className="text-center px-2 py-2.5 font-mono text-red-400">{s.l}</td>
-                      <td className="text-center px-2 py-2.5 font-mono text-yellow-400">{s.t}</td>
-                      <td className="text-center px-2 py-2.5 font-mono text-white">{s.gf}</td>
-                      <td className="text-center px-2 py-2.5 font-mono text-white">{s.ga}</td>
+                      <td className="text-center px-2 py-2 font-mono text-red-400">{s.losses}</td>
+                      <td className="text-center px-2 py-2 font-mono text-yellow-400">{s.ties}</td>
+                      <td className="text-center px-2 py-2 font-mono text-white">{s.points_for}</td>
+                      <td className="text-center px-2 py-2 font-mono text-white">
+                        {s.points_against}
+                      </td>
                       <td
-                        className={`text-center px-2 py-2.5 font-mono ${
-                          s.gd > 0 ? 'text-green-400' : s.gd < 0 ? 'text-red-400' : 'text-[#5a6e9a]'
+                        className={`text-center px-2 py-2 font-mono ${
+                          s.goal_diff > 0
+                            ? 'text-green-400'
+                            : s.goal_diff < 0
+                              ? 'text-red-400'
+                              : 'text-[#5a6e9a]'
                         }`}
                       >
-                        {s.gd > 0 ? `+${s.gd}` : s.gd}
-                      </td>
-                      <td className="text-center px-2 py-2.5 font-mono font-bold text-white">
-                        {s.pts}
+                        {s.goal_diff > 0 ? `+${s.goal_diff}` : s.goal_diff}
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-            </div>
-            <div className="font-cond text-[9px] text-[#5a6e9a] mt-1 tracking-wide">
-              W = 3 pts · T = 1 pt · Tiebreakers: GD → GF
-            </div>
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
-function ScheduleSection({ games, divFilter }: { games: PublicGame[]; divFilter: string }) {
-  const filtered = divFilter === 'ALL' ? games : games.filter((g) => g.division === divFilter)
-
-  if (filtered.length === 0) return <Empty message="No games scheduled yet." />
-
-  const byDate = groupBy(filtered, (g) => g.event_date?.date ?? 'TBD')
-  const sortedDates = Object.keys(byDate).sort()
-
-  return (
-    <div className="space-y-6">
-      {sortedDates.map((date) => {
-        const dateGames = byDate[date].sort((a, b) => (a.scheduled_time ?? '').localeCompare(b.scheduled_time ?? ''))
-        const dateLabel = date === 'TBD' ? 'TBD' : new Date(date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })
-        return (
-          <div key={date}>
-            <div className="font-cond text-[10px] font-black tracking-[.15em] text-[#5a6e9a] uppercase mb-2">
-              {dateLabel}
-            </div>
-            <div className="space-y-2">
-              {dateGames.map((game) => (
-                <div
-                  key={game.id}
-                  className={`bg-[#081428] border rounded-xl px-4 py-3 flex items-center gap-4 ${
-                    game.status === 'Live' || game.status === 'Halftime'
-                      ? 'border-green-400/30'
-                      : game.status === 'Final'
-                        ? 'border-[#1a2d50]'
-                        : 'border-[#1a2d50]'
-                  }`}
-                >
-                  <div className="w-14 shrink-0 text-center">
-                    <div className="font-mono text-[12px] text-white">{game.scheduled_time ?? '—'}</div>
-                    <div className="font-cond text-[9px] text-[#5a6e9a] uppercase">{game.field?.name ?? ''}</div>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between">
-                      <span className="font-cond font-bold text-[13px] text-white truncate">{game.home_team?.name ?? 'TBD'}</span>
-                      <span className="font-mono font-bold text-[16px] text-white tabular-nums">{game.status === 'Scheduled' ? '' : game.home_score}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="font-cond font-bold text-[13px] text-white truncate">{game.away_team?.name ?? 'TBD'}</span>
-                      <span className="font-mono font-bold text-[16px] text-white tabular-nums">{game.status === 'Scheduled' ? '' : game.away_score}</span>
-                    </div>
-                  </div>
-                  <div className="shrink-0">
-                    <div className={`font-cond text-[10px] font-black tracking-[.1em] uppercase ${
-                      game.status === 'Live' || game.status === 'Halftime' ? 'text-green-400' : game.status === 'Final' ? 'text-[#5a6e9a]' : 'text-blue-400'
-                    }`}>
-                      {game.status}
-                    </div>
-                    <div className="font-cond text-[9px] text-[#5a6e9a] uppercase">{game.division}</div>
-                  </div>
-                </div>
-              ))}
             </div>
           </div>
         )
@@ -283,7 +304,7 @@ function ResultsSection({ games }: { games: PublicGame[] }) {
         .sort(([a], [b]) => a.localeCompare(b))
         .map(([division, divGames]) => (
           <div key={division}>
-            <div className="font-cond text-[10px] font-black tracking-[.15em] text-[#5a6e9a] uppercase mb-2">
+            <div className="font-cond text-[10px] font-bold tracking-[.15em] text-[#5a6e9a] uppercase mb-2">
               {division}
             </div>
             <div className="space-y-2">
@@ -297,21 +318,45 @@ function ResultsSection({ games }: { games: PublicGame[] }) {
   )
 }
 
-function LiveSection({ games }: { games: PublicGame[] }) {
+function LiveSectionEnhanced({
+  games,
+  allGames,
+  flashingIds,
+}: {
+  games: PublicGame[]
+  allGames: PublicGame[]
+  flashingIds: Set<number>
+}) {
   if (games.length === 0) {
-    return <Empty message="No games in progress right now." />
+    const nextGame = allGames
+      .filter((g) => g.status === 'Scheduled')
+      .sort((a, b) => (a.scheduled_time ?? '').localeCompare(b.scheduled_time ?? ''))
+      .at(0)
+
+    return (
+      <div className="text-center py-20 border border-[#1a2d50] rounded-xl bg-[#081428]">
+        <div className="font-cond text-[12px] font-bold tracking-[.18em] text-[#5a6e9a] uppercase">
+          No games in progress right now.
+        </div>
+        {nextGame && (
+          <div className="font-cond text-[12px] text-[#5a6e9a] mt-2">
+            Next game: {nextGame.scheduled_time ?? '—'} on {nextGame.field?.name ?? '—'}
+          </div>
+        )}
+      </div>
+    )
   }
 
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2">
         <span className="inline-block w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-        <span className="font-cond text-[11px] font-black tracking-[.12em] text-green-400 uppercase">
+        <span className="font-cond text-[10px] font-bold tracking-[.12em] text-green-400 uppercase">
           {games.length} Game{games.length > 1 ? 's' : ''} In Progress
         </span>
       </div>
       {games.map((game) => (
-        <GameResultCard key={game.id} game={game} live />
+        <GameResultCard key={game.id} game={game} live flashingIds={flashingIds} />
       ))}
     </div>
   )
@@ -319,9 +364,18 @@ function LiveSection({ games }: { games: PublicGame[] }) {
 
 // ─── Components ───────────────────────────────────────────────────────────────
 
-function GameResultCard({ game, live = false }: { game: PublicGame; live?: boolean }) {
+function GameResultCard({
+  game,
+  live = false,
+  flashingIds,
+}: {
+  game: PublicGame
+  live?: boolean
+  flashingIds?: Set<number>
+}) {
   const homeWon = game.status === 'Final' && game.home_score > game.away_score
   const awayWon = game.status === 'Final' && game.away_score > game.home_score
+  const isFlashing = flashingIds?.has(game.id) ?? false
 
   return (
     <div
@@ -340,7 +394,7 @@ function GameResultCard({ game, live = false }: { game: PublicGame; live?: boole
             {game.home_team?.name ?? 'Home'}
           </span>
           <span
-            className={`font-mono font-bold text-[18px] tabular-nums ${homeWon ? 'text-white' : live ? 'text-green-400' : 'text-[#5a6e9a]'}`}
+            className={`font-mono font-bold text-[18px] tabular-nums ${isFlashing ? 'score-flash' : ''} ${homeWon ? 'text-white' : live ? 'text-green-400' : 'text-[#5a6e9a]'}`}
           >
             {game.home_score}
           </span>
@@ -355,23 +409,23 @@ function GameResultCard({ game, live = false }: { game: PublicGame; live?: boole
             {game.away_team?.name ?? 'Away'}
           </span>
           <span
-            className={`font-mono font-bold text-[18px] tabular-nums ${awayWon ? 'text-white' : live ? 'text-green-400' : 'text-[#5a6e9a]'}`}
+            className={`font-mono font-bold text-[18px] tabular-nums ${isFlashing ? 'score-flash' : ''} ${awayWon ? 'text-white' : live ? 'text-green-400' : 'text-[#5a6e9a]'}`}
           >
             {game.away_score}
           </span>
         </div>
       </div>
       <div className="text-right shrink-0 space-y-0.5">
-        <div className="font-cond text-[10px] font-black tracking-[.12em] text-[#5a6e9a] uppercase">
+        <div className="font-cond text-[10px] font-bold tracking-[.12em] text-[#5a6e9a] uppercase">
           {game.division}
         </div>
-        <div className="font-cond text-[11px] text-[#5a6e9a]">{game.field?.name ?? '—'}</div>
+        <div className="font-cond text-[10px] text-[#5a6e9a]">{game.field?.name ?? '—'}</div>
         {live ? (
-          <div className="font-cond text-[10px] font-black tracking-[.1em] text-green-400 uppercase">
+          <div className="font-cond text-[10px] font-bold tracking-[.1em] text-green-400 uppercase">
             {game.status}
           </div>
         ) : (
-          <div className="font-cond text-[10px] font-black tracking-[.1em] text-[#5a6e9a] uppercase">
+          <div className="font-cond text-[10px] font-bold tracking-[.1em] text-[#5a6e9a] uppercase">
             Final
           </div>
         )}
@@ -396,7 +450,7 @@ function StatPill({
       >
         {value}
       </div>
-      <div className="font-cond text-[9px] font-black tracking-[.12em] text-[#5a6e9a] uppercase">
+      <div className="font-cond text-[10px] font-bold tracking-[.12em] text-[#5a6e9a] uppercase">
         {label}
       </div>
     </div>
@@ -406,23 +460,9 @@ function StatPill({
 function Empty({ message }: { message: string }) {
   return (
     <div className="text-center py-20 border border-[#1a2d50] rounded-xl bg-[#081428]">
-      <div className="font-cond text-[11px] font-black tracking-[.18em] text-[#5a6e9a] uppercase">
+      <div className="font-cond text-[12px] font-bold tracking-[.18em] text-[#5a6e9a] uppercase">
         {message}
       </div>
     </div>
-  )
-}
-
-// ─── Utils ────────────────────────────────────────────────────────────────────
-
-function groupBy<T>(arr: T[], key: (item: T) => string): Record<string, T[]> {
-  return arr.reduce(
-    (acc, item) => {
-      const k = key(item)
-      if (!acc[k]) acc[k] = []
-      acc[k].push(item)
-      return acc
-    },
-    {} as Record<string, T[]>
   )
 }
