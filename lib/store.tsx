@@ -49,6 +49,7 @@ type Action =
   | { type: 'SET_GAMES'; payload: Game[] }
   | { type: 'UPDATE_GAME'; payload: Game }
   | { type: 'ADD_GAME'; payload: Game }
+  | { type: 'DELETE_GAME'; payload: number }
   | { type: 'SET_REFEREES'; payload: Referee[] }
   | { type: 'UPDATE_REF'; payload: Referee }
   | { type: 'SET_VOLUNTEERS'; payload: Volunteer[] }
@@ -88,6 +89,8 @@ function reducer(state: State, action: Action): State {
       }
     case 'ADD_GAME':
       return { ...state, games: [...state.games, action.payload] }
+    case 'DELETE_GAME':
+      return { ...state, games: state.games.filter((g) => g.id !== action.payload) }
     case 'SET_REFEREES':
       return { ...state, referees: action.payload }
     case 'UPDATE_REF':
@@ -190,6 +193,7 @@ interface ContextValue {
   updateGameStatus: (gameId: number, status: GameStatus) => Promise<void>
   updateGameScore: (gameId: number, home: number, away: number) => Promise<void>
   addGame: (game: Parameters<typeof db.insertGame>[0]) => Promise<void>
+  deleteGame: (gameId: number) => Promise<void>
   toggleRefCheckin: (refId: number) => Promise<void>
   toggleVolCheckin: (volId: number) => Promise<void>
   logIncident: (
@@ -430,6 +434,15 @@ export function AppProvider({
     [refreshGames, addLog]
   )
 
+  const deleteGame = useCallback(
+    async (gameId: number) => {
+      await db.deleteGame(gameId)
+      dispatch({ type: 'DELETE_GAME', payload: gameId })
+      await addLog(`Game #${gameId} deleted`, 'alert')
+    },
+    [addLog]
+  )
+
   const toggleRefCheckin = useCallback(
     async (refId: number) => {
       const ref = state.referees.find((r) => r.id === refId)
@@ -605,6 +618,7 @@ export function AppProvider({
         updateGameStatus,
         updateGameScore,
         addGame,
+        deleteGame,
         toggleRefCheckin,
         toggleVolCheckin,
         logIncident,

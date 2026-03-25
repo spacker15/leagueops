@@ -14,6 +14,7 @@ const STATUS_CLASS: Record<GameStatus, string> = {
   Final: 'badge-final',
   Delayed: 'badge-delayed',
   Cancelled: 'badge-cancelled',
+  Unscheduled: 'badge-unscheduled',
 }
 
 export function StatusBadge({ status }: { status: GameStatus }) {

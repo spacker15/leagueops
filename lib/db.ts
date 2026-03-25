@@ -123,18 +123,16 @@ export async function upsertFieldAvailability(
   availableTo: string
 ): Promise<void> {
   const sb = createClient()
-  await sb
-    .from('field_availability')
-    .upsert(
-      {
-        field_id: fieldId,
-        event_date_id: eventDateId,
-        event_id: eventId,
-        available_from: availableFrom,
-        available_to: availableTo,
-      },
-      { onConflict: 'field_id,event_date_id' }
-    )
+  await sb.from('field_availability').upsert(
+    {
+      field_id: fieldId,
+      event_date_id: eventDateId,
+      event_id: eventId,
+      available_from: availableFrom,
+      available_to: availableTo,
+    },
+    { onConflict: 'field_id,event_date_id' }
+  )
 }
 
 export async function bulkSetFieldAvailability(
@@ -272,6 +270,11 @@ export async function updateGameScore(
 export async function updateGameField(gameId: number, fieldId: number): Promise<void> {
   const sb = createClient()
   await sb.from('games').update({ field_id: fieldId }).eq('id', gameId)
+}
+
+export async function deleteGame(gameId: number): Promise<void> {
+  const sb = createClient()
+  await sb.from('games').delete().eq('id', gameId)
 }
 
 export async function insertGame(

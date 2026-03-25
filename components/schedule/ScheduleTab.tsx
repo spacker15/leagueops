@@ -5,7 +5,15 @@ import { useApp } from '@/lib/store'
 import { useAuth } from '@/lib/auth'
 import { StatusBadge, Modal, Btn, FormField, SectionHeader } from '@/components/ui'
 import { ScheduleChangeRequestModal } from '@/components/schedule/ScheduleChangeRequestModal'
-import { cn, nextStatusLabel, nextGameStatus, fuzzyMatch, findCsvMismatches, type CsvMismatch, type FuzzyResult } from '@/lib/utils'
+import {
+  cn,
+  nextStatusLabel,
+  nextGameStatus,
+  fuzzyMatch,
+  findCsvMismatches,
+  type CsvMismatch,
+  type FuzzyResult,
+} from '@/lib/utils'
 import toast from 'react-hot-toast'
 import type { GameStatus, OperationalConflict, ScheduleChangeRequest } from '@/types'
 import { createClient } from '@/supabase/client'
@@ -74,7 +82,7 @@ function parseTeamName(
     const possibleNames = DIV_PREFIX_MAP[prefix] ?? [prefix]
     for (const d of divisionNames) {
       const dLower = d.toLowerCase()
-      if (possibleNames.some(p => dLower.includes(p))) {
+      if (possibleNames.some((p) => dLower.includes(p))) {
         detectedDivision = d
         break
       }
@@ -133,7 +141,8 @@ interface FieldConflict extends OperationalConflict {
 }
 
 export function ScheduleTab() {
-  const { state, updateGameStatus, addGame, refreshGames, currentDate, eventId } = useApp()
+  const { state, updateGameStatus, addGame, deleteGame, refreshGames, currentDate, eventId } =
+    useApp()
   const { userRole } = useAuth()
   const [viewMode, setViewMode] = useState<ViewMode>('board')
   const [fieldFilter, setFieldFilter] = useState('')
@@ -156,7 +165,10 @@ export function ScheduleTab() {
 
   // Schedule CSV import state
   const scheduleFileRef = useRef<HTMLInputElement>(null)
-  const [scheduleCsvPreview, setScheduleCsvPreview] = useState<{ rows: Record<string, string>[]; warnings: string[] } | null>(null)
+  const [scheduleCsvPreview, setScheduleCsvPreview] = useState<{
+    rows: Record<string, string>[]
+    warnings: string[]
+  } | null>(null)
   const [importingSchedule, setImportingSchedule] = useState(false)
   const [csvMismatches, setCsvMismatches] = useState<CsvMismatch[]>([])
   const [csvResolvedMap, setCsvResolvedMap] = useState<Map<string, string>>(new Map())
@@ -301,9 +313,12 @@ export function ScheduleTab() {
 
   // Filter games — sort by FIELD first, then TIME
   const filtered = useMemo(() => {
-    let g = [...state.games].sort(
-      (a, b) => a.field_id - b.field_id || timeToMin(a.scheduled_time) - timeToMin(b.scheduled_time)
-    )
+    let g = [...state.games]
+      .filter((x) => x.status !== 'Unscheduled')
+      .sort(
+        (a, b) =>
+          a.field_id - b.field_id || timeToMin(a.scheduled_time) - timeToMin(b.scheduled_time)
+      )
     if (fieldFilter) g = g.filter((x) => String(x.field_id) === fieldFilter)
     if (divFilter) g = g.filter((x) => x.division.startsWith(divFilter))
     if (statusFilter) g = g.filter((x) => x.status === statusFilter)
@@ -415,22 +430,27 @@ export function ScheduleTab() {
     for (let i = 0; i < text.length; i++) {
       const ch = text[i]
       if (inQuotes) {
-        if (ch === '"' && text[i + 1] === '"') { current += '"'; i++ }
-        else if (ch === '"') inQuotes = false
+        if (ch === '"' && text[i + 1] === '"') {
+          current += '"'
+          i++
+        } else if (ch === '"') inQuotes = false
         else current += ch
       } else {
         if (ch === '"') inQuotes = true
-        else if (ch === ',') { row.push(current.trim()); current = '' }
-        else if (ch === '\n' || ch === '\r') {
+        else if (ch === ',') {
+          row.push(current.trim())
+          current = ''
+        } else if (ch === '\n' || ch === '\r') {
           if (ch === '\r' && text[i + 1] === '\n') i++
-          row.push(current.trim()); current = ''
-          if (row.some(c => c)) rows.push(row)
+          row.push(current.trim())
+          current = ''
+          if (row.some((c) => c)) rows.push(row)
           row = []
         } else current += ch
       }
     }
     row.push(current.trim())
-    if (row.some(c => c)) rows.push(row)
+    if (row.some((c) => c)) rows.push(row)
     return rows
   }
 
@@ -439,25 +459,39 @@ export function ScheduleTab() {
     reader.onload = async (e) => {
       const text = e.target?.result as string
       const parsed = parseCSV(text)
-      if (parsed.length < 2) { toast.error('CSV must have a header row and at least one data row'); return }
+      if (parsed.length < 2) {
+        toast.error('CSV must have a header row and at least one data row')
+        return
+      }
 
-      const headers = parsed[0].map(h => h.toLowerCase().replace(/\s+/g, '_'))
+      const headers = parsed[0].map((h) => h.toLowerCase().replace(/\s+/g, '_'))
       const expectedCols = ['date', 'time', 'home_team', 'away_team', 'division', 'field']
       const rows: Record<string, string>[] = []
       const warnings: string[] = []
 
-      const missing = expectedCols.filter(c => !headers.includes(c))
+      const missing = expectedCols.filter((c) => !headers.includes(c))
       if (missing.length > 0) warnings.push(`Missing columns: ${missing.join(', ')}`)
 
       for (let i = 1; i < parsed.length; i++) {
         const obj: Record<string, string> = {}
-        headers.forEach((h, idx) => { obj[h] = parsed[i][idx] || '' })
-        if (!obj.home_team || !obj.away_team) { warnings.push(`Row ${i}: missing home_team or away_team — will skip`); continue }
-        if (!obj.time) { warnings.push(`Row ${i}: missing time — will skip`); continue }
+        headers.forEach((h, idx) => {
+          obj[h] = parsed[i][idx] || ''
+        })
+        if (!obj.home_team || !obj.away_team) {
+          warnings.push(`Row ${i}: missing home_team or away_team — will skip`)
+          continue
+        }
+        if (!obj.time) {
+          warnings.push(`Row ${i}: missing time — will skip`)
+          continue
+        }
         rows.push(obj)
       }
 
-      if (rows.length === 0) { toast.error('No valid rows found in CSV'); return }
+      if (rows.length === 0) {
+        toast.error('No valid rows found in CSV')
+        return
+      }
 
       // Fetch programs for smart detection
       const sb = createClient()
@@ -470,17 +504,17 @@ export function ScheduleTab() {
       setCsvPrograms(fetchedPrograms)
 
       // Get division names from existing teams
-      const divisionNames = [...new Set(state.teams.map(t => t.division).filter(Boolean))]
+      const divisionNames = [...new Set(state.teams.map((t) => t.division).filter(Boolean))]
 
       // Fuzzy match team names, fields, divisions against existing data
-      const teamCandidates = state.teams.map(t => ({ id: t.id ?? t.name, name: t.name }))
-      const fieldCandidates = state.fields.map(f => ({ id: f.id ?? f.name, name: f.name }))
-      const divCandidates = divisionNames.map(d => ({ id: d, name: d }))
+      const teamCandidates = state.teams.map((t) => ({ id: t.id ?? t.name, name: t.name }))
+      const fieldCandidates = state.fields.map((f) => ({ id: f.id ?? f.name, name: f.name }))
+      const divCandidates = divisionNames.map((d) => ({ id: d, name: d }))
 
-      const homeTeamVals = rows.map(r => r.home_team).filter(Boolean)
-      const awayTeamVals = rows.map(r => r.away_team).filter(Boolean)
-      const fieldVals = rows.map(r => r.field).filter(Boolean)
-      const divVals = rows.map(r => r.division).filter(Boolean)
+      const homeTeamVals = rows.map((r) => r.home_team).filter(Boolean)
+      const awayTeamVals = rows.map((r) => r.away_team).filter(Boolean)
+      const fieldVals = rows.map((r) => r.field).filter(Boolean)
+      const divVals = rows.map((r) => r.division).filter(Boolean)
 
       // Field and division mismatches use old system
       const fieldMismatches = findCsvMismatches(fieldVals, fieldCandidates, 'field')
@@ -489,7 +523,7 @@ export function ScheduleTab() {
 
       // Team mismatches use new enhanced resolver
       const allTeamVals = [...new Set([...homeTeamVals, ...awayTeamVals])]
-      const teamLowerMap = new Map(state.teams.map(t => [t.name.toLowerCase().trim(), t]))
+      const teamLowerMap = new Map(state.teams.map((t) => [t.name.toLowerCase().trim(), t]))
       const entries: ResolverEntry[] = []
 
       for (const val of allTeamVals) {
@@ -520,60 +554,81 @@ export function ScheduleTab() {
 
   // Resolver entry actions
   function setResolverAction(idx: number, action: ResolverAction, mapToId?: string) {
-    setResolverEntries(prev => prev.map((e, i) => i === idx ? { ...e, action, mapToId: action === 'map' ? (mapToId ?? e.mapToId) : null } : e))
+    setResolverEntries((prev) =>
+      prev.map((e, i) =>
+        i === idx ? { ...e, action, mapToId: action === 'map' ? (mapToId ?? e.mapToId) : null } : e
+      )
+    )
   }
 
   function setResolverMapId(idx: number, mapToId: string) {
-    setResolverEntries(prev => prev.map((e, i) => i === idx ? { ...e, action: 'map', mapToId } : e))
+    setResolverEntries((prev) =>
+      prev.map((e, i) => (i === idx ? { ...e, action: 'map', mapToId } : e))
+    )
   }
 
   function setResolverDivision(idx: number, division: string) {
-    setResolverEntries(prev => prev.map((e, i) => i === idx ? { ...e, detectedDivision: division } : e))
+    setResolverEntries((prev) =>
+      prev.map((e, i) => (i === idx ? { ...e, detectedDivision: division } : e))
+    )
   }
 
   function setResolverProgram(idx: number, programId: string) {
-    setResolverEntries(prev => prev.map((e, i) => {
-      const prog = csvPrograms.find(p => String(p.id) === programId) ?? null
-      return i === idx ? { ...e, detectedProgram: prog } : e
-    }))
+    setResolverEntries((prev) =>
+      prev.map((e, i) => {
+        const prog = csvPrograms.find((p) => String(p.id) === programId) ?? null
+        return i === idx ? { ...e, detectedProgram: prog } : e
+      })
+    )
   }
 
   // Bulk actions
   function bulkAutoCreateAll() {
-    setResolverEntries(prev => prev.map(e => ({ ...e, action: 'create' as ResolverAction })))
+    setResolverEntries((prev) => prev.map((e) => ({ ...e, action: 'create' as ResolverAction })))
   }
 
   function bulkSkipAll() {
-    setResolverEntries(prev => prev.map(e => ({ ...e, action: 'skip' as ResolverAction })))
+    setResolverEntries((prev) => prev.map((e) => ({ ...e, action: 'skip' as ResolverAction })))
   }
 
   function bulkBestMatchAll() {
-    setResolverEntries(prev => prev.map(e => {
-      if (e.suggestions.length > 0) {
-        return { ...e, action: 'map' as ResolverAction, mapToId: String(e.suggestions[0].id) }
-      }
-      return { ...e, action: 'create' as ResolverAction }
-    }))
+    setResolverEntries((prev) =>
+      prev.map((e) => {
+        if (e.suggestions.length > 0) {
+          return { ...e, action: 'map' as ResolverAction, mapToId: String(e.suggestions[0].id) }
+        }
+        return { ...e, action: 'create' as ResolverAction }
+      })
+    )
   }
 
   // Old mismatch resolver for fields/divisions
   function resolveCsvMismatch(idx: number, value: string) {
-    setCsvMismatches(prev => prev.map((m, i) => i === idx ? { ...m, resolvedTo: value || null } : m))
+    setCsvMismatches((prev) =>
+      prev.map((m, i) => (i === idx ? { ...m, resolvedTo: value || null } : m))
+    )
   }
 
-  const unresolvedOldMismatches = csvMismatches.filter(m => m.resolvedTo === null)
-  const unresolvedTeamEntries = resolverEntries.filter(e => e.action === null)
-  const resolvedTeamCount = resolverEntries.filter(e => e.action !== null).length
+  const unresolvedOldMismatches = csvMismatches.filter((m) => m.resolvedTo === null)
+  const unresolvedTeamEntries = resolverEntries.filter((e) => e.action === null)
+  const resolvedTeamCount = resolverEntries.filter((e) => e.action !== null).length
   const skippedCsvValues = new Set([
-    ...csvMismatches.filter(m => m.resolvedTo === '__skip__').map(m => m.csvValue.toLowerCase().trim()),
-    ...resolverEntries.filter(e => e.action === 'skip').map(e => e.csvValue.toLowerCase().trim()),
+    ...csvMismatches
+      .filter((m) => m.resolvedTo === '__skip__')
+      .map((m) => m.csvValue.toLowerCase().trim()),
+    ...resolverEntries
+      .filter((e) => e.action === 'skip')
+      .map((e) => e.csvValue.toLowerCase().trim()),
   ])
-  const teamsToCreate = resolverEntries.filter(e => e.action === 'create')
+  const teamsToCreate = resolverEntries.filter((e) => e.action === 'create')
   const hasUnresolved = unresolvedOldMismatches.length > 0 || unresolvedTeamEntries.length > 0
 
   async function importScheduleCSV() {
     if (!scheduleCsvPreview) return
-    if (hasUnresolved) { toast.error('Resolve all mismatches before importing'); return }
+    if (hasUnresolved) {
+      toast.error('Resolve all mismatches before importing')
+      return
+    }
     setImportingSchedule(true)
     const sb = createClient()
 
@@ -627,7 +682,7 @@ export function ScheduleTab() {
         .eq('event_id', eventId!)
 
       const teamMap = new Map<string, { id: number; name: string; division: string }>()
-      for (const t of (freshTeams ?? [])) {
+      for (const t of freshTeams ?? []) {
         teamMap.set(t.name.toLowerCase().trim(), t)
       }
 
@@ -638,8 +693,8 @@ export function ScheduleTab() {
         }
       }
 
-      const fieldMap = new Map(state.fields.map(f => [f.name.toLowerCase().trim(), f]))
-      const fieldIdMap = new Map(state.fields.map(f => [String(f.id), f]))
+      const fieldMap = new Map(state.fields.map((f) => [f.name.toLowerCase().trim(), f]))
+      const fieldIdMap = new Map(state.fields.map((f) => [String(f.id), f]))
 
       // Build resolved field/div name map from old-style mismatches
       const resolvedNameMap = new Map<string, string>()
@@ -691,8 +746,8 @@ export function ScheduleTab() {
         .select('id, date')
         .eq('event_id', eventId!)
 
-      const existingDateSet = new Set((existingDates ?? []).map(d => d.date))
-      const datesToCreate = [...csvDates].filter(d => !existingDateSet.has(d)).sort()
+      const existingDateSet = new Set((existingDates ?? []).map((d) => d.date))
+      const datesToCreate = [...csvDates].filter((d) => !existingDateSet.has(d)).sort()
 
       if (datesToCreate.length > 0) {
         const inserts = datesToCreate.map((d, i) => ({
@@ -702,7 +757,9 @@ export function ScheduleTab() {
           day_number: (existingDates?.length ?? 0) + i + 1,
         }))
         await sb.from('event_dates').insert(inserts)
-        toast.success(`${datesToCreate.length} event date${datesToCreate.length !== 1 ? 's' : ''} created`)
+        toast.success(
+          `${datesToCreate.length} event date${datesToCreate.length !== 1 ? 's' : ''} created`
+        )
       }
 
       // Build event_date map for date matching (reload after potential inserts)
@@ -713,12 +770,15 @@ export function ScheduleTab() {
         .order('date')
 
       const dateMap = new Map<string, number>()
-      for (const ed of (eventDates ?? [])) {
+      for (const ed of eventDates ?? []) {
         dateMap.set(ed.date, ed.id)
         // Also map common formats
         const d = new Date(ed.date + 'T12:00:00')
         dateMap.set(`${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()}`, ed.id)
-        dateMap.set(`${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}/${d.getFullYear()}`, ed.id)
+        dateMap.set(
+          `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}/${d.getFullYear()}`,
+          ed.id
+        )
       }
 
       const gamesToInsert: any[] = []
@@ -729,7 +789,10 @@ export function ScheduleTab() {
         const row = scheduleCsvPreview.rows[i]
 
         // Skip rows with skipped values
-        if (skippedCsvValues.has(row.home_team?.toLowerCase().trim()) || skippedCsvValues.has(row.away_team?.toLowerCase().trim())) {
+        if (
+          skippedCsvValues.has(row.home_team?.toLowerCase().trim()) ||
+          skippedCsvValues.has(row.away_team?.toLowerCase().trim())
+        ) {
           gamesSkipped++
           continue
         }
@@ -745,8 +808,14 @@ export function ScheduleTab() {
         const resolvedFieldId = resolvedNameMap.get(fieldKey)
         const field = resolvedFieldId ? fieldIdMap.get(resolvedFieldId) : fieldMap.get(fieldKey)
 
-        if (!homeTeamId) { errors.push(`Row ${i + 1}: home team "${row.home_team}" not found`); continue }
-        if (!awayTeamId) { errors.push(`Row ${i + 1}: away team "${row.away_team}" not found`); continue }
+        if (!homeTeamId) {
+          errors.push(`Row ${i + 1}: home team "${row.home_team}" not found`)
+          continue
+        }
+        if (!awayTeamId) {
+          errors.push(`Row ${i + 1}: away team "${row.away_team}" not found`)
+          continue
+        }
 
         // Match date to event_date
         let eventDateId = currentDate?.id
@@ -766,7 +835,10 @@ export function ScheduleTab() {
           }
         }
 
-        if (!eventDateId) { errors.push(`Row ${i + 1}: no matching event date for "${row.date}"`); continue }
+        if (!eventDateId) {
+          errors.push(`Row ${i + 1}: no matching event date for "${row.date}"`)
+          continue
+        }
 
         // Parse time to display format
         let timeStr = row.time || ''
@@ -803,12 +875,16 @@ export function ScheduleTab() {
         if (insertErr) {
           toast.error(`Import failed: ${insertErr.message}`)
         } else {
-          toast.success(`${inserted?.length ?? gamesToInsert.length} game${gamesToInsert.length !== 1 ? 's' : ''} imported${gamesSkipped ? ` (${gamesSkipped} skipped)` : ''}`)
+          toast.success(
+            `${inserted?.length ?? gamesToInsert.length} game${gamesToInsert.length !== 1 ? 's' : ''} imported${gamesSkipped ? ` (${gamesSkipped} skipped)` : ''}`
+          )
         }
       }
 
       if (errors.length > 0) {
-        toast.error(`${errors.length} row${errors.length !== 1 ? 's' : ''} had errors — check console`)
+        toast.error(
+          `${errors.length} row${errors.length !== 1 ? 's' : ''} had errors — check console`
+        )
         console.warn('Schedule import errors:', errors)
       }
 
@@ -823,38 +899,55 @@ export function ScheduleTab() {
   }
 
   function exportScheduleCSV() {
-    const headers = ['date', 'time', 'home_team', 'away_team', 'division', 'field', 'status', 'home_score', 'away_score']
+    const headers = [
+      'date',
+      'time',
+      'home_team',
+      'away_team',
+      'division',
+      'field',
+      'status',
+      'home_score',
+      'away_score',
+    ]
     const csvRows = [headers.join(',')]
     for (const g of filtered) {
       const homeName = g.home_team?.name ?? ''
       const awayName = g.away_team?.name ?? ''
       const fieldName = g.field?.name ?? ''
       const dateStr = currentDate?.date ?? ''
-      csvRows.push([
-        `"${dateStr}"`,
-        `"${g.scheduled_time}"`,
-        `"${homeName.replace(/"/g, '""')}"`,
-        `"${awayName.replace(/"/g, '""')}"`,
-        `"${g.division}"`,
-        `"${fieldName.replace(/"/g, '""')}"`,
-        `"${g.status}"`,
-        `"${g.home_score ?? 0}"`,
-        `"${g.away_score ?? 0}"`,
-      ].join(','))
+      csvRows.push(
+        [
+          `"${dateStr}"`,
+          `"${g.scheduled_time}"`,
+          `"${homeName.replace(/"/g, '""')}"`,
+          `"${awayName.replace(/"/g, '""')}"`,
+          `"${g.division}"`,
+          `"${fieldName.replace(/"/g, '""')}"`,
+          `"${g.status}"`,
+          `"${g.home_score ?? 0}"`,
+          `"${g.away_score ?? 0}"`,
+        ].join(',')
+      )
     }
     const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
-    a.href = url; a.download = `schedule_export.csv`; a.click()
+    a.href = url
+    a.download = `schedule_export.csv`
+    a.click()
     URL.revokeObjectURL(url)
   }
 
   function downloadScheduleTemplate() {
-    const csv = 'date,time,home_team,away_team,division,field\n2026-03-22,08:00,Metro FC Blue,City SC Red,U12 Boys,Field 1'
+    const csv =
+      'date,time,home_team,away_team,division,field\n2026-03-22,08:00,Metro FC Blue,City SC Red,U12 Boys,Field 1'
     const blob = new Blob([csv], { type: 'text/csv' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
-    a.href = url; a.download = 'schedule_template.csv'; a.click()
+    a.href = url
+    a.download = 'schedule_template.csv'
+    a.click()
     URL.revokeObjectURL(url)
   }
 
@@ -869,6 +962,37 @@ export function ScheduleTab() {
       }))
       .filter((fc) => fc.games.length > 0)
   }, [state.fields, filtered])
+
+  // Unscheduled games for current date
+  const unscheduledGames = useMemo(() => {
+    return state.games.filter((g) => g.status === 'Unscheduled')
+  }, [state.games])
+
+  // Out-of-range games: games whose event_date falls outside event start/end
+  const outOfRangeGames = useMemo(() => {
+    if (!state.event?.start_date || !state.event?.end_date) return []
+    const start = state.event.start_date
+    const end = state.event.end_date
+    const validDateIds = new Set(state.eventDates.map((ed) => ed.id))
+    return state.games.filter((g) => {
+      // Check if event_date_id is not in the valid list
+      if (!validDateIds.has(g.event_date_id)) return true
+      // Check if the associated date is outside event window
+      const ed = state.eventDates.find((d) => d.id === g.event_date_id)
+      if (ed && (ed.date < start || ed.date > end)) return true
+      return false
+    })
+  }, [state.games, state.event, state.eventDates])
+
+  async function handleUnschedule(gameId: number) {
+    await updateGameStatus(gameId, 'Unscheduled')
+    toast.success(`Game #${gameId} moved to Unscheduled`)
+  }
+
+  async function handleDeleteGame(gameId: number) {
+    await deleteGame(gameId)
+    toast.success(`Game #${gameId} deleted`)
+  }
 
   if (!eventId) return null
 
@@ -941,7 +1065,8 @@ export function ScheduleTab() {
                 const unassigned = new Map<string, typeof state.teams>()
 
                 for (const team of state.teams) {
-                  const progName = (team as any).programs?.name || (team as any).program_name || null
+                  const progName =
+                    (team as any).programs?.name || (team as any).program_name || null
                   const div = team.division || 'Unassigned'
 
                   if (progName) {
@@ -955,7 +1080,7 @@ export function ScheduleTab() {
                   }
                 }
 
-                const renderTeam = (team: typeof state.teams[0]) => {
+                const renderTeam = (team: (typeof state.teams)[0]) => {
                   const isFollowed = followedSet.has(team.id)
                   return (
                     <button
@@ -966,7 +1091,12 @@ export function ScheduleTab() {
                         isFollowed ? 'bg-blue-900/30 text-blue-300' : 'hover:bg-white/5 text-white'
                       )}
                     >
-                      <Star size={9} className={cn(isFollowed ? 'text-yellow-400 fill-yellow-400' : 'text-muted')} />
+                      <Star
+                        size={9}
+                        className={cn(
+                          isFollowed ? 'text-yellow-400 fill-yellow-400' : 'text-muted'
+                        )}
+                      />
                       <span className="truncate">{team.name}</span>
                     </button>
                   )
@@ -974,34 +1104,40 @@ export function ScheduleTab() {
 
                 return (
                   <>
-                    {[...programs.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([progName, divMap]) => (
-                      <div key={progName}>
-                        <div className="font-cond text-[9px] font-black tracking-widest text-muted px-3 pt-2 pb-0.5 bg-navy/30 border-b border-border/30 uppercase">
-                          {progName}
-                        </div>
-                        {[...divMap.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([div, teams]) => (
-                          <div key={div}>
-                            <div className="font-cond text-[8px] font-bold tracking-wider text-muted/70 pl-4 pt-1.5 pb-0.5 uppercase">
-                              {div}
-                            </div>
-                            {teams.sort((a, b) => a.name.localeCompare(b.name)).map(renderTeam)}
+                    {[...programs.entries()]
+                      .sort((a, b) => a[0].localeCompare(b[0]))
+                      .map(([progName, divMap]) => (
+                        <div key={progName}>
+                          <div className="font-cond text-[9px] font-black tracking-widest text-muted px-3 pt-2 pb-0.5 bg-navy/30 border-b border-border/30 uppercase">
+                            {progName}
                           </div>
-                        ))}
-                      </div>
-                    ))}
+                          {[...divMap.entries()]
+                            .sort((a, b) => a[0].localeCompare(b[0]))
+                            .map(([div, teams]) => (
+                              <div key={div}>
+                                <div className="font-cond text-[8px] font-bold tracking-wider text-muted/70 pl-4 pt-1.5 pb-0.5 uppercase">
+                                  {div}
+                                </div>
+                                {teams.sort((a, b) => a.name.localeCompare(b.name)).map(renderTeam)}
+                              </div>
+                            ))}
+                        </div>
+                      ))}
                     {unassigned.size > 0 && (
                       <div>
                         <div className="font-cond text-[9px] font-black tracking-widest text-muted px-3 pt-2 pb-0.5 bg-navy/30 border-b border-border/30 uppercase">
                           Unassigned
                         </div>
-                        {[...unassigned.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([div, teams]) => (
-                          <div key={div}>
-                            <div className="font-cond text-[8px] font-bold tracking-wider text-muted/70 pl-4 pt-1.5 pb-0.5 uppercase">
-                              {div}
+                        {[...unassigned.entries()]
+                          .sort((a, b) => a[0].localeCompare(b[0]))
+                          .map(([div, teams]) => (
+                            <div key={div}>
+                              <div className="font-cond text-[8px] font-bold tracking-wider text-muted/70 pl-4 pt-1.5 pb-0.5 uppercase">
+                                {div}
+                              </div>
+                              {teams.sort((a, b) => a.name.localeCompare(b.name)).map(renderTeam)}
                             </div>
-                            {teams.sort((a, b) => a.name.localeCompare(b.name)).map(renderTeam)}
-                          </div>
-                        ))}
+                          ))}
                       </div>
                     )}
                   </>
@@ -1107,10 +1243,22 @@ export function ScheduleTab() {
         <Btn size="sm" variant="ghost" onClick={exportScheduleCSV} disabled={filtered.length === 0}>
           <Download size={11} className="inline mr-1" /> EXPORT CSV
         </Btn>
-        <button onClick={downloadScheduleTemplate} className="font-cond text-[11px] text-blue-400 hover:text-blue-300 flex items-center gap-1">
+        <button
+          onClick={downloadScheduleTemplate}
+          className="font-cond text-[11px] text-blue-400 hover:text-blue-300 flex items-center gap-1"
+        >
           <Download size={10} /> Template
         </button>
-        <input ref={scheduleFileRef} type="file" accept=".csv" className="hidden" onChange={(e) => { if (e.target.files?.[0]) handleScheduleCSVFile(e.target.files[0]); e.target.value = '' }} />
+        <input
+          ref={scheduleFileRef}
+          type="file"
+          accept=".csv"
+          className="hidden"
+          onChange={(e) => {
+            if (e.target.files?.[0]) handleScheduleCSVFile(e.target.files[0])
+            e.target.value = ''
+          }}
+        />
 
         <div className="ml-auto flex items-center gap-2">
           {/* Conflict badge */}
@@ -1213,30 +1361,43 @@ export function ScheduleTab() {
               <div className="p-3 space-y-1.5 max-h-64 overflow-y-auto">
                 {auditLog.map((entry, idx) => (
                   <div key={idx} className="flex items-start gap-2 text-[11px]">
-                    <span className={cn(
-                      'font-cond font-bold tracking-wider px-1.5 py-0.5 rounded text-[9px] uppercase flex-shrink-0 mt-0.5',
-                      entry.run_type === 'error' ? 'bg-red-900/40 text-red-400' :
-                      entry.run_type === 'warning' ? 'bg-yellow-900/40 text-yellow-400' :
-                      entry.run_type === 'generate' ? 'bg-green-900/40 text-green-400' :
-                      'bg-gray-800 text-gray-400'
-                    )}>
+                    <span
+                      className={cn(
+                        'font-cond font-bold tracking-wider px-1.5 py-0.5 rounded text-[9px] uppercase flex-shrink-0 mt-0.5',
+                        entry.run_type === 'error'
+                          ? 'bg-red-900/40 text-red-400'
+                          : entry.run_type === 'warning'
+                            ? 'bg-yellow-900/40 text-yellow-400'
+                            : entry.run_type === 'generate'
+                              ? 'bg-green-900/40 text-green-400'
+                              : 'bg-gray-800 text-gray-400'
+                      )}
+                    >
                       {entry.run_type}
                     </span>
                     <div className="flex-1 min-w-0">
                       <div className="text-gray-300">
                         {entry.games_created != null && (
-                          <span className="text-white font-bold">{entry.games_created} games created</span>
+                          <span className="text-white font-bold">
+                            {entry.games_created} games created
+                          </span>
                         )}
                         {entry.validation_errors > 0 && (
-                          <span className="text-red-400 ml-2">{entry.validation_errors} errors</span>
+                          <span className="text-red-400 ml-2">
+                            {entry.validation_errors} errors
+                          </span>
                         )}
                         {entry.validation_warnings > 0 && (
-                          <span className="text-yellow-400 ml-2">{entry.validation_warnings} warnings</span>
+                          <span className="text-yellow-400 ml-2">
+                            {entry.validation_warnings} warnings
+                          </span>
                         )}
                       </div>
                       {entry.summary && (
                         <div className="text-gray-500 text-[10px]">
-                          {entry.summary.totalGames} total games, {entry.summary.totalTeams} teams, games/team: {entry.summary.gamesPerTeamMin}–{entry.summary.gamesPerTeamMax}
+                          {entry.summary.totalGames} total games, {entry.summary.totalTeams} teams,
+                          games/team: {entry.summary.gamesPerTeamMin}–
+                          {entry.summary.gamesPerTeamMax}
                         </div>
                       )}
                     </div>
@@ -1392,7 +1553,9 @@ export function ScheduleTab() {
                               variant="outline"
                               size="sm"
                               disabled={pendingRequestGameIds.has(game.id)}
-                              title={pendingRequestGameIds.has(game.id) ? 'Request pending' : undefined}
+                              title={
+                                pendingRequestGameIds.has(game.id) ? 'Request pending' : undefined
+                              }
                               aria-label="Request a schedule change for this game"
                               onClick={() => {
                                 setScrPreSelectedGameId(game.id)
@@ -1414,6 +1577,35 @@ export function ScheduleTab() {
         </div>
       )}
 
+      {/* ── OUT-OF-RANGE WARNING ── */}
+      {outOfRangeGames.length > 0 && userRole?.role === 'admin' && (
+        <div className="mb-4 rounded-lg border border-yellow-700/50 bg-yellow-900/20 px-4 py-3">
+          <div className="flex items-center gap-2">
+            <AlertTriangle size={14} className="text-yellow-400 flex-shrink-0" />
+            <span className="font-cond text-[12px] font-bold text-yellow-300">
+              {outOfRangeGames.length} game{outOfRangeGames.length > 1 ? 's' : ''} scheduled outside
+              allowed dates
+            </span>
+          </div>
+          <div className="mt-2 space-y-1">
+            {outOfRangeGames.slice(0, 5).map((g) => {
+              const ed = state.eventDates.find((d) => d.id === g.event_date_id)
+              return (
+                <div key={g.id} className="text-[11px] text-yellow-200/70 pl-5">
+                  Game #{g.id}: {g.home_team?.name ?? 'TBD'} vs {g.away_team?.name ?? 'TBD'}
+                  {ed ? ` — ${ed.date} (${ed.label})` : ' — unknown date'}
+                </div>
+              )
+            })}
+            {outOfRangeGames.length > 5 && (
+              <div className="text-[11px] text-yellow-200/50 pl-5">
+                + {outOfRangeGames.length - 5} more
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* ── BOARD VIEW ── */}
       {viewMode === 'board' && (
         <ScheduleBoardView
@@ -1430,6 +1622,9 @@ export function ScheduleTab() {
             setScrPreSelectedGameId(gameId)
             setScrModalOpen(true)
           }}
+          unscheduledGames={unscheduledGames}
+          onUnschedule={userRole?.role === 'admin' ? handleUnschedule : undefined}
+          onDelete={userRole?.role === 'admin' ? handleDeleteGame : undefined}
         />
       )}
 
@@ -1523,11 +1718,21 @@ export function ScheduleTab() {
       {/* Generate schedule confirmation modal */}
       <Modal
         open={genOpen}
-        onClose={() => { setGenOpen(false); setValidationResult(null) }}
+        onClose={() => {
+          setGenOpen(false)
+          setValidationResult(null)
+        }}
         title="GENERATE SCHEDULE"
         footer={
           <>
-            <Btn variant="ghost" size="sm" onClick={() => { setGenOpen(false); setValidationResult(null) }}>
+            <Btn
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setGenOpen(false)
+                setValidationResult(null)
+              }}
+            >
               CANCEL
             </Btn>
             {!validationResult ? (
@@ -1535,7 +1740,12 @@ export function ScheduleTab() {
                 {dryRunning ? 'VALIDATING...' : 'VALIDATE & PREVIEW'}
               </Btn>
             ) : validationResult.errors.length === 0 ? (
-              <Btn variant="primary" size="sm" onClick={handleGenerateSchedule} disabled={generating}>
+              <Btn
+                variant="primary"
+                size="sm"
+                onClick={handleGenerateSchedule}
+                disabled={generating}
+              >
                 {generating ? 'GENERATING...' : 'ACCEPT & GENERATE'}
               </Btn>
             ) : (
@@ -1567,12 +1777,15 @@ export function ScheduleTab() {
           {state.games.length > 0 && (
             <div className="bg-yellow-900/30 border border-yellow-700/40 rounded-lg px-3 py-2 text-[12px] text-yellow-300 flex items-center gap-2">
               <AlertTriangle size={14} />
-              {state.games.length} existing games will not be removed. New games will be added alongside them.
+              {state.games.length} existing games will not be removed. New games will be added
+              alongside them.
             </div>
           )}
           {!validationResult && (
             <p className="text-[11px] text-muted">
-              Games are generated using round-robin within each division and assigned to available time slots across all event dates and fields. Click "Validate & Preview" to run a dry run first.
+              Games are generated using round-robin within each division and assigned to available
+              time slots across all event dates and fields. Click "Validate & Preview" to run a dry
+              run first.
             </p>
           )}
 
@@ -1580,19 +1793,25 @@ export function ScheduleTab() {
           {validationResult && (
             <div className="mt-4 space-y-3">
               <div className="text-xs font-cond tracking-wider text-gray-400">
-                VALIDATION RESULTS — {validationResult.summary.totalGames} games, {validationResult.summary.totalTeams} teams
+                VALIDATION RESULTS — {validationResult.summary.totalGames} games,{' '}
+                {validationResult.summary.totalTeams} teams
               </div>
 
               {validationResult.errors.length > 0 && (
                 <div className="bg-red-900/20 border border-red-700/50 rounded p-3">
                   <div className="text-red-400 font-cond text-sm font-bold mb-1">
-                    {validationResult.errors.length} ERROR{validationResult.errors.length !== 1 ? 'S' : ''}
+                    {validationResult.errors.length} ERROR
+                    {validationResult.errors.length !== 1 ? 'S' : ''}
                   </div>
                   {validationResult.errors.slice(0, 10).map((e: any, i: number) => (
-                    <div key={i} className="text-xs text-red-300 py-0.5">{e.message}</div>
+                    <div key={i} className="text-xs text-red-300 py-0.5">
+                      {e.message}
+                    </div>
                   ))}
                   {validationResult.errors.length > 10 && (
-                    <div className="text-xs text-red-400 pt-1">...and {validationResult.errors.length - 10} more</div>
+                    <div className="text-xs text-red-400 pt-1">
+                      ...and {validationResult.errors.length - 10} more
+                    </div>
                   )}
                 </div>
               )}
@@ -1600,13 +1819,18 @@ export function ScheduleTab() {
               {validationResult.warnings.length > 0 && (
                 <div className="bg-yellow-900/20 border border-yellow-700/50 rounded p-3">
                   <div className="text-yellow-400 font-cond text-sm font-bold mb-1">
-                    {validationResult.warnings.length} WARNING{validationResult.warnings.length !== 1 ? 'S' : ''}
+                    {validationResult.warnings.length} WARNING
+                    {validationResult.warnings.length !== 1 ? 'S' : ''}
                   </div>
                   {validationResult.warnings.slice(0, 10).map((e: any, i: number) => (
-                    <div key={i} className="text-xs text-yellow-300 py-0.5">{e.message}</div>
+                    <div key={i} className="text-xs text-yellow-300 py-0.5">
+                      {e.message}
+                    </div>
                   ))}
                   {validationResult.warnings.length > 10 && (
-                    <div className="text-xs text-yellow-400 pt-1">...and {validationResult.warnings.length - 10} more</div>
+                    <div className="text-xs text-yellow-400 pt-1">
+                      ...and {validationResult.warnings.length - 10} more
+                    </div>
                   )}
                 </div>
               )}
@@ -1619,12 +1843,17 @@ export function ScheduleTab() {
 
               {/* Team metrics summary */}
               <div className="text-xs text-gray-400">
-                Games per team: {validationResult.summary.gamesPerTeamMin}–{validationResult.summary.gamesPerTeamMax}
+                Games per team: {validationResult.summary.gamesPerTeamMin}–
+                {validationResult.summary.gamesPerTeamMax}
                 {validationResult.summary.hardViolations > 0 && (
-                  <span className="text-red-400 ml-2">{validationResult.summary.hardViolations} hard violations</span>
+                  <span className="text-red-400 ml-2">
+                    {validationResult.summary.hardViolations} hard violations
+                  </span>
                 )}
                 {validationResult.summary.softViolations > 0 && (
-                  <span className="text-yellow-400 ml-2">{validationResult.summary.softViolations} soft violations</span>
+                  <span className="text-yellow-400 ml-2">
+                    {validationResult.summary.softViolations} soft violations
+                  </span>
                 )}
               </div>
             </div>
@@ -1638,275 +1867,411 @@ export function ScheduleTab() {
           <div className="bg-surface-card border border-border rounded-xl w-full max-w-5xl max-h-[90vh] flex flex-col shadow-xl overflow-hidden">
             <div className="flex items-center justify-between px-5 py-3 border-b border-border">
               <div className="font-cond font-black text-[14px] text-white tracking-wider">
-                IMPORT SCHEDULE — {scheduleCsvPreview.rows.length} game{scheduleCsvPreview.rows.length !== 1 ? 's' : ''}
+                IMPORT SCHEDULE — {scheduleCsvPreview.rows.length} game
+                {scheduleCsvPreview.rows.length !== 1 ? 's' : ''}
               </div>
-              <button onClick={() => { setScheduleCsvPreview(null); setCsvMismatches([]); setResolverEntries([]) }} className="text-muted hover:text-white">
+              <button
+                onClick={() => {
+                  setScheduleCsvPreview(null)
+                  setCsvMismatches([])
+                  setResolverEntries([])
+                }}
+                className="text-muted hover:text-white"
+              >
                 <X size={16} />
               </button>
             </div>
 
             <div className="flex-1 overflow-y-auto">
-            {scheduleCsvPreview.warnings.length > 0 && (
-              <div className="px-5 py-2 bg-yellow-900/20 border-b border-yellow-800/30">
-                <div className="flex items-center gap-1.5 font-cond text-[11px] font-bold text-yellow-400 mb-1">
-                  <AlertTriangle size={12} /> WARNINGS
-                </div>
-                {scheduleCsvPreview.warnings.map((w, i) => (
-                  <div key={i} className="font-cond text-[11px] text-yellow-300/80">{w}</div>
-                ))}
-              </div>
-            )}
-
-            {/* Field/Division Mismatch Resolver (old style) */}
-            {csvMismatches.length > 0 && (
-              <div className="px-5 py-3 bg-yellow-900/20 border-b border-yellow-700/50">
-                <div className="text-yellow-400 font-cond text-sm font-bold mb-2">
-                  {csvMismatches.length} UNMATCHED FIELD/DIVISION NAME{csvMismatches.length !== 1 ? 'S' : ''}
-                </div>
-                {csvMismatches.map((mismatch, i) => (
-                  <div key={i} className="flex items-center gap-2 py-1">
-                    <span className="font-cond text-[9px] font-bold tracking-wider px-1.5 py-0.5 rounded bg-[#1a2d50] text-muted uppercase">{mismatch.column}</span>
-                    <span className="text-red-400 text-xs font-mono">{mismatch.csvValue}</span>
-                    <span className="text-gray-500 text-xs">&rarr;</span>
-                    <select
-                      className="bg-[#081428] border border-[#1a2d50] text-white px-2 py-0.5 rounded text-xs outline-none focus:border-blue-400 transition-colors"
-                      value={mismatch.resolvedTo ?? ''}
-                      onChange={e => resolveCsvMismatch(i, e.target.value)}
-                    >
-                      <option value="">-- Select match --</option>
-                      <option value="__skip__">Skip rows with this value</option>
-                      {mismatch.suggestions.map(s => (
-                        <option key={s.id} value={String(s.id)}>{s.name} {s.score < 1 ? `(${Math.round(s.score * 100)}% match)` : ''}</option>
-                      ))}
-                    </select>
-                    {mismatch.resolvedTo === '__skip__' && <XCircle size={12} className="text-red-400" />}
-                    {mismatch.resolvedTo && mismatch.resolvedTo !== '__skip__' && <CheckCircle size={12} className="text-green-400" />}
-                    {!mismatch.resolvedTo && <AlertTriangle size={12} className="text-yellow-400" />}
+              {scheduleCsvPreview.warnings.length > 0 && (
+                <div className="px-5 py-2 bg-yellow-900/20 border-b border-yellow-800/30">
+                  <div className="flex items-center gap-1.5 font-cond text-[11px] font-bold text-yellow-400 mb-1">
+                    <AlertTriangle size={12} /> WARNINGS
                   </div>
-                ))}
-              </div>
-            )}
-
-            {/* Enhanced Team Resolver */}
-            {resolverEntries.length > 0 && (
-              <div className="px-5 py-3 border-b border-border bg-navy/20">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="font-cond font-black text-[13px] text-white tracking-wider">
-                    {resolverEntries.length} UNMATCHED TEAM{resolverEntries.length !== 1 ? 'S' : ''}
-                    <span className="text-muted font-normal ml-2">
-                      Resolved: {resolvedTeamCount}/{resolverEntries.length}
-                    </span>
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={bulkAutoCreateAll}
-                      className="font-cond text-[10px] font-black tracking-wider px-3 py-1.5 rounded border border-green-700/50 bg-green-900/30 text-green-400 hover:bg-green-900/50 transition-colors"
-                    >
-                      <Plus size={10} className="inline mr-1" />
-                      AUTO-CREATE ALL
-                    </button>
-                    <button
-                      onClick={bulkBestMatchAll}
-                      className="font-cond text-[10px] font-black tracking-wider px-3 py-1.5 rounded border border-blue-700/50 bg-blue-900/30 text-blue-400 hover:bg-blue-900/50 transition-colors"
-                    >
-                      BEST MATCH ALL
-                    </button>
-                    <button
-                      onClick={bulkSkipAll}
-                      className="font-cond text-[10px] font-black tracking-wider px-3 py-1.5 rounded border border-border bg-surface-card text-muted hover:text-white transition-colors"
-                    >
-                      SKIP ALL
-                    </button>
-                  </div>
+                  {scheduleCsvPreview.warnings.map((w, i) => (
+                    <div key={i} className="font-cond text-[11px] text-yellow-300/80">
+                      {w}
+                    </div>
+                  ))}
                 </div>
+              )}
 
-                <div className="space-y-2">
-                  {resolverEntries.map((entry, i) => {
-                    const divisionNames = [...new Set(state.teams.map(t => t.division).filter(Boolean))]
-                    return (
-                      <div key={i} className={cn(
-                        'rounded-lg border p-3',
-                        entry.action === 'create' ? 'border-green-700/40 bg-green-900/10' :
-                        entry.action === 'map' ? 'border-blue-700/40 bg-blue-900/10' :
-                        entry.action === 'skip' ? 'border-border/50 bg-surface-card/50 opacity-60' :
-                        'border-yellow-700/40 bg-yellow-900/10'
-                      )}>
-                        <div className="font-cond text-[12px] font-black text-white tracking-wider mb-2">
-                          {entry.csvValue}
-                          {entry.action === null && <AlertTriangle size={11} className="inline ml-2 text-yellow-400" />}
-                          {entry.action === 'create' && <CheckCircle size={11} className="inline ml-2 text-green-400" />}
-                          {entry.action === 'map' && <CheckCircle size={11} className="inline ml-2 text-blue-400" />}
-                          {entry.action === 'skip' && <XCircle size={11} className="inline ml-2 text-muted" />}
-                        </div>
-
-                        <div className="flex flex-col gap-2">
-                          {/* Option 1: Create */}
-                          <label className="flex items-start gap-2 cursor-pointer">
-                            <input
-                              type="radio"
-                              name={`resolver-${i}`}
-                              checked={entry.action === 'create'}
-                              onChange={() => setResolverAction(i, 'create')}
-                              className="mt-0.5 accent-green-500"
-                            />
-                            <div className="flex-1">
-                              <span className="font-cond text-[11px] font-bold text-green-400">
-                                CREATE NEW TEAM
-                              </span>
-                              {entry.action === 'create' && (
-                                <div className="mt-1 flex flex-wrap gap-2">
-                                  <div className="flex items-center gap-1">
-                                    <span className="font-cond text-[9px] text-muted tracking-wider">DIVISION:</span>
-                                    <select
-                                      className="bg-[#081428] border border-[#1a2d50] text-white px-1.5 py-0.5 rounded text-[10px] outline-none focus:border-green-400"
-                                      value={entry.detectedDivision ?? ''}
-                                      onChange={e => setResolverDivision(i, e.target.value)}
-                                    >
-                                      <option value="">-- None --</option>
-                                      {divisionNames.map(d => (
-                                        <option key={d} value={d}>{d}</option>
-                                      ))}
-                                    </select>
-                                    {entry.detectedDivision && (
-                                      <span className="font-cond text-[9px] text-green-400/70">(auto-detected)</span>
-                                    )}
-                                  </div>
-                                  <div className="flex items-center gap-1">
-                                    <span className="font-cond text-[9px] text-muted tracking-wider">PROGRAM:</span>
-                                    <select
-                                      className="bg-[#081428] border border-[#1a2d50] text-white px-1.5 py-0.5 rounded text-[10px] outline-none focus:border-green-400"
-                                      value={entry.detectedProgram ? String(entry.detectedProgram.id) : ''}
-                                      onChange={e => setResolverProgram(i, e.target.value)}
-                                    >
-                                      <option value="">-- None --</option>
-                                      {csvPrograms.map(p => (
-                                        <option key={p.id} value={String(p.id)}>{p.name}</option>
-                                      ))}
-                                    </select>
-                                    {entry.detectedProgram && (
-                                      <span className="font-cond text-[9px] text-green-400/70">(auto-detected)</span>
-                                    )}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          </label>
-
-                          {/* Option 2: Map */}
-                          <label className="flex items-start gap-2 cursor-pointer">
-                            <input
-                              type="radio"
-                              name={`resolver-${i}`}
-                              checked={entry.action === 'map'}
-                              onChange={() => setResolverAction(i, 'map', entry.suggestions[0] ? String(entry.suggestions[0].id) : undefined)}
-                              className="mt-0.5 accent-blue-500"
-                            />
-                            <div className="flex-1 flex items-center gap-2">
-                              <span className="font-cond text-[11px] font-bold text-blue-400">MAP TO EXISTING:</span>
-                              <select
-                                className="bg-[#081428] border border-[#1a2d50] text-white px-1.5 py-0.5 rounded text-[10px] outline-none focus:border-blue-400 max-w-[220px]"
-                                value={entry.mapToId ?? ''}
-                                onChange={e => setResolverMapId(i, e.target.value)}
-                                disabled={entry.action !== 'map'}
-                              >
-                                <option value="">-- Select team --</option>
-                                {entry.suggestions.length > 0 && (
-                                  <optgroup label="Best matches">
-                                    {entry.suggestions.map(s => (
-                                      <option key={s.id} value={String(s.id)}>{s.name} ({Math.round(s.score * 100)}%)</option>
-                                    ))}
-                                  </optgroup>
-                                )}
-                                <optgroup label="All teams">
-                                  {state.teams.slice().sort((a, b) => a.name.localeCompare(b.name)).map(t => (
-                                    <option key={t.id} value={String(t.id)}>{t.name} — {t.division}</option>
-                                  ))}
-                                </optgroup>
-                              </select>
-                            </div>
-                          </label>
-
-                          {/* Option 3: Skip */}
-                          <label className="flex items-center gap-2 cursor-pointer">
-                            <input
-                              type="radio"
-                              name={`resolver-${i}`}
-                              checked={entry.action === 'skip'}
-                              onChange={() => setResolverAction(i, 'skip')}
-                              className="accent-gray-500"
-                            />
-                            <span className="font-cond text-[11px] font-bold text-muted">SKIP</span>
-                          </label>
-                        </div>
-                      </div>
-                    )
-                  })}
+              {/* Field/Division Mismatch Resolver (old style) */}
+              {csvMismatches.length > 0 && (
+                <div className="px-5 py-3 bg-yellow-900/20 border-b border-yellow-700/50">
+                  <div className="text-yellow-400 font-cond text-sm font-bold mb-2">
+                    {csvMismatches.length} UNMATCHED FIELD/DIVISION NAME
+                    {csvMismatches.length !== 1 ? 'S' : ''}
+                  </div>
+                  {csvMismatches.map((mismatch, i) => (
+                    <div key={i} className="flex items-center gap-2 py-1">
+                      <span className="font-cond text-[9px] font-bold tracking-wider px-1.5 py-0.5 rounded bg-[#1a2d50] text-muted uppercase">
+                        {mismatch.column}
+                      </span>
+                      <span className="text-red-400 text-xs font-mono">{mismatch.csvValue}</span>
+                      <span className="text-gray-500 text-xs">&rarr;</span>
+                      <select
+                        className="bg-[#081428] border border-[#1a2d50] text-white px-2 py-0.5 rounded text-xs outline-none focus:border-blue-400 transition-colors"
+                        value={mismatch.resolvedTo ?? ''}
+                        onChange={(e) => resolveCsvMismatch(i, e.target.value)}
+                      >
+                        <option value="">-- Select match --</option>
+                        <option value="__skip__">Skip rows with this value</option>
+                        {mismatch.suggestions.map((s) => (
+                          <option key={s.id} value={String(s.id)}>
+                            {s.name} {s.score < 1 ? `(${Math.round(s.score * 100)}% match)` : ''}
+                          </option>
+                        ))}
+                      </select>
+                      {mismatch.resolvedTo === '__skip__' && (
+                        <XCircle size={12} className="text-red-400" />
+                      )}
+                      {mismatch.resolvedTo && mismatch.resolvedTo !== '__skip__' && (
+                        <CheckCircle size={12} className="text-green-400" />
+                      )}
+                      {!mismatch.resolvedTo && (
+                        <AlertTriangle size={12} className="text-yellow-400" />
+                      )}
+                    </div>
+                  ))}
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* Data table - only show if no resolver entries or all resolved */}
-            {(resolverEntries.length === 0 || resolvedTeamCount === resolverEntries.length) && (
-              <div className="flex-1 overflow-auto px-5 py-3">
-                <table className="w-full text-[11px]">
-                  <thead>
-                    <tr className="border-b border-border">
-                      <th className="font-cond font-bold text-muted text-left py-1.5 pr-3">#</th>
-                      {Object.keys(scheduleCsvPreview.rows[0] || {}).map(col => (
-                        <th key={col} className="font-cond font-bold text-muted text-left py-1.5 pr-3">
-                          {col.toUpperCase().replace(/_/g, ' ')}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {scheduleCsvPreview.rows.map((row, i) => {
-                      const isSkipped = skippedCsvValues.has(row.home_team?.toLowerCase().trim()) || skippedCsvValues.has(row.away_team?.toLowerCase().trim())
+              {/* Enhanced Team Resolver */}
+              {resolverEntries.length > 0 && (
+                <div className="px-5 py-3 border-b border-border bg-navy/20">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="font-cond font-black text-[13px] text-white tracking-wider">
+                      {resolverEntries.length} UNMATCHED TEAM
+                      {resolverEntries.length !== 1 ? 'S' : ''}
+                      <span className="text-muted font-normal ml-2">
+                        Resolved: {resolvedTeamCount}/{resolverEntries.length}
+                      </span>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={bulkAutoCreateAll}
+                        className="font-cond text-[10px] font-black tracking-wider px-3 py-1.5 rounded border border-green-700/50 bg-green-900/30 text-green-400 hover:bg-green-900/50 transition-colors"
+                      >
+                        <Plus size={10} className="inline mr-1" />
+                        AUTO-CREATE ALL
+                      </button>
+                      <button
+                        onClick={bulkBestMatchAll}
+                        className="font-cond text-[10px] font-black tracking-wider px-3 py-1.5 rounded border border-blue-700/50 bg-blue-900/30 text-blue-400 hover:bg-blue-900/50 transition-colors"
+                      >
+                        BEST MATCH ALL
+                      </button>
+                      <button
+                        onClick={bulkSkipAll}
+                        className="font-cond text-[10px] font-black tracking-wider px-3 py-1.5 rounded border border-border bg-surface-card text-muted hover:text-white transition-colors"
+                      >
+                        SKIP ALL
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    {resolverEntries.map((entry, i) => {
+                      const divisionNames = [
+                        ...new Set(state.teams.map((t) => t.division).filter(Boolean)),
+                      ]
                       return (
-                        <tr key={i} className={cn('border-b border-border/50', isSkipped ? 'bg-red-900/10 opacity-50' : 'hover:bg-navy/20')}>
-                          <td className="font-cond text-muted py-1.5 pr-3">{i + 1}</td>
-                          {Object.entries(row).map(([col, val], j) => {
-                            const valLower = (val || '').toLowerCase().trim()
-                            const isTeamCreate = resolverEntries.some(e => e.csvValue.toLowerCase().trim() === valLower && e.action === 'create')
-                            const isTeamMap = resolverEntries.some(e => e.csvValue.toLowerCase().trim() === valLower && e.action === 'map')
-                            const isTeamSkip = resolverEntries.some(e => e.csvValue.toLowerCase().trim() === valLower && e.action === 'skip')
-                            const hasMismatch = csvMismatches.some(m => m.csvValue.toLowerCase().trim() === valLower && !m.resolvedTo)
-                            const isResolved = csvMismatches.some(m => m.csvValue.toLowerCase().trim() === valLower && m.resolvedTo && m.resolvedTo !== '__skip__')
-                            return (
-                              <td key={j} className={cn(
-                                'font-cond py-1.5 pr-3',
-                                isTeamCreate ? 'text-green-400' :
-                                isTeamMap ? 'text-blue-400' :
-                                isTeamSkip ? 'text-muted line-through' :
-                                hasMismatch ? 'text-yellow-400' :
-                                isResolved ? 'text-green-400' :
-                                'text-white'
-                              )}>
-                                {val || <span className="text-muted italic">&mdash;</span>}
-                              </td>
-                            )
-                          })}
-                        </tr>
+                        <div
+                          key={i}
+                          className={cn(
+                            'rounded-lg border p-3',
+                            entry.action === 'create'
+                              ? 'border-green-700/40 bg-green-900/10'
+                              : entry.action === 'map'
+                                ? 'border-blue-700/40 bg-blue-900/10'
+                                : entry.action === 'skip'
+                                  ? 'border-border/50 bg-surface-card/50 opacity-60'
+                                  : 'border-yellow-700/40 bg-yellow-900/10'
+                          )}
+                        >
+                          <div className="font-cond text-[12px] font-black text-white tracking-wider mb-2">
+                            {entry.csvValue}
+                            {entry.action === null && (
+                              <AlertTriangle size={11} className="inline ml-2 text-yellow-400" />
+                            )}
+                            {entry.action === 'create' && (
+                              <CheckCircle size={11} className="inline ml-2 text-green-400" />
+                            )}
+                            {entry.action === 'map' && (
+                              <CheckCircle size={11} className="inline ml-2 text-blue-400" />
+                            )}
+                            {entry.action === 'skip' && (
+                              <XCircle size={11} className="inline ml-2 text-muted" />
+                            )}
+                          </div>
+
+                          <div className="flex flex-col gap-2">
+                            {/* Option 1: Create */}
+                            <label className="flex items-start gap-2 cursor-pointer">
+                              <input
+                                type="radio"
+                                name={`resolver-${i}`}
+                                checked={entry.action === 'create'}
+                                onChange={() => setResolverAction(i, 'create')}
+                                className="mt-0.5 accent-green-500"
+                              />
+                              <div className="flex-1">
+                                <span className="font-cond text-[11px] font-bold text-green-400">
+                                  CREATE NEW TEAM
+                                </span>
+                                {entry.action === 'create' && (
+                                  <div className="mt-1 flex flex-wrap gap-2">
+                                    <div className="flex items-center gap-1">
+                                      <span className="font-cond text-[9px] text-muted tracking-wider">
+                                        DIVISION:
+                                      </span>
+                                      <select
+                                        className="bg-[#081428] border border-[#1a2d50] text-white px-1.5 py-0.5 rounded text-[10px] outline-none focus:border-green-400"
+                                        value={entry.detectedDivision ?? ''}
+                                        onChange={(e) => setResolverDivision(i, e.target.value)}
+                                      >
+                                        <option value="">-- None --</option>
+                                        {divisionNames.map((d) => (
+                                          <option key={d} value={d}>
+                                            {d}
+                                          </option>
+                                        ))}
+                                      </select>
+                                      {entry.detectedDivision && (
+                                        <span className="font-cond text-[9px] text-green-400/70">
+                                          (auto-detected)
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                      <span className="font-cond text-[9px] text-muted tracking-wider">
+                                        PROGRAM:
+                                      </span>
+                                      <select
+                                        className="bg-[#081428] border border-[#1a2d50] text-white px-1.5 py-0.5 rounded text-[10px] outline-none focus:border-green-400"
+                                        value={
+                                          entry.detectedProgram
+                                            ? String(entry.detectedProgram.id)
+                                            : ''
+                                        }
+                                        onChange={(e) => setResolverProgram(i, e.target.value)}
+                                      >
+                                        <option value="">-- None --</option>
+                                        {csvPrograms.map((p) => (
+                                          <option key={p.id} value={String(p.id)}>
+                                            {p.name}
+                                          </option>
+                                        ))}
+                                      </select>
+                                      {entry.detectedProgram && (
+                                        <span className="font-cond text-[9px] text-green-400/70">
+                                          (auto-detected)
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </label>
+
+                            {/* Option 2: Map */}
+                            <label className="flex items-start gap-2 cursor-pointer">
+                              <input
+                                type="radio"
+                                name={`resolver-${i}`}
+                                checked={entry.action === 'map'}
+                                onChange={() =>
+                                  setResolverAction(
+                                    i,
+                                    'map',
+                                    entry.suggestions[0]
+                                      ? String(entry.suggestions[0].id)
+                                      : undefined
+                                  )
+                                }
+                                className="mt-0.5 accent-blue-500"
+                              />
+                              <div className="flex-1 flex items-center gap-2">
+                                <span className="font-cond text-[11px] font-bold text-blue-400">
+                                  MAP TO EXISTING:
+                                </span>
+                                <select
+                                  className="bg-[#081428] border border-[#1a2d50] text-white px-1.5 py-0.5 rounded text-[10px] outline-none focus:border-blue-400 max-w-[220px]"
+                                  value={entry.mapToId ?? ''}
+                                  onChange={(e) => setResolverMapId(i, e.target.value)}
+                                  disabled={entry.action !== 'map'}
+                                >
+                                  <option value="">-- Select team --</option>
+                                  {entry.suggestions.length > 0 && (
+                                    <optgroup label="Best matches">
+                                      {entry.suggestions.map((s) => (
+                                        <option key={s.id} value={String(s.id)}>
+                                          {s.name} ({Math.round(s.score * 100)}%)
+                                        </option>
+                                      ))}
+                                    </optgroup>
+                                  )}
+                                  <optgroup label="All teams">
+                                    {state.teams
+                                      .slice()
+                                      .sort((a, b) => a.name.localeCompare(b.name))
+                                      .map((t) => (
+                                        <option key={t.id} value={String(t.id)}>
+                                          {t.name} — {t.division}
+                                        </option>
+                                      ))}
+                                  </optgroup>
+                                </select>
+                              </div>
+                            </label>
+
+                            {/* Option 3: Skip */}
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="radio"
+                                name={`resolver-${i}`}
+                                checked={entry.action === 'skip'}
+                                onChange={() => setResolverAction(i, 'skip')}
+                                className="accent-gray-500"
+                              />
+                              <span className="font-cond text-[11px] font-bold text-muted">
+                                SKIP
+                              </span>
+                            </label>
+                          </div>
+                        </div>
                       )
                     })}
-                  </tbody>
-                </table>
-              </div>
-            )}
+                  </div>
+                </div>
+              )}
 
-            </div>{/* end scrollable body */}
+              {/* Data table - only show if no resolver entries or all resolved */}
+              {(resolverEntries.length === 0 || resolvedTeamCount === resolverEntries.length) && (
+                <div className="flex-1 overflow-auto px-5 py-3">
+                  <table className="w-full text-[11px]">
+                    <thead>
+                      <tr className="border-b border-border">
+                        <th className="font-cond font-bold text-muted text-left py-1.5 pr-3">#</th>
+                        {Object.keys(scheduleCsvPreview.rows[0] || {}).map((col) => (
+                          <th
+                            key={col}
+                            className="font-cond font-bold text-muted text-left py-1.5 pr-3"
+                          >
+                            {col.toUpperCase().replace(/_/g, ' ')}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {scheduleCsvPreview.rows.map((row, i) => {
+                        const isSkipped =
+                          skippedCsvValues.has(row.home_team?.toLowerCase().trim()) ||
+                          skippedCsvValues.has(row.away_team?.toLowerCase().trim())
+                        return (
+                          <tr
+                            key={i}
+                            className={cn(
+                              'border-b border-border/50',
+                              isSkipped ? 'bg-red-900/10 opacity-50' : 'hover:bg-navy/20'
+                            )}
+                          >
+                            <td className="font-cond text-muted py-1.5 pr-3">{i + 1}</td>
+                            {Object.entries(row).map(([col, val], j) => {
+                              const valLower = (val || '').toLowerCase().trim()
+                              const isTeamCreate = resolverEntries.some(
+                                (e) =>
+                                  e.csvValue.toLowerCase().trim() === valLower &&
+                                  e.action === 'create'
+                              )
+                              const isTeamMap = resolverEntries.some(
+                                (e) =>
+                                  e.csvValue.toLowerCase().trim() === valLower && e.action === 'map'
+                              )
+                              const isTeamSkip = resolverEntries.some(
+                                (e) =>
+                                  e.csvValue.toLowerCase().trim() === valLower &&
+                                  e.action === 'skip'
+                              )
+                              const hasMismatch = csvMismatches.some(
+                                (m) => m.csvValue.toLowerCase().trim() === valLower && !m.resolvedTo
+                              )
+                              const isResolved = csvMismatches.some(
+                                (m) =>
+                                  m.csvValue.toLowerCase().trim() === valLower &&
+                                  m.resolvedTo &&
+                                  m.resolvedTo !== '__skip__'
+                              )
+                              return (
+                                <td
+                                  key={j}
+                                  className={cn(
+                                    'font-cond py-1.5 pr-3',
+                                    isTeamCreate
+                                      ? 'text-green-400'
+                                      : isTeamMap
+                                        ? 'text-blue-400'
+                                        : isTeamSkip
+                                          ? 'text-muted line-through'
+                                          : hasMismatch
+                                            ? 'text-yellow-400'
+                                            : isResolved
+                                              ? 'text-green-400'
+                                              : 'text-white'
+                                  )}
+                                >
+                                  {val || <span className="text-muted italic">&mdash;</span>}
+                                </td>
+                              )
+                            })}
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+            {/* end scrollable body */}
             <div className="flex items-center justify-between px-5 py-3 border-t border-border shrink-0">
               <span className="font-cond text-[11px] text-muted">
-                {scheduleCsvPreview.rows.length - skippedCsvValues.size} game{(scheduleCsvPreview.rows.length - skippedCsvValues.size) !== 1 ? 's' : ''} will be imported
-                {teamsToCreate.length > 0 && <span className="text-green-400 ml-2">{teamsToCreate.length} team{teamsToCreate.length !== 1 ? 's' : ''} will be created</span>}
-                {skippedCsvValues.size > 0 && <span className="text-red-400 ml-2">({skippedCsvValues.size} skipped)</span>}
+                {scheduleCsvPreview.rows.length - skippedCsvValues.size} game
+                {scheduleCsvPreview.rows.length - skippedCsvValues.size !== 1 ? 's' : ''} will be
+                imported
+                {teamsToCreate.length > 0 && (
+                  <span className="text-green-400 ml-2">
+                    {teamsToCreate.length} team{teamsToCreate.length !== 1 ? 's' : ''} will be
+                    created
+                  </span>
+                )}
+                {skippedCsvValues.size > 0 && (
+                  <span className="text-red-400 ml-2">({skippedCsvValues.size} skipped)</span>
+                )}
               </span>
               <div className="flex gap-2">
-                <Btn size="sm" variant="ghost" onClick={() => { setScheduleCsvPreview(null); setCsvMismatches([]); setResolverEntries([]) }}>CANCEL</Btn>
-                <Btn size="sm" variant="success" onClick={importScheduleCSV} disabled={importingSchedule || hasUnresolved}>
+                <Btn
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    setScheduleCsvPreview(null)
+                    setCsvMismatches([])
+                    setResolverEntries([])
+                  }}
+                >
+                  CANCEL
+                </Btn>
+                <Btn
+                  size="sm"
+                  variant="success"
+                  onClick={importScheduleCSV}
+                  disabled={importingSchedule || hasUnresolved}
+                >
                   {hasUnresolved
                     ? `RESOLVE ${unresolvedTeamEntries.length + unresolvedOldMismatches.length} UNMATCHED`
-                    : importingSchedule ? 'IMPORTING...' : `IMPORT ${scheduleCsvPreview.rows.length - skippedCsvValues.size} GAME${(scheduleCsvPreview.rows.length - skippedCsvValues.size) !== 1 ? 'S' : ''}${teamsToCreate.length > 0 ? ` + CREATE ${teamsToCreate.length} TEAM${teamsToCreate.length !== 1 ? 'S' : ''}` : ''}`}
+                    : importingSchedule
+                      ? 'IMPORTING...'
+                      : `IMPORT ${scheduleCsvPreview.rows.length - skippedCsvValues.size} GAME${scheduleCsvPreview.rows.length - skippedCsvValues.size !== 1 ? 'S' : ''}${teamsToCreate.length > 0 ? ` + CREATE ${teamsToCreate.length} TEAM${teamsToCreate.length !== 1 ? 'S' : ''}` : ''}`}
                 </Btn>
               </div>
             </div>
@@ -2137,6 +2502,9 @@ function ScheduleBoardView({
   scheduleChangeRequests,
   userRole,
   onRequestChange,
+  unscheduledGames,
+  onUnschedule,
+  onDelete,
 }: {
   fieldColumns: Array<{ field: any; games: any[] }>
   conflicts: any[]
@@ -2148,6 +2516,9 @@ function ScheduleBoardView({
   scheduleChangeRequests: ScheduleChangeRequest[]
   userRole: import('@/lib/auth').UserRole | null
   onRequestChange: (gameId: number) => void
+  unscheduledGames: any[]
+  onUnschedule?: (gameId: number) => void
+  onDelete?: (gameId: number) => void
 }) {
   return (
     <div className="overflow-x-auto pb-3">
@@ -2250,12 +2621,51 @@ function ScheduleBoardView({
                     scheduleChangeRequests={scheduleChangeRequests}
                     userRole={userRole}
                     onRequestChange={onRequestChange}
+                    onUnschedule={onUnschedule}
+                    onDelete={onDelete}
                   />
                 ))}
               </div>
             </div>
           )
         })}
+
+        {/* Unscheduled column */}
+        {unscheduledGames.length > 0 && (
+          <div className="flex-shrink-0" style={{ width: 220 }}>
+            <div className="rounded-lg border-2 border-dashed border-border mb-3 overflow-hidden">
+              <div className="px-3 py-2.5 bg-[#0f1520]">
+                <div className="font-cond font-black text-[15px] tracking-wide text-muted">
+                  Unscheduled
+                </div>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="font-cond text-[10px] text-muted">
+                    {unscheduledGames.length} games
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div className="space-y-2">
+              {unscheduledGames.map((game) => (
+                <GameCard
+                  key={game.id}
+                  game={game}
+                  hasConflict={false}
+                  conflict={undefined}
+                  onCycleStatus={onCycleStatus}
+                  onRescheduled={onRescheduled}
+                  followedSet={followedSet}
+                  pendingRequestGameIds={pendingRequestGameIds}
+                  scheduleChangeRequests={scheduleChangeRequests}
+                  userRole={userRole}
+                  onRequestChange={onRequestChange}
+                  onUnschedule={onUnschedule}
+                  onDelete={onDelete}
+                />
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -2273,6 +2683,8 @@ function GameCard({
   scheduleChangeRequests,
   userRole,
   onRequestChange,
+  onUnschedule,
+  onDelete,
 }: {
   game: any
   hasConflict: boolean
@@ -2284,6 +2696,8 @@ function GameCard({
   scheduleChangeRequests: ScheduleChangeRequest[]
   userRole: import('@/lib/auth').UserRole | null
   onRequestChange: (gameId: number) => void
+  onUnschedule?: (gameId: number) => void
+  onDelete?: (gameId: number) => void
 }) {
   const [expanded, setExpanded] = useState(false)
   const isLive = game.status === 'Live' || game.status === 'Halftime'
@@ -2291,28 +2705,28 @@ function GameCard({
   const isCancelled = game.status === 'Cancelled'
   const isDelayed = game.status === 'Delayed'
   const isStarting = game.status === 'Starting'
+  const isUnscheduled = game.status === 'Unscheduled'
   const isFollowedGame =
     followedSet.size > 0 &&
     (followedSet.has(game.home_team_id) || followedSet.has(game.away_team_id))
 
-  const borderColor =
-    isCancelled
-      ? 'border-border/30'
-      : hasConflict && conflict?.severity === 'critical'
-        ? 'border-red-600/70'
-        : hasConflict
-          ? 'border-yellow-600/60'
-          : isLive
-            ? 'border-green-600/60'
-            : isDelayed
-              ? 'border-red-600/50'
-              : isStarting
-                ? 'border-orange-500/60'
-                : isFinal
-                  ? 'border-border/40'
-                  : isFollowedGame
-                    ? 'border-blue-500/60'
-                    : 'border-border'
+  const borderColor = isCancelled
+    ? 'border-border/30'
+    : hasConflict && conflict?.severity === 'critical'
+      ? 'border-red-600/70'
+      : hasConflict
+        ? 'border-yellow-600/60'
+        : isLive
+          ? 'border-green-600/60'
+          : isDelayed
+            ? 'border-red-600/50'
+            : isStarting
+              ? 'border-orange-500/60'
+              : isFinal
+                ? 'border-border/40'
+                : isFollowedGame
+                  ? 'border-blue-500/60'
+                  : 'border-border'
 
   const bgColor = isCancelled
     ? 'bg-surface-card/30'
@@ -2332,7 +2746,7 @@ function GameCard({
         'rounded-lg border overflow-hidden transition-all',
         borderColor,
         bgColor,
-        (isFinal || isCancelled) && 'opacity-50'
+        (isFinal || isCancelled || isUnscheduled) && 'opacity-50'
       )}
     >
       {/* Card header — time + status */}
@@ -2494,7 +2908,7 @@ function GameCard({
         )}
 
         {/* Action buttons */}
-        {!isFinal && !isCancelled && (
+        {!isFinal && !isCancelled && !isUnscheduled && (
           <div className="flex gap-1 flex-wrap">
             <button
               onClick={() => onCycleStatus(game.id, game.status)}
@@ -2512,27 +2926,54 @@ function GameCard({
               {nextStatusLabel(game.status)}
             </button>
             <QuickRescheduleBtn game={game} onRescheduled={onRescheduled} />
+            {onUnschedule && (
+              <button
+                onClick={() => onUnschedule(game.id)}
+                className="px-2 py-1 bg-surface-card hover:bg-red-900/30 text-muted hover:text-red-300 border border-border rounded transition-colors"
+                title="Unschedule game"
+              >
+                <X size={12} />
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Delete button for unscheduled games */}
+        {game.status === 'Unscheduled' && onDelete && (
+          <div className="flex gap-1 mt-1">
+            <QuickRescheduleBtn game={game} onRescheduled={onRescheduled} />
+            {onUnschedule && (
+              <button
+                onClick={() => {
+                  if (window.confirm(`Delete Game #${game.id}? This cannot be undone.`)) {
+                    onDelete(game.id)
+                  }
+                }}
+                className="flex-1 font-cond text-[10px] font-bold tracking-wider py-1 rounded bg-red-900/40 hover:bg-red-900/60 text-red-300 border border-red-800/40 transition-colors"
+              >
+                Delete
+              </button>
+            )}
           </div>
         )}
 
         {/* Request Change button — visible to coaches and program leaders */}
-        {(userRole?.role === 'coach' || userRole?.role === 'program_leader') &&
-          !isCancelled && (
-            <div className="mt-1.5">
-              <Btn
-                variant="outline"
-                size="sm"
-                disabled={pendingRequestGameIds.has(game.id)}
-                title={pendingRequestGameIds.has(game.id) ? 'Request pending' : undefined}
-                aria-label="Request a schedule change for this game"
-                onClick={() => onRequestChange(game.id)}
-                className="w-full"
-              >
-                <CalendarX size={11} className="inline mr-1" />
-                Request Change
-              </Btn>
-            </div>
-          )}
+        {(userRole?.role === 'coach' || userRole?.role === 'program_leader') && !isCancelled && (
+          <div className="mt-1.5">
+            <Btn
+              variant="outline"
+              size="sm"
+              disabled={pendingRequestGameIds.has(game.id)}
+              title={pendingRequestGameIds.has(game.id) ? 'Request pending' : undefined}
+              aria-label="Request a schedule change for this game"
+              onClick={() => onRequestChange(game.id)}
+              className="w-full"
+            >
+              <CalendarX size={11} className="inline mr-1" />
+              Request Change
+            </Btn>
+          </div>
+        )}
       </div>
     </div>
   )
