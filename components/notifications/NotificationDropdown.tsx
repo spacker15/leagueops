@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { formatDistanceToNow } from 'date-fns'
 import * as db from '@/lib/db'
+import { createClient } from '@/supabase/client'
 import type { NotificationLogEntry } from '@/types'
 
 interface Props {
@@ -15,9 +16,38 @@ interface Props {
 export function NotificationDropdown({ userId, onClose, onUnreadChange, onOpenSettings }: Props) {
   const [notifications, setNotifications] = useState<NotificationLogEntry[]>([])
 
-  useEffect(() => {
+  const refreshNotifications = useCallback(() => {
     db.getRecentNotifications(userId).then(setNotifications)
   }, [userId])
+
+  // Fetch on mount
+  useEffect(() => {
+    refreshNotifications()
+  }, [refreshNotifications])
+
+  // Realtime: refresh list when new notifications arrive
+  useEffect(() => {
+    const sb = createClient()
+    const channel = sb
+      .channel('dropdown_notif_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'notification_log',
+          filter: `user_id=eq.${userId}`,
+        },
+        () => {
+          refreshNotifications()
+        }
+      )
+      .subscribe()
+
+    return () => {
+      sb.removeChannel(channel)
+    }
+  }, [userId, refreshNotifications])
 
   async function handleMarkAllRead() {
     await db.markAllNotificationsRead(userId)
