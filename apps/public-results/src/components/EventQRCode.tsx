@@ -12,7 +12,9 @@ interface Props {
 export function EventQRCode({ slug, teamId, teamName, size = 128 }: Props) {
   const baseUrl =
     process.env.NEXT_PUBLIC_PUBLIC_RESULTS_URL ??
-    (typeof window !== 'undefined' ? window.location.origin : '')
+    (typeof window !== 'undefined'
+      ? window.location.origin
+      : 'https://public-results-gamma.vercel.app')
   const url = teamId
     ? `${baseUrl}/e/${slug}?tab=schedule&view=team&team=${teamId}`
     : `${baseUrl}/e/${slug}`
