@@ -1259,11 +1259,14 @@ export function ScheduleTab() {
 
       {/* ── TABLE VIEW ── */}
       {viewMode === 'table' && (
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto -mx-4 px-4">
           <table className="w-full border-collapse text-[12px]">
             <thead>
               <tr className="bg-navy">
-                {['TIME', 'FIELD', 'HOME', 'AWAY', 'DIV', 'STATUS', 'SCORE', 'ACTIONS'].map((h) => (
+                <th className="font-cond text-[10px] font-black tracking-widest text-muted px-3 py-2 text-left border-b-2 border-border sticky left-0 z-10 bg-navy">
+                  TIME
+                </th>
+                {['FIELD', 'HOME', 'AWAY', 'DIV', 'STATUS', 'SCORE', 'ACTIONS'].map((h) => (
                   <th
                     key={h}
                     className="font-cond text-[10px] font-black tracking-widest text-muted px-3 py-2 text-left border-b-2 border-border"
@@ -1299,7 +1302,7 @@ export function ScheduleTab() {
                       isFollowedGame && 'border-l-2 border-l-blue-500'
                     )}
                   >
-                    <td className="font-mono text-blue-300 text-[11px] px-3 py-2 whitespace-nowrap">
+                    <td className="font-mono text-blue-300 text-[11px] px-3 py-2 whitespace-nowrap sticky left-0 z-10 bg-[#020810]">
                       <span className={game.status === 'Cancelled' ? 'line-through' : undefined}>
                         {game.scheduled_time}
                       </span>
