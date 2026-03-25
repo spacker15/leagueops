@@ -287,15 +287,16 @@ Plans:
 **Requirements:** PUB-01, PUB-02, PUB-03, PUB-04, PUB-05, PUB-06, PUB-07, PUB-08
 **UI hint:** yes
 **Depends on:** Phase 4
-**Plans:** 5 plans
+**Plans:** 6 plans
 
 Plans:
 
-- [ ] 09-01-PLAN.md — Foundation: DB migration (bracket tables, indexes, RLS), data layer extensions, groupBy utility, scoreFlash CSS, qrcode.react install (PUB-01, PUB-03, PUB-04, PUB-07)
+- [ ] 09-00-PLAN.md — Wave 0: vitest config, test stubs for groupBy, schedule filtering, standings, bracket shape, QR URL (PUB-02, PUB-03, PUB-04, PUB-05)
+- [ ] 09-01-PLAN.md — Foundation: DB migration (bracket tables, standings_by_division view, indexes, RLS), data layer extensions, groupBy utility, scoreFlash CSS, qrcode.react install (PUB-01, PUB-04, PUB-07)
 - [ ] 09-02-PLAN.md — Schedule sub-views: ScheduleTabWithSubViews, ByTeamView, ByFieldView, ByTimeView, TeamSearchInput (PUB-02, PUB-08)
 - [ ] 09-03-PLAN.md — LiveScoresClient: Realtime subscription, score flash tracking, ConnectionErrorBanner (PUB-01, PUB-07)
 - [ ] 09-04-PLAN.md — Bracket tab: BracketMatchupCard, SingleEliminationBracket, DoubleEliminationBracket, BracketTab (PUB-04)
-- [ ] 09-05-PLAN.md — Integration: wire all components into event page + homepage, EventSearchFilter, EventQRCode, loading skeleton (PUB-01 through PUB-08)
+- [ ] 09-05-PLAN.md — Integration: wire all components into event page + homepage, standings from PostgreSQL view, EventSearchFilter, EventQRCode, loading skeleton (PUB-01 through PUB-08)
 
 ### Success Criteria
 
