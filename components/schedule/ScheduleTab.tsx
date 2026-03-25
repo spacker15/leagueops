@@ -1645,33 +1645,16 @@ export function ScheduleTab() {
         }
       >
         <div className="grid grid-cols-2 gap-3">
-          <FormField label="Field">
-            <select
-              className="bg-surface-card border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400"
-              value={agField}
-              onChange={(e) => setAgField(e.target.value)}
-            >
-              <option value="">Select field…</option>
-              {state.fields.map((f) => (
-                <option key={f.id} value={f.id}>
-                  {f.name}
-                </option>
-              ))}
-            </select>
-          </FormField>
-          <FormField label="Time">
-            <input
-              type="time"
-              value={agTime}
-              onChange={(e) => setAgTime(e.target.value)}
-              className="bg-surface-card border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400"
-            />
-          </FormField>
           <FormField label="Division">
             <select
-              className="bg-surface-card border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400"
+              className="bg-[#040e24] border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400"
               value={agDiv}
-              onChange={(e) => setAgDiv(e.target.value)}
+              onChange={(e) => {
+                setAgDiv(e.target.value)
+                setAgHome('')
+                setAgAway('')
+                setAgField('')
+              }}
             >
               <option value="">Select division…</option>
               {divisions.map((d) => (
@@ -1681,33 +1664,81 @@ export function ScheduleTab() {
               ))}
             </select>
           </FormField>
+          <FormField label="Field">
+            <select
+              className="bg-[#040e24] border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400"
+              value={agField}
+              onChange={(e) => setAgField(e.target.value)}
+            >
+              <option value="">Select field…</option>
+              {state.fields
+                .filter((f) => !agDiv || !f.division || f.division === agDiv)
+                .map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.name}
+                    {f.division ? ` (${f.division})` : ''}
+                  </option>
+                ))}
+            </select>
+          </FormField>
+          <FormField label="Time">
+            <div className="flex gap-1">
+              <select
+                className="bg-[#040e24] border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400 flex-1"
+                value={agTime}
+                onChange={(e) => setAgTime(e.target.value)}
+              >
+                {Array.from({ length: 56 }, (_, i) => {
+                  const totalMin = 7 * 60 + i * 15
+                  const hh = Math.floor(totalMin / 60)
+                  const mm = totalMin % 60
+                  const label = `${hh > 12 ? hh - 12 : hh === 0 ? 12 : hh}:${String(mm).padStart(2, '0')} ${hh >= 12 ? 'PM' : 'AM'}`
+                  const value = `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`
+                  return (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  )
+                })}
+              </select>
+              <input
+                type="time"
+                value={agTime}
+                onChange={(e) => setAgTime(e.target.value)}
+                className="bg-[#040e24] border border-border text-white px-1.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400 w-[70px]"
+                title="Custom time"
+              />
+            </div>
+          </FormField>
           <div />
           <FormField label="Home Team">
             <select
-              className="bg-surface-card border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400"
+              className="bg-[#040e24] border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400"
               value={agHome}
               onChange={(e) => setAgHome(e.target.value)}
             >
               <option value="">Select team…</option>
-              {state.teams.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name} ({t.division})
-                </option>
-              ))}
+              {state.teams
+                .filter((t) => !agDiv || t.division === agDiv)
+                .map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
             </select>
           </FormField>
           <FormField label="Away Team">
             <select
-              className="bg-surface-card border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400"
+              className="bg-[#040e24] border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400"
               value={agAway}
               onChange={(e) => setAgAway(e.target.value)}
             >
               <option value="">Select team…</option>
               {state.teams
-                .filter((t) => String(t.id) !== agHome)
+                .filter((t) => (!agDiv || t.division === agDiv) && String(t.id) !== agHome)
                 .map((t) => (
                   <option key={t.id} value={t.id}>
-                    {t.name} ({t.division})
+                    {t.name}
                   </option>
                 ))}
             </select>
