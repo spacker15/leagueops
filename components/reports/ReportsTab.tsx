@@ -44,15 +44,20 @@ export function ReportsTab() {
       })
   }, [state.event?.id])
 
+  // Event-scoped divisions: only from registration_divisions for this event
+  // If no registration_divisions exist, fall back to divisions found in THIS event's games only
   const divisions = useMemo(() => {
-    const gameDivs = allGames.map((g) => g.division)
-    const merged = [...new Set([...settingsDivisions, ...gameDivs])].sort()
-    return ['ALL', ...merged]
+    if (settingsDivisions.length > 0) {
+      return ['ALL', ...settingsDivisions]
+    }
+    // Fallback: divisions from this event's games only (already scoped by getAllGamesByEvent)
+    const gameDivs = [...new Set(allGames.map((g) => g.division))].sort()
+    return ['ALL', ...gameDivs]
   }, [allGames, settingsDivisions])
 
   const [divFilter, setDivFilter] = useState('ALL')
 
-  const showDivFilter = sub !== 'ref-schedule'
+  const showDivFilter = true // show division filter on all tabs including ref-schedule
 
   return (
     <div className="p-4 max-w-6xl">
@@ -122,6 +127,7 @@ export function ReportsTab() {
           fields={state.fields}
           referees={state.referees}
           eventId={state.event?.id ?? null}
+          divFilter={divFilter}
         />
       )}
     </div>
@@ -704,11 +710,13 @@ function RefScheduleView({
   fields,
   referees,
   eventId,
+  divFilter,
 }: {
   games: Game[]
   fields: { id: number; name: string }[]
   referees: Referee[]
   eventId: number | null
+  divFilter: string
 }) {
   const [assignments, setAssignments] = useState<RefAssignmentRow[]>([])
   const [refRules, setRefRules] = useState<RefRules>({
@@ -764,12 +772,18 @@ function RefScheduleView({
       })
   }, [eventId, games])
 
-  // Filter games by selected date
+  // Filter games by selected date and division
   const filteredGames = useMemo(() => {
-    if (selectedDateId === 'all') return games
-    const dateId = parseInt(selectedDateId)
-    return games.filter((g) => g.event_date_id === dateId)
-  }, [games, selectedDateId])
+    let filtered = games
+    if (selectedDateId !== 'all') {
+      const dateId = parseInt(selectedDateId)
+      filtered = filtered.filter((g) => g.event_date_id === dateId)
+    }
+    if (divFilter !== 'ALL') {
+      filtered = filtered.filter((g) => g.division === divFilter)
+    }
+    return filtered
+  }, [games, selectedDateId, divFilter])
 
   // Build: fieldId → timeStr → { adult: RefAssignmentRow[], youth: RefAssignmentRow[], divisions: string[] }
   const schedule = useMemo(() => {
@@ -888,6 +902,140 @@ function RefScheduleView({
           </div>
         ))}
       </div>
+
+      {/* ── Ref Demand Summary by Hour/Division ── */}
+      {(() => {
+        // Build rows: group by time + division, sum refs needed
+        type DemandRow = {
+          time: string
+          division: string
+          games: number
+          adultNeed: number
+          youthNeed: number
+          totalNeed: number
+        }
+        const demandMap = new Map<string, DemandRow>()
+        for (const g of filteredGames) {
+          const timeKey = g.scheduled_time ?? ''
+          const key = `${timeKey}|${g.division}`
+          const existing = demandMap.get(key)
+          const exp = getExpected(g.division, refRules)
+          if (existing) {
+            existing.games += 1
+            existing.adultNeed += exp.adult
+            existing.youthNeed += exp.youth
+            existing.totalNeed += exp.adult + exp.youth
+          } else {
+            demandMap.set(key, {
+              time: timeKey,
+              division: g.division,
+              games: 1,
+              adultNeed: exp.adult,
+              youthNeed: exp.youth,
+              totalNeed: exp.adult + exp.youth,
+            })
+          }
+        }
+        const demandRows = [...demandMap.values()].sort(
+          (a, b) => a.time.localeCompare(b.time) || a.division.localeCompare(b.division)
+        )
+        const totGames = demandRows.reduce((s, r) => s + r.games, 0)
+        const totAdult = demandRows.reduce((s, r) => s + r.adultNeed, 0)
+        const totYouth = demandRows.reduce((s, r) => s + r.youthNeed, 0)
+        const totRefs = demandRows.reduce((s, r) => s + r.totalNeed, 0)
+
+        if (demandRows.length === 0) return null
+        return (
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-1 h-4 rounded-sm bg-red" />
+              <span className="font-cond text-[11px] font-black tracking-[.12em] text-white uppercase">
+                Referee Demand Summary
+              </span>
+            </div>
+            <div className="rounded-lg overflow-hidden border border-[#1a2d50]">
+              <table className="w-full">
+                <thead>
+                  <tr style={{ background: '#081428' }}>
+                    <Th>Time</Th>
+                    <Th>Division</Th>
+                    <Th align="center">Games</Th>
+                    <Th align="center">
+                      <span style={{ color: '#60a5fa' }}>Adult Refs</span>
+                    </Th>
+                    <Th align="center">
+                      <span style={{ color: '#34d399' }}>Youth Refs</span>
+                    </Th>
+                    <Th align="center">Total Refs</Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {demandRows.map((row, i) => (
+                    <tr
+                      key={`${row.time}-${row.division}`}
+                      style={{ background: i % 2 === 0 ? '#050f20' : '#030c1a' }}
+                    >
+                      <Td>
+                        <span className="font-mono text-[12px] font-bold text-white">
+                          {formatTime(row.time)}
+                        </span>
+                      </Td>
+                      <Td>
+                        <span className="font-cond text-[11px] font-bold text-white">
+                          {row.division}
+                        </span>
+                      </Td>
+                      <Td align="center">
+                        <span className="font-mono text-[12px] text-[#8a9ec0]">{row.games}</span>
+                      </Td>
+                      <Td align="center">
+                        <span className="font-mono text-[12px] text-[#60a5fa]">
+                          {row.adultNeed}
+                        </span>
+                      </Td>
+                      <Td align="center">
+                        <span className="font-mono text-[12px] text-[#34d399]">
+                          {row.youthNeed}
+                        </span>
+                      </Td>
+                      <Td align="center">
+                        <span className="font-mono text-[13px] font-bold text-white">
+                          {row.totalNeed}
+                        </span>
+                      </Td>
+                    </tr>
+                  ))}
+                  {/* Totals row */}
+                  <tr style={{ background: '#081428', borderTop: '2px solid #1a2d50' }}>
+                    <Td>
+                      <span className="font-cond text-[11px] font-black tracking-[.12em] text-white uppercase">
+                        Total
+                      </span>
+                    </Td>
+                    <Td />
+                    <Td align="center">
+                      <span className="font-mono text-[13px] font-bold text-white">{totGames}</span>
+                    </Td>
+                    <Td align="center">
+                      <span className="font-mono text-[13px] font-bold text-[#60a5fa]">
+                        {totAdult}
+                      </span>
+                    </Td>
+                    <Td align="center">
+                      <span className="font-mono text-[13px] font-bold text-[#34d399]">
+                        {totYouth}
+                      </span>
+                    </Td>
+                    <Td align="center">
+                      <span className="font-mono text-[14px] font-bold text-white">{totRefs}</span>
+                    </Td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* Per-field tables */}
       {activeFieldIds.map((field) => {
