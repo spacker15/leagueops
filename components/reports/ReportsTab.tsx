@@ -29,10 +29,26 @@ export function ReportsTab() {
 
   const finalGames = useMemo(() => allGames.filter((g) => g.status === 'Final'), [allGames])
 
+  // Fetch registration_divisions from settings so divisions with no games still appear
+  const [settingsDivisions, setSettingsDivisions] = useState<string[]>([])
+  useEffect(() => {
+    if (!state.event?.id) return
+    const sb = createClient()
+    sb.from('registration_divisions')
+      .select('name')
+      .eq('event_id', state.event.id)
+      .eq('is_active', true)
+      .order('sort_order')
+      .then(({ data }) => {
+        setSettingsDivisions((data ?? []).map((d: { name: string }) => d.name))
+      })
+  }, [state.event?.id])
+
   const divisions = useMemo(() => {
-    const divs = [...new Set(allGames.map((g) => g.division))].sort()
-    return ['ALL', ...divs]
-  }, [allGames])
+    const gameDivs = allGames.map((g) => g.division)
+    const merged = [...new Set([...settingsDivisions, ...gameDivs])].sort()
+    return ['ALL', ...merged]
+  }, [allGames, settingsDivisions])
 
   const [divFilter, setDivFilter] = useState('ALL')
 
@@ -428,6 +444,7 @@ function MatchupsView({
 }) {
   const [allGames, setAllGames] = useState<AllGame[]>([])
   const [loading, setLoading] = useState(true)
+  const [settingsDivisions, setSettingsDivisions] = useState<string[]>([])
 
   useEffect(() => {
     if (!eventId) {
@@ -444,44 +461,107 @@ function MatchupsView({
       })
   }, [eventId])
 
-  const filteredTeams = useMemo(() => {
-    if (divFilter === 'ALL') return [...teams].sort((a, b) => a.name.localeCompare(b.name))
-    return teams
+  // Fetch registration_divisions so divisions with no games appear in per-division view
+  useEffect(() => {
+    if (!eventId) return
+    const sb = createClient()
+    sb.from('registration_divisions')
+      .select('name')
+      .eq('event_id', eventId)
+      .eq('is_active', true)
+      .order('sort_order')
+      .then(({ data }) => {
+        setSettingsDivisions((data ?? []).map((d: { name: string }) => d.name))
+      })
+  }, [eventId])
+
+  // All unique divisions (from settings + games), sorted
+  const allDivisions = useMemo(() => {
+    const gameDivs = allGames.map((g) => g.division)
+    return [...new Set([...settingsDivisions, ...gameDivs])].sort()
+  }, [allGames, settingsDivisions])
+
+  if (loading) return <Empty message="Loading matchup data..." />
+
+  // When a specific division is selected, show a single matrix
+  if (divFilter !== 'ALL') {
+    const divTeams = teams
       .filter((t) => t.division === divFilter)
       .sort((a, b) => a.name.localeCompare(b.name))
-  }, [teams, divFilter])
+    const divGames = allGames.filter((g) => g.division === divFilter)
+    if (divTeams.length === 0) return <Empty message="No teams found for this division." />
+    return <MatchupMatrix teams={divTeams} games={divGames} showDivisionOnRow={false} />
+  }
 
-  const filteredGames = useMemo(() => {
-    if (divFilter === 'ALL') return allGames
-    return allGames.filter((g) => g.division === divFilter)
-  }, [allGames, divFilter])
+  // "ALL" — show separate matrices per division
+  const divisionsWithTeams = allDivisions.filter((div) => teams.some((t) => t.division === div))
+  if (divisionsWithTeams.length === 0) return <Empty message="No teams found." />
 
+  return (
+    <div className="space-y-8">
+      {divisionsWithTeams.map((div) => {
+        const divTeams = teams
+          .filter((t) => t.division === div)
+          .sort((a, b) => a.name.localeCompare(b.name))
+        const divGames = allGames.filter((g) => g.division === div)
+        return (
+          <div key={div}>
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-1 h-4 rounded-sm bg-navy" />
+              <span className="font-cond text-[11px] font-black tracking-[.12em] text-blue-300 uppercase">
+                {div}
+              </span>
+              <span className="font-cond text-[9px] text-muted ml-1">
+                {divTeams.length} teams · {divGames.length} games
+              </span>
+            </div>
+            <MatchupMatrix teams={divTeams} games={divGames} showDivisionOnRow={false} />
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+/** Renders a single matchup matrix table for a set of teams and games */
+function MatchupMatrix({
+  teams: matrixTeams,
+  games,
+  showDivisionOnRow,
+}: {
+  teams: Team[]
+  games: AllGame[]
+  showDivisionOnRow: boolean
+}) {
   // Build matrix: matrix[rowTeamId][colTeamId] = count
   const matrix = useMemo(() => {
     const m: Record<number, Record<number, number>> = {}
-    for (const g of filteredGames) {
+    for (const g of games) {
       if (!m[g.home_team_id]) m[g.home_team_id] = {}
       if (!m[g.away_team_id]) m[g.away_team_id] = {}
       m[g.home_team_id][g.away_team_id] = (m[g.home_team_id][g.away_team_id] ?? 0) + 1
       m[g.away_team_id][g.home_team_id] = (m[g.away_team_id][g.home_team_id] ?? 0) + 1
     }
     return m
-  }, [filteredGames])
+  }, [games])
 
-  if (loading) return <Empty message="Loading matchup data…" />
-  if (filteredTeams.length === 0) return <Empty message="No teams found for this division." />
+  if (matrixTeams.length === 0) {
+    return (
+      <div className="font-cond text-[10px] text-muted italic py-2">No teams in this division.</div>
+    )
+  }
 
   const maxCount = Math.max(
     1,
-    ...filteredTeams.flatMap((row) =>
-      filteredTeams.map((col) => (row.id !== col.id ? (matrix[row.id]?.[col.id] ?? 0) : 0))
+    ...matrixTeams.flatMap((row) =>
+      matrixTeams.map((col) => (row.id !== col.id ? (matrix[row.id]?.[col.id] ?? 0) : 0))
     )
   )
 
   return (
     <div>
       <div className="font-cond text-[10px] font-black tracking-[.15em] text-muted uppercase mb-3">
-        Games Played Between Teams · {filteredGames.length} total games
+        Games Played Between Teams · {games.length} total games
       </div>
       <div className="overflow-auto rounded-lg border border-[#1a2d50]">
         <table className="border-collapse" style={{ minWidth: 'max-content' }}>
@@ -496,7 +576,7 @@ function MatchupsView({
                   vs →
                 </span>
               </th>
-              {filteredTeams.map((col) => (
+              {matrixTeams.map((col) => (
                 <th
                   key={col.id}
                   className="px-2 py-2 border-b border-[#1a2d50]"
@@ -511,14 +591,14 @@ function MatchupsView({
                     }}
                     title={col.name}
                   >
-                    {col.name.length > 14 ? col.name.slice(0, 13) + '…' : col.name}
+                    {col.name.length > 14 ? col.name.slice(0, 13) + '...' : col.name}
                   </div>
                 </th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {filteredTeams.map((row, ri) => (
+            {matrixTeams.map((row, ri) => (
               <tr key={row.id} style={{ background: ri % 2 === 0 ? '#050f20' : '#030c1a' }}>
                 {/* Row header */}
                 <td
@@ -529,12 +609,14 @@ function MatchupsView({
                     className="font-cond text-[11px] font-bold text-white whitespace-nowrap"
                     title={row.name}
                   >
-                    {row.name.length > 18 ? row.name.slice(0, 17) + '…' : row.name}
+                    {row.name.length > 18 ? row.name.slice(0, 17) + '...' : row.name}
                   </span>
-                  <span className="ml-1.5 font-cond text-[9px] text-muted">{row.division}</span>
+                  {showDivisionOnRow && (
+                    <span className="ml-1.5 font-cond text-[9px] text-muted">{row.division}</span>
+                  )}
                 </td>
                 {/* Matrix cells */}
-                {filteredTeams.map((col) => {
+                {matrixTeams.map((col) => {
                   const isSelf = row.id === col.id
                   const count = isSelf ? null : (matrix[row.id]?.[col.id] ?? 0)
                   const intensity = isSelf ? 0 : (count ?? 0) / maxCount
@@ -551,7 +633,7 @@ function MatchupsView({
                           style={{ background: '#0d1e3a' }}
                         />
                       ) : count === 0 ? (
-                        <span className="font-mono text-[12px] text-[#1a2d50]">—</span>
+                        <span className="font-mono text-[12px] text-[#1a2d50]">---</span>
                       ) : (
                         <div
                           className="w-8 h-6 mx-auto rounded flex items-center justify-center"
@@ -617,13 +699,6 @@ function isYouthRef(gradeLevel: string): boolean {
   return !isNaN(num) && num >= 8
 }
 
-function hhLabel(hour: number): string {
-  if (hour === 0) return '12:00 AM'
-  if (hour < 12) return `${hour}:00 AM`
-  if (hour === 12) return '12:00 PM'
-  return `${hour - 12}:00 PM`
-}
-
 function RefScheduleView({
   games,
   fields,
@@ -642,6 +717,10 @@ function RefScheduleView({
     default: { adult: 2, youth: 0 },
   })
   const [loading, setLoading] = useState(true)
+  const [eventDates, setEventDates] = useState<
+    { id: number; date: string; label: string | null }[]
+  >([])
+  const [selectedDateId, setSelectedDateId] = useState<string>('all')
 
   useEffect(() => {
     if (!eventId) {
@@ -649,6 +728,18 @@ function RefScheduleView({
       return
     }
     const sb = createClient()
+    // Fetch event_dates for the date filter
+    sb.from('event_dates')
+      .select('id, date, label')
+      .eq('event_id', eventId)
+      .order('date', { ascending: true })
+      .then(({ data }) => {
+        const dates = data ?? []
+        setEventDates(dates)
+        if (dates.length > 0) {
+          setSelectedDateId(String(dates[0].id))
+        }
+      })
     // Fetch ref_requirements from event config
     sb.from('events')
       .select('ref_requirements')
@@ -673,32 +764,40 @@ function RefScheduleView({
       })
   }, [eventId, games])
 
-  // Build: fieldId → hour → { adult: RefAssignmentRow[], youth: RefAssignmentRow[], divisions: string[] }
+  // Filter games by selected date
+  const filteredGames = useMemo(() => {
+    if (selectedDateId === 'all') return games
+    const dateId = parseInt(selectedDateId)
+    return games.filter((g) => g.event_date_id === dateId)
+  }, [games, selectedDateId])
+
+  // Build: fieldId → timeStr → { adult: RefAssignmentRow[], youth: RefAssignmentRow[], divisions: string[] }
   const schedule = useMemo(() => {
     type Slot = { adult: RefAssignmentRow[]; youth: RefAssignmentRow[]; divisions: string[] }
-    const byField: Record<number, Record<number, Slot>> = {}
+    const byField: Record<number, Record<string, Slot>> = {}
 
-    // Index games by id
+    // Index filtered games by id
     const gameById: Record<number, Game> = {}
-    for (const g of games) gameById[g.id] = g
+    for (const g of filteredGames) gameById[g.id] = g
 
-    // Collect divisions per field/hour slot (from games, not assignments)
-    for (const g of games) {
-      const hour = g.scheduled_time ? parseInt(g.scheduled_time.split(':')[0]) : -1
+    // Collect divisions per field/time slot (from games, not assignments)
+    for (const g of filteredGames) {
+      const timeKey = g.scheduled_time ?? ''
       if (!byField[g.field_id]) byField[g.field_id] = {}
-      if (!byField[g.field_id][hour])
-        byField[g.field_id][hour] = { adult: [], youth: [], divisions: [] }
-      byField[g.field_id][hour].divisions.push(g.division)
+      if (!byField[g.field_id][timeKey])
+        byField[g.field_id][timeKey] = { adult: [], youth: [], divisions: [] }
+      byField[g.field_id][timeKey].divisions.push(g.division)
     }
 
     for (const a of assignments) {
       const game = gameById[a.game_id]
       if (!game) continue
       const fieldId = game.field_id
-      const hour = game.scheduled_time ? parseInt(game.scheduled_time.split(':')[0]) : -1
+      const timeKey = game.scheduled_time ?? ''
       if (!byField[fieldId]) byField[fieldId] = {}
-      if (!byField[fieldId][hour]) byField[fieldId][hour] = { adult: [], youth: [], divisions: [] }
-      const slot = byField[fieldId][hour]
+      if (!byField[fieldId][timeKey])
+        byField[fieldId][timeKey] = { adult: [], youth: [], divisions: [] }
+      const slot = byField[fieldId][timeKey]
       if (a.referee && isYouthRef(a.referee.grade_level)) {
         slot.youth.push(a)
       } else {
@@ -706,44 +805,68 @@ function RefScheduleView({
       }
     }
     return byField
-  }, [assignments, games])
+  }, [assignments, filteredGames])
 
-  // Collect all unique hours across all fields
-  const allHours = useMemo(() => {
-    const hrs = new Set<number>()
-    for (const g of games) {
-      if (g.scheduled_time) hrs.add(parseInt(g.scheduled_time.split(':')[0]))
+  // Collect all unique time strings across all fields, sorted chronologically
+  const allTimes = useMemo(() => {
+    const times = new Set<string>()
+    for (const g of filteredGames) {
+      if (g.scheduled_time) times.add(g.scheduled_time)
     }
-    return [...hrs].sort((a, b) => a - b)
-  }, [games])
+    return [...times].sort()
+  }, [filteredGames])
 
   // Fields that have at least one game
   const activeFieldIds = useMemo(() => {
-    const ids = new Set(games.map((g) => g.field_id))
+    const ids = new Set(filteredGames.map((g) => g.field_id))
     return fields.filter((f) => ids.has(f.id))
-  }, [games, fields])
+  }, [filteredGames, fields])
 
-  if (loading) return <Empty message="Loading ref schedule…" />
-  if (games.length === 0) return <Empty message="No games scheduled for today." />
+  if (loading) return <Empty message="Loading ref schedule..." />
+  if (games.length === 0) return <Empty message="No games scheduled." />
 
-  // Summarize unassigned games per field/hour
-  const gamesByFieldHour: Record<number, Record<number, number>> = {}
-  for (const g of games) {
-    const hour = g.scheduled_time ? parseInt(g.scheduled_time.split(':')[0]) : -1
-    if (!gamesByFieldHour[g.field_id]) gamesByFieldHour[g.field_id] = {}
-    gamesByFieldHour[g.field_id][hour] = (gamesByFieldHour[g.field_id][hour] ?? 0) + 1
+  // Summarize game counts per field/time slot
+  const gamesByFieldTime: Record<number, Record<string, number>> = {}
+  for (const g of filteredGames) {
+    const timeKey = g.scheduled_time ?? ''
+    if (!gamesByFieldTime[g.field_id]) gamesByFieldTime[g.field_id] = {}
+    gamesByFieldTime[g.field_id][timeKey] = (gamesByFieldTime[g.field_id][timeKey] ?? 0) + 1
   }
 
-  const totalAssigned = assignments.length
-  const totalAdult = assignments.filter(
+  // Only count assignments for filtered games
+  const filteredGameIds = new Set(filteredGames.map((g) => g.id))
+  const filteredAssignments = assignments.filter((a) => filteredGameIds.has(a.game_id))
+  const totalAssigned = filteredAssignments.length
+  const totalAdult = filteredAssignments.filter(
     (a) => a.referee && !isYouthRef(a.referee.grade_level)
   ).length
-  const totalYouth = assignments.filter(
+  const totalYouth = filteredAssignments.filter(
     (a) => a.referee && isYouthRef(a.referee.grade_level)
   ).length
 
   return (
     <div className="space-y-5">
+      {/* Date filter */}
+      {eventDates.length > 0 && (
+        <div className="flex items-center gap-3">
+          <label className="font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase">
+            Game Date
+          </label>
+          <select
+            value={selectedDateId}
+            onChange={(e) => setSelectedDateId(e.target.value)}
+            className="bg-[#040e24] border border-[#1a2d50] rounded px-3 py-1.5 text-sm text-white font-cond focus:outline-none focus:ring-1 focus:ring-[#0B3D91]"
+          >
+            <option value="all">All Dates</option>
+            {eventDates.map((d) => (
+              <option key={d.id} value={String(d.id)}>
+                {d.label || d.date}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       {/* Summary row */}
       <div className="grid grid-cols-3 gap-3">
         {[
@@ -769,7 +892,7 @@ function RefScheduleView({
       {/* Per-field tables */}
       {activeFieldIds.map((field) => {
         const fieldSlots = schedule[field.id] ?? {}
-        const fieldGames = gamesByFieldHour[field.id] ?? {}
+        const fieldGames = gamesByFieldTime[field.id] ?? {}
 
         return (
           <div key={field.id}>
@@ -783,7 +906,7 @@ function RefScheduleView({
               <table className="w-full">
                 <thead>
                   <tr style={{ background: '#081428' }}>
-                    <Th>Hour</Th>
+                    <Th>Time</Th>
                     <Th align="center">Games</Th>
                     <Th align="center">
                       <span style={{ color: '#60a5fa' }}>Adult</span>
@@ -805,11 +928,11 @@ function RefScheduleView({
                   </tr>
                 </thead>
                 <tbody>
-                  {allHours
-                    .filter((h) => (fieldGames[h] ?? 0) > 0)
-                    .map((hour, i) => {
-                      const slot = fieldSlots[hour] ?? { adult: [], youth: [], divisions: [] }
-                      const gameCount = fieldGames[hour] ?? 0
+                  {allTimes
+                    .filter((t) => (fieldGames[t] ?? 0) > 0)
+                    .map((timeStr, i) => {
+                      const slot = fieldSlots[timeStr] ?? { adult: [], youth: [], divisions: [] }
+                      const gameCount = fieldGames[timeStr] ?? 0
                       const allRefs = [...slot.adult, ...slot.youth]
 
                       // Sum expected refs across all games in this slot
@@ -825,10 +948,13 @@ function RefScheduleView({
                       const shortYouth = slot.youth.length < needYouth
 
                       return (
-                        <tr key={hour} style={{ background: i % 2 === 0 ? '#050f20' : '#030c1a' }}>
+                        <tr
+                          key={timeStr}
+                          style={{ background: i % 2 === 0 ? '#050f20' : '#030c1a' }}
+                        >
                           <Td>
                             <span className="font-mono text-[12px] font-bold text-white">
-                              {hhLabel(hour)}
+                              {formatTime(timeStr)}
                             </span>
                           </Td>
                           <Td align="center">

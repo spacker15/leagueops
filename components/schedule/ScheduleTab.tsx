@@ -33,6 +33,9 @@ import {
   Download,
   Plus,
   CalendarX,
+  Trash2,
+  CheckSquare,
+  Square,
 } from 'lucide-react'
 
 type ViewMode = 'table' | 'board'
@@ -185,6 +188,11 @@ export function ScheduleTab() {
   // Schedule Change Request modal state
   const [scrModalOpen, setScrModalOpen] = useState(false)
   const [scrPreSelectedGameId, setScrPreSelectedGameId] = useState<number | undefined>()
+
+  // Bulk select / delete state
+  const [selectionMode, setSelectionMode] = useState(false)
+  const [selectedGameIds, setSelectedGameIds] = useState<Set<number>>(new Set())
+  const [bulkDeleting, setBulkDeleting] = useState(false)
 
   function toggleFollowTeam(id: number) {
     setFollowedTeams((prev) => {
@@ -1003,6 +1011,50 @@ export function ScheduleTab() {
     toast.success(`Game #${gameId} deleted`)
   }
 
+  // ── Bulk select helpers ──
+  function toggleGameSelection(gameId: number) {
+    setSelectedGameIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(gameId)) next.delete(gameId)
+      else next.add(gameId)
+      return next
+    })
+  }
+
+  function selectAllGames() {
+    setSelectedGameIds(new Set(filtered.map((g) => g.id)))
+  }
+
+  function deselectAllGames() {
+    setSelectedGameIds(new Set())
+  }
+
+  function exitSelectionMode() {
+    setSelectionMode(false)
+    setSelectedGameIds(new Set())
+  }
+
+  async function bulkDeleteGames() {
+    const count = selectedGameIds.size
+    if (count === 0) return
+    if (!window.confirm(`Delete ${count} game${count !== 1 ? 's' : ''}? This cannot be undone.`))
+      return
+    setBulkDeleting(true)
+    try {
+      const sb = createClient()
+      const ids = Array.from(selectedGameIds)
+      const { error } = await sb.from('games').delete().in('id', ids)
+      if (error) throw error
+      await refreshGames()
+      toast.success(`${count} game${count !== 1 ? 's' : ''} deleted`)
+      exitSelectionMode()
+    } catch (err: any) {
+      toast.error(`Bulk delete failed: ${err.message}`)
+    } finally {
+      setBulkDeleting(false)
+    }
+  }
+
   if (!eventId) return null
 
   // Derive team context for SCR modal
@@ -1258,6 +1310,29 @@ export function ScheduleTab() {
         >
           <Download size={10} /> Template
         </button>
+        {userRole?.role === 'admin' && (
+          <Btn
+            size="sm"
+            variant={selectionMode ? 'danger' : 'ghost'}
+            onClick={() => {
+              if (selectionMode) exitSelectionMode()
+              else setSelectionMode(true)
+            }}
+          >
+            <CheckSquare size={11} className="inline mr-1" />
+            {selectionMode ? 'EXIT SELECT' : 'SELECT'}
+          </Btn>
+        )}
+        {selectionMode && (
+          <>
+            <Btn size="sm" variant="ghost" onClick={selectAllGames}>
+              SELECT ALL
+            </Btn>
+            <Btn size="sm" variant="ghost" onClick={deselectAllGames}>
+              DESELECT ALL
+            </Btn>
+          </>
+        )}
         <input
           ref={scheduleFileRef}
           type="file"
@@ -1433,6 +1508,24 @@ export function ScheduleTab() {
           <table className="w-full border-collapse text-[12px]">
             <thead>
               <tr className="bg-navy">
+                {selectionMode && (
+                  <th className="font-cond text-[10px] font-black tracking-widest text-muted px-2 py-2 text-center border-b-2 border-border w-8">
+                    <button
+                      onClick={() =>
+                        selectedGameIds.size === filtered.length
+                          ? deselectAllGames()
+                          : selectAllGames()
+                      }
+                      className="text-muted hover:text-white transition-colors"
+                    >
+                      {selectedGameIds.size === filtered.length && filtered.length > 0 ? (
+                        <CheckSquare size={14} className="text-blue-400" />
+                      ) : (
+                        <Square size={14} />
+                      )}
+                    </button>
+                  </th>
+                )}
                 <th className="font-cond text-[10px] font-black tracking-widest text-muted px-3 py-2 text-left border-b-2 border-border sticky left-0 z-10 bg-navy">
                   TIME
                 </th>
@@ -1469,9 +1562,24 @@ export function ScheduleTab() {
                               : isFollowedGame
                                 ? 'bg-blue-900/8'
                                 : '',
-                      isFollowedGame && 'border-l-2 border-l-blue-500'
+                      isFollowedGame && 'border-l-2 border-l-blue-500',
+                      selectionMode && selectedGameIds.has(game.id) && 'bg-blue-900/20'
                     )}
                   >
+                    {selectionMode && (
+                      <td className="px-2 py-2 text-center w-8">
+                        <button
+                          onClick={() => toggleGameSelection(game.id)}
+                          className="text-muted hover:text-white transition-colors"
+                        >
+                          {selectedGameIds.has(game.id) ? (
+                            <CheckSquare size={14} className="text-blue-400" />
+                          ) : (
+                            <Square size={14} />
+                          )}
+                        </button>
+                      </td>
+                    )}
                     <td className="font-mono text-blue-300 text-[11px] px-3 py-2 whitespace-nowrap sticky left-0 z-10 bg-[#020810]">
                       <span className={game.status === 'Cancelled' ? 'line-through' : undefined}>
                         {game.scheduled_time}
@@ -1634,6 +1742,9 @@ export function ScheduleTab() {
           unscheduledGames={unscheduledGames}
           onUnschedule={userRole?.role === 'admin' ? handleUnschedule : undefined}
           onDelete={userRole?.role === 'admin' ? handleDeleteGame : undefined}
+          selectionMode={selectionMode}
+          selectedGameIds={selectedGameIds}
+          onToggleSelect={toggleGameSelection}
         />
       )}
 
@@ -2345,6 +2456,22 @@ export function ScheduleTab() {
           eventId={eventId}
         />
       )}
+
+      {/* ── BULK ACTION BAR ── */}
+      {selectionMode && selectedGameIds.size > 0 && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 bg-surface-card border border-red-700/50 rounded-xl px-6 py-3 shadow-2xl z-50 flex items-center gap-4">
+          <span className="font-cond text-[12px] font-bold text-white">
+            {selectedGameIds.size} game{selectedGameIds.size !== 1 ? 's' : ''} selected
+          </span>
+          <Btn variant="danger" size="sm" onClick={bulkDeleteGames} disabled={bulkDeleting}>
+            <Trash2 size={12} className="inline mr-1" />
+            {bulkDeleting ? 'DELETING...' : 'DELETE SELECTED'}
+          </Btn>
+          <Btn variant="ghost" size="sm" onClick={exitSelectionMode}>
+            CANCEL
+          </Btn>
+        </div>
+      )}
     </div>
   )
 }
@@ -2557,6 +2684,9 @@ function ScheduleBoardView({
   unscheduledGames,
   onUnschedule,
   onDelete,
+  selectionMode,
+  selectedGameIds,
+  onToggleSelect,
 }: {
   fieldColumns: Array<{ field: any; games: any[] }>
   conflicts: any[]
@@ -2571,6 +2701,9 @@ function ScheduleBoardView({
   unscheduledGames: any[]
   onUnschedule?: (gameId: number) => void
   onDelete?: (gameId: number) => void
+  selectionMode: boolean
+  selectedGameIds: Set<number>
+  onToggleSelect: (gameId: number) => void
 }) {
   return (
     <div className="overflow-x-auto pb-3">
@@ -2675,6 +2808,9 @@ function ScheduleBoardView({
                     onRequestChange={onRequestChange}
                     onUnschedule={onUnschedule}
                     onDelete={onDelete}
+                    selectionMode={selectionMode}
+                    isSelected={selectedGameIds.has(game.id)}
+                    onToggleSelect={onToggleSelect}
                   />
                 ))}
               </div>
@@ -2713,6 +2849,9 @@ function ScheduleBoardView({
                   onRequestChange={onRequestChange}
                   onUnschedule={onUnschedule}
                   onDelete={onDelete}
+                  selectionMode={selectionMode}
+                  isSelected={selectedGameIds.has(game.id)}
+                  onToggleSelect={onToggleSelect}
                 />
               ))}
             </div>
@@ -2737,6 +2876,9 @@ function GameCard({
   onRequestChange,
   onUnschedule,
   onDelete,
+  selectionMode,
+  isSelected,
+  onToggleSelect,
 }: {
   game: any
   hasConflict: boolean
@@ -2750,6 +2892,9 @@ function GameCard({
   onRequestChange: (gameId: number) => void
   onUnschedule?: (gameId: number) => void
   onDelete?: (gameId: number) => void
+  selectionMode: boolean
+  isSelected: boolean
+  onToggleSelect: (gameId: number) => void
 }) {
   const [expanded, setExpanded] = useState(false)
   const isLive = game.status === 'Live' || game.status === 'Halftime'
@@ -2795,12 +2940,32 @@ function GameCard({
   return (
     <div
       className={cn(
-        'rounded-lg border overflow-hidden transition-all',
+        'rounded-lg border overflow-hidden transition-all relative',
         borderColor,
         bgColor,
-        (isFinal || isCancelled || isUnscheduled) && 'opacity-50'
+        (isFinal || isCancelled || isUnscheduled) && 'opacity-50',
+        selectionMode && isSelected && 'ring-2 ring-blue-500/60'
       )}
+      onClick={selectionMode ? () => onToggleSelect(game.id) : undefined}
     >
+      {/* Selection checkbox overlay */}
+      {selectionMode && (
+        <div className="absolute top-1.5 right-1.5 z-10">
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              onToggleSelect(game.id)
+            }}
+            className="text-muted hover:text-white transition-colors"
+          >
+            {isSelected ? (
+              <CheckSquare size={16} className="text-blue-400" />
+            ) : (
+              <Square size={16} />
+            )}
+          </button>
+        </div>
+      )}
       {/* Card header — time + status */}
       <div
         className={cn(
