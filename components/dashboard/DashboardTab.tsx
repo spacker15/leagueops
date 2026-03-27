@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useApp } from '@/lib/store'
 import { useAuth } from '@/lib/auth'
 import { StatusBadge, Modal, Btn } from '@/components/ui'
@@ -15,30 +15,9 @@ export function DashboardTab() {
   const [selectedGame, setSelectedGame] = useState<Game | null>(null)
   const [homeScore, setHomeScore] = useState(0)
   const [awayScore, setAwayScore] = useState(0)
-  const [latestWeather, setLatestWeather] = useState<any>(null)
-
-  // Fetch latest weather reading
-  useEffect(() => {
-    const eventId = state.event?.id
-    if (!eventId) return
-    const sb = createClient()
-    sb.from('complexes')
-      .select('id')
-      .eq('event_id', eventId)
-      .then(({ data: cmplx }) => {
-        const ids = (cmplx ?? []).map((c: any) => c.id)
-        if (!ids.length) return
-        sb.from('weather_readings')
-          .select('*')
-          .in('complex_id', ids)
-          .order('fetched_at', { ascending: false })
-          .limit(1)
-          .single()
-          .then(({ data }) => {
-            if (data) setLatestWeather(data)
-          })
-      })
-  }, [state.event?.id])
+  // Use latest weather reading from auto-poll (store)
+  const readings = Object.values(state.weatherReadings)
+  const latestWeather = readings.length > 0 ? readings[0] : null
 
   function openGame(game: Game) {
     setSelectedGame(game)

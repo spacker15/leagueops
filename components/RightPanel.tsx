@@ -3,7 +3,6 @@
 import { useApp } from '@/lib/store'
 import type { TabName } from '@/components/AppShell'
 import { cn } from '@/lib/utils'
-import { useEffect, useState } from 'react'
 import { createClient } from '@/supabase/client'
 
 interface Props {
@@ -111,29 +110,10 @@ function WeatherRPPanel({
   onNavigate: (tab: any) => void
 }) {
   const { state, liftLightning } = useApp()
-  const [latestReading, setLatestReading] = useState<any>(null)
 
-  useEffect(() => {
-    const eventId = state.event?.id
-    if (!eventId) return
-    const sb = createClient()
-    sb.from('complexes')
-      .select('id')
-      .eq('event_id', eventId)
-      .then(({ data: cmplx }) => {
-        const ids = (cmplx ?? []).map((c: any) => c.id)
-        if (!ids.length) return
-        sb.from('weather_readings')
-          .select('*')
-          .in('complex_id', ids)
-          .order('fetched_at', { ascending: false })
-          .limit(1)
-          .single()
-          .then(({ data }) => {
-            if (data) setLatestReading(data)
-          })
-      })
-  }, [state.event?.id])
+  // Use the latest weather reading from auto-poll (store)
+  const readings = Object.values(state.weatherReadings)
+  const latestReading = readings.length > 0 ? readings[0] : null
 
   const heatIdx = latestReading?.heat_index_f
   const heatColor = !heatIdx

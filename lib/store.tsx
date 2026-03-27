@@ -17,7 +17,9 @@ import type {
   LogType,
   GameStatus,
   ScheduleChangeRequest,
+  Complex,
 } from '@/types'
+import type { WeatherReading } from '@/lib/engines/weather'
 import * as db from '@/lib/db'
 import { createClient } from '@/supabase/client'
 
@@ -35,6 +37,7 @@ interface State {
   incidents: Incident[]
   medicalIncidents: MedicalIncident[]
   weatherAlerts: WeatherAlert[]
+  weatherReadings: Record<number, WeatherReading> // keyed by complex_id
   opsLog: OpsLogEntry[]
   lightningActive: boolean
   lightningSecondsLeft: number
@@ -61,6 +64,7 @@ type Action =
   | { type: 'UPDATE_MEDICAL'; payload: MedicalIncident }
   | { type: 'SET_WEATHER'; payload: WeatherAlert[] }
   | { type: 'ADD_WEATHER'; payload: WeatherAlert }
+  | { type: 'SET_WEATHER_READING'; payload: { complexId: number; reading: WeatherReading } }
   | { type: 'SET_OPS_LOG'; payload: OpsLogEntry[] }
   | { type: 'ADD_OPS_LOG'; payload: OpsLogEntry }
   | { type: 'SET_LIGHTNING'; payload: { active: boolean; seconds?: number } }
@@ -124,6 +128,14 @@ function reducer(state: State, action: Action): State {
       return { ...state, weatherAlerts: action.payload }
     case 'ADD_WEATHER':
       return { ...state, weatherAlerts: [action.payload, ...state.weatherAlerts] }
+    case 'SET_WEATHER_READING':
+      return {
+        ...state,
+        weatherReadings: {
+          ...state.weatherReadings,
+          [action.payload.complexId]: action.payload.reading,
+        },
+      }
     case 'SET_OPS_LOG':
       return { ...state, opsLog: action.payload }
     case 'ADD_OPS_LOG':
@@ -176,6 +188,7 @@ const initialState: State = {
   incidents: [],
   medicalIncidents: [],
   weatherAlerts: [],
+  weatherReadings: {},
   opsLog: [],
   lightningActive: false,
   lightningSecondsLeft: 1800,
@@ -278,6 +291,45 @@ export function AppProvider({
       })
     }
     loadAll()
+  }, [eventId])
+
+  // ---- Auto-poll weather for all complexes (every 5 min) ----
+  useEffect(() => {
+    if (!eventId) return
+    const sb = createClient()
+
+    async function fetchWeather() {
+      // Get complexes for this event
+      const { data: complexes } = await sb.from('complexes').select('id').eq('event_id', eventId)
+      if (!complexes?.length) return
+
+      // Run weather scan for each complex
+      for (const c of complexes) {
+        try {
+          const res = await fetch('/api/weather-engine', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ complex_id: c.id, event_id: eventId }),
+          })
+          if (res.ok) {
+            const data = await res.json()
+            if (data.reading) {
+              dispatch({
+                type: 'SET_WEATHER_READING',
+                payload: { complexId: c.id, reading: data.reading },
+              })
+            }
+          }
+        } catch {
+          // Non-fatal — skip this complex
+        }
+      }
+    }
+
+    // Fetch immediately on load, then every 5 minutes
+    fetchWeather()
+    const interval = setInterval(fetchWeather, 5 * 60 * 1000)
+    return () => clearInterval(interval)
   }, [eventId])
 
   // ---- Load games when date changes ----
