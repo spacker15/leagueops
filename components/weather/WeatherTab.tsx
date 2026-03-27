@@ -53,12 +53,17 @@ export function WeatherTab() {
   const { state, triggerLightning, liftLightning, eventId } = useApp()
   const [subTab, setSubTab] = useState<SubTab>('overview')
   const [complexes, setComplexes] = useState<Complex[]>([])
-  const [readings, setReadings] = useState<Record<number, WeatherReading>>({})
+  // Use store readings as base, overlay with local scan results
+  const storeReadings = state.weatherReadings as Record<number, WeatherReading>
+  const [localReadings, setLocalReadings] = useState<Record<number, WeatherReading>>({})
   const [activeAlerts, setActiveAlerts] = useState<any[]>([])
   const [lightningStatus, setLightningStatus] = useState<Record<number, LightningStatus>>({})
   const [history, setHistory] = useState<any[]>([])
   const [scanning, setScanning] = useState<number | null>(null)
   const timerRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Merge store readings (auto-poll) with local readings (manual refresh)
+  const readings: Record<number, WeatherReading> = { ...storeReadings, ...localReadings }
 
   // Load complexes
   useEffect(() => {
@@ -154,7 +159,7 @@ export function WeatherTab() {
       const data = await res.json()
       if (data.error) throw new Error(data.error)
 
-      setReadings((prev) => ({ ...prev, [complexId]: data.reading }))
+      setLocalReadings((prev) => ({ ...prev, [complexId]: data.reading }))
       await loadAlerts()
       await loadLightningStatus()
 
@@ -265,7 +270,7 @@ export function WeatherTab() {
               size={11}
               className={cn('inline mr-1', scanning !== null && 'animate-spin')}
             />
-            SCAN ALL
+            REFRESH
           </Btn>
         </div>
       </div>
@@ -751,9 +756,9 @@ function ComplexWeatherCard({
             <Zap size={10} className="inline mr-1" />
             {ls?.active ? 'LIFT DELAY' : 'LIGHTNING'}
           </Btn>
-          <Btn size="sm" variant="primary" onClick={onScan} disabled={scanning}>
+          <Btn size="sm" variant="ghost" onClick={onScan} disabled={scanning}>
             <RefreshCw size={10} className={cn('inline mr-1', scanning && 'animate-spin')} />
-            {scanning ? 'SCANNING...' : 'SCAN'}
+            {scanning ? 'REFRESHING...' : 'REFRESH'}
           </Btn>
         </div>
       </div>
@@ -779,7 +784,7 @@ function ComplexWeatherCard({
         </div>
       ) : (
         <div className="p-4 text-[11px] text-muted font-cond text-center">
-          Click SCAN to fetch weather data
+          Loading weather data...
           {!complex.lat ? ' (add GPS coordinates for live data)' : ''}
         </div>
       )}
