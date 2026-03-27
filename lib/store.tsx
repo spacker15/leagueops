@@ -291,11 +291,18 @@ export function AppProvider({
   }, [currentDate])
 
   useEffect(() => {
-    if (!currentDate || !eventId) return
-    db.getGamesByDate(eventId, currentDate.id).then((games) =>
-      dispatch({ type: 'SET_GAMES', payload: games })
-    )
-  }, [currentDate, eventId])
+    if (!eventId) return
+    if (state.currentDateIdx === -1) {
+      // "All Dates" mode — load every game for the event
+      db.getAllGamesByEvent(eventId).then((games) =>
+        dispatch({ type: 'SET_GAMES', payload: games })
+      )
+    } else if (currentDate) {
+      db.getGamesByDate(eventId, currentDate.id).then((games) =>
+        dispatch({ type: 'SET_GAMES', payload: games })
+      )
+    }
+  }, [currentDate, eventId, state.currentDateIdx])
 
   // ---- Real-time subscriptions ----
   // Dep array is [eventId] ONLY -- currentDate is read from ref to avoid
@@ -402,10 +409,14 @@ export function AppProvider({
   }, [])
 
   const refreshGames = useCallback(async () => {
-    if (!currentDate) return
-    const games = await db.getGamesByDate(eventId!, currentDate.id)
-    dispatch({ type: 'SET_GAMES', payload: games })
-  }, [currentDate, eventId])
+    if (state.currentDateIdx === -1) {
+      const games = await db.getAllGamesByEvent(eventId!)
+      dispatch({ type: 'SET_GAMES', payload: games })
+    } else if (currentDate) {
+      const games = await db.getGamesByDate(eventId!, currentDate.id)
+      dispatch({ type: 'SET_GAMES', payload: games })
+    }
+  }, [currentDate, eventId, state.currentDateIdx])
 
   const updateGameStatus = useCallback(
     async (gameId: number, status: GameStatus) => {

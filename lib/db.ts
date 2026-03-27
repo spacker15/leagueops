@@ -469,6 +469,7 @@ export async function getWeatherAlerts(eventId: number): Promise<WeatherAlert[]>
     .from('weather_alerts')
     .select('*')
     .eq('event_id', eventId)
+    .eq('is_active', true)
     .order('created_at', { ascending: false })
   return data ?? []
 }

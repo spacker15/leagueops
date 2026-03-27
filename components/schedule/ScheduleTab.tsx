@@ -1502,6 +1502,23 @@ export function ScheduleTab() {
         </div>
       )}
 
+      {/* Alert: games outside event dates (All Dates mode) */}
+      {state.currentDateIdx === -1 &&
+        (() => {
+          const dateIds = new Set(state.eventDates.map((d) => d.id))
+          const orphaned = state.games.filter((g) => !dateIds.has(g.event_date_id))
+          if (orphaned.length === 0) return null
+          return (
+            <div className="bg-yellow-900/20 border border-yellow-800/50 rounded-lg px-4 py-2 mb-3 flex items-center gap-2">
+              <AlertTriangle size={14} className="text-yellow-400 flex-shrink-0" />
+              <span className="font-cond text-[12px] text-yellow-300">
+                {orphaned.length} game{orphaned.length !== 1 ? 's' : ''} scheduled outside defined
+                event dates
+              </span>
+            </div>
+          )
+        })()}
+
       {/* ── TABLE VIEW ── */}
       {viewMode === 'table' && (
         <div className="overflow-x-auto -mx-4 px-4">
@@ -1524,6 +1541,11 @@ export function ScheduleTab() {
                         <Square size={14} />
                       )}
                     </button>
+                  </th>
+                )}
+                {state.currentDateIdx === -1 && (
+                  <th className="font-cond text-[10px] font-black tracking-widest text-muted px-3 py-2 text-left border-b-2 border-border">
+                    DATE
                   </th>
                 )}
                 <th className="font-cond text-[10px] font-black tracking-widest text-muted px-3 py-2 text-left border-b-2 border-border sticky left-0 z-10 bg-navy">
@@ -1578,6 +1600,11 @@ export function ScheduleTab() {
                             <Square size={14} />
                           )}
                         </button>
+                      </td>
+                    )}
+                    {state.currentDateIdx === -1 && (
+                      <td className="font-cond text-[10px] text-muted px-3 py-2 whitespace-nowrap">
+                        {game.event_date?.label ?? '—'}
                       </td>
                     )}
                     <td className="font-mono text-blue-300 text-[11px] px-3 py-2 whitespace-nowrap sticky left-0 z-10 bg-[#020810]">

@@ -53,6 +53,7 @@ import {
   useSensor,
   useSensors,
 } from '@dnd-kit/core'
+import { LogoUpload } from '@/components/ui/LogoUpload'
 
 interface Program {
   id: number
@@ -70,6 +71,7 @@ interface Program {
   website: string | null
   event_id: number | null
   display_id: string | null
+  logo_url: string | null
 }
 
 interface TeamRow {
@@ -81,6 +83,7 @@ interface TeamRow {
   color: string | null
   program_id: number | null
   display_id: string | null
+  logo_url: string | null
   created_at: string
   programs?: { name: string } | null
 }
@@ -1582,7 +1585,16 @@ export function ProgramApprovals() {
                                   )}
                                 />
                               </button>
-                              <Building2 size={16} className="text-muted flex-shrink-0" />
+                              {prog.logo_url ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  src={prog.logo_url}
+                                  alt=""
+                                  className="w-6 h-6 rounded object-cover flex-shrink-0"
+                                />
+                              ) : (
+                                <Building2 size={16} className="text-muted flex-shrink-0" />
+                              )}
                               {prog.display_id && (
                                 <span className="font-mono text-[10px] text-muted bg-surface px-1.5 py-0.5 rounded">
                                   {prog.display_id}
@@ -1717,12 +1729,13 @@ export function ProgramApprovals() {
                               </div>
                               {divTeams.map((team) => (
                                 <DraggableTeamRow key={team.id} team={team}>
-                                  {team.color && (
-                                    <div
-                                      className="w-3.5 h-3.5 rounded-sm border border-border flex-shrink-0"
-                                      style={{ backgroundColor: team.color }}
-                                    />
-                                  )}
+                                  <TeamLogoCell
+                                    teamId={team.id}
+                                    teamLogoUrl={team.logo_url}
+                                    programLogoUrl={prog.logo_url}
+                                    color={team.color}
+                                    onUploaded={load}
+                                  />
                                   {team.display_id && (
                                     <span className="font-mono text-[9px] text-muted">
                                       {team.display_id}
@@ -1817,12 +1830,13 @@ export function ProgramApprovals() {
                             </div>
                             {divTeams.map((team) => (
                               <DraggableTeamRow key={team.id} team={team}>
-                                {team.color && (
-                                  <div
-                                    className="w-3.5 h-3.5 rounded-sm border border-border flex-shrink-0"
-                                    style={{ backgroundColor: team.color }}
-                                  />
-                                )}
+                                <TeamLogoCell
+                                  teamId={team.id}
+                                  teamLogoUrl={team.logo_url}
+                                  programLogoUrl={null}
+                                  color={team.color}
+                                  onUploaded={load}
+                                />
                                 <span className="font-cond font-bold text-[12px] text-white flex-1">
                                   {team.name}
                                 </span>
@@ -2277,6 +2291,20 @@ export function ProgramApprovals() {
           </div>
         }
       >
+        <div className="mb-3">
+          <FormField label="Program Logo">
+            <LogoUpload
+              currentUrl={editingProgram?.logo_url ?? null}
+              storagePath={`programs/${editingProgram?.id}/logo`}
+              onUploaded={(url) => {
+                if (editingProgram) {
+                  const sb = createClient()
+                  sb.from('programs').update({ logo_url: url }).eq('id', editingProgram.id)
+                }
+              }}
+            />
+          </FormField>
+        </div>
         <div className="grid grid-cols-2 gap-3">
           <FormField label="Program Name">
             <Input
@@ -2344,5 +2372,71 @@ export function ProgramApprovals() {
         </FormField>
       </Modal>
     </div>
+  )
+}
+
+function TeamLogoCell({
+  teamId,
+  teamLogoUrl,
+  programLogoUrl,
+  color,
+  onUploaded,
+}: {
+  teamId: number
+  teamLogoUrl: string | null
+  programLogoUrl: string | null
+  color: string | null
+  onUploaded: () => void
+}) {
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  async function handleFile(file: File) {
+    if (!file.type.startsWith('image/') || file.size > 2 * 1024 * 1024) {
+      toast.error('Image file under 2MB required')
+      return
+    }
+    const sb = createClient()
+    const ext = file.name.split('.').pop() ?? 'png'
+    const path = `teams/${teamId}/logo.${ext}`
+    const { error } = await sb.storage
+      .from('program-assets')
+      .upload(path, file, { upsert: true, contentType: file.type })
+    if (error) {
+      toast.error('Upload failed')
+      return
+    }
+    const { data } = sb.storage.from('program-assets').getPublicUrl(path)
+    await sb.from('teams').update({ logo_url: data.publicUrl }).eq('id', teamId)
+    toast.success('Team logo updated')
+    onUploaded()
+  }
+
+  const logoSrc = teamLogoUrl || programLogoUrl
+  return (
+    <>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0]
+          if (f) handleFile(f)
+        }}
+      />
+      <button
+        onClick={() => inputRef.current?.click()}
+        className="flex-shrink-0 rounded-sm overflow-hidden border border-border hover:border-blue-400 transition-colors"
+        title="Click to upload team logo"
+        style={{ width: logoSrc ? 20 : 14, height: logoSrc ? 20 : 14 }}
+      >
+        {logoSrc ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={logoSrc} alt="" className="w-full h-full object-cover" />
+        ) : (
+          <div className="w-full h-full" style={{ backgroundColor: color ?? '#0B3D91' }} />
+        )}
+      </button>
+    </>
   )
 }

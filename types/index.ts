@@ -101,6 +101,7 @@ export interface Team {
   color: string
   program_id: number | null
   display_id?: string | null
+  logo_url?: string | null
   created_at: string
 }
 

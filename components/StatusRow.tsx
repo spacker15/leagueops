@@ -68,7 +68,21 @@ export function StatusRow() {
       {/* Date nav */}
       <div className="flex items-center gap-2 px-4" style={{ borderLeft: '1px solid #1a2d50' }}>
         <button
-          onClick={() => changeDate(Math.max(0, state.currentDateIdx - 1))}
+          onClick={() => changeDate(-1)}
+          className={cn(
+            'font-cond text-[9px] font-black tracking-[.1em] px-2 py-1 rounded transition-colors',
+            state.currentDateIdx === -1
+              ? 'bg-blue-600 text-white'
+              : 'text-muted hover:text-white hover:bg-white/5'
+          )}
+        >
+          ALL
+        </button>
+
+        <button
+          onClick={() =>
+            changeDate(Math.max(0, state.currentDateIdx === -1 ? 0 : state.currentDateIdx - 1))
+          }
           disabled={state.currentDateIdx === 0}
           className="w-6 h-6 flex items-center justify-center rounded transition-colors disabled:opacity-20"
           style={{ color: '#5a6e9a' }}
@@ -79,7 +93,9 @@ export function StatusRow() {
         </button>
 
         <div className="font-cond text-[13px] font-black text-white tracking-wide px-1 min-w-[155px] text-center">
-          {currentDate ? (
+          {state.currentDateIdx === -1 ? (
+            <span className="text-blue-300">ALL DATES</span>
+          ) : currentDate ? (
             <>
               {currentDate.label}
               <span className="text-muted font-bold text-[11px] ml-2">
@@ -93,7 +109,12 @@ export function StatusRow() {
 
         <button
           onClick={() =>
-            changeDate(Math.min(state.eventDates.length - 1, state.currentDateIdx + 1))
+            changeDate(
+              Math.min(
+                state.eventDates.length - 1,
+                state.currentDateIdx === -1 ? 0 : state.currentDateIdx + 1
+              )
+            )
           }
           disabled={state.currentDateIdx >= state.eventDates.length - 1}
           className="w-6 h-6 flex items-center justify-center rounded transition-colors disabled:opacity-20"
