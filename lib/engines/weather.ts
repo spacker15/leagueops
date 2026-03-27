@@ -388,7 +388,7 @@ async function fetchNWSAlerts(lat: number, lng: number): Promise<WeatherAlert[]>
     const url = `https://api.weather.gov/alerts/active?point=${lat},${lng}&status=actual&message_type=alert`
     const res = await fetch(url, {
       headers: { 'User-Agent': 'LeagueOps/1.0 (tournament-ops-platform)' },
-      next: { revalidate: CACHE_MINUTES * 60 },
+      cache: 'no-store',
     })
     if (!res.ok) return []
 
@@ -454,7 +454,7 @@ async function fetchNWSObservation(complex: any): Promise<WeatherReading> {
     const pointUrl = `https://api.weather.gov/points/${complex.lat},${complex.lng}`
     const pointRes = await fetch(pointUrl, {
       headers: { 'User-Agent': 'LeagueOps/1.0 (tournament-ops-platform)' },
-      next: { revalidate: 3600 }, // cache station lookup for 1 hour
+      cache: 'no-store', // cache station lookup for 1 hour
     })
     if (!pointRes.ok) return getMockWeather(complex)
 
@@ -465,7 +465,7 @@ async function fetchNWSObservation(complex: any): Promise<WeatherReading> {
     // Step 2: Get the nearest station
     const stationsRes = await fetch(stationUrl, {
       headers: { 'User-Agent': 'LeagueOps/1.0 (tournament-ops-platform)' },
-      next: { revalidate: 3600 },
+      cache: 'no-store',
     })
     if (!stationsRes.ok) return getMockWeather(complex)
 
@@ -477,7 +477,7 @@ async function fetchNWSObservation(complex: any): Promise<WeatherReading> {
     const obsUrl = `https://api.weather.gov/stations/${stationId}/observations/latest`
     const obsRes = await fetch(obsUrl, {
       headers: { 'User-Agent': 'LeagueOps/1.0 (tournament-ops-platform)' },
-      next: { revalidate: CACHE_MINUTES * 60 },
+      cache: 'no-store',
     })
     if (!obsRes.ok) return getMockWeather(complex)
 
@@ -542,7 +542,7 @@ async function fetchNWSObservation(complex: any): Promise<WeatherReading> {
 async function fetchLiveWeather(complex: any, apiKey: string): Promise<WeatherReading> {
   const url = `https://api.openweathermap.org/data/2.5/weather?lat=${complex.lat}&lon=${complex.lng}&appid=${apiKey}&units=imperial`
 
-  const res = await fetch(url, { next: { revalidate: CACHE_MINUTES * 60 } })
+  const res = await fetch(url, { cache: 'no-store' })
   if (!res.ok) throw new Error(`OpenWeatherMap error: ${res.status}`)
 
   const d = await res.json()

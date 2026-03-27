@@ -149,7 +149,7 @@ export function WeatherTab() {
       const res = await fetch('/api/weather-engine', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ complex_id: complexId }),
+        body: JSON.stringify({ complex_id: complexId, event_id: eventId }),
       })
       const data = await res.json()
       if (data.error) throw new Error(data.error)
