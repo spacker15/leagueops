@@ -110,7 +110,7 @@ function WeatherRPPanel({
   alertCount: number
   onNavigate: (tab: any) => void
 }) {
-  const { state } = useApp()
+  const { state, liftLightning } = useApp()
   const [latestReading, setLatestReading] = useState<any>(null)
 
   useEffect(() => {
@@ -156,6 +156,12 @@ function WeatherRPPanel({
           <div className="font-mono text-xl text-red-400 text-center">
             {timerM}:{timerS.toString().padStart(2, '0')}
           </div>
+          <button
+            onClick={() => liftLightning()}
+            className="w-full mt-2 font-cond text-[10px] font-bold tracking-wider px-2 py-1 rounded bg-green-900/40 text-green-400 border border-green-800/50 hover:bg-green-800/60 transition-colors text-center"
+          >
+            LIFT DELAY
+          </button>
         </div>
       ) : (
         <div>
@@ -195,8 +201,22 @@ function WeatherRPPanel({
         </div>
       )}
       {alertCount > 0 && (
-        <div className="mt-2 text-[10px] text-yellow-400 font-cond font-bold tracking-wide">
-          ⚠ {alertCount} ACTIVE ALERT{alertCount > 1 ? 'S' : ''}
+        <div className="mt-2 flex items-center justify-between">
+          <span className="text-[10px] text-yellow-400 font-cond font-bold tracking-wide">
+            ⚠ {alertCount} ACTIVE ALERT{alertCount > 1 ? 'S' : ''}
+          </span>
+          <button
+            onClick={async () => {
+              const sb = createClient()
+              const active = state.weatherAlerts.filter((a) => a.is_active)
+              for (const a of active) {
+                await sb.from('weather_alerts').update({ is_active: false }).eq('id', a.id)
+              }
+            }}
+            className="font-cond text-[9px] font-bold tracking-wider px-1.5 py-0.5 rounded bg-green-900/40 text-green-400 border border-green-800/50 hover:bg-green-800/60 transition-colors"
+          >
+            RESOLVE
+          </button>
         </div>
       )}
     </Section>
