@@ -58,8 +58,6 @@ export function WeatherTab() {
   const [lightningStatus, setLightningStatus] = useState<Record<number, LightningStatus>>({})
   const [history, setHistory] = useState<any[]>([])
   const [scanning, setScanning] = useState<number | null>(null)
-  const [apiKey, setApiKey] = useState('')
-  const [showApiInput, setShowApiInput] = useState(false)
   const timerRef = useRef<NodeJS.Timeout | null>(null)
 
   // Load complexes
@@ -151,7 +149,7 @@ export function WeatherTab() {
       const res = await fetch('/api/weather-engine', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ complex_id: complexId, api_key: apiKey || undefined }),
+        body: JSON.stringify({ complex_id: complexId }),
       })
       const data = await res.json()
       if (data.error) throw new Error(data.error)
@@ -262,9 +260,6 @@ export function WeatherTab() {
           </button>
         ))}
         <div className="ml-auto flex items-center gap-2 pb-2">
-          <Btn variant="ghost" size="sm" onClick={() => setShowApiInput((s) => !s)}>
-            API KEY
-          </Btn>
           <Btn variant="primary" size="sm" onClick={scanAll} disabled={scanning !== null}>
             <RefreshCw
               size={11}
@@ -274,29 +269,6 @@ export function WeatherTab() {
           </Btn>
         </div>
       </div>
-
-      {/* API Key input (collapsible) */}
-      {showApiInput && (
-        <div className="bg-surface-card border border-border rounded-md p-3 mb-4 flex gap-3 items-end">
-          <div className="flex-1">
-            <div className="font-cond text-[10px] font-bold tracking-widest text-muted uppercase mb-1">
-              OPENWEATHERMAP API KEY (optional)
-            </div>
-            <input
-              type="text"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder="Leave blank to use mock weather data"
-              className="w-full bg-surface border border-border text-white px-3 py-1.5 rounded text-[12px] outline-none focus:border-blue-400 font-mono"
-            />
-          </div>
-          <div className="text-[10px] text-muted font-cond pb-1.5">
-            Get free key at
-            <br />
-            openweathermap.org
-          </div>
-        </div>
-      )}
 
       {/* ═══ OVERVIEW ════════════════════════════════════════════ */}
       {subTab === 'overview' && (
