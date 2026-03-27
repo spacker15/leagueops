@@ -117,13 +117,28 @@ export function DashboardTab() {
               {activeAlerts} Active Weather Alert{activeAlerts > 1 ? 's' : ''}
             </span>
           </div>
-          {latestWeather && (
-            <div className="flex items-center gap-3 text-[11px] font-mono text-yellow-200/70">
-              <span>{latestWeather.temperature_f}°F</span>
-              <span className="text-yellow-700">·</span>
-              <span>HI {latestWeather.heat_index_f}°F</span>
-            </div>
-          )}
+          <div className="flex items-center gap-3">
+            {latestWeather && (
+              <div className="flex items-center gap-3 text-[11px] font-mono text-yellow-200/70">
+                <span>{latestWeather.temperature_f}°F</span>
+                <span className="text-yellow-700">·</span>
+                <span>HI {latestWeather.heat_index_f}°F</span>
+              </div>
+            )}
+            <button
+              onClick={async () => {
+                const sb = createClient()
+                const active = state.weatherAlerts.filter((a) => a.is_active)
+                for (const a of active) {
+                  await sb.from('weather_alerts').update({ is_active: false }).eq('id', a.id)
+                }
+                toast.success(`${active.length} alert${active.length > 1 ? 's' : ''} resolved`)
+              }}
+              className="font-cond text-[10px] font-bold tracking-wider px-2.5 py-1 rounded bg-green-900/40 text-green-400 border border-green-800/50 hover:bg-green-800/60 transition-colors"
+            >
+              RESOLVE ALL
+            </button>
+          </div>
         </div>
       ) : (
         <div
@@ -171,49 +186,61 @@ export function DashboardTab() {
       )}
 
       {/* ── Coach: My Games ────────────────────────────── */}
-      {isCoach && userRole?.team_id && (() => {
-        const coachGames = state.games.filter(
-          (g) => g.home_team_id === userRole.team_id || g.away_team_id === userRole.team_id
-        )
-        const coachTeam = state.teams.find((t) => t.id === userRole.team_id)
-        return coachGames.length > 0 ? (
-          <div className="mb-6">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-1 h-5 rounded-sm bg-blue-400" />
-              <span className="font-cond text-[13px] font-black tracking-[.15em] text-white uppercase">
-                My Games {coachTeam ? `— ${coachTeam.name}` : ''}
-              </span>
-            </div>
-            <div className="space-y-2">
-              {coachGames.map((g) => (
-                <div
-                  key={g.id}
-                  className="bg-[#081428] border border-[#1a2d50] rounded-lg p-3 flex items-center justify-between cursor-pointer hover:border-blue-500/40 transition-colors"
-                  onClick={() => openGame(g)}
-                >
-                  <div className="flex items-center gap-4">
-                    <StatusBadge status={g.status} />
-                    <div className="text-[11px] text-muted font-cond">
-                      {g.field?.name ?? 'TBD'} · {g.scheduled_time ?? '—'}
+      {isCoach &&
+        userRole?.team_id &&
+        (() => {
+          const coachGames = state.games.filter(
+            (g) => g.home_team_id === userRole.team_id || g.away_team_id === userRole.team_id
+          )
+          const coachTeam = state.teams.find((t) => t.id === userRole.team_id)
+          return coachGames.length > 0 ? (
+            <div className="mb-6">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-1 h-5 rounded-sm bg-blue-400" />
+                <span className="font-cond text-[13px] font-black tracking-[.15em] text-white uppercase">
+                  My Games {coachTeam ? `— ${coachTeam.name}` : ''}
+                </span>
+              </div>
+              <div className="space-y-2">
+                {coachGames.map((g) => (
+                  <div
+                    key={g.id}
+                    className="bg-[#081428] border border-[#1a2d50] rounded-lg p-3 flex items-center justify-between cursor-pointer hover:border-blue-500/40 transition-colors"
+                    onClick={() => openGame(g)}
+                  >
+                    <div className="flex items-center gap-4">
+                      <StatusBadge status={g.status} />
+                      <div className="text-[11px] text-muted font-cond">
+                        {g.field?.name ?? 'TBD'} · {g.scheduled_time ?? '—'}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span
+                        className={cn(
+                          'font-cond text-[13px] font-bold',
+                          g.home_team_id === userRole.team_id ? 'text-blue-300' : 'text-white'
+                        )}
+                      >
+                        {g.home_team?.name ?? 'TBD'}
+                      </span>
+                      <span className="font-mono text-[15px] font-bold text-white">
+                        {g.home_score}–{g.away_score}
+                      </span>
+                      <span
+                        className={cn(
+                          'font-cond text-[13px] font-bold',
+                          g.away_team_id === userRole.team_id ? 'text-blue-300' : 'text-white'
+                        )}
+                      >
+                        {g.away_team?.name ?? 'TBD'}
+                      </span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <span className={cn('font-cond text-[13px] font-bold', g.home_team_id === userRole.team_id ? 'text-blue-300' : 'text-white')}>
-                      {g.home_team?.name ?? 'TBD'}
-                    </span>
-                    <span className="font-mono text-[15px] font-bold text-white">
-                      {g.home_score}–{g.away_score}
-                    </span>
-                    <span className={cn('font-cond text-[13px] font-bold', g.away_team_id === userRole.team_id ? 'text-blue-300' : 'text-white')}>
-                      {g.away_team?.name ?? 'TBD'}
-                    </span>
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
-        ) : null
-      })()}
+          ) : null
+        })()}
 
       {/* Section label */}
       <div className="flex items-center gap-3 mb-4">
@@ -267,7 +294,9 @@ export function DashboardTab() {
                           isActive ? 'bg-blue-900/30 border border-blue-700/30' : 'hover:bg-white/5'
                         )}
                       >
-                        <span className="font-cond text-[10px] text-muted w-16 shrink-0">{g.scheduled_time}</span>
+                        <span className="font-cond text-[10px] text-muted w-16 shrink-0">
+                          {g.scheduled_time}
+                        </span>
                         <span className="font-cond text-[10px] font-bold text-white truncate flex-1">
                           {g.home_team?.name ?? '?'} vs {g.away_team?.name ?? '?'}
                         </span>

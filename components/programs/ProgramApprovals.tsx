@@ -566,7 +566,7 @@ export function ProgramApprovals() {
     const portalUrl = `${window.location.origin}/program/${token}`
     const subject = encodeURIComponent(`${eventName} — Your Program Portal`)
     const body = encodeURIComponent(
-      `Hi ${prog.contact_name || 'there'},\n\nHere is your program management link for ${eventName}. Use this link to view and manage your program, teams, and registration:\n\n${portalUrl}\n\nYou can:\n• View and edit your program details\n• Add or remove teams\n• See your registered teams and divisions\n\nThank you!`
+      `Hi ${prog.contact_name || 'there'},\n\nHere is your program management link for ${eventName}:\n\n${portalUrl}\n\nWith this link you can:\n• View and edit your program details\n• Add or remove teams\n• Create a Program Leader account for full access in LeagueOps\n\nThank you!`
     )
     window.open(`mailto:${prog.contact_email}?subject=${subject}&body=${body}`, '_blank')
     toast.success('Registration link generated — email window opened')

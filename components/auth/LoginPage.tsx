@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useAuth } from '@/lib/auth'
+import { createClient } from '@/supabase/client'
 
 export function LoginPage() {
   const { signIn } = useAuth()
@@ -9,6 +10,9 @@ export function LoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [resetMode, setResetMode] = useState(false)
+  const [resetSent, setResetSent] = useState(false)
+  const [resetLoading, setResetLoading] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -17,6 +21,26 @@ export function LoginPage() {
     const { error } = await signIn(email, password)
     if (error) setError(error)
     setLoading(false)
+  }
+
+  async function handleReset(e: React.FormEvent) {
+    e.preventDefault()
+    if (!email) {
+      setError('Enter your email address above')
+      return
+    }
+    setError('')
+    setResetLoading(true)
+    const sb = createClient()
+    const { error } = await sb.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    })
+    if (error) {
+      setError(error.message)
+    } else {
+      setResetSent(true)
+    }
+    setResetLoading(false)
   }
 
   return (
@@ -45,82 +69,137 @@ export function LoginPage() {
         {/* Login card */}
         <div className="bg-surface-card border border-border rounded-xl p-8">
           <div className="font-cond font-black text-[16px] tracking-wide text-white mb-6 text-center">
-            SIGN IN
+            {resetMode ? 'RESET PASSWORD' : 'SIGN IN'}
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="font-cond text-[10px] font-bold tracking-widest text-muted uppercase block mb-1.5">
-                Email Address
-              </label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                autoComplete="email"
-                className="w-full bg-surface border border-border text-white px-3 py-2.5 rounded-lg text-[14px] outline-none focus:border-blue-400 transition-colors"
-                placeholder="you@example.com"
-              />
-            </div>
-
-            <div>
-              <label className="font-cond text-[10px] font-bold tracking-widest text-muted uppercase block mb-1.5">
-                Password
-              </label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                autoComplete="current-password"
-                className="w-full bg-surface border border-border text-white px-3 py-2.5 rounded-lg text-[14px] outline-none focus:border-blue-400 transition-colors"
-                placeholder="••••••••"
-              />
-            </div>
-
-            {error && (
-              <div className="bg-red-900/20 border border-red-800/50 rounded-lg px-3 py-2 text-[12px] text-red-300 font-cond font-bold">
-                {error}
+          {resetSent ? (
+            <div className="text-center py-2">
+              <div className="font-cond text-[13px] text-green-400 font-bold mb-2">
+                Password reset email sent!
               </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-navy hover:bg-navy-light text-white font-cond font-black text-[14px] tracking-widest py-3 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed mt-2"
-            >
-              {loading ? 'SIGNING IN...' : 'SIGN IN'}
-            </button>
-          </form>
-
-          {/* Role hints */}
-          <div className="mt-6 pt-5 border-t border-border">
-            <div className="font-cond text-[10px] font-bold tracking-widest text-muted uppercase mb-3 text-center">
-              ACCESS LEVELS
+              <div className="text-[12px] text-muted mb-4">
+                Check your inbox for a link to reset your password.
+              </div>
+              <button
+                onClick={() => {
+                  setResetMode(false)
+                  setResetSent(false)
+                  setError('')
+                }}
+                className="font-cond text-[11px] font-bold text-blue-300 hover:text-white transition-colors tracking-wide"
+              >
+                Back to Sign In
+              </button>
             </div>
-            <div className="space-y-1.5">
-              {[
-                { role: 'Admin', desc: 'Full system access', color: 'text-red-400' },
-                {
-                  role: 'League Admin',
-                  desc: 'Schedule, rosters, reports',
-                  color: 'text-blue-300',
-                },
-                {
-                  role: 'Referee',
-                  desc: 'Self check-in + game assignments',
-                  color: 'text-yellow-400',
-                },
-                { role: 'Volunteer', desc: 'Self check-in + assignments', color: 'text-green-400' },
-              ].map((item) => (
-                <div key={item.role} className="flex items-center justify-between text-[11px]">
-                  <span className={`font-cond font-bold ${item.color}`}>{item.role}</span>
-                  <span className="text-muted">{item.desc}</span>
+          ) : resetMode ? (
+            <form onSubmit={handleReset} className="space-y-4">
+              <div className="text-[12px] text-muted mb-2">
+                Enter your email address and we&apos;ll send you a link to reset your password.
+              </div>
+              <div>
+                <label className="font-cond text-[10px] font-bold tracking-widest text-muted uppercase block mb-1.5">
+                  Email Address
+                </label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  autoComplete="email"
+                  className="w-full bg-surface border border-border text-white px-3 py-2.5 rounded-lg text-[14px] outline-none focus:border-blue-400 transition-colors"
+                  placeholder="you@example.com"
+                />
+              </div>
+
+              {error && (
+                <div className="bg-red-900/20 border border-red-800/50 rounded-lg px-3 py-2 text-[12px] text-red-300 font-cond font-bold">
+                  {error}
                 </div>
-              ))}
-            </div>
-          </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={resetLoading}
+                className="w-full bg-navy hover:bg-navy-light text-white font-cond font-black text-[14px] tracking-widest py-3 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed mt-2"
+              >
+                {resetLoading ? 'SENDING...' : 'SEND RESET LINK'}
+              </button>
+
+              <div className="text-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setResetMode(false)
+                    setError('')
+                  }}
+                  className="font-cond text-[11px] font-bold text-blue-300 hover:text-white transition-colors tracking-wide"
+                >
+                  Back to Sign In
+                </button>
+              </div>
+            </form>
+          ) : (
+            <>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                  <label className="font-cond text-[10px] font-bold tracking-widest text-muted uppercase block mb-1.5">
+                    Email Address
+                  </label>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    autoComplete="email"
+                    className="w-full bg-surface border border-border text-white px-3 py-2.5 rounded-lg text-[14px] outline-none focus:border-blue-400 transition-colors"
+                    placeholder="you@example.com"
+                  />
+                </div>
+
+                <div>
+                  <label className="font-cond text-[10px] font-bold tracking-widest text-muted uppercase block mb-1.5">
+                    Password
+                  </label>
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    autoComplete="current-password"
+                    className="w-full bg-surface border border-border text-white px-3 py-2.5 rounded-lg text-[14px] outline-none focus:border-blue-400 transition-colors"
+                    placeholder="••••••••"
+                  />
+                </div>
+
+                {error && (
+                  <div className="bg-red-900/20 border border-red-800/50 rounded-lg px-3 py-2 text-[12px] text-red-300 font-cond font-bold">
+                    {error}
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full bg-navy hover:bg-navy-light text-white font-cond font-black text-[14px] tracking-widest py-3 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed mt-2"
+                >
+                  {loading ? 'SIGNING IN...' : 'SIGN IN'}
+                </button>
+              </form>
+
+              <div className="text-center mt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setResetMode(true)
+                    setError('')
+                  }}
+                  className="font-cond text-[11px] font-bold text-muted hover:text-blue-300 transition-colors tracking-wide"
+                >
+                  Forgot your password?
+                </button>
+              </div>
+            </>
+          )}
         </div>
 
         <div className="text-center mt-4 space-y-2">

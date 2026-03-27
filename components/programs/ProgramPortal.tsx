@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import toast, { Toaster } from 'react-hot-toast'
-import { Pencil, Plus, Trash2, Check, X } from 'lucide-react'
+import { Pencil, Plus, Trash2, Check, X, UserPlus, LogIn, Eye, EyeOff } from 'lucide-react'
 
 interface ProgramData {
   id: number
@@ -63,6 +63,13 @@ export function ProgramPortal({ token }: { token: string }) {
   const [showAddTeam, setShowAddTeam] = useState(false)
   const [newTeam, setNewTeam] = useState({ name: '', division: '', color: '#0B3D91' })
   const [addingTeam, setAddingTeam] = useState(false)
+
+  // Account signup state
+  const [showSignup, setShowSignup] = useState(false)
+  const [signupForm, setSignupForm] = useState({ email: '', password: '', name: '' })
+  const [showPw, setShowPw] = useState(false)
+  const [signingUp, setSigningUp] = useState(false)
+  const [accountCreated, setAccountCreated] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -152,6 +159,37 @@ export function ProgramPortal({ token }: { token: string }) {
       toast.error(err.error ?? 'Failed to add team')
     }
     setAddingTeam(false)
+  }
+
+  async function claimAccount() {
+    if (!signupForm.email || !signupForm.password) {
+      toast.error('Email and password are required')
+      return
+    }
+    if (signupForm.password.length < 6) {
+      toast.error('Password must be at least 6 characters')
+      return
+    }
+    setSigningUp(true)
+    const res = await fetch('/api/program-invite/claim', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        token,
+        email: signupForm.email,
+        password: signupForm.password,
+        display_name: signupForm.name || undefined,
+      }),
+    })
+    const data = await res.json()
+    if (res.ok) {
+      toast.success('Account created! You can now sign in to LeagueOps.')
+      setAccountCreated(true)
+      setShowSignup(false)
+    } else {
+      toast.error(data.error ?? 'Failed to create account')
+    }
+    setSigningUp(false)
   }
 
   async function removeTeam(team: TeamData) {
@@ -480,6 +518,120 @@ export function ProgramPortal({ token }: { token: string }) {
                   </button>
                 </div>
               ))}
+            </div>
+          )}
+        </div>
+
+        {/* Account Signup Section */}
+        <div className="bg-surface-card border border-border rounded-lg p-5">
+          {accountCreated ? (
+            <div className="text-center py-4">
+              <Check size={32} className="text-green-400 mx-auto mb-2" />
+              <div className="font-cond font-black text-white tracking-wider text-sm mb-1">
+                ACCOUNT CREATED
+              </div>
+              <p className="text-[13px] text-muted mb-3">
+                You can now sign in to LeagueOps with full access to manage{' '}
+                <span className="text-white font-bold">{program.name}</span>.
+              </p>
+              <a
+                href="/"
+                className="inline-block bg-navy hover:bg-navy/80 text-white font-cond font-bold text-[12px] px-6 py-2.5 rounded transition-colors tracking-wider"
+              >
+                <LogIn size={14} className="inline mr-1.5 -mt-0.5" />
+                SIGN IN
+              </a>
+            </div>
+          ) : showSignup ? (
+            <div>
+              <h2 className="font-cond font-black text-white tracking-wider uppercase text-sm mb-4">
+                <UserPlus size={14} className="inline mr-1.5 -mt-0.5" />
+                Create Your Account
+              </h2>
+              <p className="text-[12px] text-muted mb-4">
+                Create an account to manage{' '}
+                <span className="text-white font-bold">{program.name}</span> directly in LeagueOps
+                with full program leader access.
+              </p>
+              <div className="space-y-3">
+                <div>
+                  <div className={label}>Your Name</div>
+                  <input
+                    className={inp}
+                    value={signupForm.name}
+                    onChange={(e) => setSignupForm((f) => ({ ...f, name: e.target.value }))}
+                    placeholder={program.contact_name || 'Your full name'}
+                  />
+                </div>
+                <div>
+                  <div className={label}>Email Address *</div>
+                  <input
+                    className={inp}
+                    type="email"
+                    value={signupForm.email}
+                    onChange={(e) => setSignupForm((f) => ({ ...f, email: e.target.value }))}
+                    placeholder={program.contact_email || 'you@example.com'}
+                  />
+                </div>
+                <div>
+                  <div className={label}>Password *</div>
+                  <div className="relative">
+                    <input
+                      className={inp}
+                      type={showPw ? 'text' : 'password'}
+                      value={signupForm.password}
+                      onChange={(e) => setSignupForm((f) => ({ ...f, password: e.target.value }))}
+                      placeholder="Min 6 characters"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPw((s) => !s)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-white"
+                    >
+                      {showPw ? <EyeOff size={14} /> : <Eye size={14} />}
+                    </button>
+                  </div>
+                </div>
+                <div className="flex gap-2 pt-2">
+                  <button
+                    onClick={claimAccount}
+                    disabled={signingUp}
+                    className="flex items-center gap-1 bg-navy hover:bg-navy/80 text-white font-cond font-bold text-[12px] px-4 py-2 rounded transition-colors"
+                  >
+                    <UserPlus size={14} /> {signingUp ? 'CREATING...' : 'CREATE ACCOUNT'}
+                  </button>
+                  <button
+                    onClick={() => setShowSignup(false)}
+                    className="text-muted hover:text-white font-cond font-bold text-[12px] px-4 py-2 rounded transition-colors"
+                  >
+                    CANCEL
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="font-cond font-black text-white tracking-wider uppercase text-sm">
+                  Program Leader Access
+                </h2>
+                <p className="text-[12px] text-muted mt-1">
+                  Create an account to manage this program directly in LeagueOps.
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setSignupForm({
+                    email: program.contact_email || '',
+                    password: '',
+                    name: program.contact_name || '',
+                  })
+                  setShowSignup(true)
+                }}
+                className="flex items-center gap-1.5 bg-navy hover:bg-navy/80 text-white font-cond font-bold text-[12px] px-4 py-2 rounded transition-colors tracking-wider"
+              >
+                <UserPlus size={14} /> CREATE ACCOUNT
+              </button>
             </div>
           )}
         </div>
