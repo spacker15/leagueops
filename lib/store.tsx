@@ -312,12 +312,17 @@ export function AppProvider({
             body: JSON.stringify({ complex_id: c.id, event_id: eventId }),
           })
           if (res.ok) {
-            const data = await res.json()
-            if (data.reading) {
-              dispatch({
-                type: 'SET_WEATHER_READING',
-                payload: { complexId: c.id, reading: data.reading },
-              })
+            const text = await res.text()
+            try {
+              const data = JSON.parse(text)
+              if (data.reading) {
+                dispatch({
+                  type: 'SET_WEATHER_READING',
+                  payload: { complexId: c.id, reading: data.reading },
+                })
+              }
+            } catch {
+              console.warn('Weather API returned non-JSON for complex', c.id)
             }
           }
         } catch {

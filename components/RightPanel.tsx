@@ -175,7 +175,7 @@ function WeatherRPPanel({
             </div>
           ) : (
             <div className="text-[10px] text-muted font-cond text-center">
-              Run Weather Scan for live data
+              Loading weather data...
             </div>
           )}
         </div>
@@ -191,6 +191,17 @@ function WeatherRPPanel({
               const active = state.weatherAlerts.filter((a) => a.is_active)
               for (const a of active) {
                 await sb.from('weather_alerts').update({ is_active: false }).eq('id', a.id)
+              }
+              // Force refresh alerts from DB so UI updates immediately
+              const eventId = state.event?.id
+              if (eventId) {
+                const { data } = await sb
+                  .from('weather_alerts')
+                  .select('*')
+                  .eq('event_id', eventId)
+                  .eq('is_active', true)
+                  .order('created_at', { ascending: false })
+                // The realtime subscription will pick up the changes
               }
             }}
             className="font-cond text-[9px] font-bold tracking-wider px-1.5 py-0.5 rounded bg-green-900/40 text-green-400 border border-green-800/50 hover:bg-green-800/60 transition-colors"

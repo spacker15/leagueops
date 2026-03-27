@@ -156,7 +156,13 @@ export function WeatherTab() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ complex_id: complexId, event_id: eventId }),
       })
-      const data = await res.json()
+      const text = await res.text()
+      let data: any
+      try {
+        data = JSON.parse(text)
+      } catch {
+        throw new Error(`Weather API returned invalid response: ${text.slice(0, 100)}`)
+      }
       if (data.error) throw new Error(data.error)
 
       setLocalReadings((prev) => ({ ...prev, [complexId]: data.reading }))
