@@ -12,6 +12,7 @@ export type AppRole =
   | 'player'
   | 'program_leader'
   | 'coach'
+  | 'trainer'
 
 export interface UserRole {
   id: number
@@ -19,6 +20,7 @@ export interface UserRole {
   event_id: number | null
   referee_id: number | null
   volunteer_id: number | null
+  trainer_id: number | null
   player_id: number | null
   program_id: number | null
   team_id: number | null
@@ -29,8 +31,8 @@ export interface UserRole {
 interface AuthContextValue {
   user: User | null
   session: Session | null
-  userRole: UserRole | null          // primary (first) role — kept for backwards compat
-  userRoles: UserRole[]              // all active roles
+  userRole: UserRole | null // primary (first) role — kept for backwards compat
+  userRoles: UserRole[] // all active roles
   loading: boolean
   signIn: (email: string, password: string) => Promise<{ error: string | null }>
   signOut: () => Promise<void>
@@ -39,6 +41,7 @@ interface AuthContextValue {
   isReferee: boolean
   isVolunteer: boolean
   isCoach: boolean
+  isTrainer: boolean
   canManage: boolean // admin or league_admin
 }
 
@@ -110,6 +113,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const isReferee = userRoles.some((r) => r.role === 'referee')
   const isVolunteer = userRoles.some((r) => r.role === 'volunteer')
   const isCoach = userRoles.some((r) => r.role === 'coach')
+  const isTrainer = userRoles.some((r) => r.role === 'trainer')
   const canManage = isAdmin || isLeagueAdmin
 
   return (
@@ -127,6 +131,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isReferee,
         isVolunteer,
         isCoach,
+        isTrainer,
         canManage,
       }}
     >

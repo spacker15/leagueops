@@ -100,6 +100,7 @@ export interface Team {
   association: string | null
   color: string
   program_id: number | null
+  display_id?: string | null
   created_at: string
 }
 
@@ -126,6 +127,7 @@ export interface Game {
   home_score: number
   away_score: number
   notes: string | null
+  display_id?: string | null
   created_at: string
   // Joined
   field?: Field
@@ -163,6 +165,17 @@ export interface Volunteer {
   name: string
   role: VolunteerRole
   phone: string | null
+  checked_in: boolean
+  created_at: string
+}
+
+export interface Trainer {
+  id: number
+  event_id: number
+  name: string
+  email: string | null
+  phone: string | null
+  certifications: string | null
   checked_in: boolean
   created_at: string
 }

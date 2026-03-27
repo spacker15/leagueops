@@ -330,6 +330,13 @@ export function AppProvider({
           db.getMedicalIncidents(eid).then((d) => dispatch({ type: 'SET_MEDICAL', payload: d }))
         }
       )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'weather_alerts', filter },
+        () => {
+          db.getWeatherAlerts(eid).then((d) => dispatch({ type: 'SET_WEATHER', payload: d }))
+        }
+      )
       .subscribe()
 
     const scrSub = sb

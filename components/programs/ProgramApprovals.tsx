@@ -69,6 +69,7 @@ interface Program {
   created_at: string
   website: string | null
   event_id: number | null
+  display_id: string | null
 }
 
 interface TeamRow {
@@ -79,6 +80,7 @@ interface TeamRow {
   association: string | null
   color: string | null
   program_id: number | null
+  display_id: string | null
   created_at: string
   programs?: { name: string } | null
 }
@@ -509,7 +511,7 @@ export function ProgramApprovals() {
     }
     setSavingEdit(true)
     const sb = createClient()
-    const { error } = await sb
+    const { error, data: updated } = await sb
       .from('programs')
       .update({
         name: editForm.name,
@@ -523,8 +525,11 @@ export function ProgramApprovals() {
         notes: editForm.notes || null,
       })
       .eq('id', editingProgram.id)
+      .select()
     if (error) {
       toast.error(error.message)
+    } else if (!updated || updated.length === 0) {
+      toast.error('Update failed — you may not have permission to edit this program')
     } else {
       toast.success(`Program "${editForm.name}" updated`)
       setEditingProgram(null)
@@ -533,23 +538,35 @@ export function ProgramApprovals() {
     setSavingEdit(false)
   }
 
-  function sendRegistrationLink(prog: Program) {
+  async function sendRegistrationLink(prog: Program) {
     const eventName = state.event?.name ?? 'our event'
-    const slug = state.event?.slug
-    if (!slug) {
-      toast.error('Event slug is not configured — cannot build registration URL')
-      return
-    }
     if (!prog.contact_email) {
       toast.error('No contact email set for this program')
       return
     }
-    const regUrl = `https://leagueops.vercel.app/e/${slug}/register`
-    const subject = encodeURIComponent(`Register for ${eventName}`)
+    if (!eventId) {
+      toast.error('No event selected')
+      return
+    }
+
+    // Generate or retrieve a program invite token
+    const res = await fetch('/api/program-invite', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ program_id: prog.id, event_id: eventId }),
+    })
+    if (!res.ok) {
+      toast.error('Failed to generate registration link')
+      return
+    }
+    const { token } = await res.json()
+    const portalUrl = `${window.location.origin}/program/${token}`
+    const subject = encodeURIComponent(`${eventName} — Your Program Portal`)
     const body = encodeURIComponent(
-      `Hi ${prog.contact_name || 'there'},\n\nYou are invited to register for ${eventName}. Use the link below to complete your registration:\n\n${regUrl}\n\nThank you!`
+      `Hi ${prog.contact_name || 'there'},\n\nHere is your program management link for ${eventName}. Use this link to view and manage your program, teams, and registration:\n\n${portalUrl}\n\nYou can:\n• View and edit your program details\n• Add or remove teams\n• See your registered teams and divisions\n\nThank you!`
     )
     window.open(`mailto:${prog.contact_email}?subject=${subject}&body=${body}`, '_blank')
+    toast.success('Registration link generated — email window opened')
   }
 
   async function approveProgram(prog: Program) {
@@ -866,6 +883,7 @@ export function ProgramApprovals() {
   // --- CSV Export ---
   function exportProgramsCSV() {
     const headers = [
+      'display_id',
       'name',
       'short_name',
       'city',
@@ -895,12 +913,13 @@ export function ProgramApprovals() {
   }
 
   function exportTeamsCSV() {
-    const headers = ['name', 'division', 'program', 'association', 'color']
+    const headers = ['display_id', 'name', 'division', 'program', 'association', 'color']
     const csvRows = [headers.join(',')]
     for (const t of teams) {
       const progName = t.programs?.name ?? ''
       csvRows.push(
         [
+          `"${String(t.display_id ?? '').replace(/"/g, '""')}"`,
           `"${String(t.name).replace(/"/g, '""')}"`,
           `"${String(t.division).replace(/"/g, '""')}"`,
           `"${String(progName).replace(/"/g, '""')}"`,
@@ -1564,6 +1583,11 @@ export function ProgramApprovals() {
                                 />
                               </button>
                               <Building2 size={16} className="text-muted flex-shrink-0" />
+                              {prog.display_id && (
+                                <span className="font-mono text-[10px] text-muted bg-surface px-1.5 py-0.5 rounded">
+                                  {prog.display_id}
+                                </span>
+                              )}
                               <button
                                 onClick={() => toggleProgram(prog.id)}
                                 className="font-cond font-black text-[16px] text-white hover:text-blue-300 transition-colors text-left"
@@ -1698,6 +1722,11 @@ export function ProgramApprovals() {
                                       className="w-3.5 h-3.5 rounded-sm border border-border flex-shrink-0"
                                       style={{ backgroundColor: team.color }}
                                     />
+                                  )}
+                                  {team.display_id && (
+                                    <span className="font-mono text-[9px] text-muted">
+                                      {team.display_id}
+                                    </span>
                                   )}
                                   <span className="font-cond font-bold text-[12px] text-white flex-1">
                                     {team.name}

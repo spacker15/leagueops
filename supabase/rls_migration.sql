@@ -1250,6 +1250,11 @@ CREATE POLICY "auth_update_programs" ON programs
       WHERE pl.program_id = programs.id
         AND pl.user_id = auth.uid()
     )
+    OR EXISTS (
+      SELECT 1 FROM user_roles ur
+      WHERE ur.user_id = auth.uid()
+        AND ur.role IN ('admin', 'league_admin')
+    )
   )
   WITH CHECK (true);
 

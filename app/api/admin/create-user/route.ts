@@ -51,6 +51,7 @@ export async function POST(req: NextRequest) {
     volunteer_id,
     program_id,
     coach_id,
+    trainer_id,
     event_id,
   } = result.data
 
@@ -81,6 +82,7 @@ export async function POST(req: NextRequest) {
     volunteer_id: volunteer_id ?? null,
     program_id: program_id ?? null,
     coach_id: coach_id ?? null,
+    trainer_id: trainer_id ?? null,
     event_id: event_id,
     is_active: true,
   })

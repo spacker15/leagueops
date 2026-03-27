@@ -1581,6 +1581,9 @@ export function ScheduleTab() {
                       </td>
                     )}
                     <td className="font-mono text-blue-300 text-[11px] px-3 py-2 whitespace-nowrap sticky left-0 z-10 bg-[#020810]">
+                      {game.display_id && (
+                        <span className="text-[9px] text-muted mr-1.5">{game.display_id}</span>
+                      )}
                       <span className={game.status === 'Cancelled' ? 'line-through' : undefined}>
                         {game.scheduled_time}
                       </span>

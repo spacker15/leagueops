@@ -36,13 +36,17 @@ export function UserManagement() {
   const [invitePassword, setInvitePassword] = useState('')
   const [inviteProgramId, setInviteProgramId] = useState('')
   const [inviteCoachId, setInviteCoachId] = useState('')
-  // Inline creation fields for refs/volunteers
+  const [inviteTrainerId, setInviteTrainerId] = useState('')
+  // Inline creation fields for refs/volunteers/trainers
   const [newRefPhone, setNewRefPhone] = useState('')
   const [newVolRole, setNewVolRole] = useState('Score Table')
   const [newVolPhone, setNewVolPhone] = useState('')
+  const [newTrainerPhone, setNewTrainerPhone] = useState('')
+  const [newTrainerCerts, setNewTrainerCerts] = useState('')
   const [sending, setSending] = useState(false)
   const [refs, setRefs] = useState<any[]>([])
   const [vols, setVols] = useState<any[]>([])
+  const [trainers, setTrainers] = useState<any[]>([])
   const [programs, setPrograms] = useState<any[]>([])
   const [coaches, setCoaches] = useState<any[]>([])
 
@@ -67,12 +71,14 @@ export function UserManagement() {
 
   async function loadRefVol() {
     const sb = createClient()
-    const [{ data: r }, { data: v }] = await Promise.all([
+    const [{ data: r }, { data: v }, { data: t }] = await Promise.all([
       sb.from('referees').select('id, name').eq('event_id', eventId).order('name'),
       sb.from('volunteers').select('id, name, role').eq('event_id', eventId).order('name'),
+      sb.from('trainers').select('id, name, email').eq('event_id', eventId).order('name'),
     ])
     setRefs(r ?? [])
     setVols(v ?? [])
+    setTrainers(t ?? [])
   }
 
   async function loadProgramsCoaches() {
@@ -96,6 +102,7 @@ export function UserManagement() {
 
     let refId = inviteRefId ? Number(inviteRefId) : null
     let volId = inviteVolId ? Number(inviteVolId) : null
+    let trainerId = inviteTrainerId ? Number(inviteTrainerId) : null
 
     // Create new referee record inline if "new" selected
     if (inviteRole === 'referee' && inviteRefId === '__new__') {
@@ -137,6 +144,27 @@ export function UserManagement() {
       volId = newVol.id
     }
 
+    // Create new trainer record inline if "new" selected
+    if (inviteRole === 'trainer' && inviteTrainerId === '__new__') {
+      const { data: newTrainer, error } = await sb
+        .from('trainers')
+        .insert({
+          event_id: eventId,
+          name: displayName,
+          email: inviteEmail,
+          phone: newTrainerPhone || null,
+          certifications: newTrainerCerts || null,
+        })
+        .select('id')
+        .single()
+      if (error || !newTrainer) {
+        toast.error(error?.message ?? 'Failed to create trainer')
+        setSending(false)
+        return
+      }
+      trainerId = newTrainer.id
+    }
+
     // Create auth user via admin API (requires service role in API route)
     const res = await fetch('/api/admin/create-user', {
       method: 'POST',
@@ -150,6 +178,7 @@ export function UserManagement() {
         volunteer_id: volId,
         program_id: inviteProgramId ? Number(inviteProgramId) : null,
         coach_id: inviteCoachId ? Number(inviteCoachId) : null,
+        trainer_id: trainerId,
         event_id: eventId,
       }),
     })
@@ -160,7 +189,7 @@ export function UserManagement() {
     } else {
       toast.success(`User created: ${inviteEmail}`)
       // Send invite email for applicable roles
-      if (['referee', 'volunteer', 'coach', 'program_leader'].includes(inviteRole)) {
+      if (['referee', 'volunteer', 'coach', 'program_leader', 'trainer'].includes(inviteRole)) {
         try {
           const emailRes = await fetch('/api/admin/send-invite', {
             method: 'POST',
@@ -184,9 +213,12 @@ export function UserManagement() {
       setInviteVolId('')
       setInviteProgramId('')
       setInviteCoachId('')
+      setInviteTrainerId('')
       setNewRefPhone('')
       setNewVolRole('Score Table')
       setNewVolPhone('')
+      setNewTrainerPhone('')
+      setNewTrainerCerts('')
       loadUsers()
       loadRefVol()
     }
@@ -259,6 +291,7 @@ export function UserManagement() {
                   <option value="volunteer">Volunteer</option>
                   <option value="program_leader">Program Leader</option>
                   <option value="coach">Coach</option>
+                  <option value="trainer">Trainer (Athletic)</option>
                 </select>
               </FormField>
 
@@ -372,6 +405,47 @@ export function UserManagement() {
                     ))}
                   </select>
                 </FormField>
+              )}
+
+              {inviteRole === 'trainer' && (
+                <>
+                  <FormField label="Trainer">
+                    <select
+                      className="w-full bg-surface border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400"
+                      value={inviteTrainerId}
+                      onChange={(e) => setInviteTrainerId(e.target.value)}
+                    >
+                      <option value="">Select trainer…</option>
+                      <option value="__new__">+ Create new trainer</option>
+                      {trainers.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.name}
+                          {t.email ? ` (${t.email})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </FormField>
+                  {inviteTrainerId === '__new__' && (
+                    <div className="pl-3 border-l-2 border-teal-800/50 space-y-2">
+                      <FormField label="Phone (optional)">
+                        <input
+                          className="w-full bg-surface border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400"
+                          value={newTrainerPhone}
+                          onChange={(e) => setNewTrainerPhone(e.target.value)}
+                          placeholder="555-0100"
+                        />
+                      </FormField>
+                      <FormField label="Certifications (optional)">
+                        <input
+                          className="w-full bg-surface border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400"
+                          value={newTrainerCerts}
+                          onChange={(e) => setNewTrainerCerts(e.target.value)}
+                          placeholder="ATC, CPR, First Aid"
+                        />
+                      </FormField>
+                    </div>
+                  )}
+                </>
               )}
 
               <Btn variant="primary" className="w-full" onClick={createUser} disabled={sending}>
