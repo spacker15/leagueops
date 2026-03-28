@@ -29,6 +29,7 @@ import { ReportsTab } from '@/components/reports/ReportsTab'
 import { PaymentsTab } from '@/components/payments/PaymentsTab'
 import { ScheduleChangeRequestsTab } from '@/components/requests/ScheduleChangeRequestsTab'
 import { NotificationBell } from '@/components/notifications/NotificationBell'
+import { WeatherBar } from '@/components/WeatherBar'
 
 export type TabName =
   | 'dashboard'
@@ -153,6 +154,7 @@ export function AppShell({
         pendingRequestCount={pendingRequestCount}
         rightSlot={<NotificationBell />}
       />
+      <WeatherBar />
       {state.lightningActive && (
         <div
           className="flex items-center justify-center gap-2 py-1.5 text-white font-cond font-black text-[12px] tracking-widest lightning-flash flex-shrink-0"

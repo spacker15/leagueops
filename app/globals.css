@@ -215,6 +215,20 @@ body {
   animation: flashBorder 1s ease-in-out infinite;
 }
 
+/* ── Weather alert ticker ───────────────────────────────── */
+@keyframes ticker {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.ticker-scroll {
+  will-change: transform;
+}
+
 .tab-content {
   padding: 12px 14px;
 }
