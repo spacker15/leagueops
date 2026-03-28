@@ -73,6 +73,10 @@ export interface WeatherAlert {
   title: string
   description: string
   auto_action: string | null
+  // NWS-specific fields (only set for nws_alert type)
+  nws_alert_id?: string
+  nws_event_type?: string
+  expires_at?: string
 }
 
 export interface WeatherEngineResult {
@@ -95,6 +99,15 @@ export async function runWeatherEngine(
   const { data: complex } = await sb.from('complexes').select('*').eq('id', complexId).single()
 
   if (!complex) throw new Error(`Complex ${complexId} not found`)
+
+  // Auto-expire NWS alerts whose expires_at has passed
+  await sb
+    .from('weather_alerts')
+    .update({ is_active: false })
+    .eq('event_id', eventId)
+    .eq('is_active', true)
+    .not('expires_at', 'is', null)
+    .lt('expires_at', new Date().toISOString())
 
   // Fetch weather — priority: OpenWeatherMap (if key) → NWS free API (if coords) → mock
   let reading: WeatherReading
@@ -169,7 +182,16 @@ export async function runWeatherEngine(
 
   // ── Process each alert ──
   for (const alert of alerts) {
-    // Write alert to DB
+    // Write alert to DB — skip NWS alerts that are already stored (dedup by nws_alert_id)
+    if (alert.nws_alert_id) {
+      const { data: existing } = await sb
+        .from('weather_alerts')
+        .select('id')
+        .eq('nws_alert_id', alert.nws_alert_id)
+        .maybeSingle()
+      if (existing) continue // already stored this NWS alert
+    }
+
     await sb.from('weather_alerts').insert({
       event_id: eventId,
       complex_id: complexId,
@@ -177,6 +199,9 @@ export async function runWeatherEngine(
       description: alert.description,
       is_active: true,
       severity: alert.severity,
+      nws_alert_id: alert.nws_alert_id ?? null,
+      nws_event_type: alert.nws_event_type ?? null,
+      expires_at: alert.expires_at ?? null,
       temperature_f: reading.temperature_f,
       heat_index_f: reading.heat_index_f,
       humidity_pct: reading.humidity_pct,
@@ -237,8 +262,9 @@ export async function runWeatherEngine(
     }
 
     if (alert.type === 'nws_alert') {
-      actions_taken.push(`🏛 NWS: ${alert.title}`)
-      // Critical NWS alerts (tornado, severe thunderstorm) suspend play
+      const eventLabel = alert.nws_event_type ?? alert.title
+      actions_taken.push(`🏛 NWS ${alert.severity.toUpperCase()}: ${eventLabel}`)
+
       if (alert.auto_action === 'suspend_all_fields' && activeGameIds.length > 0) {
         lightning_active = true
         games_affected = activeGameIds.length
@@ -247,6 +273,15 @@ export async function runWeatherEngine(
           .update({ status: 'Delayed' })
           .in('id', activeGameIds)
           .in('status', ['Scheduled', 'Starting', 'Live', 'Halftime'])
+        actions_taken.push(`⛔ ${games_affected} games suspended — ${eventLabel}`)
+      } else if (alert.auto_action === 'prepare_to_suspend') {
+        actions_taken.push(`⚠️ Prepare to suspend — ${eventLabel} in effect`)
+      } else if (alert.auto_action === 'mandatory_breaks') {
+        if (heat_protocol !== 'emergency') heat_protocol = 'warning'
+        actions_taken.push(`🌡 Mandatory breaks — ${eventLabel}`)
+      } else if (alert.auto_action === 'water_breaks') {
+        if (heat_protocol === 'none') heat_protocol = 'advisory'
+        actions_taken.push(`💧 Water breaks required — ${eventLabel}`)
       }
     }
   }
@@ -383,67 +418,199 @@ export function calcHeatIndex(tempF: number, humidity: number): number {
   return Math.round(hi * 10) / 10
 }
 
+// ─── NWS event-type → severity + action mapping ──────────────
+//
+// Based on the full NWS Product Types list from api.weather.gov/glossary
+// and NOAA's alert severity matrix.  Each entry maps an NWS "event" string
+// (lowercased, substring match) to { severity, auto_action }.
+//
+// Precedence: exact match → contains match → fallback to NWS severity field.
+//
+type NWSRule = { severity: 'info' | 'warning' | 'critical'; action: string | null }
+
+const NWS_EVENT_RULES: { match: string; rule: NWSRule }[] = [
+  // ── IMMEDIATE SUSPEND ──────────────────────────────────────
+  { match: 'tornado warning', rule: { severity: 'critical', action: 'suspend_all_fields' } },
+  { match: 'tornado emergency', rule: { severity: 'critical', action: 'suspend_all_fields' } },
+  {
+    match: 'severe thunderstorm warning',
+    rule: { severity: 'critical', action: 'suspend_all_fields' },
+  },
+  { match: 'extreme wind warning', rule: { severity: 'critical', action: 'suspend_all_fields' } },
+  {
+    match: 'flash flood emergency',
+    rule: { severity: 'critical', action: 'suspend_all_fields' },
+  },
+  {
+    match: 'particularly dangerous situation',
+    rule: { severity: 'critical', action: 'suspend_all_fields' },
+  },
+  { match: 'dust storm warning', rule: { severity: 'critical', action: 'suspend_all_fields' } },
+  { match: 'high wind warning', rule: { severity: 'critical', action: 'suspend_all_fields' } },
+  {
+    match: 'blizzard warning',
+    rule: { severity: 'critical', action: 'suspend_all_fields' },
+  },
+  { match: 'ice storm warning', rule: { severity: 'critical', action: 'suspend_all_fields' } },
+  {
+    match: 'snow squall warning',
+    rule: { severity: 'critical', action: 'suspend_all_fields' },
+  },
+  {
+    match: 'storm surge warning',
+    rule: { severity: 'critical', action: 'suspend_all_fields' },
+  },
+
+  // ── WARNING — prepare to suspend ──────────────────────────
+  { match: 'tornado watch', rule: { severity: 'warning', action: 'prepare_to_suspend' } },
+  {
+    match: 'severe thunderstorm watch',
+    rule: { severity: 'warning', action: 'prepare_to_suspend' },
+  },
+  { match: 'flash flood warning', rule: { severity: 'warning', action: 'prepare_to_suspend' } },
+  {
+    match: 'flash flood watch',
+    rule: { severity: 'warning', action: 'prepare_to_suspend' },
+  },
+  {
+    match: 'excessive heat warning',
+    rule: { severity: 'warning', action: 'mandatory_breaks' },
+  },
+  {
+    match: 'excessive heat watch',
+    rule: { severity: 'warning', action: 'mandatory_breaks' },
+  },
+  { match: 'high wind watch', rule: { severity: 'warning', action: 'prepare_to_suspend' } },
+  {
+    match: 'thunderstorm wind',
+    rule: { severity: 'warning', action: 'prepare_to_suspend' },
+  },
+  { match: 'hail warning', rule: { severity: 'warning', action: 'prepare_to_suspend' } },
+  { match: 'areal flood warning', rule: { severity: 'warning', action: 'prepare_to_suspend' } },
+  {
+    match: 'urban and small stream flood advisory',
+    rule: { severity: 'warning', action: null },
+  },
+  { match: 'flood warning', rule: { severity: 'warning', action: 'prepare_to_suspend' } },
+  { match: 'flood watch', rule: { severity: 'warning', action: null } },
+  {
+    match: 'tropical storm warning',
+    rule: { severity: 'critical', action: 'suspend_all_fields' },
+  },
+  {
+    match: 'tropical storm watch',
+    rule: { severity: 'warning', action: 'prepare_to_suspend' },
+  },
+  {
+    match: 'hurricane warning',
+    rule: { severity: 'critical', action: 'suspend_all_fields' },
+  },
+  { match: 'hurricane watch', rule: { severity: 'warning', action: 'prepare_to_suspend' } },
+
+  // ── ADVISORY — monitor + inform ────────────────────────────
+  { match: 'heat advisory', rule: { severity: 'info', action: 'water_breaks' } },
+  { match: 'wind advisory', rule: { severity: 'info', action: null } },
+  { match: 'dense fog advisory', rule: { severity: 'info', action: null } },
+  { match: 'freeze warning', rule: { severity: 'info', action: null } },
+  { match: 'frost advisory', rule: { severity: 'info', action: null } },
+  { match: 'air quality alert', rule: { severity: 'info', action: null } },
+  { match: 'beach hazards statement', rule: { severity: 'info', action: null } },
+  { match: 'rip current statement', rule: { severity: 'info', action: null } },
+  { match: 'special weather statement', rule: { severity: 'info', action: null } },
+  { match: 'hazardous weather outlook', rule: { severity: 'info', action: null } },
+  { match: 'winter weather advisory', rule: { severity: 'info', action: null } },
+  { match: 'winter storm watch', rule: { severity: 'warning', action: 'prepare_to_suspend' } },
+  { match: 'winter storm warning', rule: { severity: 'critical', action: 'suspend_all_fields' } },
+  { match: 'lake wind advisory', rule: { severity: 'info', action: null } },
+  { match: 'small craft advisory', rule: { severity: 'info', action: null } },
+]
+
+function classifyNWSEvent(eventName: string, nwsSeverity: string): NWSRule {
+  const lower = eventName.toLowerCase()
+
+  // Exact match first, then contains
+  for (const { match, rule } of NWS_EVENT_RULES) {
+    if (lower === match) return rule
+  }
+  for (const { match, rule } of NWS_EVENT_RULES) {
+    if (lower.includes(match)) return rule
+  }
+
+  // Fallback: use NWS severity field
+  const s = nwsSeverity.toLowerCase()
+  if (s === 'extreme' || s === 'severe') {
+    return { severity: 'critical', action: 'suspend_all_fields' }
+  }
+  if (s === 'moderate') return { severity: 'warning', action: null }
+  return { severity: 'info', action: null }
+}
+
 // ─── NWS Active Alerts (api.weather.gov) — free, no key ──────
+//
+// Full alert pipeline:
+//   GET /alerts/active?point={lat},{lng}&status=actual&message_type=alert,update
+//
+// Each NWS alert is stored with its unique ID so duplicate runs don't
+// create duplicate DB rows.  Expired alerts are skipped.
+//
 async function fetchNWSAlerts(lat: number, lng: number): Promise<WeatherAlert[]> {
   try {
-    const url = `https://api.weather.gov/alerts/active?point=${lat},${lng}&status=actual&message_type=alert`
+    const url =
+      `https://api.weather.gov/alerts/active` +
+      `?point=${lat},${lng}&status=actual&message_type=alert,update&limit=50`
+
     const res = await fetch(url, {
-      headers: { 'User-Agent': 'LeagueOps/1.0 (tournament-ops-platform)' },
+      headers: {
+        'User-Agent': 'LeagueOps/1.0 (spacker15@leagueops.vercel.app)',
+        Accept: 'application/geo+json',
+      },
       cache: 'no-store',
     })
     if (!res.ok) return []
 
     const data = await res.json()
-    const features = data.features ?? []
+    const features: any[] = data.features ?? []
+    const now = new Date()
     const alerts: WeatherAlert[] = []
 
     for (const f of features) {
       const props = f.properties
       if (!props) continue
 
-      // Map NWS severity → our severity
-      const nwsSeverity = (props.severity ?? '').toLowerCase()
-      const nwsCertainty = (props.certainty ?? '').toLowerCase()
-      const eventName = (props.event ?? '').toLowerCase()
+      // Skip expired alerts
+      const expires = props.expires ?? props.ends
+      if (expires && new Date(expires) < now) continue
 
-      let severity: 'info' | 'warning' | 'critical' = 'info'
-      let autoAction: string | null = null
+      const eventName: string = props.event ?? 'Weather Alert'
+      const nwsSeverity: string = props.severity ?? 'Unknown'
+      const { severity, action } = classifyNWSEvent(eventName, nwsSeverity)
 
-      // Critical: tornado, severe thunderstorm, extreme wind
-      if (
-        nwsSeverity === 'extreme' ||
-        eventName.includes('tornado') ||
-        eventName.includes('severe thunderstorm warning')
-      ) {
-        severity = 'critical'
-        autoAction = 'suspend_all_fields'
-      } else if (
-        nwsSeverity === 'severe' ||
-        eventName.includes('warning') ||
-        eventName.includes('thunderstorm')
-      ) {
-        severity = 'warning'
-      } else if (nwsCertainty === 'observed' || nwsCertainty === 'likely') {
-        severity = 'warning'
-      }
+      // Build the human-readable description:
+      // headline (short) + instruction (what to do)
+      const headline: string = props.headline ?? eventName
+      const instruction: string = props.instruction ?? ''
+      const description = instruction
+        ? `${headline}\n\nWHAT TO DO: ${instruction.slice(0, 400)}${instruction.length > 400 ? '…' : ''}`
+        : headline
 
-      // Truncate description to something reasonable
-      const desc = props.description
-        ? props.description.slice(0, 300) + (props.description.length > 300 ? '...' : '')
-        : (props.headline ?? props.event)
+      // NWS alert ID — strip URL prefix for compactness
+      const rawId: string = props['@id'] ?? f.id ?? ''
+      const nwsAlertId = rawId.replace('https://api.weather.gov/alerts/', '')
 
       alerts.push({
         type: 'nws_alert',
         severity,
-        title: `NWS: ${props.event ?? 'Weather Alert'}`,
-        description: props.headline ?? desc,
-        auto_action: autoAction,
+        title: `NWS: ${eventName}`,
+        description,
+        auto_action: action,
+        nws_alert_id: nwsAlertId || undefined,
+        nws_event_type: eventName,
+        expires_at: expires ?? undefined,
       })
     }
 
     return alerts
   } catch {
-    // NWS API failure should not block weather scan
     return []
   }
 }
