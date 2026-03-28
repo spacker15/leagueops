@@ -1122,7 +1122,7 @@ export function ScheduleTab() {
         field,
         games: filtered
           .filter((g) => g.field_id === field.id)
-          .sort((a, b) => a.scheduled_time.localeCompare(b.scheduled_time)),
+          .sort((a, b) => timeToMin(a.scheduled_time) - timeToMin(b.scheduled_time)),
       }))
       .filter((fc) => fc.games.length > 0)
   }, [state.fields, filtered])
