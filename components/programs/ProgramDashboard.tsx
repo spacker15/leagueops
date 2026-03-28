@@ -15,6 +15,7 @@ import {
   CheckCircle,
   Clock,
   CalendarX,
+  DollarSign,
 } from 'lucide-react'
 import { ScheduleChangeRequestModal } from '@/components/schedule/ScheduleChangeRequestModal'
 import type { Game } from '@/types'
@@ -80,6 +81,12 @@ export function ProgramDashboard() {
   const [tab, setTab] = useState<Tab>('overview')
   const [selectedTeam, setSelectedTeam] = useState<number | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
+
+  // Fee/payment data for the program
+  const [programFees, setProgramFees] = useState<any[]>([])
+  const [programPayments, setProgramPayments] = useState<any[]>([])
+  const [programGameCounts, setProgramGameCounts] = useState<Record<number, number>>({})
+  const [eventGameGuarantee, setEventGameGuarantee] = useState(0)
 
   // New team form
   const [newTeamName, setNewTeamName] = useState('')
@@ -162,7 +169,29 @@ export function ProgramDashboard() {
         }
         setPendingGameIds(pendingIds)
         setGameScrStatus(gameRequestStatus)
+
+        // Count games per team
+        const counts: Record<number, number> = {}
+        for (const g of (gamesData ?? []) as any[]) {
+          if (g.home_team_id) counts[g.home_team_id] = (counts[g.home_team_id] || 0) + 1
+          if (g.away_team_id) counts[g.away_team_id] = (counts[g.away_team_id] || 0) + 1
+        }
+        setProgramGameCounts(counts)
       }
+
+      // Load fees and payment records for this program's teams
+      const [{ data: feesData }, { data: paymentsData }, { data: eventData }] = await Promise.all([
+        sb.from('registration_fees').select('*').eq('event_id', portalEventId!),
+        sb
+          .from('team_payments')
+          .select('*')
+          .eq('event_id', portalEventId!)
+          .eq('program_name', prog?.name || ''),
+        sb.from('events').select('game_guarantee').eq('id', portalEventId!).single(),
+      ])
+      setProgramFees(feesData ?? [])
+      setProgramPayments(paymentsData ?? [])
+      setEventGameGuarantee(eventData?.game_guarantee || 0)
     } catch (err) {
       console.error('ProgramDashboard loadData error:', err)
     } finally {
@@ -382,67 +411,217 @@ export function ProgramDashboard() {
 
         {/* ── OVERVIEW ── */}
         {tab === 'overview' && (
-          <div className="grid grid-cols-3 gap-4">
-            {/* Program card */}
-            <div className="col-span-2 bg-surface-card border border-border rounded-xl p-5">
-              <div className="flex items-start justify-between mb-4">
-                <div>
-                  <div className="font-cond font-black text-[22px] text-white">{program?.name}</div>
-                  {program?.short_name && (
-                    <div className="font-cond text-[12px] text-blue-300">{program.short_name}</div>
-                  )}
-                  <div className="font-cond text-[12px] text-muted mt-1">
-                    {[program?.city, program?.state, program?.association]
-                      .filter(Boolean)
-                      .join(' · ')}
+          <>
+            <div className="grid grid-cols-3 gap-4">
+              {/* Program card */}
+              <div className="col-span-2 bg-surface-card border border-border rounded-xl p-5">
+                <div className="flex items-start justify-between mb-4">
+                  <div>
+                    <div className="font-cond font-black text-[22px] text-white">
+                      {program?.name}
+                    </div>
+                    {program?.short_name && (
+                      <div className="font-cond text-[12px] text-blue-300">
+                        {program.short_name}
+                      </div>
+                    )}
+                    <div className="font-cond text-[12px] text-muted mt-1">
+                      {[program?.city, program?.state, program?.association]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </div>
+                  </div>
+                  <span
+                    className={cn(
+                      'font-cond text-[11px] font-black px-3 py-1 rounded tracking-wider',
+                      program?.status === 'approved'
+                        ? 'bg-green-900/40 text-green-400 border border-green-800/50'
+                        : program?.status === 'pending'
+                          ? 'bg-yellow-900/40 text-yellow-400 border border-yellow-800/50'
+                          : program?.status === 'rejected'
+                            ? 'bg-red-900/40 text-red-400 border border-red-800/50'
+                            : 'bg-surface text-muted border border-border'
+                    )}
+                  >
+                    {program?.status?.toUpperCase()}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-3 text-[12px]">
+                  <div>
+                    <div className="font-cond text-[10px] text-muted uppercase tracking-widest mb-0.5">
+                      Contact
+                    </div>
+                    <div className="text-white font-cond font-bold">{program?.contact_name}</div>
+                    <div className="text-muted">{program?.contact_email}</div>
+                    {program?.contact_phone && (
+                      <div className="text-muted">{program.contact_phone}</div>
+                    )}
                   </div>
                 </div>
-                <span
-                  className={cn(
-                    'font-cond text-[11px] font-black px-3 py-1 rounded tracking-wider',
-                    program?.status === 'approved'
-                      ? 'bg-green-900/40 text-green-400 border border-green-800/50'
-                      : program?.status === 'pending'
-                        ? 'bg-yellow-900/40 text-yellow-400 border border-yellow-800/50'
-                        : program?.status === 'rejected'
-                          ? 'bg-red-900/40 text-red-400 border border-red-800/50'
-                          : 'bg-surface text-muted border border-border'
-                  )}
-                >
-                  {program?.status?.toUpperCase()}
-                </span>
               </div>
-              <div className="grid grid-cols-2 gap-3 text-[12px]">
-                <div>
-                  <div className="font-cond text-[10px] text-muted uppercase tracking-widest mb-0.5">
-                    Contact
+
+              {/* Stats */}
+              <div className="space-y-3">
+                {[
+                  { label: 'TEAMS REGISTERED', value: teamRegs.length, color: 'text-blue-300' },
+                  { label: 'APPROVED TEAMS', value: approvedTeams.length, color: 'text-green-400' },
+                  { label: 'PENDING REVIEW', value: pendingTeams.length, color: 'text-yellow-400' },
+                  { label: 'TOTAL PLAYERS', value: players.length, color: 'text-white' },
+                ].map((s) => (
+                  <div
+                    key={s.label}
+                    className="bg-surface-card border border-border rounded-xl p-4"
+                  >
+                    <div className="font-cond text-[9px] font-bold tracking-widest text-muted uppercase mb-1">
+                      {s.label}
+                    </div>
+                    <div className={cn('font-mono text-3xl font-bold', s.color)}>{s.value}</div>
                   </div>
-                  <div className="text-white font-cond font-bold">{program?.contact_name}</div>
-                  <div className="text-muted">{program?.contact_email}</div>
-                  {program?.contact_phone && (
-                    <div className="text-muted">{program.contact_phone}</div>
-                  )}
-                </div>
+                ))}
               </div>
             </div>
 
-            {/* Stats */}
-            <div className="space-y-3">
-              {[
-                { label: 'TEAMS REGISTERED', value: teamRegs.length, color: 'text-blue-300' },
-                { label: 'APPROVED TEAMS', value: approvedTeams.length, color: 'text-green-400' },
-                { label: 'PENDING REVIEW', value: pendingTeams.length, color: 'text-yellow-400' },
-                { label: 'TOTAL PLAYERS', value: players.length, color: 'text-white' },
-              ].map((s) => (
-                <div key={s.label} className="bg-surface-card border border-border rounded-xl p-4">
-                  <div className="font-cond text-[9px] font-bold tracking-widest text-muted uppercase mb-1">
-                    {s.label}
-                  </div>
-                  <div className={cn('font-mono text-3xl font-bold', s.color)}>{s.value}</div>
+            {/* Fees Summary */}
+            {programPayments.length > 0 && (
+              <div className="bg-surface-card border border-border rounded-xl overflow-hidden mt-5">
+                <div className="px-4 py-3 border-b border-border flex items-center gap-2">
+                  <DollarSign size={13} className="text-muted" />
+                  <span className="font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase">
+                    Fees & Payments
+                  </span>
                 </div>
-              ))}
-            </div>
-          </div>
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-border">
+                      {[
+                        'Team',
+                        'Division',
+                        'Reg Fee',
+                        'Games',
+                        'Extra',
+                        'Extra Fee',
+                        'Total Due',
+                        'Paid',
+                        'Balance',
+                      ].map((h) => (
+                        <th
+                          key={h}
+                          className="font-cond text-[10px] font-black tracking-[.1em] text-muted uppercase text-left px-3 py-2"
+                        >
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {programPayments.map((p: any) => {
+                      const gamesPlayed = p.team_id ? programGameCounts[p.team_id] || 0 : 0
+                      const extraGames =
+                        eventGameGuarantee > 0 ? Math.max(0, gamesPlayed - eventGameGuarantee) : 0
+                      const feeConfig = programFees.find((f: any) => f.division === p.division)
+                      const perGame = feeConfig
+                        ? (Number(feeConfig.extra_game_ref_fee) || 0) +
+                          (Number(feeConfig.extra_game_assigner_fee) || 0)
+                        : 0
+                      const extraFee = extraGames * perGame
+                      const totalDue = Number(p.amount_due) + extraFee
+                      const balance = totalDue - Number(p.amount_paid)
+                      return (
+                        <tr key={p.id} className="border-b border-[#0d1a2e] last:border-0">
+                          <td className="px-3 py-2.5 font-cond font-bold text-[12px] text-white">
+                            {p.team_name}
+                          </td>
+                          <td className="px-3 py-2.5">
+                            <span className="font-cond text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#1a2d50] text-blue-300">
+                              {p.division}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2.5 font-cond text-[12px] text-white">
+                            ${Number(p.amount_due).toFixed(2)}
+                          </td>
+                          <td className="px-3 py-2.5 font-mono text-[11px] text-muted">
+                            {gamesPlayed}
+                          </td>
+                          <td className="px-3 py-2.5 font-mono text-[11px] text-orange-400">
+                            {extraGames > 0 ? `+${extraGames}` : '—'}
+                          </td>
+                          <td className="px-3 py-2.5 font-cond text-[12px] text-orange-400">
+                            {extraFee > 0 ? `$${extraFee.toFixed(2)}` : '—'}
+                          </td>
+                          <td className="px-3 py-2.5 font-cond text-[12px] font-bold text-white">
+                            ${totalDue.toFixed(2)}
+                          </td>
+                          <td className="px-3 py-2.5 font-cond text-[12px] text-green-400">
+                            ${Number(p.amount_paid).toFixed(2)}
+                          </td>
+                          <td
+                            className={cn(
+                              'px-3 py-2.5 font-cond text-[12px] font-bold',
+                              balance > 0 ? 'text-yellow-400' : 'text-green-400'
+                            )}
+                          >
+                            ${balance.toFixed(2)}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                    {(() => {
+                      const totRegFee = programPayments.reduce(
+                        (s: number, p: any) => s + Number(p.amount_due),
+                        0
+                      )
+                      const totExtraFee = programPayments.reduce((s: number, p: any) => {
+                        const gp = p.team_id ? programGameCounts[p.team_id] || 0 : 0
+                        const eg = eventGameGuarantee > 0 ? Math.max(0, gp - eventGameGuarantee) : 0
+                        const fc = programFees.find((f: any) => f.division === p.division)
+                        const pg = fc
+                          ? (Number(fc.extra_game_ref_fee) || 0) +
+                            (Number(fc.extra_game_assigner_fee) || 0)
+                          : 0
+                        return s + eg * pg
+                      }, 0)
+                      const totPaid = programPayments.reduce(
+                        (s: number, p: any) => s + Number(p.amount_paid),
+                        0
+                      )
+                      const grandTotal = totRegFee + totExtraFee
+                      return (
+                        <tr className="bg-[#040d1c]">
+                          <td
+                            colSpan={2}
+                            className="px-3 py-2.5 font-cond text-[11px] font-black tracking-wider text-muted uppercase text-right"
+                          >
+                            Totals
+                          </td>
+                          <td className="px-3 py-2.5 font-cond text-[12px] font-bold text-white">
+                            ${totRegFee.toFixed(2)}
+                          </td>
+                          <td colSpan={2} />
+                          <td className="px-3 py-2.5 font-cond text-[12px] font-bold text-orange-400">
+                            {totExtraFee > 0 ? `$${totExtraFee.toFixed(2)}` : '—'}
+                          </td>
+                          <td className="px-3 py-2.5 font-cond text-[14px] font-black text-white">
+                            ${grandTotal.toFixed(2)}
+                          </td>
+                          <td className="px-3 py-2.5 font-cond text-[12px] font-bold text-green-400">
+                            ${totPaid.toFixed(2)}
+                          </td>
+                          <td
+                            className={cn(
+                              'px-3 py-2.5 font-cond text-[14px] font-black',
+                              grandTotal - totPaid > 0 ? 'text-yellow-400' : 'text-green-400'
+                            )}
+                          >
+                            ${(grandTotal - totPaid).toFixed(2)}
+                          </td>
+                        </tr>
+                      )
+                    })()}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
         )}
 
         {/* ── TEAMS ── */}

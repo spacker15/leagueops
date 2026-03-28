@@ -354,6 +354,186 @@ function AddTeamPaymentModal({ eventId, fees, teams, onClose, onSaved }: AddTeam
   )
 }
 
+// ─── Program Payment Modal ──────────────────────────────────────────────────
+interface ProgramPaymentModalProps {
+  programName: string
+  teams: TeamPayment[]
+  totalOwed: number
+  onClose: () => void
+  onSaved: () => void
+}
+function ProgramPaymentModal({
+  programName,
+  teams,
+  totalOwed,
+  onClose,
+  onSaved,
+}: ProgramPaymentModalProps) {
+  const [amount, setAmount] = useState(String(totalOwed.toFixed(2)))
+  const [method, setMethod] = useState<PaymentMethod>('check')
+  const [ref, setRef] = useState('')
+  const [notes, setNotes] = useState('')
+  const [paidAt, setPaidAt] = useState(new Date().toISOString().split('T')[0])
+  const [saving, setSaving] = useState(false)
+
+  async function submit() {
+    const total = parseFloat(amount)
+    if (isNaN(total) || total <= 0) {
+      toast.error('Enter a valid amount')
+      return
+    }
+    setSaving(true)
+
+    // Distribute payment across teams proportionally by what each owes
+    const teamOwed = teams.map((t) => ({
+      id: t.id,
+      owed: Math.max(0, Number(t.amount_due) - Number(t.amount_paid)),
+    }))
+    const totalTeamOwed = teamOwed.reduce((s, t) => s + t.owed, 0)
+
+    let remaining = total
+    for (let i = 0; i < teamOwed.length; i++) {
+      if (teamOwed[i].owed <= 0) continue
+      // Last team gets the remainder to avoid rounding issues
+      const share =
+        i === teamOwed.length - 1
+          ? remaining
+          : Math.min(
+              teamOwed[i].owed,
+              totalTeamOwed > 0
+                ? Math.round((teamOwed[i].owed / totalTeamOwed) * total * 100) / 100
+                : 0
+            )
+      if (share <= 0) continue
+      remaining -= share
+
+      await fetch('/api/payment-entries', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          team_payment_id: teamOwed[i].id,
+          amount: share,
+          payment_method: method,
+          reference_number: ref.trim() || null,
+          paid_at: new Date(paidAt).toISOString(),
+          notes: notes.trim()
+            ? `[${programName}] ${notes.trim()}`
+            : `[${programName}] Program payment`,
+        }),
+      })
+    }
+
+    setSaving(false)
+    toast.success(`Payment of ${fmt(total)} recorded for ${programName}`)
+    onSaved()
+    onClose()
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+      <div
+        className="w-[440px] rounded-xl shadow-2xl border border-[#1a2d50]"
+        style={{ background: '#061428' }}
+      >
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[#1a2d50]">
+          <div>
+            <div className="font-cond text-[13px] font-black tracking-wider text-white">
+              COLLECT PROGRAM PAYMENT
+            </div>
+            <div className="font-cond text-[11px] text-muted">
+              {programName} — {teams.length} teams owed
+            </div>
+          </div>
+          <button onClick={onClose} className="text-muted hover:text-white transition-colors">
+            <X size={16} />
+          </button>
+        </div>
+        <div className="p-5 space-y-4">
+          <div className="bg-[#0a1a30] rounded-lg p-3 flex items-center justify-between">
+            <span className="font-cond text-[11px] text-muted">Total Owed</span>
+            <span className="font-cond text-[16px] font-black text-yellow-400">
+              {fmt(totalOwed)}
+            </span>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="font-cond text-[10px] text-muted block mb-1">Amount *</label>
+              <input
+                className={inp}
+                type="number"
+                min="0"
+                step="0.01"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="font-cond text-[10px] text-muted block mb-1">Method</label>
+              <select
+                className={cn(inp, 'bg-[#040e24]')}
+                value={method}
+                onChange={(e) => setMethod(e.target.value as PaymentMethod)}
+              >
+                <option value="check">Check</option>
+                <option value="cash">Cash</option>
+                <option value="bank_transfer">Bank Transfer</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="font-cond text-[10px] text-muted block mb-1">Reference #</label>
+              <input
+                className={inp}
+                value={ref}
+                onChange={(e) => setRef(e.target.value)}
+                placeholder="Check # etc."
+              />
+            </div>
+            <div>
+              <label className="font-cond text-[10px] text-muted block mb-1">Date</label>
+              <input
+                className={inp}
+                type="date"
+                value={paidAt}
+                onChange={(e) => setPaidAt(e.target.value)}
+              />
+            </div>
+          </div>
+          <div>
+            <label className="font-cond text-[10px] text-muted block mb-1">Notes</label>
+            <input
+              className={inp}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Optional notes"
+            />
+          </div>
+          <div className="font-cond text-[10px] text-muted">
+            Payment will be distributed proportionally across {teams.length} teams.
+          </div>
+        </div>
+        <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-[#1a2d50]">
+          <button
+            onClick={onClose}
+            className="font-cond text-[11px] font-black tracking-wider px-4 py-2 rounded-lg border border-[#1a2d50] text-muted hover:text-white transition-colors"
+          >
+            CANCEL
+          </button>
+          <button
+            onClick={submit}
+            disabled={saving}
+            className="font-cond text-[11px] font-black tracking-wider px-4 py-2 rounded-lg bg-green-700 hover:bg-green-600 text-white transition-colors disabled:opacity-50"
+          >
+            {saving ? 'SAVING…' : 'RECORD PAYMENT'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Main Tab ───────────────────────────────────────────────────────────────
 export function PaymentsTab() {
   const { state, eventId } = useApp()
@@ -373,8 +553,19 @@ export function PaymentsTab() {
 
   // Fee edit state
   const [feeEdits, setFeeEdits] = useState<Record<string, string>>({})
+  const [extraRefEdits, setExtraRefEdits] = useState<Record<string, string>>({})
+  const [extraAssignerEdits, setExtraAssignerEdits] = useState<Record<string, string>>({})
   const [savingFee, setSavingFee] = useState<string | null>(null)
   const [generating, setGenerating] = useState(false)
+  const [expandedProgram, setExpandedProgram] = useState<string | null>(null)
+  const [programPayTarget, setProgramPayTarget] = useState<{
+    programName: string
+    teams: TeamPayment[]
+    totalOwed: number
+  } | null>(null)
+
+  // Game counts per team for extra game fee calculation
+  const [teamGameCounts, setTeamGameCounts] = useState<Record<number, number>>({})
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -384,8 +575,17 @@ export function PaymentsTab() {
     ])
     if (feesRes.ok) setFees(await feesRes.json())
     if (paymentsRes.ok) setPayments(await paymentsRes.json())
+
+    // Count games per team from state
+    const counts: Record<number, number> = {}
+    for (const g of state.games ?? []) {
+      if (g.home_team_id) counts[g.home_team_id] = (counts[g.home_team_id] || 0) + 1
+      if (g.away_team_id) counts[g.away_team_id] = (counts[g.away_team_id] || 0) + 1
+    }
+    setTeamGameCounts(counts)
+
     setLoading(false)
-  }, [eventId])
+  }, [eventId, state.games])
 
   useEffect(() => {
     load()
@@ -422,6 +622,12 @@ export function PaymentsTab() {
       toast.error('Enter a valid amount')
       return
     }
+    const refFee = parseFloat(extraRefEdits[division] ?? '') || 0
+    const assignerFee = parseFloat(extraAssignerEdits[division] ?? '') || 0
+    if (refFee < 0 || assignerFee < 0) {
+      toast.error('Extra game fees must be >= 0')
+      return
+    }
     setSavingFee(division)
     const existing = fees.find((f) => f.division === division)
     const res = await fetch('/api/registration-fees', {
@@ -431,6 +637,8 @@ export function PaymentsTab() {
         event_id: eventId,
         division,
         amount: val,
+        extra_game_ref_fee: refFee,
+        extra_game_assigner_fee: assignerFee,
         ...(existing ? { id: existing.id } : {}),
       }),
     })
@@ -441,6 +649,16 @@ export function PaymentsTab() {
     }
     toast.success(`Fee saved for ${division}`)
     setFeeEdits((e) => {
+      const n = { ...e }
+      delete n[division]
+      return n
+    })
+    setExtraRefEdits((e) => {
+      const n = { ...e }
+      delete n[division]
+      return n
+    })
+    setExtraAssignerEdits((e) => {
       const n = { ...e }
       delete n[division]
       return n
@@ -500,6 +718,32 @@ export function PaymentsTab() {
     }
     return Object.values(groups).sort((a, b) => a.programName.localeCompare(b.programName))
   })()
+
+  // Extra game fee calculation
+  const gameGuarantee = (state.event as any)?.game_guarantee || 0
+  const feeByDivision: Record<string, { ref: number; assigner: number }> = {}
+  for (const f of fees) {
+    feeByDivision[f.division] = {
+      ref: Number(f.extra_game_ref_fee) || 0,
+      assigner: Number(f.extra_game_assigner_fee) || 0,
+    }
+  }
+
+  // Per-team extra game fee: { teamPaymentId → { extraGames, extraFee, gamesPlayed } }
+  const teamExtraFees: Record<
+    number,
+    { extraGames: number; extraFee: number; gamesPlayed: number }
+  > = {}
+  let totalExtraGameFees = 0
+  for (const p of payments) {
+    const gamesPlayed = p.team_id ? teamGameCounts[p.team_id] || 0 : 0
+    const extra = gameGuarantee > 0 ? Math.max(0, gamesPlayed - gameGuarantee) : 0
+    const rates = feeByDivision[p.division]
+    const perGame = rates ? rates.ref + rates.assigner : 0
+    const extraFee = extra * perGame
+    teamExtraFees[p.id] = { extraGames: extra, extraFee, gamesPlayed }
+    totalExtraGameFees += extraFee
+  }
 
   // Derived stats
   const totalDue = payments.reduce((s, p) => s + Number(p.amount_due), 0)
@@ -588,9 +832,20 @@ export function PaymentsTab() {
       {!loading && subTab === 'overview' && (
         <div className="space-y-5">
           {/* Summary cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
             {[
-              { label: 'Total Due', value: fmt(totalDue), icon: DollarSign, color: 'text-white' },
+              {
+                label: 'Registration Fees',
+                value: fmt(totalDue),
+                icon: DollarSign,
+                color: 'text-white',
+              },
+              {
+                label: 'Extra Game Fees',
+                value: fmt(totalExtraGameFees),
+                icon: AlertCircle,
+                color: totalExtraGameFees > 0 ? 'text-orange-400' : 'text-muted',
+              },
               {
                 label: 'Collected',
                 value: fmt(totalPaid),
@@ -633,16 +888,22 @@ export function PaymentsTab() {
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-[#1a2d50]">
-                    {['Division', 'Teams', 'Total Due', 'Collected', 'Outstanding', 'Paid'].map(
-                      (h) => (
-                        <th
-                          key={h}
-                          className="font-cond text-[10px] font-black tracking-[.1em] text-muted uppercase text-left px-4 py-2.5"
-                        >
-                          {h}
-                        </th>
-                      )
-                    )}
+                    {[
+                      'Division',
+                      'Teams',
+                      'Reg Fees',
+                      'Extra Game Fees',
+                      'Collected',
+                      'Outstanding',
+                      'Paid',
+                    ].map((h) => (
+                      <th
+                        key={h}
+                        className="font-cond text-[10px] font-black tracking-[.1em] text-muted uppercase text-left px-4 py-2.5"
+                      >
+                        {h}
+                      </th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
@@ -650,6 +911,10 @@ export function PaymentsTab() {
                     const divPay = payments.filter((p) => p.division === div)
                     const due = divPay.reduce((s, p) => s + Number(p.amount_due), 0)
                     const paid = divPay.reduce((s, p) => s + Number(p.amount_paid), 0)
+                    const divExtra = divPay.reduce(
+                      (s, p) => s + (teamExtraFees[p.id]?.extraFee || 0),
+                      0
+                    )
                     return (
                       <tr key={div} className="border-b border-[#0d1a2e] last:border-0">
                         <td className="px-4 py-3">
@@ -661,6 +926,9 @@ export function PaymentsTab() {
                           {divPay.length}
                         </td>
                         <td className="px-4 py-3 font-cond text-[12px] text-white">{fmt(due)}</td>
+                        <td className="px-4 py-3 font-cond text-[12px] text-orange-400">
+                          {divExtra > 0 ? fmt(divExtra) : '—'}
+                        </td>
                         <td className="px-4 py-3 font-cond text-[12px] text-green-400">
                           {fmt(paid)}
                         </td>
@@ -690,82 +958,273 @@ export function PaymentsTab() {
             </div>
           )}
 
-          {/* By Program */}
+          {/* By Program — expandable with Division > Team breakdown */}
           {programGroups.length > 0 && (
-            <div className="bg-[#081428] border border-[#1a2d50] rounded-xl overflow-hidden">
-              <div className="px-4 py-3 border-b border-[#1a2d50] flex items-center gap-2">
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 px-1">
                 <Building2 size={13} className="text-muted" />
                 <span className="font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase">
                   By Program
                 </span>
               </div>
+              {programGroups.map((pg) => {
+                const pgExtra = pg.teams.reduce(
+                  (s, t) => s + (teamExtraFees[t.id]?.extraFee || 0),
+                  0
+                )
+                const pgTotalOwed = pg.totalDue + pgExtra - pg.totalPaid
+                const allPaid = pg.teams.every((t) => t.status === 'paid' || t.status === 'waived')
+                const isExpanded = expandedProgram === pg.programName
+
+                // Group teams by division within this program
+                const divGroups: Record<string, TeamPayment[]> = {}
+                for (const t of pg.teams) {
+                  const d = t.division || 'Unassigned'
+                  if (!divGroups[d]) divGroups[d] = []
+                  divGroups[d].push(t)
+                }
+
+                return (
+                  <div
+                    key={pg.programName}
+                    className="bg-[#081428] border border-[#1a2d50] rounded-xl overflow-hidden"
+                  >
+                    {/* Program header row */}
+                    <button
+                      onClick={() => setExpandedProgram(isExpanded ? null : pg.programName)}
+                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/[0.02] transition-colors"
+                    >
+                      <ChevronDown
+                        size={14}
+                        className={cn(
+                          'text-muted transition-transform',
+                          isExpanded && 'rotate-180'
+                        )}
+                      />
+                      <span className="font-cond font-black text-[14px] text-white flex-1 text-left">
+                        {pg.programName}
+                      </span>
+                      <span className="font-cond text-[11px] text-muted">{pg.teamCount} teams</span>
+                      <span className="font-cond text-[11px] text-white">{fmt(pg.totalDue)}</span>
+                      {pgExtra > 0 && (
+                        <span className="font-cond text-[11px] text-orange-400">
+                          +{fmt(pgExtra)} extra
+                        </span>
+                      )}
+                      <span className="font-cond text-[11px] text-green-400">
+                        {fmt(pg.totalPaid)} paid
+                      </span>
+                      <span
+                        className={cn(
+                          'font-cond text-[10px] font-black tracking-wide px-2 py-0.5 rounded uppercase',
+                          allPaid
+                            ? 'bg-green-900/40 text-green-400'
+                            : pg.totalPaid > 0
+                              ? 'bg-blue-900/40 text-blue-300'
+                              : 'bg-yellow-900/40 text-yellow-400'
+                        )}
+                      >
+                        {allPaid ? 'PAID' : pg.totalPaid > 0 ? 'PARTIAL' : 'PENDING'}
+                      </span>
+                    </button>
+
+                    {/* Expanded: Division > Team breakdown */}
+                    {isExpanded && (
+                      <div className="border-t border-[#1a2d50]">
+                        {Object.entries(divGroups)
+                          .sort(([a], [b]) => a.localeCompare(b))
+                          .map(([div, divTeams]) => {
+                            const divDue = divTeams.reduce((s, t) => s + Number(t.amount_due), 0)
+                            const divExtra = divTeams.reduce(
+                              (s, t) => s + (teamExtraFees[t.id]?.extraFee || 0),
+                              0
+                            )
+                            const divPaid = divTeams.reduce((s, t) => s + Number(t.amount_paid), 0)
+                            return (
+                              <div key={div}>
+                                {/* Division header */}
+                                <div className="flex items-center gap-2 px-6 py-2 bg-[#0a1a30] border-b border-[#1a2d50]">
+                                  <span className="font-cond text-[10px] font-bold px-2 py-0.5 rounded bg-[#1a2d50] text-blue-300">
+                                    {div}
+                                  </span>
+                                  <span className="font-cond text-[10px] text-muted">
+                                    {divTeams.length} teams
+                                  </span>
+                                  <span className="font-cond text-[10px] text-muted ml-auto">
+                                    Reg: {fmt(divDue)}
+                                    {divExtra > 0 && (
+                                      <span className="text-orange-400 ml-2">
+                                        Extra: {fmt(divExtra)}
+                                      </span>
+                                    )}
+                                    <span className="text-green-400 ml-2">
+                                      Paid: {fmt(divPaid)}
+                                    </span>
+                                  </span>
+                                </div>
+                                {/* Team rows */}
+                                {divTeams.map((t) => {
+                                  const tExtra = teamExtraFees[t.id]
+                                  return (
+                                    <div
+                                      key={t.id}
+                                      className="flex items-center gap-3 px-8 py-2 border-b border-[#0d1a2e] last:border-0 hover:bg-white/[0.02]"
+                                    >
+                                      <span className="font-cond text-[12px] text-white flex-1">
+                                        {t.team_name}
+                                      </span>
+                                      <span className="font-cond text-[11px] text-muted w-20 text-right">
+                                        {fmt(Number(t.amount_due))}
+                                      </span>
+                                      {tExtra?.extraGames > 0 ? (
+                                        <span className="font-cond text-[11px] text-orange-400 w-20 text-right">
+                                          +{tExtra.extraGames}g {fmt(tExtra.extraFee)}
+                                        </span>
+                                      ) : (
+                                        <span className="w-20" />
+                                      )}
+                                      <span className="font-cond text-[11px] text-green-400 w-20 text-right">
+                                        {fmt(Number(t.amount_paid))}
+                                      </span>
+                                      <span
+                                        className={cn(
+                                          'font-cond text-[10px] font-black tracking-wide px-2 py-0.5 rounded uppercase w-16 text-center',
+                                          STATUS_COLORS[t.status]
+                                        )}
+                                      >
+                                        {t.status}
+                                      </span>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          setRecordTarget(t)
+                                        }}
+                                        className="font-cond text-[9px] font-black tracking-wide px-2 py-0.5 rounded bg-[#1a2d50] hover:bg-blue-900/60 text-blue-300 hover:text-white transition-colors"
+                                      >
+                                        + PAY
+                                      </button>
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            )
+                          })}
+                        {/* Program totals + collect button */}
+                        <div className="flex items-center gap-3 px-4 py-3 bg-[#040d1c] border-t border-[#1a2d50]">
+                          <span className="font-cond text-[11px] font-black tracking-wider text-muted uppercase flex-1">
+                            Program Total: {fmt(pg.totalDue + pgExtra)}
+                            {pgExtra > 0 && (
+                              <span className="text-orange-400 ml-1">
+                                (incl. {fmt(pgExtra)} extra game fees)
+                              </span>
+                            )}
+                          </span>
+                          <span className="font-cond text-[11px] text-green-400">
+                            Paid: {fmt(pg.totalPaid)}
+                          </span>
+                          <span className="font-cond text-[12px] font-bold text-yellow-400">
+                            Owed: {fmt(pgTotalOwed > 0 ? pgTotalOwed : 0)}
+                          </span>
+                          {pgTotalOwed > 0 && (
+                            <button
+                              onClick={() =>
+                                setProgramPayTarget({
+                                  programName: pg.programName,
+                                  teams: pg.teams.filter(
+                                    (t) => t.status !== 'paid' && t.status !== 'waived'
+                                  ),
+                                  totalOwed: pgTotalOwed,
+                                })
+                              }
+                              className="font-cond text-[10px] font-black tracking-wider px-3 py-1.5 rounded-lg bg-green-700 hover:bg-green-600 text-white transition-colors"
+                            >
+                              COLLECT PAYMENT
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {/* Extra Game Fees Breakdown */}
+          {totalExtraGameFees > 0 && gameGuarantee > 0 && (
+            <div className="bg-[#081428] border border-[#1a2d50] rounded-xl overflow-hidden">
+              <div className="px-4 py-3 border-b border-[#1a2d50] flex items-center gap-2">
+                <AlertCircle size={13} className="text-orange-400" />
+                <span className="font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase">
+                  Extra Game Fees
+                </span>
+                <span className="font-cond text-[10px] text-muted ml-1">
+                  — Games over {gameGuarantee} guaranteed
+                </span>
+              </div>
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-[#1a2d50]">
-                    {['Program', 'Teams', 'Total Due', 'Collected', 'Outstanding', 'Status'].map(
-                      (h) => (
-                        <th
-                          key={h}
-                          className="font-cond text-[10px] font-black tracking-[.1em] text-muted uppercase text-left px-4 py-2.5"
-                        >
-                          {h}
-                        </th>
-                      )
-                    )}
+                    {[
+                      'Team',
+                      'Division',
+                      'Games Played',
+                      'Extra Games',
+                      'Rate/Game',
+                      'Extra Fee',
+                    ].map((h) => (
+                      <th
+                        key={h}
+                        className="font-cond text-[10px] font-black tracking-[.1em] text-muted uppercase text-left px-4 py-2.5"
+                      >
+                        {h}
+                      </th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {programGroups.map((pg) => {
-                    const owed = pg.totalDue - pg.totalPaid
-                    const allPaid = pg.teams.every(
-                      (t) => t.status === 'paid' || t.status === 'waived'
-                    )
-                    return (
-                      <tr key={pg.programName} className="border-b border-[#0d1a2e] last:border-0">
-                        <td className="px-4 py-3">
-                          <span className="font-cond font-bold text-[12px] text-white">
-                            {pg.programName}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 font-cond text-[12px] text-white">
-                          {pg.teamCount}
-                        </td>
-                        <td className="px-4 py-3 font-cond text-[12px] text-white">
-                          {fmt(pg.totalDue)}
-                        </td>
-                        <td className="px-4 py-3 font-cond text-[12px] text-green-400">
-                          {fmt(pg.totalPaid)}
-                        </td>
-                        <td className="px-4 py-3 font-cond text-[12px] text-yellow-400">
-                          {fmt(owed)}
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <div className="flex-1 h-1.5 bg-[#1a2d50] rounded-full overflow-hidden min-w-[60px]">
-                              <div
-                                className="h-full bg-green-500 rounded-full transition-all"
-                                style={{
-                                  width: `${pg.totalDue > 0 ? Math.min(100, (pg.totalPaid / pg.totalDue) * 100) : 0}%`,
-                                }}
-                              />
-                            </div>
-                            <span
-                              className={cn(
-                                'font-cond text-[10px] font-black tracking-wide px-2 py-0.5 rounded uppercase',
-                                allPaid
-                                  ? 'bg-green-900/40 text-green-400'
-                                  : pg.totalPaid > 0
-                                    ? 'bg-blue-900/40 text-blue-300'
-                                    : 'bg-yellow-900/40 text-yellow-400'
-                              )}
-                            >
-                              {allPaid ? 'PAID' : pg.totalPaid > 0 ? 'PARTIAL' : 'PENDING'}
+                  {payments
+                    .filter((p) => (teamExtraFees[p.id]?.extraGames || 0) > 0)
+                    .map((p) => {
+                      const info = teamExtraFees[p.id]
+                      const rates = feeByDivision[p.division]
+                      const perGame = rates ? rates.ref + rates.assigner : 0
+                      return (
+                        <tr key={p.id} className="border-b border-[#0d1a2e] last:border-0">
+                          <td className="px-4 py-3 font-cond font-bold text-[12px] text-white">
+                            {p.team_name}
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className="font-cond text-[11px] font-bold px-2 py-0.5 rounded bg-[#1a2d50] text-blue-300">
+                              {p.division}
                             </span>
-                          </div>
-                        </td>
-                      </tr>
-                    )
-                  })}
+                          </td>
+                          <td className="px-4 py-3 font-mono text-[12px] text-white">
+                            {info.gamesPlayed}
+                          </td>
+                          <td className="px-4 py-3 font-mono text-[12px] text-orange-400 font-bold">
+                            +{info.extraGames}
+                          </td>
+                          <td className="px-4 py-3 font-cond text-[12px] text-muted">
+                            {fmt(perGame)}
+                          </td>
+                          <td className="px-4 py-3 font-cond text-[12px] font-bold text-orange-400">
+                            {fmt(info.extraFee)}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  <tr className="bg-[#040d1c]">
+                    <td
+                      colSpan={5}
+                      className="px-4 py-3 font-cond text-[11px] font-black tracking-wider text-muted text-right uppercase"
+                    >
+                      Total Extra Game Fees
+                    </td>
+                    <td className="px-4 py-3 font-cond text-[14px] font-black text-orange-400">
+                      {fmt(totalExtraGameFees)}
+                    </td>
+                  </tr>
                 </tbody>
               </table>
             </div>
@@ -825,7 +1284,17 @@ export function PaymentsTab() {
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-[#1a2d50]">
-                    {['Team', 'Division', 'Due', 'Paid', 'Balance', 'Status', ''].map((h) => (
+                    {[
+                      'Team',
+                      'Division',
+                      'Reg Fee',
+                      'Extra Games',
+                      'Extra Fee',
+                      'Paid',
+                      'Balance',
+                      'Status',
+                      '',
+                    ].map((h) => (
                       <th
                         key={h}
                         className="font-cond text-[10px] font-black tracking-[.1em] text-muted uppercase text-left px-4 py-2.5"
@@ -869,6 +1338,20 @@ export function PaymentsTab() {
                         <td className="px-4 py-3 font-cond text-[12px] text-white">
                           {fmt(Number(p.amount_due))}
                         </td>
+                        <td className="px-4 py-3 font-mono text-[11px] text-muted">
+                          {teamExtraFees[p.id]?.extraGames > 0 ? (
+                            <span className="text-orange-400">
+                              +{teamExtraFees[p.id].extraGames}
+                            </span>
+                          ) : (
+                            '—'
+                          )}
+                        </td>
+                        <td className="px-4 py-3 font-cond text-[12px] text-orange-400">
+                          {teamExtraFees[p.id]?.extraFee > 0
+                            ? fmt(teamExtraFees[p.id].extraFee)
+                            : '—'}
+                        </td>
                         <td className="px-4 py-3 font-cond text-[12px] text-green-400">
                           {fmt(Number(p.amount_paid))}
                         </td>
@@ -897,7 +1380,7 @@ export function PaymentsTab() {
                       {/* Expandable history */}
                       {expandedHistory === p.id && (
                         <tr key={`hist-${p.id}`} className="border-b border-[#0d1a2e]">
-                          <td colSpan={7} className="px-6 py-3 bg-[#040d1c]">
+                          <td colSpan={9} className="px-6 py-3 bg-[#040d1c]">
                             {(teamHistory[p.id] ?? []).length === 0 ? (
                               <span className="font-cond text-[11px] text-muted">
                                 No payments recorded yet
@@ -942,8 +1425,8 @@ export function PaymentsTab() {
       {!loading && subTab === 'fees' && (
         <div className="space-y-4">
           <div className="font-cond text-[11px] text-muted">
-            Set a registration fee per division. When you add a team, the fee will be pre-filled
-            automatically.
+            Set a registration fee per division. Extra game fees apply per team for each game beyond
+            the guaranteed {gameGuarantee || '—'} games.
           </div>
 
           <div className="bg-[#081428] border border-[#1a2d50] rounded-xl overflow-hidden">
@@ -953,16 +1436,35 @@ export function PaymentsTab() {
                   <th className="font-cond text-[10px] font-black tracking-[.1em] text-muted uppercase text-left px-4 py-2.5">
                     Division
                   </th>
-                  <th className="font-cond text-[10px] font-black tracking-[.1em] text-muted uppercase text-left px-4 py-2.5 w-48">
-                    Fee Amount (USD)
+                  <th className="font-cond text-[10px] font-black tracking-[.1em] text-muted uppercase text-left px-4 py-2.5 w-36">
+                    Reg Fee (USD)
                   </th>
-                  <th className="w-24 px-4 py-2.5" />
+                  <th className="font-cond text-[10px] font-black tracking-[.1em] text-muted uppercase text-left px-4 py-2.5 w-36">
+                    Extra Game Ref Fee
+                  </th>
+                  <th className="font-cond text-[10px] font-black tracking-[.1em] text-muted uppercase text-left px-4 py-2.5 w-36">
+                    Ref Assigner Fee
+                  </th>
+                  <th className="font-cond text-[10px] font-black tracking-[.1em] text-muted uppercase text-left px-4 py-2.5 w-28">
+                    Total/Game
+                  </th>
+                  <th className="w-20 px-4 py-2.5" />
                 </tr>
               </thead>
               <tbody>
                 {divisions.map((div) => {
                   const existing = fees.find((f) => f.division === div)
                   const editVal = feeEdits[div] ?? (existing ? String(existing.amount) : '')
+                  const refVal =
+                    extraRefEdits[div] ?? (existing ? String(existing.extra_game_ref_fee) : '')
+                  const assignerVal =
+                    extraAssignerEdits[div] ??
+                    (existing ? String(existing.extra_game_assigner_fee) : '')
+                  const totalPerGame = (parseFloat(refVal) || 0) + (parseFloat(assignerVal) || 0)
+                  const hasEdits =
+                    feeEdits[div] !== undefined ||
+                    extraRefEdits[div] !== undefined ||
+                    extraAssignerEdits[div] !== undefined
                   return (
                     <tr key={div} className="border-b border-[#0d1a2e] last:border-0">
                       <td className="px-4 py-3">
@@ -974,7 +1476,7 @@ export function PaymentsTab() {
                         <div className="flex items-center gap-1">
                           <span className="font-cond text-[12px] text-muted">$</span>
                           <input
-                            className={cn(inp, 'w-32')}
+                            className={cn(inp, 'w-24')}
                             type="number"
                             min="0"
                             step="0.01"
@@ -985,7 +1487,49 @@ export function PaymentsTab() {
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        {feeEdits[div] !== undefined && (
+                        <div className="flex items-center gap-1">
+                          <span className="font-cond text-[12px] text-muted">$</span>
+                          <input
+                            className={cn(inp, 'w-24')}
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={refVal}
+                            onChange={(e) =>
+                              setExtraRefEdits((f) => ({ ...f, [div]: e.target.value }))
+                            }
+                            placeholder="0.00"
+                          />
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-1">
+                          <span className="font-cond text-[12px] text-muted">$</span>
+                          <input
+                            className={cn(inp, 'w-24')}
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={assignerVal}
+                            onChange={(e) =>
+                              setExtraAssignerEdits((f) => ({ ...f, [div]: e.target.value }))
+                            }
+                            placeholder="0.00"
+                          />
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={cn(
+                            'font-cond text-[12px] font-bold',
+                            totalPerGame > 0 ? 'text-orange-400' : 'text-muted'
+                          )}
+                        >
+                          {totalPerGame > 0 ? fmt(totalPerGame) : '—'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        {hasEdits && (
                           <button
                             onClick={() => saveFee(div)}
                             disabled={savingFee === div}
@@ -994,7 +1538,7 @@ export function PaymentsTab() {
                             {savingFee === div ? '…' : 'SAVE'}
                           </button>
                         )}
-                        {existing && feeEdits[div] === undefined && (
+                        {existing && !hasEdits && (
                           <span className="font-cond text-[10px] text-green-400">✓ set</span>
                         )}
                       </td>
@@ -1004,7 +1548,7 @@ export function PaymentsTab() {
                 {divisions.length === 0 && (
                   <tr>
                     <td
-                      colSpan={3}
+                      colSpan={6}
                       className="px-4 py-8 text-center font-cond text-[12px] text-muted"
                     >
                       No divisions found. Add teams to the event first.
@@ -1084,6 +1628,15 @@ export function PaymentsTab() {
           existingDivisions={divisions}
           teams={state.teams as any}
           onClose={() => setShowAddTeam(false)}
+          onSaved={load}
+        />
+      )}
+      {programPayTarget && (
+        <ProgramPaymentModal
+          programName={programPayTarget.programName}
+          teams={programPayTarget.teams}
+          totalOwed={programPayTarget.totalOwed}
+          onClose={() => setProgramPayTarget(null)}
           onSaved={load}
         />
       )}
