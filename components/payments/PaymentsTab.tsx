@@ -623,20 +623,28 @@ export function PaymentsTab() {
 
   // Save a single fee config row
   async function saveFee(division: string) {
-    const val = parseFloat(feeEdits[division] ?? '')
+    const existing = fees.find((f) => f.division === division)
+    const val = parseFloat(feeEdits[division] ?? (existing ? String(existing.amount) : ''))
     if (isNaN(val) || val < 0) {
       toast.error('Enter a valid amount')
       return
     }
-    const refFee = parseFloat(extraRefEdits[division] ?? '') || 0
-    const assignerFee = parseFloat(extraAssignerEdits[division] ?? '') || 0
-    const gamesInc = parseInt(gamesIncludedEdits[division] ?? '') || 0
+    const refFee =
+      parseFloat(
+        extraRefEdits[division] ?? (existing ? String(existing.extra_game_ref_fee) : '')
+      ) || 0
+    const assignerFee =
+      parseFloat(
+        extraAssignerEdits[division] ?? (existing ? String(existing.extra_game_assigner_fee) : '')
+      ) || 0
+    const gamesInc =
+      parseInt(gamesIncludedEdits[division] ?? (existing ? String(existing.games_included) : '')) ||
+      0
     if (refFee < 0 || assignerFee < 0) {
       toast.error('Extra game fees must be >= 0')
       return
     }
     setSavingFee(division)
-    const existing = fees.find((f) => f.division === division)
     const res = await fetch('/api/registration-fees', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
