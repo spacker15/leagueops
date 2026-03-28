@@ -204,6 +204,14 @@ export function DashboardTab() {
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
+                      {g.home_team?.logo_url && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={g.home_team.logo_url}
+                          alt=""
+                          className="w-5 h-5 rounded object-cover"
+                        />
+                      )}
                       <span
                         className={cn(
                           'font-cond text-[13px] font-bold',
@@ -223,6 +231,14 @@ export function DashboardTab() {
                       >
                         {g.away_team?.name ?? 'TBD'}
                       </span>
+                      {g.away_team?.logo_url && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={g.away_team.logo_url}
+                          alt=""
+                          className="w-5 h-5 rounded object-cover"
+                        />
+                      )}
                     </div>
                   </div>
                 ))}
@@ -299,7 +315,7 @@ export function DashboardTab() {
       <Modal
         open={!!selectedGame}
         onClose={() => setSelectedGame(null)}
-        title={selectedGame ? `GAME #${selectedGame.id}` : ''}
+        title=""
         footer={
           <>
             <Btn variant="ghost" size="sm" onClick={() => setSelectedGame(null)}>
@@ -400,12 +416,22 @@ function FieldCard({
         <div className="p-3">
           {/* Scoreboard row */}
           <div className="flex items-center mb-2.5">
-            <div className="flex-1 min-w-0">
-              <div className="font-cond text-[15px] font-black text-white truncate leading-tight">
-                {game.home_team?.name ?? '?'}
-              </div>
-              <div className="font-cond text-[9px] tracking-[.1em]" style={{ color: '#5a6e9a' }}>
-                HOME
+            <div className="flex-1 min-w-0 flex items-center gap-1.5">
+              {game.home_team?.logo_url && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={game.home_team.logo_url}
+                  alt=""
+                  className="w-5 h-5 rounded object-cover flex-shrink-0"
+                />
+              )}
+              <div>
+                <div className="font-cond text-[15px] font-black text-white truncate leading-tight">
+                  {game.home_team?.name ?? '?'}
+                </div>
+                <div className="font-cond text-[9px] tracking-[.1em]" style={{ color: '#5a6e9a' }}>
+                  HOME
+                </div>
               </div>
             </div>
 
@@ -429,16 +455,26 @@ function FieldCard({
               </div>
             )}
 
-            <div className="flex-1 min-w-0 text-right">
-              <div className="font-cond text-[15px] font-black text-white truncate leading-tight">
-                {game.away_team?.name ?? '?'}
+            <div className="flex-1 min-w-0 flex items-center justify-end gap-1.5">
+              <div className="text-right">
+                <div className="font-cond text-[15px] font-black text-white truncate leading-tight">
+                  {game.away_team?.name ?? '?'}
+                </div>
+                <div
+                  className="font-cond text-[9px] tracking-[.1em] text-right"
+                  style={{ color: '#5a6e9a' }}
+                >
+                  AWAY
+                </div>
               </div>
-              <div
-                className="font-cond text-[9px] tracking-[.1em] text-right"
-                style={{ color: '#5a6e9a' }}
-              >
-                AWAY
-              </div>
+              {game.away_team?.logo_url && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={game.away_team.logo_url}
+                  alt=""
+                  className="w-5 h-5 rounded object-cover flex-shrink-0"
+                />
+              )}
             </div>
           </div>
 
@@ -516,7 +552,15 @@ function GameDetail({
           {game.field?.name?.toUpperCase()} · {game.scheduled_time} · {game.division}
         </div>
         <div className="flex items-center justify-center gap-6">
-          <div className="text-center flex-1">
+          <div className="text-center flex-1 flex flex-col items-center gap-1.5">
+            {game.home_team?.logo_url && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={game.home_team.logo_url}
+                alt=""
+                className="w-10 h-10 rounded object-cover"
+              />
+            )}
             <div className="font-cond text-[20px] font-black text-white leading-tight">
               {game.home_team?.name}
             </div>
@@ -571,7 +615,15 @@ function GameDetail({
               +
             </button>
           </div>
-          <div className="text-center flex-1">
+          <div className="text-center flex-1 flex flex-col items-center gap-1.5">
+            {game.away_team?.logo_url && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={game.away_team.logo_url}
+                alt=""
+                className="w-10 h-10 rounded object-cover"
+              />
+            )}
             <div className="font-cond text-[20px] font-black text-white leading-tight">
               {game.away_team?.name}
             </div>

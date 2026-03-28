@@ -1798,16 +1798,36 @@ export function ScheduleTab() {
                       {game.field?.name ?? `F${game.field_id}`}
                     </td>
                     <td className="font-cond font-bold text-white px-3 py-2">
-                      {followedSet.has(game.home_team_id) && (
-                        <Star size={9} className="inline mr-1 text-yellow-400 fill-yellow-400" />
-                      )}
-                      {game.home_team?.name ?? '?'}
+                      <div className="flex items-center gap-1.5">
+                        {game.home_team?.logo_url && (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={game.home_team.logo_url}
+                            alt=""
+                            className="w-4 h-4 rounded object-cover flex-shrink-0"
+                          />
+                        )}
+                        {followedSet.has(game.home_team_id) && (
+                          <Star size={9} className="text-yellow-400 fill-yellow-400" />
+                        )}
+                        {game.home_team?.name ?? '?'}
+                      </div>
                     </td>
                     <td className="font-cond font-bold text-white px-3 py-2">
-                      {followedSet.has(game.away_team_id) && (
-                        <Star size={9} className="inline mr-1 text-yellow-400 fill-yellow-400" />
-                      )}
-                      {game.away_team?.name ?? '?'}
+                      <div className="flex items-center gap-1.5">
+                        {game.away_team?.logo_url && (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={game.away_team.logo_url}
+                            alt=""
+                            className="w-4 h-4 rounded object-cover flex-shrink-0"
+                          />
+                        )}
+                        {followedSet.has(game.away_team_id) && (
+                          <Star size={9} className="text-yellow-400 fill-yellow-400" />
+                        )}
+                        {game.away_team?.name ?? '?'}
+                      </div>
                     </td>
                     <td className="px-3 py-2">
                       <span className="font-cond text-[10px] font-bold px-2 py-0.5 rounded bg-blue-900/30 text-blue-300">
@@ -3433,7 +3453,15 @@ function GameCard({
         {/* Score display for live/final games */}
         {isLive || isFinal ? (
           <div className="flex items-center justify-between mb-2">
-            <div className="flex-1 min-w-0">
+            <div className="flex-1 min-w-0 flex items-center gap-1.5">
+              {game.home_team?.logo_url && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={game.home_team.logo_url}
+                  alt=""
+                  className="w-4 h-4 rounded object-cover flex-shrink-0"
+                />
+              )}
               <div className="font-cond font-black text-[13px] leading-tight truncate">
                 {followedSet.has(game.home_team_id) && (
                   <Star size={9} className="inline mr-1 text-yellow-400 fill-yellow-400" />
@@ -3460,27 +3488,51 @@ function GameCard({
                 {game.away_score}
               </span>
             </div>
-            <div className="flex-1 min-w-0 text-right">
-              <div className="font-cond font-black text-[13px] leading-tight truncate">
+            <div className="flex-1 min-w-0 flex items-center justify-end gap-1.5">
+              <div className="font-cond font-black text-[13px] leading-tight truncate text-right">
                 {game.away_team?.name ?? '?'}
                 {followedSet.has(game.away_team_id) && (
                   <Star size={9} className="inline ml-1 text-yellow-400 fill-yellow-400" />
                 )}
               </div>
+              {game.away_team?.logo_url && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={game.away_team.logo_url}
+                  alt=""
+                  className="w-4 h-4 rounded object-cover flex-shrink-0"
+                />
+              )}
             </div>
           </div>
         ) : (
           <div className="mb-2">
-            <div className="font-cond font-black text-[13px] leading-tight mb-0.5">
+            <div className="flex items-center gap-1.5 font-cond font-black text-[13px] leading-tight mb-0.5">
+              {game.home_team?.logo_url && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={game.home_team.logo_url}
+                  alt=""
+                  className="w-4 h-4 rounded object-cover flex-shrink-0"
+                />
+              )}
               {followedSet.has(game.home_team_id) && (
-                <Star size={9} className="inline mr-1 text-yellow-400 fill-yellow-400" />
+                <Star size={9} className="text-yellow-400 fill-yellow-400" />
               )}
               {game.home_team?.name ?? '?'}
             </div>
-            <div className="font-cond text-[10px] text-muted mb-0.5">vs</div>
-            <div className="font-cond font-black text-[13px] leading-tight">
+            <div className="font-cond text-[10px] text-muted mb-0.5 pl-5">vs</div>
+            <div className="flex items-center gap-1.5 font-cond font-black text-[13px] leading-tight">
+              {game.away_team?.logo_url && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={game.away_team.logo_url}
+                  alt=""
+                  className="w-4 h-4 rounded object-cover flex-shrink-0"
+                />
+              )}
               {followedSet.has(game.away_team_id) && (
-                <Star size={9} className="inline mr-1 text-yellow-400 fill-yellow-400" />
+                <Star size={9} className="text-yellow-400 fill-yellow-400" />
               )}
               {game.away_team?.name ?? '?'}
             </div>
