@@ -5,6 +5,7 @@ export const createRegistrationFeeSchema = z.object({
   event_id: z.number().int().positive(),
   division: z.string().min(1),
   amount: z.number().min(0),
+  currency: z.string().default('USD').optional(),
   description: z.string().optional(),
 })
 

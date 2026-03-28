@@ -13,6 +13,8 @@ import {
   TrendingUp,
   X,
   ChevronDown,
+  Zap,
+  Building2,
 } from 'lucide-react'
 import type {
   RegistrationFee,
@@ -372,6 +374,7 @@ export function PaymentsTab() {
   // Fee edit state
   const [feeEdits, setFeeEdits] = useState<Record<string, string>>({})
   const [savingFee, setSavingFee] = useState<string | null>(null)
+  const [generating, setGenerating] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -445,6 +448,59 @@ export function PaymentsTab() {
     load()
   }
 
+  // Auto-generate team payments from registered teams
+  async function generatePayments() {
+    setGenerating(true)
+    try {
+      const res = await fetch('/api/team-payments/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event_id: eventId }),
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        toast.error(err.error || 'Failed to generate')
+        return
+      }
+      const data = await res.json()
+      if (data.created > 0) {
+        toast.success(`Generated ${data.created} payment records`)
+      } else {
+        toast.success('All teams already have payment records')
+      }
+      load()
+    } catch {
+      toast.error('Failed to generate payment records')
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  // Build program grouping from payments using program_name field
+  const programGroups = (() => {
+    const groups: Record<
+      string,
+      {
+        programName: string
+        teams: TeamPayment[]
+        teamCount: number
+        totalDue: number
+        totalPaid: number
+      }
+    > = {}
+    for (const p of payments) {
+      const programName = (p as any).program_name || 'Unassigned'
+      if (!groups[programName]) {
+        groups[programName] = { programName, teams: [], teamCount: 0, totalDue: 0, totalPaid: 0 }
+      }
+      groups[programName].teams.push(p)
+      groups[programName].teamCount++
+      groups[programName].totalDue += Number(p.amount_due)
+      groups[programName].totalPaid += Number(p.amount_paid)
+    }
+    return Object.values(groups).sort((a, b) => a.programName.localeCompare(b.programName))
+  })()
+
   // Derived stats
   const totalDue = payments.reduce((s, p) => s + Number(p.amount_due), 0)
   const totalPaid = payments.reduce((s, p) => s + Number(p.amount_paid), 0)
@@ -487,12 +543,21 @@ export function PaymentsTab() {
           </span>
           <span className="font-cond text-[11px] text-muted">— Registration Fee Tracking</span>
         </div>
-        <button
-          onClick={() => setShowAddTeam(true)}
-          className="flex items-center gap-1.5 font-cond font-black text-[11px] tracking-[.1em] px-3 py-1.5 rounded-lg bg-red hover:bg-red/80 text-white transition-colors"
-        >
-          <Plus size={12} /> ADD TEAM
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={generatePayments}
+            disabled={generating}
+            className="flex items-center gap-1.5 font-cond font-black text-[11px] tracking-[.1em] px-3 py-1.5 rounded-lg bg-navy hover:bg-navy/80 text-white transition-colors disabled:opacity-50"
+          >
+            <Zap size={12} /> {generating ? 'GENERATING…' : 'GENERATE FROM TEAMS'}
+          </button>
+          <button
+            onClick={() => setShowAddTeam(true)}
+            className="flex items-center gap-1.5 font-cond font-black text-[11px] tracking-[.1em] px-3 py-1.5 rounded-lg bg-red hover:bg-red/80 text-white transition-colors"
+          >
+            <Plus size={12} /> ADD TEAM
+          </button>
+        </div>
       </div>
 
       {/* SubTabs */}
@@ -625,10 +690,91 @@ export function PaymentsTab() {
             </div>
           )}
 
+          {/* By Program */}
+          {programGroups.length > 0 && (
+            <div className="bg-[#081428] border border-[#1a2d50] rounded-xl overflow-hidden">
+              <div className="px-4 py-3 border-b border-[#1a2d50] flex items-center gap-2">
+                <Building2 size={13} className="text-muted" />
+                <span className="font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase">
+                  By Program
+                </span>
+              </div>
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-[#1a2d50]">
+                    {['Program', 'Teams', 'Total Due', 'Collected', 'Outstanding', 'Status'].map(
+                      (h) => (
+                        <th
+                          key={h}
+                          className="font-cond text-[10px] font-black tracking-[.1em] text-muted uppercase text-left px-4 py-2.5"
+                        >
+                          {h}
+                        </th>
+                      )
+                    )}
+                  </tr>
+                </thead>
+                <tbody>
+                  {programGroups.map((pg) => {
+                    const owed = pg.totalDue - pg.totalPaid
+                    const allPaid = pg.teams.every(
+                      (t) => t.status === 'paid' || t.status === 'waived'
+                    )
+                    return (
+                      <tr key={pg.programName} className="border-b border-[#0d1a2e] last:border-0">
+                        <td className="px-4 py-3">
+                          <span className="font-cond font-bold text-[12px] text-white">
+                            {pg.programName}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 font-cond text-[12px] text-white">
+                          {pg.teamCount}
+                        </td>
+                        <td className="px-4 py-3 font-cond text-[12px] text-white">
+                          {fmt(pg.totalDue)}
+                        </td>
+                        <td className="px-4 py-3 font-cond text-[12px] text-green-400">
+                          {fmt(pg.totalPaid)}
+                        </td>
+                        <td className="px-4 py-3 font-cond text-[12px] text-yellow-400">
+                          {fmt(owed)}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 h-1.5 bg-[#1a2d50] rounded-full overflow-hidden min-w-[60px]">
+                              <div
+                                className="h-full bg-green-500 rounded-full transition-all"
+                                style={{
+                                  width: `${pg.totalDue > 0 ? Math.min(100, (pg.totalPaid / pg.totalDue) * 100) : 0}%`,
+                                }}
+                              />
+                            </div>
+                            <span
+                              className={cn(
+                                'font-cond text-[10px] font-black tracking-wide px-2 py-0.5 rounded uppercase',
+                                allPaid
+                                  ? 'bg-green-900/40 text-green-400'
+                                  : pg.totalPaid > 0
+                                    ? 'bg-blue-900/40 text-blue-300'
+                                    : 'bg-yellow-900/40 text-yellow-400'
+                              )}
+                            >
+                              {allPaid ? 'PAID' : pg.totalPaid > 0 ? 'PARTIAL' : 'PENDING'}
+                            </span>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
           {payments.length === 0 && (
             <div className="text-center py-10 text-muted font-cond text-[13px]">
-              No teams yet — click <strong className="text-white/50">ADD TEAM</strong> or configure
-              fees first
+              No teams yet — click <strong className="text-white/50">GENERATE FROM TEAMS</strong> to
+              auto-create payment records, or configure fees first
             </div>
           )}
         </div>

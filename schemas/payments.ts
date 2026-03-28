@@ -3,10 +3,11 @@ import { z } from 'zod'
 // POST /api/team-payments — create a team payment record
 export const createTeamPaymentSchema = z.object({
   event_id: z.number().int().positive(),
-  team_id: z.number().int().positive(),
+  team_id: z.number().int().positive().nullable().optional(),
   team_name: z.string().min(1),
   division: z.string().min(1),
   amount_due: z.number().min(0),
+  program_name: z.string().nullable().optional(),
   status: z.enum(['pending', 'partial', 'paid', 'waived']).optional(),
 })
 
