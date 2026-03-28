@@ -12,7 +12,6 @@
 
 import { createClient } from '@/supabase/client'
 
-const EVENT_ID = 1
 const CACHE_MINUTES = 5
 
 // ─── Thresholds ───────────────────────────────────────────────
@@ -86,7 +85,8 @@ export interface WeatherEngineResult {
 // ─── Main engine function ─────────────────────────────────────
 export async function runWeatherEngine(
   complexId: number,
-  apiKey?: string
+  apiKey?: string,
+  eventId: number = 1
 ): Promise<WeatherEngineResult> {
   const sb = createClient()
 
@@ -95,12 +95,18 @@ export async function runWeatherEngine(
 
   if (!complex) throw new Error(`Complex ${complexId} not found`)
 
-  // Fetch weather (live or cache)
+  // Fetch weather — priority: OpenWeatherMap (if key) → NWS free API (if coords) → mock
   let reading: WeatherReading
   const key = apiKey ?? process.env.NEXT_PUBLIC_OPENWEATHER_KEY ?? ''
 
   if (key && complex.lat && complex.lng) {
     reading = await fetchLiveWeather(complex, key)
+  } else if (complex.lat && complex.lng) {
+    try {
+      reading = await fetchNWSWeather(complex)
+    } catch {
+      reading = getMockWeather(complex)
+    }
   } else {
     reading = getMockWeather(complex)
   }
@@ -108,7 +114,7 @@ export async function runWeatherEngine(
   // Store the reading
   await sb.from('weather_readings').insert({
     complex_id: complexId,
-    event_id: EVENT_ID,
+    event_id: eventId,
     temperature_f: reading.temperature_f,
     feels_like_f: reading.feels_like_f,
     heat_index_f: reading.heat_index_f,
@@ -149,7 +155,7 @@ export async function runWeatherEngine(
     .from('games')
     .select('id, status')
     .in('field_id', fieldIds)
-    .eq('event_id', EVENT_ID)
+    .eq('event_id', eventId)
     .neq('status', 'Final')
 
   const activeGameIds = (games ?? []).map((g: any) => g.id)
@@ -158,7 +164,7 @@ export async function runWeatherEngine(
   for (const alert of alerts) {
     // Write alert to DB
     await sb.from('weather_alerts').insert({
-      event_id: EVENT_ID,
+      event_id: eventId,
       complex_id: complexId,
       alert_type: alert.title,
       description: alert.description,
@@ -193,7 +199,7 @@ export async function runWeatherEngine(
       const delayEnd = new Date(Date.now() + THRESHOLDS.lightning.delay_minutes * 60 * 1000)
       await sb.from('lightning_events').insert({
         complex_id: complexId,
-        event_id: EVENT_ID,
+        event_id: eventId,
         closest_miles: reading.lightning_miles,
         delay_started_at: new Date().toISOString(),
         delay_ends_at: delayEnd.toISOString(),
@@ -228,7 +234,7 @@ export async function runWeatherEngine(
   if (actions_taken.length > 0) {
     for (const action of actions_taken) {
       await sb.from('ops_log').insert({
-        event_id: EVENT_ID,
+        event_id: eventId,
         message: `[${complex.name}] ${action}`,
         log_type: lightning_active ? 'alert' : heat_protocol === 'emergency' ? 'alert' : 'warn',
         occurred_at: new Date().toISOString(),
@@ -236,7 +242,7 @@ export async function runWeatherEngine(
     }
   } else {
     await sb.from('ops_log').insert({
-      event_id: EVENT_ID,
+      event_id: eventId,
       message: `Weather check: ${complex.name} — ${reading.conditions}, ${reading.temperature_f}°F, ${reading.wind_mph} mph`,
       log_type: 'info',
       occurred_at: new Date().toISOString(),
@@ -383,6 +389,91 @@ async function fetchLiveWeather(complex: any, apiKey: string): Promise<WeatherRe
     cloud_pct: d.clouds?.all ?? 0,
     uv_index: 0, // not in basic weather endpoint
     lightning_detected: (d.weather[0]?.id ?? 0) >= 200 && (d.weather[0]?.id ?? 0) < 300,
+    lightning_miles: null,
+    complex_id: complex.id,
+    complex_name: complex.name,
+    fetched_at: new Date().toISOString(),
+    source: 'live',
+  }
+}
+
+// ─── NWS free weather (no API key required, US only) ─────────
+async function fetchNWSWeather(complex: any): Promise<WeatherReading> {
+  const headers = { 'User-Agent': 'LeagueOps/1.0 (leagueops.app)', Accept: 'application/json' }
+
+  // Step 1: resolve grid point → observation stations URL
+  const ptRes = await fetch(`https://api.weather.gov/points/${complex.lat},${complex.lng}`, {
+    headers,
+  })
+  if (!ptRes.ok) throw new Error(`NWS points ${ptRes.status}`)
+  const ptData = await ptRes.json()
+  const stationsUrl: string = ptData.properties?.observationStations
+  if (!stationsUrl) throw new Error('NWS: missing stations URL')
+
+  // Step 2: get nearest station ID
+  const stRes = await fetch(`${stationsUrl}?limit=1`, { headers })
+  if (!stRes.ok) throw new Error(`NWS stations ${stRes.status}`)
+  const stData = await stRes.json()
+  const stationId: string = stData.features?.[0]?.properties?.stationIdentifier
+  if (!stationId) throw new Error('NWS: no station found')
+
+  // Step 3: latest observation
+  const obsRes = await fetch(`https://api.weather.gov/stations/${stationId}/observations/latest`, {
+    headers,
+  })
+  if (!obsRes.ok) throw new Error(`NWS obs ${obsRes.status}`)
+  const obs = await obsRes.json()
+  const p = obs.properties
+
+  // Unit conversions (NWS returns SI units)
+  const cToF = (c: number | null) => (c !== null ? Math.round((c * 9) / 5 + 32) : null)
+  const kmhToMph = (k: number | null) => (k !== null ? Math.round(k * 0.621371 * 10) / 10 : 0)
+
+  const tempC: number | null = p.temperature?.value ?? null
+  const tempF = cToF(tempC) ?? 70
+  const feelsC: number | null = p.windChill?.value ?? p.heatIndex?.value ?? tempC
+  const feelsF = cToF(feelsC) ?? tempF
+  const humidity = Math.round(p.relativeHumidity?.value ?? 50)
+  const windMph = kmhToMph(p.windSpeed?.value ?? 0)
+  const gustMph = kmhToMph(p.windGust?.value ?? p.windSpeed?.value ?? 0)
+  const pressMb = Math.round((p.barometricPressure?.value ?? 101325) / 100)
+  const visM: number = p.visibility?.value ?? 16000
+  const visMi = Math.round(visM * 0.000621371 * 10) / 10
+  const heatIdx = calcHeatIndex(tempF, humidity)
+
+  const desc: string = p.textDescription ?? 'Unknown'
+  const descLower = desc.toLowerCase()
+  const hasLightning =
+    descLower.includes('thunder') ||
+    (p.presentWeather ?? []).some((w: any) => (w.rawString ?? '').startsWith('TS'))
+
+  const condCode = hasLightning
+    ? 211
+    : descLower.includes('rain') || descLower.includes('shower')
+      ? 500
+      : descLower.includes('overcast') || descLower.includes('broken')
+        ? 804
+        : descLower.includes('cloud')
+          ? 803
+          : descLower.includes('fog') || descLower.includes('mist')
+            ? 741
+            : 800
+
+  return {
+    temperature_f: tempF,
+    feels_like_f: feelsF,
+    heat_index_f: heatIdx,
+    humidity_pct: humidity,
+    wind_mph: windMph,
+    wind_gust_mph: gustMph,
+    wind_dir_deg: p.windDirection?.value ?? 0,
+    conditions: desc,
+    conditions_code: condCode,
+    visibility_mi: visMi,
+    pressure_mb: pressMb,
+    cloud_pct: 0,
+    uv_index: 0,
+    lightning_detected: hasLightning,
     lightning_miles: null,
     complex_id: complex.id,
     complex_name: complex.name,

@@ -3,7 +3,7 @@ import { runWeatherEngine, getLatestReading, getReadingHistory } from '@/lib/eng
 
 export async function POST(req: NextRequest) {
   const body = await req.json()
-  const { complex_id, api_key } = body
+  const { complex_id, api_key, event_id } = body
 
   if (!complex_id) {
     return NextResponse.json({ error: 'complex_id required' }, { status: 400 })
@@ -12,7 +12,8 @@ export async function POST(req: NextRequest) {
   try {
     const result = await runWeatherEngine(
       Number(complex_id),
-      api_key ?? process.env.OPENWEATHER_API_KEY
+      api_key ?? process.env.OPENWEATHER_API_KEY,
+      event_id ?? 1
     )
     return NextResponse.json(result)
   } catch (err: any) {

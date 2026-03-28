@@ -31,7 +31,16 @@ export function RightPanel({ onNavigate }: Props) {
   const s = state.lightningSecondsLeft % 60
 
   return (
-    <aside className="w-72 bg-surface-panel border-l border-border overflow-y-auto flex-shrink-0">
+    <aside className="hidden lg:block w-72 bg-surface-panel border-l border-border overflow-y-auto flex-shrink-0">
+      {/* Weather — always at top for quick visibility */}
+      <WeatherRPPanel
+        lightningActive={lightningActive}
+        timerM={m}
+        timerS={s}
+        alertCount={state.weatherAlerts.filter((a) => a.is_active).length}
+        onNavigate={onNavigate}
+      />
+
       {/* Ref Coverage */}
       <Section title="REF COVERAGE" action={() => onNavigate('refs')} actionLabel="VIEW">
         <CoverageBar label="CHECKED IN" value={refsAssigned} total={refs.length} />
@@ -97,15 +106,6 @@ export function RightPanel({ onNavigate }: Props) {
 
       {/* Operational Conflicts (Phase 2) */}
       <ConflictPanel onNavigate={onNavigate} />
-
-      {/* Weather */}
-      <WeatherRPPanel
-        lightningActive={lightningActive}
-        timerM={m}
-        timerS={s}
-        alertCount={state.weatherAlerts.filter((a) => a.is_active).length}
-        onNavigate={onNavigate}
-      />
 
       {/* Trainer / Medical */}
       <Section
