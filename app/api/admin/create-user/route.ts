@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createServerClient } from '@/supabase/server'
-import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { createClient } from '@supabase/supabase-js'
 
 export async function POST(req: NextRequest) {
   // Verify requester is admin
@@ -31,27 +31,50 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'email, password, role required' }, { status: 400 })
   }
 
-  // Use service role client to create auth user
-  const adminSb = createAdminClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  )
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
-  // Create the auth user
-  const { data: newUser, error: createError } = await adminSb.auth.admin.createUser({
-    email,
-    password,
-    email_confirm: true, // auto-confirm so they can log in immediately
-  })
+  let newUserId: string
 
-  if (createError) {
-    return NextResponse.json({ error: createError.message }, { status: 400 })
+  if (serviceKey) {
+    // Preferred: use admin API so email is auto-confirmed regardless of project settings
+    const adminSb = createClient(url, serviceKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    })
+    const { data: newUser, error: createError } = await adminSb.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+    })
+    if (createError) {
+      return NextResponse.json({ error: createError.message }, { status: 400 })
+    }
+    newUserId = newUser.user.id
+  } else {
+    // Fallback: signUp works when email autoconfirm is enabled in Supabase project settings
+    const signupSb = createClient(url, anonKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    })
+    const { data: signupData, error: createError } = await signupSb.auth.signUp({
+      email,
+      password,
+    })
+    if (createError) {
+      return NextResponse.json({ error: createError.message }, { status: 400 })
+    }
+    if (!signupData.user) {
+      return NextResponse.json(
+        { error: 'User creation failed — check that email autoconfirm is enabled in Supabase' },
+        { status: 500 }
+      )
+    }
+    newUserId = signupData.user.id
   }
 
   // Create the role record
-  const { error: roleError } = await adminSb.from('user_roles').insert({
-    user_id: newUser.user.id,
+  const { error: roleError } = await sb.from('user_roles').insert({
+    user_id: newUserId,
     role,
     display_name: display_name ?? email,
     referee_id: referee_id ?? null,
@@ -61,18 +84,16 @@ export async function POST(req: NextRequest) {
   })
 
   if (roleError) {
-    // Cleanup: delete the auth user if role insert failed
-    await adminSb.auth.admin.deleteUser(newUser.user.id)
     return NextResponse.json({ error: roleError.message }, { status: 500 })
   }
 
   // Log it
-  await adminSb.from('ops_log').insert({
+  await sb.from('ops_log').insert({
     event_id: event_id ?? 1,
     message: `User created: ${email} (${role}) by admin`,
     log_type: 'info',
     occurred_at: new Date().toISOString(),
   })
 
-  return NextResponse.json({ created: true, user_id: newUser.user.id }, { status: 201 })
+  return NextResponse.json({ created: true, user_id: newUserId }, { status: 201 })
 }
