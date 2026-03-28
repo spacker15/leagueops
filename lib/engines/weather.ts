@@ -182,7 +182,7 @@ export async function runWeatherEngine(
 
   // ── Process each alert ──
   for (const alert of alerts) {
-    // Write alert to DB — skip NWS alerts that are already stored (dedup by nws_alert_id)
+    // Write alert to DB — dedup by nws_alert_id (NWS) or alert_type+complex_id (engine-generated)
     if (alert.nws_alert_id) {
       const { data: existing } = await sb
         .from('weather_alerts')
@@ -190,6 +190,16 @@ export async function runWeatherEngine(
         .eq('nws_alert_id', alert.nws_alert_id)
         .maybeSingle()
       if (existing) continue // already stored this NWS alert
+    } else {
+      const { data: existing } = await sb
+        .from('weather_alerts')
+        .select('id')
+        .eq('event_id', eventId)
+        .eq('complex_id', complexId)
+        .eq('alert_type', alert.title)
+        .eq('is_active', true)
+        .maybeSingle()
+      if (existing) continue // same active alert already exists for this complex
     }
 
     await sb.from('weather_alerts').insert({
