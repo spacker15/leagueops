@@ -47,7 +47,10 @@ export function RefereePortal() {
   const [rosterLoading, setRosterLoading] = useState(false)
 
   useEffect(() => {
-    if (!portalEventId || !userRole?.referee_id) return
+    if (!portalEventId || !userRole?.referee_id) {
+      setLoading(false)
+      return
+    }
     loadData()
   }, [userRole])
 
@@ -72,7 +75,7 @@ export function RefereePortal() {
     const gameList = (assignments ?? [])
       .map((a: any) => ({ ...a.game, role: a.role }))
       .filter(Boolean)
-      .sort((a: any, b: any) => a.scheduled_time.localeCompare(b.scheduled_time))
+      .sort((a: any, b: any) => (a.sort_order ?? 9999) - (b.sort_order ?? 9999))
     setGames(gameList)
 
     // Auto-select the current/next live game
@@ -152,6 +155,27 @@ export function RefereePortal() {
   }
 
   if (!portalEventId) return null
+
+  if (!loading && !userRole?.referee_id)
+    return (
+      <div className="min-h-screen bg-surface flex items-center justify-center p-6">
+        <div className="text-center max-w-sm">
+          <div className="font-cond text-xl font-black text-white mb-2 tracking-widest">
+            ACCOUNT NOT LINKED
+          </div>
+          <div className="font-cond text-sm text-muted mb-4">
+            Your account is not linked to a referee record. Please contact your administrator to
+            complete setup.
+          </div>
+          <button
+            onClick={signOut}
+            className="font-cond text-[11px] font-bold tracking-wider px-4 py-2 rounded bg-surface-card border border-border text-muted hover:text-white transition-colors"
+          >
+            SIGN OUT
+          </button>
+        </div>
+      </div>
+    )
 
   if (loading)
     return (
