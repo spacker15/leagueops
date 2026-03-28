@@ -65,7 +65,7 @@ export function StatusRow() {
       <div className="flex-1" />
 
       {/* Date nav */}
-      <div className="flex items-center gap-2 px-4" style={{ borderLeft: '1px solid #1a2d50' }}>
+      <div className="flex items-center gap-1 px-3" style={{ borderLeft: '1px solid #1a2d50' }}>
         <button
           onClick={() => changeDate(Math.max(0, state.currentDateIdx - 1))}
           disabled={state.currentDateIdx === 0}
@@ -77,9 +77,19 @@ export function StatusRow() {
           <ChevronLeft size={14} />
         </button>
 
-        <div className="font-cond text-[13px] font-black text-white tracking-wide px-1 min-w-[155px] text-center">
-          {currentDate?.label ?? '—'}
-        </div>
+        {/* Native select — renders as a wheel picker on iOS/Android */}
+        <select
+          value={state.currentDateIdx}
+          onChange={(e) => changeDate(Number(e.target.value))}
+          className="font-cond text-[13px] font-black tracking-wide bg-transparent border-none outline-none text-white cursor-pointer text-center appearance-none"
+          style={{ minWidth: 155 }}
+        >
+          {state.eventDates.map((d, i) => (
+            <option key={d.id} value={i} style={{ background: '#081428', color: 'white' }}>
+              {d.label}
+            </option>
+          ))}
+        </select>
 
         <button
           onClick={() =>

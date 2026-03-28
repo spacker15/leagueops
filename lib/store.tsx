@@ -233,11 +233,25 @@ export function AppProvider({
         db.getWeatherAlerts(eventId),
         db.getOpsLog(eventId),
       ])
+      const dates = eventDates ?? []
+
+      // Jump to today's date, or the next upcoming date, or the last date
+      const today = new Date().toISOString().split('T')[0]
+      let initialIdx = 0
+      const todayIdx = dates.findIndex((d) => d.date === today)
+      if (todayIdx >= 0) {
+        initialIdx = todayIdx
+      } else {
+        const futureIdx = dates.findIndex((d) => d.date > today)
+        initialIdx = futureIdx >= 0 ? futureIdx : Math.max(0, dates.length - 1)
+      }
+
       dispatch({
         type: 'INIT',
         payload: {
           event,
-          eventDates: eventDates ?? [],
+          eventDates: dates,
+          currentDateIdx: initialIdx,
           fields,
           teams,
           referees,
