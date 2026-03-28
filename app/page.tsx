@@ -8,6 +8,7 @@ import type { TabName } from '@/components/AppShell'
 import { LoginPage } from '@/components/auth/LoginPage'
 import { RefereePortal } from '@/components/auth/RefereePortal'
 import { VolunteerPortal } from '@/components/auth/VolunteerPortal'
+import { TrainerPortal } from '@/components/auth/TrainerPortal'
 import { ProgramDashboard } from '@/components/programs/ProgramDashboard'
 import { PendingApprovalScreen } from '@/components/programs/PendingApprovalScreen'
 import { EventPicker } from '@/components/events/EventPicker'
@@ -59,6 +60,7 @@ export default function Home() {
 
   if (userRole?.role === 'referee') return <RefereePortal />
   if (userRole?.role === 'volunteer') return <VolunteerPortal />
+  if (userRole?.role === 'trainer') return <TrainerPortal />
 
   if (userRole?.role === 'program_leader') {
     if (!userRole.is_active) return <PendingApprovalScreen />
