@@ -1585,16 +1585,11 @@ export function ProgramApprovals() {
                                   )}
                                 />
                               </button>
-                              {prog.logo_url ? (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img
-                                  src={prog.logo_url}
-                                  alt=""
-                                  className="w-6 h-6 rounded object-cover flex-shrink-0"
-                                />
-                              ) : (
-                                <Building2 size={16} className="text-muted flex-shrink-0" />
-                              )}
+                              <ProgramLogoCell
+                                programId={prog.id}
+                                logoUrl={prog.logo_url}
+                                onUploaded={load}
+                              />
                               {prog.display_id && (
                                 <span className="font-mono text-[10px] text-muted bg-surface px-1.5 py-0.5 rounded">
                                   {prog.display_id}
@@ -2375,6 +2370,69 @@ export function ProgramApprovals() {
   )
 }
 
+function ProgramLogoCell({
+  programId,
+  logoUrl,
+  onUploaded,
+}: {
+  programId: number
+  logoUrl: string | null
+  onUploaded: () => void
+}) {
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  async function handleFile(file: File) {
+    if (!file.type.startsWith('image/') || file.size > 2 * 1024 * 1024) {
+      toast.error('Image file under 2MB required')
+      return
+    }
+    const sb = createClient()
+    const ext = file.name.split('.').pop() ?? 'png'
+    const path = `programs/${programId}/logo.${ext}`
+    const { error } = await sb.storage
+      .from('program-assets')
+      .upload(path, file, { upsert: true, contentType: file.type })
+    if (error) {
+      toast.error('Upload failed')
+      return
+    }
+    const { data } = sb.storage.from('program-assets').getPublicUrl(path)
+    await sb.from('programs').update({ logo_url: data.publicUrl }).eq('id', programId)
+    toast.success('Program logo updated')
+    onUploaded()
+  }
+
+  return (
+    <>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0]
+          if (f) handleFile(f)
+        }}
+      />
+      <button
+        onClick={(e) => {
+          e.stopPropagation()
+          inputRef.current?.click()
+        }}
+        className="flex-shrink-0 w-8 h-8 rounded overflow-hidden border border-border hover:border-blue-400 transition-colors flex items-center justify-center"
+        title="Click to upload program logo"
+      >
+        {logoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={logoUrl} alt="" className="w-full h-full object-cover" />
+        ) : (
+          <Building2 size={14} className="text-muted" />
+        )}
+      </button>
+    </>
+  )
+}
+
 function TeamLogoCell({
   teamId,
   teamLogoUrl,
@@ -2426,9 +2484,8 @@ function TeamLogoCell({
       />
       <button
         onClick={() => inputRef.current?.click()}
-        className="flex-shrink-0 rounded-sm overflow-hidden border border-border hover:border-blue-400 transition-colors"
+        className="flex-shrink-0 w-7 h-7 rounded overflow-hidden border border-border hover:border-blue-400 transition-colors"
         title="Click to upload team logo"
-        style={{ width: logoSrc ? 20 : 14, height: logoSrc ? 20 : 14 }}
       >
         {logoSrc ? (
           // eslint-disable-next-line @next/next/no-img-element
