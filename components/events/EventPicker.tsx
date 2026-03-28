@@ -55,7 +55,7 @@ const SPORTS_EMOJI: Record<string, string> = {
 }
 
 export function EventPicker({ onSelectEvent }: Props) {
-  const { userRole, signOut } = useAuth()
+  const { userRole, signOut, isAdmin } = useAuth()
   const [events, setEvents] = useState<EventSummary[]>([])
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
@@ -388,22 +388,24 @@ export function EventPicker({ onSelectEvent }: Props) {
               MY EVENTS
             </div>
             <div className="font-cond text-[13px] text-[#5a6e9a]">
-              Select an event to manage, or create a new one
+              Select an event to manage{isAdmin ? ', or create a new one' : ''}
             </div>
           </div>
-          <button
-            onClick={() => {
-              setShowForm((s) => !s)
-              setStep(1)
-            }}
-            className="flex items-center gap-2 font-cond font-black text-[13px] tracking-[.1em] px-5 py-2.5 rounded-xl bg-red hover:bg-red/80 text-white transition-colors"
-          >
-            <Plus size={15} /> CREATE EVENT
-          </button>
+          {isAdmin && (
+            <button
+              onClick={() => {
+                setShowForm((s) => !s)
+                setStep(1)
+              }}
+              className="flex items-center gap-2 font-cond font-black text-[13px] tracking-[.1em] px-5 py-2.5 rounded-xl bg-red hover:bg-red/80 text-white transition-colors"
+            >
+              <Plus size={15} /> CREATE EVENT
+            </button>
+          )}
         </div>
 
-        {/* ── Create wizard ─────────────────────────────────────────────────── */}
-        {showForm && (
+        {/* ── Create wizard — admin only ─────────────────────────────────────── */}
+        {isAdmin && showForm && (
           <div className="bg-[#081428] border border-[#1a2d50] rounded-2xl p-6 mb-6">
             {/* Step indicator */}
             <div className="flex items-center gap-3 mb-6">
@@ -762,7 +764,9 @@ export function EventPicker({ onSelectEvent }: Props) {
             <Trophy size={48} className="mx-auto mb-4" style={{ color: '#1a2d50' }} />
             <div className="font-cond text-[18px] font-black text-white mb-2">NO EVENTS YET</div>
             <div className="font-cond text-[13px] text-[#5a6e9a]">
-              Click CREATE EVENT to get started
+              {isAdmin
+                ? 'Click CREATE EVENT to get started'
+                : 'Contact your administrator to get access to an event'}
             </div>
           </div>
         ) : (

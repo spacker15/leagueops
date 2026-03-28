@@ -87,6 +87,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: roleError.message }, { status: 500 })
   }
 
+  // Grant event access so they can see the event in EventPicker
+  if (event_id) {
+    await sb
+      .from('event_admins')
+      .upsert({ event_id, user_id: newUserId, role }, { onConflict: 'event_id,user_id' })
+  }
+
   // Log it
   await sb.from('ops_log').insert({
     event_id: event_id ?? 1,
