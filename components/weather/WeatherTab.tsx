@@ -30,6 +30,7 @@ import {
   ChevronDown,
   ChevronUp,
 } from 'lucide-react'
+import { useAuth } from '@/lib/auth'
 
 type SubTab = 'overview' | 'complexes' | 'history' | 'protocol'
 
@@ -51,6 +52,7 @@ interface Complex {
 
 export function WeatherTab() {
   const { state, triggerLightning, liftLightning } = useApp()
+  const { isAdmin } = useAuth()
   const [subTab, setSubTab] = useState<SubTab>('overview')
   const [complexes, setComplexes] = useState<Complex[]>([])
   const [readings, setReadings] = useState<Record<number, WeatherReading>>({})
@@ -318,6 +320,7 @@ export function WeatherTab() {
                   scanning={scanning === complex.id}
                   onScan={() => runWeatherScan(complex.id)}
                   onLightning={(action) => manualLightning(complex.id, action)}
+                  canControl={isAdmin}
                 />
               )
             })}
@@ -551,12 +554,13 @@ export function WeatherTab() {
                   </div>
                 )}
 
-                {/* Lightning controls */}
+                {/* Lightning status (always visible) + controls (admin only) */}
                 <LightningPanel
                   complex={complex}
                   lightningStatus={ls}
                   onTrigger={() => manualLightning(complex.id, 'trigger')}
                   onLift={() => manualLightning(complex.id, 'lift')}
+                  canControl={isAdmin}
                 />
               </div>
             )
@@ -729,6 +733,7 @@ function ComplexWeatherCard({
   scanning,
   onScan,
   onLightning,
+  canControl = false,
 }: {
   complex: Complex
   reading?: WeatherReading
@@ -736,6 +741,7 @@ function ComplexWeatherCard({
   scanning: boolean
   onScan: () => void
   onLightning: (action: 'trigger' | 'lift') => void
+  canControl?: boolean
 }) {
   return (
     <div
@@ -769,14 +775,16 @@ function ComplexWeatherCard({
               })}
             </span>
           )}
-          <Btn
-            size="sm"
-            variant={ls?.active ? 'danger' : 'ghost'}
-            onClick={() => onLightning(ls?.active ? 'lift' : 'trigger')}
-          >
-            <Zap size={10} className="inline mr-1" />
-            {ls?.active ? 'LIFT DELAY' : 'LIGHTNING'}
-          </Btn>
+          {canControl && (
+            <Btn
+              size="sm"
+              variant={ls?.active ? 'danger' : 'ghost'}
+              onClick={() => onLightning(ls?.active ? 'lift' : 'trigger')}
+            >
+              <Zap size={10} className="inline mr-1" />
+              {ls?.active ? 'LIFT DELAY' : 'LIGHTNING'}
+            </Btn>
+          )}
           <Btn size="sm" variant="primary" onClick={onScan} disabled={scanning}>
             <RefreshCw size={10} className={cn('inline mr-1', scanning && 'animate-spin')} />
             {scanning ? 'SCANNING...' : 'SCAN'}
@@ -913,11 +921,13 @@ function LightningPanel({
   lightningStatus: ls,
   onTrigger,
   onLift,
+  canControl = false,
 }: {
   complex: Complex
   lightningStatus?: LightningStatus
   onTrigger: () => void
   onLift: () => void
+  canControl?: boolean
 }) {
   return (
     <div className="mt-4 pt-4 border-t border-border">
@@ -936,17 +946,23 @@ function LightningPanel({
           ? '⚡ LIGHTNING DELAY ACTIVE — ALL FIELDS SUSPENDED'
           : 'FIELD STATUS: ALL CLEAR'}
       </div>
-      <button
-        onClick={ls?.active ? onLift : onTrigger}
-        className={cn(
-          'w-full font-cond font-black text-[13px] tracking-widest py-2.5 rounded-md uppercase transition-colors',
-          ls?.active
-            ? 'bg-gray-700 hover:bg-gray-600 text-white'
-            : 'bg-red hover:bg-red-dark text-white'
-        )}
-      >
-        {ls?.active ? '✓ LIFT LIGHTNING DELAY' : '⚡ TRIGGER LIGHTNING DELAY'}
-      </button>
+      {canControl ? (
+        <button
+          onClick={ls?.active ? onLift : onTrigger}
+          className={cn(
+            'w-full font-cond font-black text-[13px] tracking-widest py-2.5 rounded-md uppercase transition-colors',
+            ls?.active
+              ? 'bg-gray-700 hover:bg-gray-600 text-white'
+              : 'bg-red hover:bg-red-dark text-white'
+          )}
+        >
+          {ls?.active ? '✓ LIFT LIGHTNING DELAY' : '⚡ TRIGGER LIGHTNING DELAY'}
+        </button>
+      ) : (
+        <div className="text-center font-cond text-[10px] text-muted tracking-widest">
+          ADMIN ONLY — CONTACT YOUR EVENT ADMINISTRATOR TO TRIGGER/LIFT DELAYS
+        </div>
+      )}
     </div>
   )
 }

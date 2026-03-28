@@ -73,6 +73,7 @@ interface Props {
   onSignOut?: () => void
   isAdmin?: boolean
   onChangeEvent?: () => void // ← ADD THIS LINE
+  rightSlot?: React.ReactNode
 }
 
 export function TopBar({
@@ -83,6 +84,7 @@ export function TopBar({
   onSignOut,
   isAdmin,
   onChangeEvent,
+  rightSlot,
 }: Props) {
   const [openGroup, setOpenGroup] = useState<string | null>(null)
   const navRef = useRef<HTMLDivElement>(null)
@@ -265,6 +267,8 @@ export function TopBar({
           </div>
           <span className="font-cond text-[11px] font-black tracking-[.15em] text-red">LIVE</span>
         </div>
+
+        {rightSlot}
 
         {userRole && (
           <div

@@ -26,6 +26,7 @@ import { EventSetupTab } from '@/components/settings/EventSetupTab'
 import { QRCodesPanel } from '@/components/auth/QRCodesPanel'
 import { ReportsTab } from '@/components/reports/ReportsTab'
 import { PaymentsTab } from '@/components/payments/PaymentsTab'
+import { NotificationBell } from '@/components/notifications/NotificationBell'
 
 export type TabName =
   | 'dashboard'
@@ -127,7 +128,18 @@ export function AppShell({
         onSignOut={signOut}
         isAdmin={isAdmin}
         onChangeEvent={onChangeEvent}
+        rightSlot={<NotificationBell />}
       />
+      {state.lightningActive && (
+        <div
+          className="flex items-center justify-center gap-2 py-1.5 text-white font-cond font-black text-[12px] tracking-widest lightning-flash flex-shrink-0"
+          style={{ background: '#7a0000', borderBottom: '1px solid #ff3333' }}
+        >
+          ⚡ LIGHTNING DELAY ACTIVE — ALL FIELDS SUSPENDED ·{' '}
+          {Math.floor(state.lightningSecondsLeft / 60)}:
+          {(state.lightningSecondsLeft % 60).toString().padStart(2, '0')} REMAINING
+        </div>
+      )}
       <StatusRow />
       <div className="flex flex-1 overflow-hidden">
         <main className="flex-1 overflow-y-auto min-w-0 tab-content">
