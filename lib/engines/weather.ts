@@ -296,13 +296,6 @@ export async function runWeatherEngine(
         occurred_at: new Date().toISOString(),
       })
     }
-  } else {
-    await sb.from('ops_log').insert({
-      event_id: eventId,
-      message: `Weather check: ${complex.name} — ${reading.conditions}, ${reading.temperature_f}°F, ${reading.wind_mph} mph`,
-      log_type: 'info',
-      occurred_at: new Date().toISOString(),
-    })
   }
 
   return { reading, alerts, actions_taken, games_affected, lightning_active, heat_protocol }

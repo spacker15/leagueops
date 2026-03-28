@@ -527,8 +527,13 @@ export function AppProvider({
           type: 'UPDATE_GAME',
           payload: { ...updated, home_score: home, away_score: away },
         })
+      const g = state.games.find((gg) => gg.id === gameId)
+      const label = g
+        ? `${g.home_team?.name ?? 'Home'} ${home}–${away} ${g.away_team?.name ?? 'Away'}`
+        : `Game #${gameId} ${home}–${away}`
+      await addLog(`Score update: ${label}`, 'info')
     },
-    [state.games]
+    [state.games, addLog]
   )
 
   const addGame = useCallback(

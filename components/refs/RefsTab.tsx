@@ -318,6 +318,7 @@ export function RefsTab() {
     refreshVols,
     currentDate,
     eventId,
+    addLog,
   } = useApp()
   const [subTab, setSubTab] = useState<SubTab>('board')
   const [assignments, setAssignments] = useState<Assignment[]>([])
@@ -927,6 +928,7 @@ export function RefsTab() {
     }
     setAssignments((prev) => prev.filter((x) => x.id !== a.id))
     toast(`${a.person_name} removed`, { icon: '↩' })
+    await addLog(`${a.person_name} unassigned from Game #${a.game_id}`, 'info')
   }
 
   async function removeBlockAssignment(block: BlockAssignment) {
