@@ -1,9 +1,14 @@
 'use client'
 
 import { useApp } from '@/lib/store'
+import { CoverageBar, Pill } from '@/components/ui'
+import { logTypeColor, cn } from '@/lib/utils'
 import type { TabName } from '@/components/AppShell'
-import { cn } from '@/lib/utils'
+import { useEffect, useState } from 'react'
 import { createClient } from '@/supabase/client'
+import type { OperationalConflict } from '@/types'
+import { AlertTriangle, XCircle } from 'lucide-react'
+import { useAuth } from '@/lib/auth'
 
 interface Props {
   onNavigate: (tab: TabName) => void
@@ -12,6 +17,14 @@ interface Props {
 export function RightPanel({ onNavigate }: Props) {
   const { state } = useApp()
 
+  const refs = state.referees
+  const vols = state.volunteers
+  const refsAssigned = refs.filter((r) => r.checked_in).length
+
+  const volByRole = (role: string) => vols.filter((v) => v.role === role)
+  const volChecked = (role: string) => volByRole(role).filter((v) => v.checked_in).length
+
+  const activeTrainers = state.medicalIncidents.filter((m) => m.status !== 'Resolved').slice(0, 4)
   const lightningActive = state.lightningActive
   const m = Math.floor(state.lightningSecondsLeft / 60)
   const s = state.lightningSecondsLeft % 60
@@ -178,6 +191,92 @@ function Section({
   )
 }
 
+// ─── Conflict Panel ──────────────────────────────────────────
+function ConflictPanel({ onNavigate }: { onNavigate: (tab: TabName) => void }) {
+  const { state } = useApp()
+  const [conflicts, setConflicts] = useState<OperationalConflict[]>([])
+  const eventId = state.event?.id
+
+  useEffect(() => {
+    if (!eventId) return
+    const sb = createClient()
+
+    function fetchConflicts() {
+      sb.from('operational_conflicts')
+        .select('*')
+        .eq('event_id', eventId)
+        .eq('resolved', false)
+        .order('severity', { ascending: false })
+        .limit(5)
+        .then(({ data }) => setConflicts((data as OperationalConflict[]) ?? []))
+    }
+
+    fetchConflicts()
+
+    const sub = sb
+      .channel(`rp-conflicts-${eventId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'operational_conflicts' },
+        fetchConflicts
+      )
+      .subscribe()
+
+    return () => {
+      sb.removeChannel(sub)
+    }
+  }, [eventId])
+
+  const critical = conflicts.filter((c) => c.severity === 'critical').length
+  const warning = conflicts.filter((c) => c.severity === 'warning').length
+
+  return (
+    <Section
+      title={`REF CONFLICTS${conflicts.length > 0 ? ` (${conflicts.length})` : ''}`}
+      action={() => onNavigate('refs')}
+      actionLabel="VIEW"
+    >
+      {conflicts.length === 0 ? (
+        <p className="text-[11px] text-green-400 font-cond font-bold">ALL CLEAR</p>
+      ) : (
+        <div>
+          {critical > 0 && (
+            <div className="flex items-center gap-1.5 mb-1">
+              <XCircle size={11} className="text-red-400" />
+              <span className="font-cond text-[11px] font-bold text-red-400">
+                {critical} CRITICAL
+              </span>
+            </div>
+          )}
+          {warning > 0 && (
+            <div className="flex items-center gap-1.5 mb-2">
+              <AlertTriangle size={11} className="text-yellow-400" />
+              <span className="font-cond text-[11px] font-bold text-yellow-400">
+                {warning} WARNINGS
+              </span>
+            </div>
+          )}
+          <div className="space-y-1.5">
+            {conflicts.slice(0, 3).map((c) => (
+              <div
+                key={c.id}
+                className={cn(
+                  'text-[10px] rounded p-1.5 border-l-2',
+                  c.severity === 'critical'
+                    ? 'bg-white/5 border-red-500 text-red-300'
+                    : 'bg-white/5 border-yellow-500 text-yellow-300'
+                )}
+              >
+                {c.description.length > 70 ? c.description.slice(0, 70) + '…' : c.description}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </Section>
+  )
+}
+
 // ─── Right Panel Weather component ─────────────────────────────
 function WeatherRPPanel({
   lightningActive,
@@ -193,6 +292,7 @@ function WeatherRPPanel({
   onNavigate: (tab: any) => void
 }) {
   const { state, liftLightning } = useApp()
+  const { isAdmin } = useAuth()
 
   // Use the latest weather reading from auto-poll (store)
   const readings = Object.values(state.weatherReadings)
@@ -219,12 +319,14 @@ function WeatherRPPanel({
           <div className="font-mono text-xl text-red-400 text-center">
             {timerM}:{timerS.toString().padStart(2, '0')}
           </div>
-          <button
-            onClick={() => liftLightning()}
-            className="w-full mt-2 font-cond text-[10px] font-bold tracking-wider px-2 py-1 rounded bg-green-900/40 text-green-400 border border-green-800/50 hover:bg-green-800/60 transition-colors text-center"
-          >
-            LIFT DELAY
-          </button>
+          {isAdmin && (
+            <button
+              onClick={() => liftLightning()}
+              className="w-full mt-2 font-cond text-[10px] font-bold tracking-wider px-2 py-1 rounded bg-green-900/40 text-green-400 border border-green-800/50 hover:bg-green-800/60 transition-colors text-center"
+            >
+              LIFT DELAY
+            </button>
+          )}
         </div>
       ) : (
         <div>
