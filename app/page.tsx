@@ -14,7 +14,11 @@ import { EventPicker } from '@/components/events/EventPicker'
 
 export default function Home() {
   const { user, userRole, loading } = useAuth()
-  const [selectedEventId, setSelectedEventId] = useState<number | null>(null)
+  const [selectedEventId, setSelectedEventId] = useState<number | null>(() => {
+    if (typeof window === 'undefined') return null
+    const saved = localStorage.getItem('leagueops_event_id')
+    return saved ? parseInt(saved) : null
+  })
   const [isNewEvent, setIsNewEvent] = useState(false)
   const [deepLinkTab, setDeepLinkTab] = useState<TabName | undefined>(undefined)
 
@@ -70,6 +74,7 @@ export default function Home() {
         onSelectEvent={(id, isNew) => {
           setSelectedEventId(id)
           setIsNewEvent(isNew ?? false)
+          localStorage.setItem('leagueops_event_id', String(id))
         }}
       />
     )
@@ -82,6 +87,7 @@ export default function Home() {
         onChangeEvent={() => {
           setSelectedEventId(null)
           setIsNewEvent(false)
+          localStorage.removeItem('leagueops_event_id')
         }}
         initialTab={deepLinkTab ?? (isNewEvent ? 'settings' : 'dashboard')}
       />

@@ -817,7 +817,7 @@ export function RefsTab() {
       // Block assignment — assign to N games on this field
       const fieldGames = state.games
         .filter((g) => g.field_id === targetId && g.status !== 'Final')
-        .sort((a, b) => a.scheduled_time.localeCompare(b.scheduled_time))
+        .sort((a, b) => (a.sort_order ?? 9999) - (b.sort_order ?? 9999))
         .slice(0, blockGames > 0 ? blockGames : undefined)
 
       let count = 0
