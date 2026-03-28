@@ -2379,8 +2379,6 @@ function ProgramLogoCell({
   logoUrl: string | null
   onUploaded: () => void
 }) {
-  const inputRef = useRef<HTMLInputElement>(null)
-
   async function handleFile(file: File) {
     if (!file.type.startsWith('image/') || file.size > 2 * 1024 * 1024) {
       toast.error('Image file under 2MB required')
@@ -2402,33 +2400,35 @@ function ProgramLogoCell({
     onUploaded()
   }
 
+  const uid = `prog-logo-${programId}`
   return (
     <>
       <input
-        ref={inputRef}
+        id={uid}
         type="file"
         accept="image/*"
         className="hidden"
         onChange={(e) => {
           const f = e.target.files?.[0]
           if (f) handleFile(f)
+          e.target.value = ''
         }}
       />
-      <button
-        onClick={(e) => {
-          e.stopPropagation()
-          inputRef.current?.click()
-        }}
-        className="flex-shrink-0 w-8 h-8 rounded overflow-hidden border border-border hover:border-blue-400 transition-colors flex items-center justify-center"
+      <label
+        htmlFor={uid}
+        onClick={(e) => e.stopPropagation()}
+        className="flex-shrink-0 w-10 h-10 rounded-lg overflow-hidden border-2 border-border hover:border-blue-400 transition-colors cursor-pointer flex items-center justify-center group"
         title="Click to upload program logo"
       >
         {logoUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={logoUrl} alt="" className="w-full h-full object-cover" />
         ) : (
-          <Building2 size={14} className="text-muted" />
+          <div className="flex flex-col items-center justify-center w-full h-full bg-surface-card group-hover:bg-navy/40 transition-colors">
+            <Upload size={11} className="text-muted group-hover:text-blue-300 transition-colors" />
+          </div>
         )}
-      </button>
+      </label>
     </>
   )
 }
@@ -2446,8 +2446,6 @@ function TeamLogoCell({
   color: string | null
   onUploaded: () => void
 }) {
-  const inputRef = useRef<HTMLInputElement>(null)
-
   async function handleFile(file: File) {
     if (!file.type.startsWith('image/') || file.size > 2 * 1024 * 1024) {
       toast.error('Image file under 2MB required')
@@ -2470,21 +2468,23 @@ function TeamLogoCell({
   }
 
   const logoSrc = teamLogoUrl || programLogoUrl
+  const uid = `team-logo-${teamId}`
   return (
     <>
       <input
-        ref={inputRef}
+        id={uid}
         type="file"
         accept="image/*"
         className="hidden"
         onChange={(e) => {
           const f = e.target.files?.[0]
           if (f) handleFile(f)
+          e.target.value = ''
         }}
       />
-      <button
-        onClick={() => inputRef.current?.click()}
-        className="flex-shrink-0 w-7 h-7 rounded overflow-hidden border border-border hover:border-blue-400 transition-colors"
+      <label
+        htmlFor={uid}
+        className="flex-shrink-0 w-7 h-7 rounded overflow-hidden border border-border hover:border-blue-400 transition-colors cursor-pointer"
         title="Click to upload team logo"
       >
         {logoSrc ? (
@@ -2493,7 +2493,7 @@ function TeamLogoCell({
         ) : (
           <div className="w-full h-full" style={{ backgroundColor: color ?? '#0B3D91' }} />
         )}
-      </button>
+      </label>
     </>
   )
 }
