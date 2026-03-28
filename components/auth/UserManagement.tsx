@@ -163,6 +163,7 @@ export function UserManagement() {
                   <option value="league_admin">League Admin</option>
                   <option value="referee">Referee</option>
                   <option value="volunteer">Volunteer</option>
+                  <option value="trainer">Trainer</option>
                 </select>
               </FormField>
 
