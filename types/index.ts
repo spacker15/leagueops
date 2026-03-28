@@ -124,7 +124,7 @@ export interface Game {
   away_team_id: number
   division: string
   scheduled_time: string
-  sort_order: number | null
+  sort_order?: number | null
   status: GameStatus
   home_score: number
   away_score: number
