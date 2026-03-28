@@ -1118,7 +1118,18 @@ export function RefsTab() {
       field,
       games: state.games
         .filter((g) => g.field_id === field.id)
-        .sort((a, b) => a.scheduled_time.localeCompare(b.scheduled_time)),
+        .sort((a, b) => {
+          const toMin = (t: string) => {
+            const m = t.match(/(\d+):(\d+)\s*(AM|PM)/i)
+            if (!m) return 0
+            let h = parseInt(m[1])
+            const min = parseInt(m[2])
+            if (m[3].toUpperCase() === 'PM' && h !== 12) h += 12
+            if (m[3].toUpperCase() === 'AM' && h === 12) h = 0
+            return h * 60 + min
+          }
+          return toMin(a.scheduled_time) - toMin(b.scheduled_time)
+        }),
     }))
     .filter((fc) => fc.games.length > 0)
 

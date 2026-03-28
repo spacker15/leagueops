@@ -9,6 +9,16 @@ import { createClient } from '@/supabase/client'
 import toast from 'react-hot-toast'
 import type { Game, GameStatus } from '@/types'
 
+function timeToMin(t: string): number {
+  const m = t.match(/(\d+):(\d+)\s*(AM|PM)/i)
+  if (!m) return 0
+  let h = parseInt(m[1])
+  const min = parseInt(m[2])
+  if (m[3].toUpperCase() === 'PM' && h !== 12) h += 12
+  if (m[3].toUpperCase() === 'AM' && h === 12) h = 0
+  return h * 60 + min
+}
+
 export function DashboardTab() {
   const { state, updateGameStatus, updateGameScore, addLog } = useApp()
   const { userRole, isCoach } = useAuth()
@@ -236,11 +246,7 @@ export function DashboardTab() {
         {fields.map((field) => {
           const fieldGames = state.games
             .filter((g) => g.field_id === field.id)
-            .sort((a, b) => {
-              const timeA = a.scheduled_time || ''
-              const timeB = b.scheduled_time || ''
-              return timeA.localeCompare(timeB)
-            })
+            .sort((a, b) => timeToMin(a.scheduled_time) - timeToMin(b.scheduled_time))
           // Show the current/active game in the main card
           let activeGame: Game | undefined
           for (const p of priority) {
