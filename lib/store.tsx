@@ -1,6 +1,6 @@
 'use client'
 
-import React, { createContext, useContext, useEffect, useReducer, useCallback } from 'react'
+import React, { createContext, useContext, useEffect, useReducer, useCallback, useRef } from 'react'
 import type {
   Event,
   EventDate,
@@ -16,7 +16,10 @@ import type {
   OpsLogEntry,
   LogType,
   GameStatus,
+  ScheduleChangeRequest,
+  Complex,
 } from '@/types'
+import type { WeatherReading } from '@/lib/engines/weather'
 import * as db from '@/lib/db'
 import { createClient } from '@/supabase/client'
 
@@ -34,10 +37,12 @@ interface State {
   incidents: Incident[]
   medicalIncidents: MedicalIncident[]
   weatherAlerts: WeatherAlert[]
+  weatherReadings: Record<number, WeatherReading> // keyed by complex_id
   opsLog: OpsLogEntry[]
   lightningActive: boolean
   lightningSecondsLeft: number
   loading: boolean
+  scheduleChangeRequests: ScheduleChangeRequest[]
 }
 
 type Action =
@@ -47,6 +52,7 @@ type Action =
   | { type: 'SET_GAMES'; payload: Game[] }
   | { type: 'UPDATE_GAME'; payload: Game }
   | { type: 'ADD_GAME'; payload: Game }
+  | { type: 'DELETE_GAME'; payload: number }
   | { type: 'SET_REFEREES'; payload: Referee[] }
   | { type: 'UPDATE_REF'; payload: Referee }
   | { type: 'SET_VOLUNTEERS'; payload: Volunteer[] }
@@ -60,6 +66,7 @@ type Action =
   | { type: 'UPDATE_MEDICAL'; payload: MedicalIncident }
   | { type: 'SET_WEATHER'; payload: WeatherAlert[] }
   | { type: 'ADD_WEATHER'; payload: WeatherAlert }
+  | { type: 'SET_WEATHER_READING'; payload: { complexId: number; reading: WeatherReading } }
   | { type: 'SET_OPS_LOG'; payload: OpsLogEntry[] }
   | { type: 'ADD_OPS_LOG'; payload: OpsLogEntry }
   | { type: 'SET_LIGHTNING'; payload: { active: boolean; seconds?: number } }
@@ -67,6 +74,9 @@ type Action =
   | { type: 'UPDATE_FIELD'; payload: Field }
   | { type: 'ADD_FIELD'; payload: Field }
   | { type: 'DELETE_FIELD'; payload: number }
+  | { type: 'SET_SCHEDULE_CHANGE_REQUESTS'; payload: ScheduleChangeRequest[] }
+  | { type: 'ADD_SCHEDULE_CHANGE_REQUEST'; payload: ScheduleChangeRequest }
+  | { type: 'UPDATE_SCHEDULE_CHANGE_REQUEST'; payload: ScheduleChangeRequest }
 
 function reducer(state: State, action: Action): State {
   switch (action.type) {
@@ -85,6 +95,8 @@ function reducer(state: State, action: Action): State {
       }
     case 'ADD_GAME':
       return { ...state, games: [...state.games, action.payload] }
+    case 'DELETE_GAME':
+      return { ...state, games: state.games.filter((g) => g.id !== action.payload) }
     case 'SET_REFEREES':
       return { ...state, referees: action.payload }
     case 'UPDATE_REF':
@@ -125,6 +137,14 @@ function reducer(state: State, action: Action): State {
       return { ...state, weatherAlerts: action.payload }
     case 'ADD_WEATHER':
       return { ...state, weatherAlerts: [action.payload, ...state.weatherAlerts] }
+    case 'SET_WEATHER_READING':
+      return {
+        ...state,
+        weatherReadings: {
+          ...state.weatherReadings,
+          [action.payload.complexId]: action.payload.reading,
+        },
+      }
     case 'SET_OPS_LOG':
       return { ...state, opsLog: action.payload }
     case 'ADD_OPS_LOG':
@@ -149,6 +169,17 @@ function reducer(state: State, action: Action): State {
       return { ...state, fields: [...state.fields, action.payload] }
     case 'DELETE_FIELD':
       return { ...state, fields: state.fields.filter((f) => f.id !== action.payload) }
+    case 'SET_SCHEDULE_CHANGE_REQUESTS':
+      return { ...state, scheduleChangeRequests: action.payload }
+    case 'ADD_SCHEDULE_CHANGE_REQUEST':
+      return { ...state, scheduleChangeRequests: [action.payload, ...state.scheduleChangeRequests] }
+    case 'UPDATE_SCHEDULE_CHANGE_REQUEST':
+      return {
+        ...state,
+        scheduleChangeRequests: state.scheduleChangeRequests.map((r) =>
+          r.id === action.payload.id ? action.payload : r
+        ),
+      }
     default:
       return state
   }
@@ -166,10 +197,12 @@ const initialState: State = {
   incidents: [],
   medicalIncidents: [],
   weatherAlerts: [],
+  weatherReadings: {},
   opsLog: [],
   lightningActive: false,
   lightningSecondsLeft: 1800,
   loading: true,
+  scheduleChangeRequests: [],
 }
 
 interface ContextValue {
@@ -182,6 +215,7 @@ interface ContextValue {
   updateGameStatus: (gameId: number, status: GameStatus) => Promise<void>
   updateGameScore: (gameId: number, home: number, away: number) => Promise<void>
   addGame: (game: Parameters<typeof db.insertGame>[0]) => Promise<void>
+  deleteGame: (gameId: number) => Promise<void>
   toggleRefCheckin: (refId: number) => Promise<void>
   toggleVolCheckin: (volId: number) => Promise<void>
   logIncident: (
@@ -211,6 +245,8 @@ interface ContextValue {
   ) => Promise<void>
   addField: (name: string, number: string, division?: string, complexId?: number) => Promise<void>
   deleteField: (fieldId: number) => Promise<void>
+  refreshRefs: () => Promise<void>
+  refreshVols: () => Promise<void>
   eventId: number
 }
 
@@ -218,7 +254,7 @@ const Ctx = createContext<ContextValue | null>(null)
 
 export function AppProvider({
   children,
-  eventId = 1,
+  eventId,
 }: {
   children: React.ReactNode
   eventId?: number
@@ -227,6 +263,8 @@ export function AppProvider({
 
   // ---- Initial load ----
   useEffect(() => {
+    if (!eventId) return // D-01: null guard
+    const eid = eventId // narrowed -- TS now knows eid is number inside closure
     async function loadAll() {
       dispatch({ type: 'SET_LOADING', payload: true })
       const [
@@ -240,17 +278,19 @@ export function AppProvider({
         medical,
         weather,
         opsLog,
+        scheduleChangeRequests,
       ] = await Promise.all([
-        db.getEvent(eventId),
-        db.getEventDates(eventId),
-        db.getFields(eventId),
-        db.getTeams(eventId),
-        db.getReferees(eventId),
-        db.getVolunteers(eventId),
-        db.getIncidents(eventId),
-        db.getMedicalIncidents(eventId),
-        db.getWeatherAlerts(eventId),
-        db.getOpsLog(eventId),
+        db.getEvent(eid),
+        db.getEventDates(eid),
+        db.getFields(eid),
+        db.getTeams(eid),
+        db.getReferees(eid),
+        db.getVolunteers(eid),
+        db.getIncidents(eid),
+        db.getMedicalIncidents(eid),
+        db.getWeatherAlerts(eid),
+        db.getOpsLog(eid),
+        db.getScheduleChangeRequests(eid),
       ])
       const dates = eventDates ?? []
 
@@ -279,47 +319,162 @@ export function AppProvider({
           medicalIncidents: medical,
           weatherAlerts: weather,
           opsLog,
+          scheduleChangeRequests,
         },
       })
     }
     loadAll()
-  }, [])
+  }, [eventId])
+
+  // ---- Auto-poll weather for all complexes (every 5 min) ----
+  useEffect(() => {
+    if (!eventId) return
+    const sb = createClient()
+
+    async function fetchWeather() {
+      // Get complexes for this event
+      const { data: complexes } = await sb.from('complexes').select('id').eq('event_id', eventId)
+      if (!complexes?.length) return
+
+      // Run weather scan for each complex
+      for (const c of complexes) {
+        try {
+          const res = await fetch('/api/weather-engine', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ complex_id: c.id, event_id: eventId }),
+          })
+          if (res.ok) {
+            const text = await res.text()
+            try {
+              const data = JSON.parse(text)
+              if (data.reading) {
+                dispatch({
+                  type: 'SET_WEATHER_READING',
+                  payload: { complexId: c.id, reading: data.reading },
+                })
+              }
+            } catch {
+              console.warn('Weather API returned non-JSON for complex', c.id)
+            }
+          }
+        } catch {
+          // Non-fatal — skip this complex
+        }
+      }
+    }
+
+    // Fetch immediately on load, then every 5 minutes
+    fetchWeather()
+    const interval = setInterval(fetchWeather, 5 * 60 * 1000)
+    return () => clearInterval(interval)
+  }, [eventId])
 
   // ---- Load games when date changes ----
   const currentDate = state.eventDates[state.currentDateIdx] ?? null
+
+  // currentDateRef allows the realtime subscription to read the current date
+  // without adding it to the realtime useEffect dep array (avoids reconnect storm)
+  const currentDateRef = useRef(currentDate)
   useEffect(() => {
-    if (!currentDate) return
-    db.getGamesByDate(eventId, currentDate.id).then((games) =>
-      dispatch({ type: 'SET_GAMES', payload: games })
-    )
+    currentDateRef.current = currentDate
   }, [currentDate])
 
-  // ---- Real-time subscriptions ----
   useEffect(() => {
+    if (!eventId) return
+    if (state.currentDateIdx === -1) {
+      // "All Dates" mode — load every game for the event
+      db.getAllGamesByEvent(eventId).then((games) =>
+        dispatch({ type: 'SET_GAMES', payload: games })
+      )
+    } else if (currentDate) {
+      db.getGamesByDate(eventId, currentDate.id).then((games) =>
+        dispatch({ type: 'SET_GAMES', payload: games })
+      )
+    }
+  }, [currentDate, eventId, state.currentDateIdx])
+
+  // ---- Real-time subscriptions ----
+  // Dep array is [eventId] ONLY -- currentDate is read from ref to avoid
+  // reconnect storm on date tab switches (addresses review concern #3).
+  useEffect(() => {
+    if (!eventId) return // D-01: null guard
+    const eid = eventId // narrowed -- TS now knows eid is number inside closure
     const sb = createClient()
+    const filter = `event_id=eq.${eid}`
     const sub = sb
       .channel('leagueops-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'ops_log' }, (payload) => {
-        if (payload.eventType === 'INSERT')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'ops_log', filter },
+        (payload) => {
           dispatch({ type: 'ADD_OPS_LOG', payload: payload.new as OpsLogEntry })
+        }
+      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'incidents', filter }, () => {
+        db.getIncidents(eid).then((d) => dispatch({ type: 'SET_INCIDENTS', payload: d }))
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'incidents' }, () => {
-        db.getIncidents(eventId).then((d) => dispatch({ type: 'SET_INCIDENTS', payload: d }))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'games', filter }, () => {
+        const cd = currentDateRef.current // read from ref, not state
+        if (cd) {
+          db.getGamesByDate(eid, cd.id).then((d) => dispatch({ type: 'SET_GAMES', payload: d }))
+        }
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'games' }, () => {
-        if (currentDate)
-          db.getGamesByDate(eventId, currentDate.id).then((d) =>
-            dispatch({ type: 'SET_GAMES', payload: d })
-          )
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'medical_incidents' }, () => {
-        db.getMedicalIncidents(eventId).then((d) => dispatch({ type: 'SET_MEDICAL', payload: d }))
-      })
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'medical_incidents', filter },
+        () => {
+          db.getMedicalIncidents(eid).then((d) => dispatch({ type: 'SET_MEDICAL', payload: d }))
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'weather_alerts', filter },
+        () => {
+          db.getWeatherAlerts(eid).then((d) => dispatch({ type: 'SET_WEATHER', payload: d }))
+        }
+      )
       .subscribe()
+
+    const scrSub = sb
+      .channel('schedule_change_requests')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'schedule_change_requests',
+          filter: `event_id=eq.${eid}`,
+        },
+        (payload) => {
+          dispatch({
+            type: 'ADD_SCHEDULE_CHANGE_REQUEST',
+            payload: payload.new as ScheduleChangeRequest,
+          })
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'schedule_change_requests',
+          filter: `event_id=eq.${eid}`,
+        },
+        (payload) => {
+          dispatch({
+            type: 'UPDATE_SCHEDULE_CHANGE_REQUEST',
+            payload: payload.new as ScheduleChangeRequest,
+          })
+        }
+      )
+      .subscribe()
+
     return () => {
       sb.removeChannel(sub)
+      sb.removeChannel(scrSub)
     }
-  }, [currentDate])
+  }, [eventId]) // ONLY eventId -- currentDate read from ref
 
   // ---- Lightning timer ----
   useEffect(() => {
@@ -332,19 +487,26 @@ export function AppProvider({
   const todayGames = state.games
 
   // ---- Actions ----
-  const addLog = useCallback(async (message: string, type: LogType = 'info') => {
-    await db.addOpsLog(eventId, message, type)
-  }, [])
+  const addLog = useCallback(
+    async (message: string, type: LogType = 'info') => {
+      await db.addOpsLog(eventId!, message, type)
+    },
+    [eventId]
+  )
 
   const changeDate = useCallback((idx: number) => {
     dispatch({ type: 'SET_DATE', payload: idx })
   }, [])
 
   const refreshGames = useCallback(async () => {
-    if (!currentDate) return
-    const games = await db.getGamesByDate(eventId, currentDate.id)
-    dispatch({ type: 'SET_GAMES', payload: games })
-  }, [currentDate])
+    if (state.currentDateIdx === -1) {
+      const games = await db.getAllGamesByEvent(eventId!)
+      dispatch({ type: 'SET_GAMES', payload: games })
+    } else if (currentDate) {
+      const games = await db.getGamesByDate(eventId!, currentDate.id)
+      dispatch({ type: 'SET_GAMES', payload: games })
+    }
+  }, [currentDate, eventId, state.currentDateIdx])
 
   const updateGameStatus = useCallback(
     async (gameId: number, status: GameStatus) => {
@@ -378,6 +540,15 @@ export function AppProvider({
       }
     },
     [refreshGames, addLog]
+  )
+
+  const deleteGame = useCallback(
+    async (gameId: number) => {
+      await db.deleteGame(gameId)
+      dispatch({ type: 'DELETE_GAME', payload: gameId })
+      await addLog(`Game #${gameId} deleted`, 'alert')
+    },
+    [addLog]
   )
 
   const toggleRefCheckin = useCallback(
@@ -473,9 +644,9 @@ export function AppProvider({
 
   const triggerLightning = useCallback(async () => {
     dispatch({ type: 'SET_LIGHTNING', payload: { active: true, seconds: 1800 } })
-    if (currentDate) await db.setAllGamesDelayed(eventId, currentDate.id)
+    if (currentDate) await db.setAllGamesDelayed(eventId!, currentDate.id)
     await db.insertWeatherAlert({
-      event_id: eventId,
+      event_id: eventId!,
       alert_type: 'Lightning Delay',
       description: 'All fields suspended — 30-minute lightning hold initiated',
       is_active: true,
@@ -484,22 +655,22 @@ export function AppProvider({
     })
     await addLog('⚡ LIGHTNING DELAY INITIATED — All fields suspended', 'alert')
     await refreshGames()
-    const alerts = await db.getWeatherAlerts(eventId)
+    const alerts = await db.getWeatherAlerts(eventId!)
     dispatch({ type: 'SET_WEATHER', payload: alerts })
-  }, [currentDate, addLog, refreshGames])
+  }, [currentDate, eventId, addLog, refreshGames])
 
   const liftLightning = useCallback(async () => {
     dispatch({ type: 'SET_LIGHTNING', payload: { active: false } })
-    if (currentDate) await db.resumeAllDelayedGames(eventId, currentDate.id)
+    if (currentDate) await db.resumeAllDelayedGames(eventId!, currentDate.id)
     const alerts = state.weatherAlerts.filter(
       (a) => a.alert_type === 'Lightning Delay' && a.is_active
     )
     for (const alert of alerts) await db.resolveWeatherAlert(alert.id)
     await addLog('Lightning delay lifted — Fields resuming', 'ok')
     await refreshGames()
-    const newAlerts = await db.getWeatherAlerts(eventId)
+    const newAlerts = await db.getWeatherAlerts(eventId!)
     dispatch({ type: 'SET_WEATHER', payload: newAlerts })
-  }, [currentDate, state.weatherAlerts, addLog, refreshGames])
+  }, [currentDate, eventId, state.weatherAlerts, addLog, refreshGames])
 
   const updateFieldMap = useCallback(
     (fieldId: number, x: number, y: number) => {
@@ -534,7 +705,7 @@ export function AppProvider({
 
   const addField = useCallback(
     async (name: string, number: string, division = '', complexId?: number) => {
-      const created = await db.insertField(eventId, name, number, division, complexId)
+      const created = await db.insertField(eventId!, name, number, division, complexId)
       if (created) dispatch({ type: 'ADD_FIELD', payload: created })
     },
     [eventId]
@@ -554,6 +725,18 @@ export function AppProvider({
     dispatch({ type: 'DELETE_FIELD', payload: fieldId })
   }, [])
 
+  const refreshRefs = useCallback(async () => {
+    if (!eventId) return
+    const refs = await db.getReferees(eventId)
+    dispatch({ type: 'SET_REFEREES', payload: refs })
+  }, [eventId])
+
+  const refreshVols = useCallback(async () => {
+    if (!eventId) return
+    const vols = await db.getVolunteers(eventId)
+    dispatch({ type: 'SET_VOLUNTEERS', payload: vols })
+  }, [eventId])
+
   return (
     <Ctx.Provider
       value={{
@@ -565,6 +748,7 @@ export function AppProvider({
         updateGameStatus,
         updateGameScore,
         addGame,
+        deleteGame,
         toggleRefCheckin,
         toggleVolCheckin,
         logIncident,
@@ -581,7 +765,9 @@ export function AppProvider({
         updateFieldDetails,
         addField,
         deleteField,
-        eventId,
+        refreshRefs,
+        refreshVols,
+        eventId: eventId ?? 0,
       }}
     >
       {children}

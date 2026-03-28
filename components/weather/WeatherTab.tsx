@@ -51,18 +51,21 @@ interface Complex {
 }
 
 export function WeatherTab() {
-  const { state, triggerLightning, liftLightning } = useApp()
+  const { state, triggerLightning, liftLightning, eventId } = useApp()
   const { isAdmin } = useAuth()
   const [subTab, setSubTab] = useState<SubTab>('overview')
   const [complexes, setComplexes] = useState<Complex[]>([])
-  const [readings, setReadings] = useState<Record<number, WeatherReading>>({})
+  // Use store readings as base, overlay with local scan results
+  const storeReadings = state.weatherReadings as Record<number, WeatherReading>
+  const [localReadings, setLocalReadings] = useState<Record<number, WeatherReading>>({})
   const [activeAlerts, setActiveAlerts] = useState<any[]>([])
   const [lightningStatus, setLightningStatus] = useState<Record<number, LightningStatus>>({})
   const [history, setHistory] = useState<any[]>([])
   const [scanning, setScanning] = useState<number | null>(null)
-  const [apiKey, setApiKey] = useState('')
-  const [showApiInput, setShowApiInput] = useState(false)
   const timerRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Merge store readings (auto-poll) with local readings (manual refresh)
+  const readings: Record<number, WeatherReading> = { ...storeReadings, ...localReadings }
 
   // Load complexes
   useEffect(() => {
@@ -153,16 +156,18 @@ export function WeatherTab() {
       const res = await fetch('/api/weather-engine', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          complex_id: complexId,
-          api_key: apiKey || undefined,
-          event_id: state.event?.id,
-        }),
+        body: JSON.stringify({ complex_id: complexId, event_id: eventId }),
       })
-      const data = await res.json()
+      const text = await res.text()
+      let data: any
+      try {
+        data = JSON.parse(text)
+      } catch {
+        throw new Error(`Weather API returned invalid response: ${text.slice(0, 100)}`)
+      }
       if (data.error) throw new Error(data.error)
 
-      setReadings((prev) => ({ ...prev, [complexId]: data.reading }))
+      setLocalReadings((prev) => ({ ...prev, [complexId]: data.reading }))
       await loadAlerts()
       await loadLightningStatus()
 
@@ -197,7 +202,7 @@ export function WeatherTab() {
     const res = await fetch('/api/lightning', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ complex_id: complexId, action, event_id: state.event?.id ?? 1 }),
+      body: JSON.stringify({ complex_id: complexId, action, event_id: eventId }),
     })
     if (res.ok) {
       if (action === 'trigger') {
@@ -237,6 +242,8 @@ export function WeatherTab() {
     }
   }
 
+  if (!eventId) return null
+
   const delayedGames = state.games.filter((g) => g.status === 'Delayed')
   const anyLightning = Object.values(lightningStatus).some((s) => s.active)
 
@@ -266,41 +273,15 @@ export function WeatherTab() {
           </button>
         ))}
         <div className="ml-auto flex items-center gap-2 pb-2">
-          <Btn variant="ghost" size="sm" onClick={() => setShowApiInput((s) => !s)}>
-            API KEY
-          </Btn>
           <Btn variant="primary" size="sm" onClick={scanAll} disabled={scanning !== null}>
             <RefreshCw
               size={11}
               className={cn('inline mr-1', scanning !== null && 'animate-spin')}
             />
-            SCAN ALL
+            REFRESH
           </Btn>
         </div>
       </div>
-
-      {/* API Key input (collapsible) */}
-      {showApiInput && (
-        <div className="bg-surface-card border border-border rounded-md p-3 mb-4 flex gap-3 items-end">
-          <div className="flex-1">
-            <div className="font-cond text-[10px] font-bold tracking-widest text-muted uppercase mb-1">
-              OPENWEATHERMAP API KEY (optional)
-            </div>
-            <input
-              type="text"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder="Leave blank to use mock weather data"
-              className="w-full bg-surface border border-border text-white px-3 py-1.5 rounded text-[12px] outline-none focus:border-blue-400 font-mono"
-            />
-          </div>
-          <div className="text-[10px] text-muted font-cond pb-1.5">
-            Get free key at
-            <br />
-            openweathermap.org
-          </div>
-        </div>
-      )}
 
       {/* ═══ OVERVIEW ════════════════════════════════════════════ */}
       {subTab === 'overview' && (
@@ -791,7 +772,7 @@ function ComplexWeatherCard({
           )}
           <Btn size="sm" variant="primary" onClick={onScan} disabled={scanning}>
             <RefreshCw size={10} className={cn('inline mr-1', scanning && 'animate-spin')} />
-            {scanning ? 'SCANNING...' : 'SCAN'}
+            {scanning ? 'REFRESHING...' : 'REFRESH'}
           </Btn>
         </div>
       </div>
@@ -817,7 +798,7 @@ function ComplexWeatherCard({
         </div>
       ) : (
         <div className="p-4 text-[11px] text-muted font-cond text-center">
-          Click SCAN to fetch weather data
+          Loading weather data...
           {!complex.lat ? ' (add GPS coordinates for live data)' : ''}
         </div>
       )}

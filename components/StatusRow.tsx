@@ -3,6 +3,7 @@
 import { useApp } from '@/lib/store'
 import { cn } from '@/lib/utils'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { format, parseISO } from 'date-fns'
 
 const PILLS = [
   { key: 'Scheduled', label: 'SCHED', activeColor: '#60a5fa', bg: '#071830' },
@@ -67,7 +68,21 @@ export function StatusRow() {
       {/* Date nav */}
       <div className="flex items-center gap-1 px-3" style={{ borderLeft: '1px solid #1a2d50' }}>
         <button
-          onClick={() => changeDate(Math.max(0, state.currentDateIdx - 1))}
+          onClick={() => changeDate(-1)}
+          className={cn(
+            'font-cond text-[9px] font-black tracking-[.1em] px-2 py-1 rounded transition-colors',
+            state.currentDateIdx === -1
+              ? 'bg-blue-600 text-white'
+              : 'text-muted hover:text-white hover:bg-white/5'
+          )}
+        >
+          ALL
+        </button>
+
+        <button
+          onClick={() =>
+            changeDate(Math.max(0, state.currentDateIdx === -1 ? 0 : state.currentDateIdx - 1))
+          }
           disabled={state.currentDateIdx === 0}
           className="w-6 h-6 flex items-center justify-center rounded transition-colors disabled:opacity-20"
           style={{ color: '#5a6e9a' }}
@@ -93,7 +108,12 @@ export function StatusRow() {
 
         <button
           onClick={() =>
-            changeDate(Math.min(state.eventDates.length - 1, state.currentDateIdx + 1))
+            changeDate(
+              Math.min(
+                state.eventDates.length - 1,
+                state.currentDateIdx === -1 ? 0 : state.currentDateIdx + 1
+              )
+            )
           }
           disabled={state.currentDateIdx >= state.eventDates.length - 1}
           className="w-6 h-6 flex items-center justify-center rounded transition-colors disabled:opacity-20"

@@ -1,13 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/supabase/server'
+import { createClient } from '@/lib/supabase/server'
+import { resolveConflictSchema } from '@/schemas/conflicts'
 
 export async function GET(req: NextRequest) {
-  const sb = createClient()
+  // 1. Auth guard (SEC-02)
+  const supabase = await createClient()
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser()
+
+  if (authError || !user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
   const { searchParams } = new URL(req.url)
-  const eventId = searchParams.get('event_id') ?? '1'
+  const eventId = searchParams.get('event_id')
+  if (!eventId) return NextResponse.json({ error: 'event_id required' }, { status: 400 })
   const resolved = searchParams.get('resolved') ?? 'false'
 
-  const { data, error } = await sb
+  const { data, error } = await supabase
     .from('operational_conflicts')
     .select('*')
     .eq('event_id', eventId)
@@ -20,18 +32,40 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-  const sb = createClient()
-  const body = await req.json()
-  const { id, resolved_by } = body
+  // 1. Auth guard (SEC-02)
+  const supabase = await createClient()
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser()
 
-  if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
+  if (authError || !user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
 
-  const { data, error } = await sb
+  // 2. Parse raw JSON body (SEC-07)
+  let body: unknown
+  try {
+    body = await req.json()
+  } catch {
+    return NextResponse.json({ success: false, error: 'Invalid JSON body' }, { status: 400 })
+  }
+
+  // 3. Zod validation (SEC-07)
+  const result = resolveConflictSchema.safeParse(body)
+  if (!result.success) {
+    return NextResponse.json({ success: false, error: result.error.flatten() }, { status: 400 })
+  }
+
+  // 4. Business logic
+  const { id } = result.data
+
+  const { data, error } = await supabase
     .from('operational_conflicts')
     .update({
       resolved: true,
       resolved_at: new Date().toISOString(),
-      resolved_by: resolved_by ?? 'operator',
+      resolved_by: user.email ?? 'operator',
     })
     .eq('id', id)
     .select()

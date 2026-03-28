@@ -1,14 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/supabase/server'
+import { createClient } from '@/lib/supabase/server'
 import { invalidateRulesCache } from '@/lib/engines/rules'
+import { updateRuleSchema, resetRuleSchema } from '@/schemas/rules'
 
 export async function GET(req: NextRequest) {
-  const sb = createClient()
+  // 1. Auth guard (SEC-02)
+  const supabase = await createClient()
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser()
+
+  if (authError || !user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
   const { searchParams } = new URL(req.url)
-  const eventId = searchParams.get('event_id') ?? '1'
+  const eventId = searchParams.get('event_id')
+  if (!eventId) return NextResponse.json({ error: 'event_id required' }, { status: 400 })
   const category = searchParams.get('category')
 
-  let query = sb
+  let query = supabase
     .from('event_rules')
     .select('*')
     .eq('event_id', eventId)
@@ -23,16 +35,36 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-  const sb = createClient()
-  const body = await req.json()
-  const { id, rule_value, changed_by = 'operator' } = body
+  // 1. Auth guard (SEC-02)
+  const supabase = await createClient()
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser()
 
-  if (!id || rule_value === undefined) {
-    return NextResponse.json({ error: 'id and rule_value required' }, { status: 400 })
+  if (authError || !user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  // 2. Parse raw JSON body (SEC-07)
+  let body: unknown
+  try {
+    body = await req.json()
+  } catch {
+    return NextResponse.json({ success: false, error: 'Invalid JSON body' }, { status: 400 })
+  }
+
+  // 3. Zod validation (SEC-07)
+  const result = updateRuleSchema.safeParse(body)
+  if (!result.success) {
+    return NextResponse.json({ success: false, error: result.error.flatten() }, { status: 400 })
+  }
+
+  // 4. Business logic
+  const { id, rule_value, changed_by = 'operator', event_id } = result.data
+
   // Get current value for audit
-  const { data: current } = await sb
+  const { data: current } = await supabase
     .from('event_rules')
     .select('rule_value, rule_key, category')
     .eq('id', id)
@@ -41,7 +73,7 @@ export async function PATCH(req: NextRequest) {
   if (!current) return NextResponse.json({ error: 'Rule not found' }, { status: 404 })
 
   // Update
-  const { data, error } = await sb
+  const { data, error } = await supabase
     .from('event_rules')
     .update({
       rule_value,
@@ -55,9 +87,11 @@ export async function PATCH(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
+  invalidateRulesCache(Number(event_id))
+
   // Audit log
-  await sb.from('rule_changes').insert({
-    event_id: 1,
+  await supabase.from('rule_changes').insert({
+    event_id,
     rule_id: id,
     rule_key: current.rule_key,
     old_value: current.rule_value,
@@ -66,8 +100,8 @@ export async function PATCH(req: NextRequest) {
     changed_at: new Date().toISOString(),
   })
 
-  await sb.from('ops_log').insert({
-    event_id: 1,
+  await supabase.from('ops_log').insert({
+    event_id,
     message: `Rule updated: ${current.category}.${current.rule_key} → "${rule_value}" (was "${current.rule_value}")`,
     log_type: 'warn',
     occurred_at: new Date().toISOString(),
@@ -78,12 +112,36 @@ export async function PATCH(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   // Reset to default
-  const sb = createClient()
-  const body = await req.json()
-  const { action, id, event_id = 1 } = body
+  // 1. Auth guard (SEC-02)
+  const supabase = await createClient()
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser()
+
+  if (authError || !user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  // 2. Parse raw JSON body (SEC-07)
+  let body: unknown
+  try {
+    body = await req.json()
+  } catch {
+    return NextResponse.json({ success: false, error: 'Invalid JSON body' }, { status: 400 })
+  }
+
+  // 3. Zod validation (SEC-07)
+  const result = resetRuleSchema.safeParse(body)
+  if (!result.success) {
+    return NextResponse.json({ success: false, error: result.error.flatten() }, { status: 400 })
+  }
+
+  // 4. Business logic
+  const { action, id, event_id } = result.data
 
   if (action === 'reset_one' && id) {
-    const { data: current } = await sb
+    const { data: current } = await supabase
       .from('event_rules')
       .select('default_value, rule_key, rule_value, category')
       .eq('id', id)
@@ -91,7 +149,7 @@ export async function POST(req: NextRequest) {
 
     if (!current) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-    await sb
+    await supabase
       .from('event_rules')
       .update({
         rule_value: current.default_value,
@@ -101,7 +159,7 @@ export async function POST(req: NextRequest) {
       })
       .eq('id', id)
 
-    await sb.from('rule_changes').insert({
+    await supabase.from('rule_changes').insert({
       event_id,
       rule_id: id,
       rule_key: current.rule_key,
@@ -110,19 +168,20 @@ export async function POST(req: NextRequest) {
       changed_by: 'reset',
     })
 
-    await sb.from('ops_log').insert({
+    await supabase.from('ops_log').insert({
       event_id,
       message: `Rule reset: ${current.category}.${current.rule_key} → "${current.default_value}"`,
       log_type: 'info',
       occurred_at: new Date().toISOString(),
     })
 
+    invalidateRulesCache(Number(event_id))
     return NextResponse.json({ reset: true })
   }
 
   if (action === 'reset_all') {
     // Reset all overridden rules to defaults
-    const { data: overrides } = await sb
+    const { data: overrides } = await supabase
       .from('event_rules')
       .select('id, default_value')
       .eq('event_id', event_id)
@@ -130,7 +189,7 @@ export async function POST(req: NextRequest) {
 
     if (overrides && overrides.length > 0) {
       for (const rule of overrides) {
-        await sb
+        await supabase
           .from('event_rules')
           .update({
             rule_value: rule.default_value,
@@ -140,12 +199,13 @@ export async function POST(req: NextRequest) {
           })
           .eq('id', rule.id)
       }
-      await sb.from('ops_log').insert({
+      await supabase.from('ops_log').insert({
         event_id,
         message: `All rules reset to defaults (${overrides.length} rules restored)`,
         log_type: 'info',
         occurred_at: new Date().toISOString(),
       })
+      invalidateRulesCache(Number(event_id))
     }
     return NextResponse.json({ reset: overrides?.length ?? 0 })
   }

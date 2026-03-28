@@ -1,13 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/supabase/server'
+import { createClient } from '@/lib/supabase/server'
 
 export async function GET(req: NextRequest) {
-  const sb = createClient()
+  // 1. Auth guard (SEC-02)
+  const supabase = await createClient()
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser()
+
+  if (authError || !user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
   const { searchParams } = new URL(req.url)
-  const eventId = searchParams.get('event_id') ?? '1'
+  const eventId = searchParams.get('event_id')
+  if (!eventId) return NextResponse.json({ error: 'event_id required' }, { status: 400 })
   const limit = parseInt(searchParams.get('limit') ?? '50')
 
-  const { data, error } = await sb
+  const { data, error } = await supabase
     .from('ops_log')
     .select('*')
     .eq('event_id', eventId)
@@ -19,12 +30,32 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const sb = createClient()
-  const body = await req.json()
+  // 1. Auth guard (SEC-02)
+  const supabase = await createClient()
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser()
 
-  const { data, error } = await sb
+  if (authError || !user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  // 2. Parse raw JSON body (SEC-07)
+  // ops-log body has a flexible shape (message, log_type, event_id); validated inline
+  let body: unknown
+  try {
+    body = await req.json()
+  } catch {
+    return NextResponse.json({ success: false, error: 'Invalid JSON body' }, { status: 400 })
+  }
+
+  // 3. Business logic — ops-log body shape is open-ended; no strict Zod schema per ROUTE-INVENTORY notes
+  const parsed = body as Record<string, unknown>
+
+  const { data, error } = await supabase
     .from('ops_log')
-    .insert({ ...body, occurred_at: new Date().toISOString() })
+    .insert({ ...parsed, occurred_at: new Date().toISOString() })
     .select()
     .single()
 

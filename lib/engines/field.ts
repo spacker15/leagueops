@@ -13,10 +13,8 @@
  * Resolution options are structured so the UI can act on them directly.
  */
 
-import { createClient } from '@/supabase/client'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { getSchedulingRules } from '@/lib/engines/rules'
-
-const EVENT_ID = 1
 
 // ─── Types ────────────────────────────────────────────────────
 export interface FieldConflict {
@@ -76,12 +74,15 @@ function minutesToDisplay(minutes: number): string {
 }
 
 // ─── Main engine ──────────────────────────────────────────────
-export async function runFieldConflictEngine(eventDateId: number): Promise<FieldEngineResult> {
+export async function runFieldConflictEngine(
+  eventDateId: number,
+  eventId: number,
+  sb: SupabaseClient
+): Promise<FieldEngineResult> {
   const startTime = Date.now()
-  const sb = createClient()
 
   // Load rules
-  const rules = await getSchedulingRules()
+  const rules = await getSchedulingRules(eventId, sb)
   const gameDuration = rules.game_duration_min
   const bufferMin = rules.buffer_min
   const overlapTol = 0 // from rules — overlap_tolerance_min
@@ -100,7 +101,7 @@ export async function runFieldConflictEngine(eventDateId: number): Promise<Field
     `
     )
     .eq('event_date_id', eventDateId)
-    .eq('event_id', EVENT_ID)
+    .eq('event_id', eventId)
     .order('field_id')
     .order('scheduled_time')
 
@@ -131,7 +132,7 @@ export async function runFieldConflictEngine(eventDateId: number): Promise<Field
   const { data: fieldBlocks } = await sb
     .from('field_blocks')
     .select('*, field:fields(id, name)')
-    .eq('event_id', EVENT_ID)
+    .eq('event_id', eventId)
 
   // Load ref assignments to check coverage
   const gameIds = games.map((g) => g.id)
@@ -144,7 +145,7 @@ export async function runFieldConflictEngine(eventDateId: number): Promise<Field
   const { data: refsPerGameRule } = await sb
     .from('event_rules')
     .select('rule_value')
-    .eq('event_id', EVENT_ID)
+    .eq('event_id', eventId)
     .eq('category', 'referee')
     .eq('rule_key', 'refs_per_game')
     .single()
@@ -382,11 +383,11 @@ export async function runFieldConflictEngine(eventDateId: number): Promise<Field
   }
 
   // ── Clear stale conflicts and write new ones ──────────────
-  await clearStaleFieldConflicts(eventDateId)
+  await clearStaleFieldConflicts(eventDateId, eventId, sb)
 
   for (const conflict of conflicts) {
     await sb.from('operational_conflicts').insert({
-      event_id: EVENT_ID,
+      event_id: eventId,
       conflict_type: conflict.type,
       severity: conflict.severity,
       impacted_game_ids: conflict.gameIds,
@@ -402,7 +403,7 @@ export async function runFieldConflictEngine(eventDateId: number): Promise<Field
   const durationMs = Date.now() - startTime
 
   await sb.from('conflict_engine_runs').insert({
-    event_id: EVENT_ID,
+    event_id: eventId,
     event_date_id: eventDateId,
     engine_type: 'field',
     conflicts_found: conflicts.length,
@@ -423,8 +424,7 @@ export async function runFieldConflictEngine(eventDateId: number): Promise<Field
 }
 
 // ─── Clear stale field conflicts before re-run ───────────────
-async function clearStaleFieldConflicts(eventDateId: number) {
-  const sb = createClient()
+async function clearStaleFieldConflicts(eventDateId: number, eventId: number, sb: SupabaseClient) {
   const { data: games } = await sb.from('games').select('id').eq('event_date_id', eventDateId)
 
   if (!games || games.length === 0) return
@@ -433,7 +433,7 @@ async function clearStaleFieldConflicts(eventDateId: number) {
   const { data: existing } = await sb
     .from('operational_conflicts')
     .select('id, impacted_game_ids')
-    .eq('event_id', EVENT_ID)
+    .eq('event_id', eventId)
     .eq('resolved', false)
     .in('conflict_type', ['field_overlap', 'field_blocked', 'schedule_cascade', 'missing_referee'])
 
@@ -452,10 +452,10 @@ async function clearStaleFieldConflicts(eventDateId: number) {
 export async function applyResolution(
   conflictId: number,
   action: string,
-  params: Record<string, unknown>
+  params: Record<string, unknown>,
+  eventId: number,
+  sb: SupabaseClient
 ): Promise<{ success: boolean; message: string }> {
-  const sb = createClient()
-
   try {
     switch (action) {
       case 'reschedule_game': {
@@ -465,7 +465,7 @@ export async function applyResolution(
           .update({ scheduled_time: String(new_time) })
           .eq('id', Number(game_id))
         await sb.from('ops_log').insert({
-          event_id: EVENT_ID,
+          event_id: eventId,
           message: `Game #${game_id} rescheduled to ${new_time} (conflict resolution)`,
           log_type: 'ok',
           occurred_at: new Date().toISOString(),
@@ -490,7 +490,7 @@ export async function applyResolution(
           .update({ scheduled_time: newTime, status: 'Delayed' })
           .eq('id', Number(game_id))
         await sb.from('ops_log').insert({
-          event_id: EVENT_ID,
+          event_id: eventId,
           message: `Game #${game_id} delayed ${delay_minutes} min → ${newTime}`,
           log_type: 'warn',
           occurred_at: new Date().toISOString(),
@@ -531,7 +531,7 @@ export async function applyResolution(
           .update({ scheduled_time: gameA.scheduled_time })
           .eq('id', Number(game_id_b))
         await sb.from('ops_log').insert({
-          event_id: EVENT_ID,
+          event_id: eventId,
           message: `Games #${game_id_a} and #${game_id_b} swapped times`,
           log_type: 'ok',
           occurred_at: new Date().toISOString(),
@@ -564,12 +564,15 @@ export async function applyResolution(
 }
 
 // ─── Run both engines together ────────────────────────────────
-export async function runFullConflictScan(eventDateId: number) {
-  const sb = createClient()
-  const [fieldResult] = await Promise.all([runFieldConflictEngine(eventDateId)])
+export async function runFullConflictScan(
+  eventDateId: number,
+  eventId: number,
+  sb: SupabaseClient
+) {
+  const [fieldResult] = await Promise.all([runFieldConflictEngine(eventDateId, eventId, sb)])
 
   await sb.from('conflict_engine_runs').insert({
-    event_id: EVENT_ID,
+    event_id: eventId,
     event_date_id: eventDateId,
     engine_type: 'full',
     conflicts_found: fieldResult.conflicts.length,

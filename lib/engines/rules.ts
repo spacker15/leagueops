@@ -4,17 +4,14 @@
  * Loads event rules from the database and provides typed accessors.
  * All engine code calls getRules() instead of using hardcoded constants.
  *
- * Rules are cached in memory per session to avoid redundant DB calls.
- * Call invalidateRulesCache() after any rule change.
+ * Rules are cached in memory per event to avoid redundant DB calls.
+ * Call invalidateRulesCache(eventId) after any rule change.
  */
 
-import { createClient } from '@/supabase/client'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
-const EVENT_ID = 1
-
-// ─── In-memory cache ──────────────────────────────────────────
-let _cache: Record<string, string> | null = null
-let _cacheTime = 0
+// Per-event cache: keyed by eventId → { map, time }
+const _cacheByEvent = new Map<number, { map: Record<string, string>; time: number }>()
 const CACHE_TTL_MS = 30_000 // 30s
 
 export interface EventRule {
@@ -35,8 +32,7 @@ export interface EventRule {
 }
 
 // ─── Load all rules for event ─────────────────────────────────
-export async function loadRules(eventId = EVENT_ID): Promise<EventRule[]> {
-  const sb = createClient()
+export async function loadRules(eventId: number, sb: SupabaseClient): Promise<EventRule[]> {
   const { data } = await sb
     .from('event_rules')
     .select('*')
@@ -46,50 +42,67 @@ export async function loadRules(eventId = EVENT_ID): Promise<EventRule[]> {
   return (data as EventRule[]) ?? []
 }
 
-// ─── Get flat key→value map (cached) ─────────────────────────
-export async function getRules(eventId = EVENT_ID): Promise<Record<string, string>> {
+// ─── Get flat key→value map (cached per event) ────────────────
+export async function getRules(
+  eventId: number,
+  sb: SupabaseClient
+): Promise<Record<string, string>> {
   const now = Date.now()
-  if (_cache && now - _cacheTime < CACHE_TTL_MS) return _cache
+  const cached = _cacheByEvent.get(eventId)
+  if (cached && now - cached.time < CACHE_TTL_MS) return cached.map
 
-  const rules = await loadRules(eventId)
+  const rules = await loadRules(eventId, sb)
   const map: Record<string, string> = {}
   for (const r of rules) {
     map[`${r.category}.${r.rule_key}`] = r.rule_value
   }
-  _cache = map
-  _cacheTime = now
+  _cacheByEvent.set(eventId, { map, time: now })
   return map
 }
 
-export function invalidateRulesCache() {
-  _cache = null
-  _cacheTime = 0
+export function invalidateRulesCache(eventId?: number) {
+  if (eventId !== undefined) _cacheByEvent.delete(eventId)
+  else _cacheByEvent.clear()
 }
 
 // ─── Typed getters ────────────────────────────────────────────
-export async function getRule(category: string, key: string, fallback: string): Promise<string> {
-  const rules = await getRules()
+export async function getRule(
+  eventId: number,
+  category: string,
+  key: string,
+  fallback: string,
+  sb: SupabaseClient
+): Promise<string> {
+  const rules = await getRules(eventId, sb)
   return rules[`${category}.${key}`] ?? fallback
 }
 
-export async function getRuleNum(category: string, key: string, fallback: number): Promise<number> {
-  const v = await getRule(category, key, String(fallback))
+export async function getRuleNum(
+  eventId: number,
+  category: string,
+  key: string,
+  fallback: number,
+  sb: SupabaseClient
+): Promise<number> {
+  const v = await getRule(eventId, category, key, String(fallback), sb)
   const n = parseFloat(v)
   return isNaN(n) ? fallback : n
 }
 
 export async function getRuleBool(
+  eventId: number,
   category: string,
   key: string,
-  fallback: boolean
+  fallback: boolean,
+  sb: SupabaseClient
 ): Promise<boolean> {
-  const v = await getRule(category, key, String(fallback))
+  const v = await getRule(eventId, category, key, String(fallback), sb)
   return v === 'true' || v === '1'
 }
 
 // ─── Convenience: get all thresholds for an engine ───────────
-export async function getWeatherThresholds() {
-  const rules = await getRules()
+export async function getWeatherThresholds(eventId: number, sb: SupabaseClient) {
+  const rules = await getRules(eventId, sb)
   return {
     lightning: {
       radius_miles: parseFloat(rules['lightning.radius_miles'] ?? '8'),
@@ -114,8 +127,8 @@ export async function getWeatherThresholds() {
   }
 }
 
-export async function getRefereeRules() {
-  const rules = await getRules()
+export async function getRefereeRules(eventId: number, sb: SupabaseClient) {
+  const rules = await getRules(eventId, sb)
   return {
     travel_buffer_min: parseFloat(rules['referee.travel_buffer_min'] ?? '30'),
     max_games_per_day: parseFloat(rules['referee.max_games_per_day'] ?? '4'),
@@ -129,8 +142,8 @@ export async function getRefereeRules() {
   }
 }
 
-export async function getSchedulingRules() {
-  const rules = await getRules()
+export async function getSchedulingRules(eventId: number, sb: SupabaseClient) {
+  const rules = await getRules(eventId, sb)
   return {
     game_duration_min: parseFloat(rules['scheduling.game_duration_min'] ?? '60'),
     buffer_min: parseFloat(rules['scheduling.buffer_min'] ?? '10'),
@@ -145,10 +158,10 @@ export async function getSchedulingRules() {
 export async function updateRule(
   id: number,
   newValue: string,
-  changedBy = 'operator'
+  changedBy = 'operator',
+  eventId: number,
+  sb: SupabaseClient
 ): Promise<void> {
-  const sb = createClient()
-
   // Get current value for audit log
   const { data: current } = await sb
     .from('event_rules')
@@ -171,7 +184,7 @@ export async function updateRule(
 
   // Write to change log
   await sb.from('rule_changes').insert({
-    event_id: EVENT_ID,
+    event_id: eventId,
     rule_id: id,
     rule_key: current.rule_key,
     old_value: current.rule_value,
@@ -182,18 +195,17 @@ export async function updateRule(
 
   // Write to ops log
   await sb.from('ops_log').insert({
-    event_id: EVENT_ID,
+    event_id: eventId,
     message: `Rule updated: ${current.rule_key} → ${newValue} (was: ${current.rule_value})`,
     log_type: 'warn',
     occurred_at: new Date().toISOString(),
   })
 
-  invalidateRulesCache()
+  invalidateRulesCache(eventId)
 }
 
 // ─── Reset a rule to default ──────────────────────────────────
-export async function resetRule(id: number): Promise<void> {
-  const sb = createClient()
+export async function resetRule(id: number, eventId: number, sb: SupabaseClient): Promise<void> {
   const { data: current } = await sb
     .from('event_rules')
     .select('default_value, rule_key, rule_value')
@@ -213,7 +225,7 @@ export async function resetRule(id: number): Promise<void> {
     .eq('id', id)
 
   await sb.from('rule_changes').insert({
-    event_id: EVENT_ID,
+    event_id: eventId,
     rule_id: id,
     rule_key: current.rule_key,
     old_value: current.rule_value,
@@ -223,18 +235,17 @@ export async function resetRule(id: number): Promise<void> {
   })
 
   await sb.from('ops_log').insert({
-    event_id: EVENT_ID,
+    event_id: eventId,
     message: `Rule reset to default: ${current.rule_key} → ${current.default_value}`,
     log_type: 'info',
     occurred_at: new Date().toISOString(),
   })
 
-  invalidateRulesCache()
+  invalidateRulesCache(eventId)
 }
 
 // ─── Reset ALL rules to defaults ─────────────────────────────
-export async function resetAllRules(eventId = EVENT_ID): Promise<void> {
-  const sb = createClient()
+export async function resetAllRules(eventId: number, sb: SupabaseClient): Promise<void> {
   const { data: overrides } = await sb
     .from('event_rules')
     .select('id, default_value')
@@ -255,5 +266,5 @@ export async function resetAllRules(eventId = EVENT_ID): Promise<void> {
     }
   }
 
-  invalidateRulesCache()
+  invalidateRulesCache(eventId)
 }

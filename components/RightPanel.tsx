@@ -1,14 +1,9 @@
 'use client'
 
 import { useApp } from '@/lib/store'
-import { CoverageBar, Pill } from '@/components/ui'
-import { logTypeColor } from '@/lib/utils'
 import type { TabName } from '@/components/AppShell'
 import { cn } from '@/lib/utils'
-import { useEffect, useState } from 'react'
 import { createClient } from '@/supabase/client'
-import type { OperationalConflict } from '@/types'
-import { AlertTriangle, XCircle } from 'lucide-react'
 
 interface Props {
   onNavigate: (tab: TabName) => void
@@ -17,22 +12,13 @@ interface Props {
 export function RightPanel({ onNavigate }: Props) {
   const { state } = useApp()
 
-  const refs = state.referees
-  const vols = state.volunteers
-  const refsAssigned = refs.filter((r) => r.checked_in).length
-
-  const volByRole = (role: string) => vols.filter((v) => v.role === role)
-  const volChecked = (role: string) => volByRole(role).filter((v) => v.checked_in).length
-
-  const recentIncidents = state.incidents.slice(0, 4)
-  const activeTrainers = state.medicalIncidents.filter((m) => m.status !== 'Resolved').slice(0, 4)
   const lightningActive = state.lightningActive
   const m = Math.floor(state.lightningSecondsLeft / 60)
   const s = state.lightningSecondsLeft % 60
 
   return (
     <aside className="hidden lg:block w-72 bg-surface-panel border-l border-border overflow-y-auto flex-shrink-0">
-      {/* Weather — always at top for quick visibility */}
+      {/* Weather / Lightning — always at top */}
       <WeatherRPPanel
         lightningActive={lightningActive}
         timerM={m}
@@ -73,10 +59,10 @@ export function RightPanel({ onNavigate }: Props) {
 
       {/* Incident Monitor */}
       <Section title="INCIDENT MONITOR" action={() => onNavigate('incidents')} actionLabel="LOG">
-        {recentIncidents.length === 0 ? (
+        {state.incidents.slice(0, 4).length === 0 ? (
           <p className="text-[11px] text-muted">No active incidents</p>
         ) : (
-          recentIncidents.map((inc) => (
+          state.incidents.slice(0, 4).map((inc) => (
             <div
               key={inc.id}
               className={cn(
@@ -88,7 +74,7 @@ export function RightPanel({ onNavigate }: Props) {
             >
               <div
                 className={cn(
-                  'font-cond font-black text-[11px] tracking-wide',
+                  'font-cond text-[11px] font-black tracking-wide',
                   ['Player Injury', 'Ejection'].includes(inc.type)
                     ? 'text-red-400'
                     : 'text-yellow-400'
@@ -160,93 +146,6 @@ export function RightPanel({ onNavigate }: Props) {
   )
 }
 
-// ─── Conflict Panel ──────────────────────────────────────────
-function ConflictPanel({ onNavigate }: { onNavigate: (tab: TabName) => void }) {
-  const { state } = useApp()
-  const [conflicts, setConflicts] = useState<OperationalConflict[]>([])
-  const eventId = state.event?.id
-
-  useEffect(() => {
-    if (!eventId) return
-    const sb = createClient()
-
-    function fetchConflicts() {
-      sb.from('operational_conflicts')
-        .select('*')
-        .eq('event_id', eventId)
-        .eq('resolved', false)
-        .order('severity', { ascending: false })
-        .limit(5)
-        .then(({ data }) => setConflicts((data as OperationalConflict[]) ?? []))
-    }
-
-    fetchConflicts()
-
-    // Realtime subscription
-    const sub = sb
-      .channel(`rp-conflicts-${eventId}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'operational_conflicts' },
-        fetchConflicts
-      )
-      .subscribe()
-
-    return () => {
-      sb.removeChannel(sub)
-    }
-  }, [eventId])
-
-  const critical = conflicts.filter((c) => c.severity === 'critical').length
-  const warning = conflicts.filter((c) => c.severity === 'warning').length
-
-  return (
-    <Section
-      title={`REF CONFLICTS${conflicts.length > 0 ? ` (${conflicts.length})` : ''}`}
-      action={() => onNavigate('refs')}
-      actionLabel="VIEW"
-    >
-      {conflicts.length === 0 ? (
-        <p className="text-[11px] text-green-400 font-cond font-bold">ALL CLEAR</p>
-      ) : (
-        <div>
-          {critical > 0 && (
-            <div className="flex items-center gap-1.5 mb-1">
-              <XCircle size={11} className="text-red-400" />
-              <span className="font-cond text-[11px] font-bold text-red-400">
-                {critical} CRITICAL
-              </span>
-            </div>
-          )}
-          {warning > 0 && (
-            <div className="flex items-center gap-1.5 mb-2">
-              <AlertTriangle size={11} className="text-yellow-400" />
-              <span className="font-cond text-[11px] font-bold text-yellow-400">
-                {warning} WARNINGS
-              </span>
-            </div>
-          )}
-          <div className="space-y-1.5">
-            {conflicts.slice(0, 3).map((c) => (
-              <div
-                key={c.id}
-                className={cn(
-                  'text-[10px] rounded p-1.5 border-l-2',
-                  c.severity === 'critical'
-                    ? 'bg-white/5 border-red-500 text-red-300'
-                    : 'bg-white/5 border-yellow-500 text-yellow-300'
-                )}
-              >
-                {c.description.length > 70 ? c.description.slice(0, 70) + '…' : c.description}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </Section>
-  )
-}
-
 // ─── Section wrapper ─────────────────────────────────────────
 function Section({
   title,
@@ -279,7 +178,7 @@ function Section({
   )
 }
 
-// ─── Right Panel Weather component (Phase 3) ─────────────────
+// ─── Right Panel Weather component ─────────────────────────────
 function WeatherRPPanel({
   lightningActive,
   timerM,
@@ -293,31 +192,11 @@ function WeatherRPPanel({
   alertCount: number
   onNavigate: (tab: any) => void
 }) {
-  const { state } = useApp()
-  const [latestReading, setLatestReading] = useState<any>(null)
+  const { state, liftLightning } = useApp()
 
-  useEffect(() => {
-    const eventId = state.event?.id
-    if (!eventId) return
-    const sb = createClient()
-    // Load complex IDs for this event, then fetch the most recent weather reading
-    sb.from('complexes')
-      .select('id')
-      .eq('event_id', eventId)
-      .then(({ data: cmplx }) => {
-        const ids = (cmplx ?? []).map((c: any) => c.id)
-        if (!ids.length) return
-        sb.from('weather_readings')
-          .select('*')
-          .in('complex_id', ids)
-          .order('fetched_at', { ascending: false })
-          .limit(1)
-          .single()
-          .then(({ data }) => {
-            if (data) setLatestReading(data)
-          })
-      })
-  }, [state.event?.id])
+  // Use the latest weather reading from auto-poll (store)
+  const readings = Object.values(state.weatherReadings)
+  const latestReading = readings.length > 0 ? readings[0] : null
 
   const heatIdx = latestReading?.heat_index_f
   const heatColor = !heatIdx
@@ -340,6 +219,12 @@ function WeatherRPPanel({
           <div className="font-mono text-xl text-red-400 text-center">
             {timerM}:{timerS.toString().padStart(2, '0')}
           </div>
+          <button
+            onClick={() => liftLightning()}
+            className="w-full mt-2 font-cond text-[10px] font-bold tracking-wider px-2 py-1 rounded bg-green-900/40 text-green-400 border border-green-800/50 hover:bg-green-800/60 transition-colors text-center"
+          >
+            LIFT DELAY
+          </button>
         </div>
       ) : (
         <div>
@@ -373,14 +258,39 @@ function WeatherRPPanel({
             </div>
           ) : (
             <div className="text-[10px] text-muted font-cond text-center">
-              Run Weather Scan for live data
+              Loading weather data...
             </div>
           )}
         </div>
       )}
       {alertCount > 0 && (
-        <div className="mt-2 text-[10px] text-yellow-400 font-cond font-bold tracking-wide">
-          ⚠ {alertCount} ACTIVE ALERT{alertCount > 1 ? 'S' : ''}
+        <div className="mt-2 flex items-center justify-between">
+          <span className="text-[10px] text-yellow-400 font-cond font-bold tracking-wide">
+            ⚠ {alertCount} ACTIVE ALERT{alertCount > 1 ? 'S' : ''}
+          </span>
+          <button
+            onClick={async () => {
+              const sb = createClient()
+              const active = state.weatherAlerts.filter((a) => a.is_active)
+              for (const a of active) {
+                await sb.from('weather_alerts').update({ is_active: false }).eq('id', a.id)
+              }
+              // Force refresh alerts from DB so UI updates immediately
+              const eventId = state.event?.id
+              if (eventId) {
+                const { data } = await sb
+                  .from('weather_alerts')
+                  .select('*')
+                  .eq('event_id', eventId)
+                  .eq('is_active', true)
+                  .order('created_at', { ascending: false })
+                // The realtime subscription will pick up the changes
+              }
+            }}
+            className="font-cond text-[9px] font-bold tracking-wider px-1.5 py-0.5 rounded bg-green-900/40 text-green-400 border border-green-800/50 hover:bg-green-800/60 transition-colors"
+          >
+            RESOLVE
+          </button>
         </div>
       )}
     </Section>

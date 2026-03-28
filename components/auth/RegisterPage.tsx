@@ -1,9 +1,12 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/supabase/client'
 import { useAuth } from '@/lib/auth'
 import { cn } from '@/lib/utils'
+import { detectCoachConflicts } from '@/lib/engines/coach-conflicts'
+import type { EventDate } from '@/types'
 import {
   CheckCircle,
   ArrowLeft,
@@ -17,12 +20,21 @@ import {
   UserPlus,
   Eye,
   EyeOff,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react'
 
 type Mode = 'choose' | 'login' | 'register'
 type Step = 'account' | 'program' | 'teams' | 'confirm' | 'done'
 
 const STATES = ['AL', 'AR', 'FL', 'GA', 'MS', 'NC', 'SC', 'TN', 'TX', 'VA']
+
+interface AdditionalCoach {
+  name: string
+  email: string
+  phone: string
+  certifications: string
+}
 
 interface TeamEntry {
   name: string
@@ -33,6 +45,9 @@ interface TeamEntry {
   playerCount: string
   customAnswers: Record<string, string>
   fromPrevious?: boolean // flagged if copied from a previous registration
+  additionalCoaches: AdditionalCoach[]
+  availableAllDates: boolean
+  availableDateIds: number[]
 }
 
 interface Division {
@@ -71,9 +86,16 @@ const defaultTeam = (division = ''): TeamEntry => ({
   coachPhone: '',
   playerCount: '',
   customAnswers: {},
+  additionalCoaches: [],
+  availableAllDates: true,
+  availableDateIds: [],
 })
 
-export function RegisterPage() {
+function RegisterPageInner() {
+  const searchParams = useSearchParams()
+  const eventIdParam = searchParams.get('event_id')
+  const eventId = eventIdParam ? Number(eventIdParam) : null
+
   const { signIn, user } = useAuth()
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -123,6 +145,12 @@ export function RegisterPage() {
   // Teams
   const [teams, setTeams] = useState<TeamEntry[]>([defaultTeam()])
 
+  // Event dates for availability section
+  const [eventDates, setEventDates] = useState<EventDate[]>([])
+
+  // Track expanded/collapsed state for additional coaches section per team index
+  const [coachSectionExpanded, setCoachSectionExpanded] = useState<Record<number, boolean>>({})
+
   // Load config
   useEffect(() => {
     const sb = createClient()
@@ -130,19 +158,25 @@ export function RegisterPage() {
       sb
         .from('registration_divisions')
         .select('*')
-        .eq('event_id', 1)
+        .eq('event_id', eventId)
         .eq('is_active', true)
         .order('sort_order'),
       sb
         .from('registration_questions')
         .select('*')
-        .eq('event_id', 1)
+        .eq('event_id', eventId)
         .eq('is_active', true)
         .order('section')
         .order('sort_order'),
-    ]).then(([{ data: divs }, { data: qs }]) => {
+      sb
+        .from('event_dates')
+        .select('id, event_id, date, label, day_number')
+        .eq('event_id', eventId)
+        .order('day_number'),
+    ]).then(([{ data: divs }, { data: qs }, { data: dates }]) => {
       setDivisions((divs as Division[]) ?? [])
       setQuestions((qs as Question[]) ?? [])
+      setEventDates((dates as EventDate[]) ?? [])
       if (divs && divs.length > 0) setTeams([defaultTeam(divs[0].name)])
     })
   }, [])
@@ -151,6 +185,16 @@ export function RegisterPage() {
   useEffect(() => {
     if (user && !prefillLoaded) loadPrefill()
   }, [user])
+
+  if (!eventId) {
+    return (
+      <div className="min-h-screen bg-surface flex items-center justify-center">
+        <div className="text-center text-red-400 p-8 font-cond">
+          No event specified. Please use a valid registration link.
+        </div>
+      </div>
+    )
+  }
 
   async function loadPrefill() {
     try {
@@ -295,6 +339,104 @@ export function RegisterPage() {
     )
   }
 
+  function copyFromTeam1(targetIdx: number) {
+    const src = teams[0]
+    setTeams((prev) =>
+      prev.map((t, i) =>
+        i === targetIdx
+          ? {
+              ...t,
+              coachName: src.coachName,
+              coachEmail: src.coachEmail,
+              coachPhone: src.coachPhone,
+              additionalCoaches: src.additionalCoaches.map((c) => ({ ...c })),
+              availableAllDates: src.availableAllDates,
+              availableDateIds: [...src.availableDateIds],
+            }
+          : t
+      )
+    )
+  }
+
+  function addAdditionalCoach(teamIdx: number) {
+    setTeams((prev) =>
+      prev.map((t, i) =>
+        i === teamIdx
+          ? {
+              ...t,
+              additionalCoaches: [
+                ...t.additionalCoaches,
+                { name: '', email: '', phone: '', certifications: '' },
+              ],
+            }
+          : t
+      )
+    )
+  }
+
+  function removeAdditionalCoach(teamIdx: number, coachIdx: number) {
+    setTeams((prev) =>
+      prev.map((t, i) =>
+        i === teamIdx
+          ? {
+              ...t,
+              additionalCoaches: t.additionalCoaches.filter((_, ci) => ci !== coachIdx),
+            }
+          : t
+      )
+    )
+  }
+
+  function updateAdditionalCoach(
+    teamIdx: number,
+    coachIdx: number,
+    field: keyof AdditionalCoach,
+    value: string
+  ) {
+    setTeams((prev) =>
+      prev.map((t, i) =>
+        i === teamIdx
+          ? {
+              ...t,
+              additionalCoaches: t.additionalCoaches.map((c, ci) =>
+                ci === coachIdx ? { ...c, [field]: value } : c
+              ),
+            }
+          : t
+      )
+    )
+  }
+
+  function toggleAvailableAllDates(teamIdx: number, val: boolean) {
+    setTeams((prev) =>
+      prev.map((t, i) =>
+        i === teamIdx
+          ? { ...t, availableAllDates: val, availableDateIds: val ? [] : t.availableDateIds }
+          : t
+      )
+    )
+  }
+
+  function toggleAvailableDate(teamIdx: number, dateId: number, checked: boolean) {
+    setTeams((prev) =>
+      prev.map((t, i) =>
+        i === teamIdx
+          ? {
+              ...t,
+              availableDateIds: checked
+                ? [...t.availableDateIds, dateId]
+                : t.availableDateIds.filter((id) => id !== dateId),
+            }
+          : t
+      )
+    )
+  }
+
+  function formatEventDate(dateStr: string): string {
+    const d = new Date(dateStr + 'T00:00:00')
+    return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+  }
+
   // Accept/decline a previous team offer
   function togglePreviousTeam(teamId: number, accept: boolean) {
     setPreviousTeamOffers((prev) => ({ ...prev, [teamId]: accept }))
@@ -315,6 +457,9 @@ export function RegisterPage() {
             playerCount: pt.player_count ? String(pt.player_count) : '',
             customAnswers: {},
             fromPrevious: true,
+            additionalCoaches: [],
+            availableAllDates: true,
+            availableDateIds: [],
           },
         ]
       })
@@ -369,6 +514,16 @@ export function RegisterPage() {
       }
       if (!teams[i].division) {
         setError(`Team ${i + 1} needs a division`)
+        return false
+      }
+      if (
+        eventDates.length > 0 &&
+        !teams[i].availableAllDates &&
+        teams[i].availableDateIds.length === 0
+      ) {
+        setError(
+          `Team ${i + 1}: select at least one available date or enable "Available All Dates"`
+        )
         return false
       }
     }
@@ -442,7 +597,8 @@ export function RegisterPage() {
             website: website || null,
             notes: notes || null,
             logo_url: logoUrl ?? null,
-            status: 'pending',
+            status: 'approved',
+            approved_at: new Date().toISOString(),
           })
           .select()
           .single()
@@ -457,29 +613,107 @@ export function RegisterPage() {
           role: 'program_leader',
           display_name: contactName,
           program_id: programId,
-          event_id: 1,
-          is_active: false,
+          event_id: eventId,
+          is_active: true,
         })
       }
 
       // Submit team registrations
       for (const team of teams) {
         if (!team.name) continue
+
+        // Determine available_date_ids: empty array = all dates available
+        const availableDateIds = team.availableAllDates ? [] : team.availableDateIds
+
         const { data: reg } = await sb
           .from('team_registrations')
           .insert({
             program_id: programId,
-            event_id: 1,
+            event_id: eventId,
             team_name: team.name,
             division: team.division,
             head_coach_name: team.coachName || null,
             head_coach_email: team.coachEmail || null,
             head_coach_phone: team.coachPhone || null,
             player_count: team.playerCount ? Number(team.playerCount) : null,
-            status: 'pending',
+            status: 'approved',
+            available_date_ids: availableDateIds,
           })
           .select()
           .single()
+
+        // Auto-create team record when registration is approved
+        if (reg) {
+          const teamRegId = (reg as any).id
+
+          const { data: newTeam } = await sb
+            .from('teams')
+            .insert({
+              event_id: eventId,
+              name: team.name,
+              division: team.division,
+            })
+            .select()
+            .single()
+
+          if (newTeam && programId) {
+            await sb.from('program_teams').insert({
+              program_id: programId,
+              team_id: (newTeam as any).id,
+              event_id: eventId,
+              division: team.division,
+            })
+          }
+
+          // Insert head coach into coaches + coach_teams
+          if (team.coachName) {
+            const { data: headCoach } = await sb
+              .from('coaches')
+              .insert({
+                name: team.coachName,
+                email: team.coachEmail || '',
+                phone: team.coachPhone || null,
+                certifications: null,
+              })
+              .select('id')
+              .single()
+
+            if (headCoach) {
+              await sb.from('coach_teams').insert({
+                coach_id: (headCoach as any).id,
+                team_registration_id: teamRegId,
+                event_id: eventId,
+                role: 'head',
+                added_by: 'program_leader',
+              })
+            }
+          }
+
+          // Insert additional coaches into coaches + coach_teams
+          for (const ac of team.additionalCoaches) {
+            if (!ac.name) continue
+            const { data: assistantCoach } = await sb
+              .from('coaches')
+              .insert({
+                name: ac.name,
+                email: ac.email || '',
+                phone: ac.phone || null,
+                certifications: ac.certifications || null,
+              })
+              .select('id')
+              .single()
+
+            if (assistantCoach) {
+              await sb.from('coach_teams').insert({
+                coach_id: (assistantCoach as any).id,
+                team_registration_id: teamRegId,
+                event_id: eventId,
+                role: 'assistant',
+                added_by: 'program_leader',
+              })
+            }
+          }
+        }
 
         if (reg && Object.keys(team.customAnswers).length > 0) {
           for (const [key, answer] of Object.entries(team.customAnswers)) {
@@ -495,8 +729,27 @@ export function RegisterPage() {
         }
       }
 
+      // Run coach conflict detection after all coaches are inserted (per D-08)
+      if (eventId) {
+        try {
+          const { conflicts } = await detectCoachConflicts(eventId, sb)
+          for (const c of conflicts) {
+            await sb.from('coach_conflicts').upsert(
+              {
+                coach_id: c.coach_id,
+                event_id: eventId,
+                team_ids: c.team_ids,
+              },
+              { onConflict: 'coach_id,event_id' }
+            )
+          }
+        } catch {
+          // Non-fatal: conflict detection failure should not block submission
+        }
+      }
+
       await sb.from('ops_log').insert({
-        event_id: 1,
+        event_id: eventId,
         message: `Program registration ${previousProgram ? 'updated' : 'submitted'}: ${progName} — ${teams.length} team(s)`,
         log_type: 'info',
         occurred_at: new Date().toISOString(),
@@ -1057,6 +1310,9 @@ export function RegisterPage() {
                     {team.name && (
                       <span className="font-cond text-[11px] text-white">— {team.name}</span>
                     )}
+                    <span className="font-cond text-[12px] text-muted">
+                      Team {i + 1} of {teams.length}
+                    </span>
                   </div>
                   {teams.length > 1 && (
                     <button
@@ -1208,6 +1464,194 @@ export function RegisterPage() {
                       </div>
                     )}
                   </div>
+
+                  {/* Copy from Team 1 (for teams after the first) */}
+                  {i > 0 && (
+                    <div className="flex justify-end">
+                      <button
+                        onClick={() => copyFromTeam1(i)}
+                        className="flex items-center gap-1 font-cond text-[11px] font-bold text-blue-300 bg-navy/40 border border-border rounded px-3 py-1 hover:bg-navy transition-colors"
+                      >
+                        <Copy size={10} /> COPY FROM TEAM 1
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Additional Coaches section */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <div className="font-cond text-[10px] font-bold tracking-widest text-muted uppercase">
+                          ADDITIONAL COACHES
+                        </div>
+                        <span className="font-cond text-[12px] text-muted">
+                          ({team.additionalCoaches.length})
+                        </span>
+                      </div>
+                      <button
+                        onClick={() =>
+                          setCoachSectionExpanded((prev) => ({ ...prev, [i]: !prev[i] }))
+                        }
+                        className="text-muted hover:text-white transition-colors"
+                        aria-label={
+                          coachSectionExpanded[i]
+                            ? 'Collapse additional coaches'
+                            : 'Expand additional coaches'
+                        }
+                      >
+                        {coachSectionExpanded[i] ? (
+                          <ChevronUp size={14} />
+                        ) : (
+                          <ChevronDown size={14} />
+                        )}
+                      </button>
+                    </div>
+
+                    {coachSectionExpanded[i] && (
+                      <div className="space-y-3">
+                        {team.additionalCoaches.map((ac, ci) => (
+                          <div
+                            key={ci}
+                            className="relative bg-black/20 border border-border/50 rounded-lg p-3"
+                          >
+                            <button
+                              onClick={() => removeAdditionalCoach(i, ci)}
+                              className="absolute top-2 right-2 text-muted hover:text-red-400 transition-colors"
+                              aria-label="Remove coach"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                            <div className="grid grid-cols-2 gap-2 pr-6">
+                              <div>
+                                <label className={lbl}>Coach Name</label>
+                                <input
+                                  className={inp}
+                                  placeholder="Coach name"
+                                  value={ac.name}
+                                  onChange={(e) =>
+                                    updateAdditionalCoach(i, ci, 'name', e.target.value)
+                                  }
+                                />
+                              </div>
+                              <div>
+                                <label className={lbl}>Email</label>
+                                <input
+                                  type="email"
+                                  className={inp}
+                                  placeholder="Email"
+                                  value={ac.email}
+                                  onChange={(e) =>
+                                    updateAdditionalCoach(i, ci, 'email', e.target.value)
+                                  }
+                                />
+                              </div>
+                              <div>
+                                <label className={lbl}>Phone</label>
+                                <input
+                                  type="tel"
+                                  className={inp}
+                                  placeholder="Phone"
+                                  value={ac.phone}
+                                  onChange={(e) =>
+                                    updateAdditionalCoach(i, ci, 'phone', e.target.value)
+                                  }
+                                />
+                              </div>
+                              <div className="col-span-2">
+                                <label className={lbl}>Certifications</label>
+                                <input
+                                  className={inp}
+                                  placeholder="e.g. US Lacrosse Level 2"
+                                  value={ac.certifications}
+                                  onChange={(e) =>
+                                    updateAdditionalCoach(i, ci, 'certifications', e.target.value)
+                                  }
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+
+                        <button
+                          onClick={() => addAdditionalCoach(i)}
+                          className="flex items-center gap-1 font-cond font-bold text-[12px] bg-surface-card border border-border text-white hover:border-blue-400/60 px-3 py-1.5 rounded transition-colors uppercase tracking-wide"
+                        >
+                          <Plus className="w-4 h-4 mr-1" /> ADD COACH
+                        </button>
+                      </div>
+                    )}
+
+                    {!coachSectionExpanded[i] && team.additionalCoaches.length === 0 && (
+                      <button
+                        onClick={() => {
+                          addAdditionalCoach(i)
+                          setCoachSectionExpanded((prev) => ({ ...prev, [i]: true }))
+                        }}
+                        className="flex items-center gap-1 font-cond font-bold text-[12px] bg-surface-card border border-border text-white hover:border-blue-400/60 px-3 py-1.5 rounded transition-colors uppercase tracking-wide"
+                      >
+                        <Plus className="w-4 h-4 mr-1" /> ADD COACH
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Date Availability section */}
+                  {eventDates.length > 0 && (
+                    <div>
+                      <div className="font-cond text-[10px] font-bold tracking-widest text-muted uppercase mb-2">
+                        DATE AVAILABILITY
+                      </div>
+
+                      {/* Available All Dates toggle */}
+                      <div className="flex items-center gap-3 mb-3">
+                        <button
+                          role="switch"
+                          aria-checked={team.availableAllDates}
+                          onClick={() => toggleAvailableAllDates(i, !team.availableAllDates)}
+                          className={cn(
+                            'relative w-10 h-5 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400/50',
+                            team.availableAllDates ? 'bg-[#0B3D91]' : 'bg-gray-600'
+                          )}
+                        >
+                          <span
+                            className={cn(
+                              'absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform',
+                              team.availableAllDates ? 'translate-x-5' : 'translate-x-0'
+                            )}
+                          />
+                        </button>
+                        <span className="font-cond text-[12px] text-white">
+                          Available All Dates
+                        </span>
+                      </div>
+
+                      {/* Individual date checkboxes (when toggle is OFF) */}
+                      {!team.availableAllDates && (
+                        <div className="space-y-2 ml-1">
+                          {eventDates.map((ed) => (
+                            <label key={ed.id} className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={team.availableDateIds.includes(ed.id)}
+                                onChange={(e) => toggleAvailableDate(i, ed.id, e.target.checked)}
+                                className="w-4 h-4 rounded accent-[#0B3D91]"
+                              />
+                              <span className="font-cond text-[13px] text-white">
+                                {formatEventDate(ed.date)}
+                                {ed.label && (
+                                  <span className="text-muted ml-2 text-[11px]">{ed.label}</span>
+                                )}
+                              </span>
+                            </label>
+                          ))}
+                          {team.availableDateIds.length === 0 && (
+                            <p className="font-cond text-[12px] text-[#f87171]">
+                              Select at least one date or enable &quot;Available All Dates&quot;
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
@@ -1346,6 +1790,14 @@ export function RegisterPage() {
         )}
       </div>
     </div>
+  )
+}
+
+export function RegisterPage() {
+  return (
+    <Suspense fallback={null}>
+      <RegisterPageInner />
+    </Suspense>
   )
 }
 

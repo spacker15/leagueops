@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/supabase/client'
 import { useAuth } from '@/lib/auth'
 import { cn } from '@/lib/utils'
+import { seedDefaultRules } from '@/lib/engines/schedule-rules'
 import {
   Plus,
   LogOut,
@@ -16,8 +17,13 @@ import {
   ArrowLeft,
   Settings,
   Users,
+  Archive,
+  ArchiveRestore,
+  Eye,
+  EyeOff,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { VenueAutocompleteInput } from './VenueAutocompleteInput'
 
 interface EventSummary {
   id: number
@@ -60,6 +66,13 @@ export function EventPicker({ onSelectEvent }: Props) {
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
   const [copiedCode, setCopiedCode] = useState<number | null>(null)
+  const [showArchived, setShowArchived] = useState(false)
+
+  // Venue search state
+  const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null)
+  const [selectedLat, setSelectedLat] = useState<number | null>(null)
+  const [selectedLng, setSelectedLng] = useState<number | null>(null)
+  const [selectedVenueAddress, setSelectedVenueAddress] = useState<string>('')
 
   // Wizard state
   const [step, setStep] = useState<1 | 2>(1)
@@ -110,7 +123,7 @@ export function EventPicker({ onSelectEvent }: Props) {
         .single()
       if (data) setEvents([data as EventSummary])
     } else {
-      const { data } = await sb
+      const query = sb
         .from('events')
         .select(
           'id,name,sport,event_type,location,start_date,end_date,status,logo_url,event_code,slug,primary_color'
@@ -118,6 +131,7 @@ export function EventPicker({ onSelectEvent }: Props) {
         .in('id', eventIds)
         .eq('is_active', true)
         .order('created_at', { ascending: false })
+      const { data } = await query
       setEvents((data as EventSummary[]) ?? [])
     }
     setLoading(false)
@@ -151,6 +165,10 @@ export function EventPicker({ onSelectEvent }: Props) {
     setComplexAddress('')
     setCopyTeams(false)
     setCopyComplexes(false)
+    setSelectedPlaceId(null)
+    setSelectedLat(null)
+    setSelectedLng(null)
+    setSelectedVenueAddress('')
   }
 
   async function createEvent() {
@@ -158,33 +176,49 @@ export function EventPicker({ onSelectEvent }: Props) {
     const sb = createClient()
     const user = (await sb.auth.getUser()).data.user
 
-    const slug =
-      newName
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-|-$/g, '') +
-      '-' +
-      new Date().getFullYear()
+    // Generate unique slug — check for duplicates and append suffix if needed
+    const year = new Date().getFullYear().toString()
+    const nameSlug = newName
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '')
+    const baseSlug = nameSlug.endsWith(`-${year}`) ? nameSlug : `${nameSlug}-${year}`
 
-    const { data: ev, error } = await sb
+    const { count } = await sb
       .from('events')
-      .insert({
-        name: newName,
-        sport: newSport,
-        event_type: newType,
-        location: newLocation,
-        start_date: newStart,
-        end_date: newEnd,
-        status: 'draft',
-        slug,
-        owner_id: user?.id,
-        is_active: true,
-        event_code: Math.random().toString(36).substring(2, 8).toUpperCase(),
-        primary_color: '#0B3D91',
-        secondary_color: '#D62828',
-      })
-      .select()
-      .single()
+      .select('id', { count: 'exact', head: true })
+      .like('slug', `${baseSlug}%`)
+
+    const slug = count && count > 0 ? `${baseSlug}-${count + 1}` : baseSlug
+
+    const eventInsert: Record<string, any> = {
+      name: newName,
+      sport: newSport,
+      event_type: newType,
+      location: newLocation,
+      start_date: newStart,
+      end_date: newEnd,
+      status: 'draft',
+      slug,
+      owner_id: user?.id,
+      is_active: true,
+      event_code: Math.random().toString(36).substring(2, 8).toUpperCase(),
+      primary_color: '#0B3D91',
+      secondary_color: '#D62828',
+    }
+
+    // Auto-generate public results link from slug
+    eventInsert.results_link = `https://leagueops-live.vercel.app/e/${slug}`
+
+    // Store venue details from Google Maps if selected
+    if (selectedPlaceId) {
+      eventInsert.venue_place_id = selectedPlaceId
+      eventInsert.venue_address = selectedVenueAddress || complexAddress || newLocation
+      eventInsert.venue_lat = selectedLat
+      eventInsert.venue_lng = selectedLng
+    }
+
+    const { data: ev, error } = await sb.from('events').insert(eventInsert).select().single()
 
     if (error) {
       toast.error(error.message)
@@ -194,10 +228,7 @@ export function EventPicker({ onSelectEvent }: Props) {
 
     const newEventId = (ev as any).id
 
-    // Add creator as owner admin
-    await sb.from('event_admins').insert({ event_id: newEventId, user_id: user?.id, role: 'owner' })
-
-    // Add to user_roles
+    // Add to user_roles FIRST — event_admins RLS depends on user_event_ids() which reads user_roles
     await sb.from('user_roles').upsert(
       {
         user_id: user?.id,
@@ -206,8 +237,11 @@ export function EventPicker({ onSelectEvent }: Props) {
         event_id: newEventId,
         is_active: true,
       },
-      { onConflict: 'user_id,event_id' }
+      { onConflict: 'user_id,event_id,role' }
     )
+
+    // Add creator as owner admin (now passes RLS because user_roles row exists)
+    await sb.from('event_admins').insert({ event_id: newEventId, user_id: user?.id, role: 'owner' })
 
     // Create the primary complex
     await sb.from('complexes').insert({
@@ -215,6 +249,9 @@ export function EventPicker({ onSelectEvent }: Props) {
       name: complexName.trim(),
       address: complexAddress.trim() || null,
     })
+
+    // Seed default scheduling rules for the new event
+    await seedDefaultRules(newEventId, sb)
 
     // ── Copy from source event if selected ──────────────────────────────────
     if (copySourceId) {
@@ -268,7 +305,7 @@ export function EventPicker({ onSelectEvent }: Props) {
         jobs.push(async () => {
           const { data } = await sb
             .from('teams')
-            .select('name,division,age_group,coach_name,coach_email')
+            .select('name,division,age_group,coach_name,coach_email,program_id')
             .eq('event_id', copySourceId)
           if (data?.length)
             await sb.from('teams').insert(data.map((t) => ({ ...t, event_id: newEventId })))
@@ -339,6 +376,46 @@ export function EventPicker({ onSelectEvent }: Props) {
     toast.success('Event code copied')
   }
 
+  async function archiveEvent(e: React.MouseEvent, eventId: number) {
+    e.stopPropagation()
+    const sb = createClient()
+    const { error } = await sb.from('events').update({ status: 'archived' }).eq('id', eventId)
+    if (error) {
+      toast.error('Failed to archive event')
+      return
+    }
+    toast.success('Event archived')
+    loadEvents()
+  }
+
+  async function unarchiveEvent(e: React.MouseEvent, eventId: number) {
+    e.stopPropagation()
+    const sb = createClient()
+    const { error } = await sb.from('events').update({ status: 'draft' }).eq('id', eventId)
+    if (error) {
+      toast.error('Failed to unarchive event')
+      return
+    }
+    toast.success('Event restored')
+    loadEvents()
+  }
+
+  function handleVenueSelect(venue: {
+    name: string
+    address: string
+    lat: number
+    lng: number
+    place_id: string
+  }) {
+    setSelectedPlaceId(venue.place_id)
+    setSelectedLat(venue.lat)
+    setSelectedLng(venue.lng)
+    setSelectedVenueAddress(venue.address)
+    setNewLocation(venue.address || venue.name)
+    setComplexName(venue.name)
+    setComplexAddress(venue.address)
+  }
+
   function formatDate(d: string) {
     if (!d) return ''
     return new Date(d + 'T00:00:00').toLocaleDateString('en-US', {
@@ -391,17 +468,31 @@ export function EventPicker({ onSelectEvent }: Props) {
               Select an event to manage{isAdmin ? ', or create a new one' : ''}
             </div>
           </div>
-          {isAdmin && (
+          <div className="flex items-center gap-3">
             <button
-              onClick={() => {
-                setShowForm((s) => !s)
-                setStep(1)
-              }}
-              className="flex items-center gap-2 font-cond font-black text-[13px] tracking-[.1em] px-5 py-2.5 rounded-xl bg-red hover:bg-red/80 text-white transition-colors"
+              onClick={() => setShowArchived((s) => !s)}
+              className={cn(
+                'flex items-center gap-1.5 font-cond text-[11px] font-black tracking-[.08em] px-3 py-2 rounded-lg border transition-colors',
+                showArchived
+                  ? 'border-blue-500/40 bg-blue-900/20 text-blue-400'
+                  : 'border-[#1a2d50] text-[#5a6e9a] hover:text-white hover:border-[#2a3d60]'
+              )}
             >
-              <Plus size={15} /> CREATE EVENT
+              {showArchived ? <EyeOff size={12} /> : <Eye size={12} />}
+              {showArchived ? 'HIDE ARCHIVED' : 'SHOW ARCHIVED'}
             </button>
-          )}
+            {isAdmin && (
+              <button
+                onClick={() => {
+                  setShowForm((s) => !s)
+                  setStep(1)
+                }}
+                className="flex items-center gap-2 font-cond font-black text-[13px] tracking-[.1em] px-5 py-2.5 rounded-xl bg-red hover:bg-red/80 text-white transition-colors"
+              >
+                <Plus size={15} /> CREATE EVENT
+              </button>
+            )}
+          </div>
         </div>
 
         {/* ── Create wizard — admin only ─────────────────────────────────────── */}
@@ -484,12 +575,12 @@ export function EventPicker({ onSelectEvent }: Props) {
                     </select>
                   </div>
                   <div className="col-span-2">
-                    <label className={lbl}>Location / Venue *</label>
-                    <input
-                      className={inp}
+                    <label className={lbl}>Venue / Complex Name *</label>
+                    <VenueAutocompleteInput
                       value={newLocation}
-                      onChange={(e) => setNewLocation(e.target.value)}
-                      placeholder="e.g. Riverside Sports Complex, Jacksonville FL"
+                      onLocationChange={(text) => setNewLocation(text)}
+                      onVenueSelect={handleVenueSelect}
+                      selectedPlaceId={selectedPlaceId}
                     />
                   </div>
                   <div>
@@ -771,110 +862,135 @@ export function EventPicker({ onSelectEvent }: Props) {
           </div>
         ) : (
           <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4">
-            {events.map((ev) => {
-              const sport = SPORTS_EMOJI[ev.sport] ?? '🏆'
-              const color = ev.primary_color ?? '#0B3D91'
-              const isLive = ev.status === 'active'
+            {events
+              .filter((ev) => showArchived || ev.status !== 'archived')
+              .map((ev) => {
+                const sport = SPORTS_EMOJI[ev.sport] ?? '🏆'
+                const color = ev.primary_color ?? '#0B3D91'
+                const isLive = ev.status === 'active'
+                const isArchived = ev.status === 'archived'
 
-              return (
-                <div
-                  key={ev.id}
-                  className="group relative rounded-2xl overflow-hidden border transition-all hover:border-blue-400/60 cursor-pointer"
-                  style={{ background: '#081428', borderColor: isLive ? '#22c55e40' : '#1a2d50' }}
-                  onClick={() => onSelectEvent(ev.id)}
-                >
-                  <div className="h-1.5" style={{ background: color }} />
+                return (
+                  <div
+                    key={ev.id}
+                    className={cn(
+                      'group relative rounded-2xl overflow-hidden border transition-all cursor-pointer',
+                      isArchived ? 'opacity-50 hover:opacity-80' : 'hover:border-blue-400/60'
+                    )}
+                    style={{ background: '#081428', borderColor: isLive ? '#22c55e40' : '#1a2d50' }}
+                    onClick={() => onSelectEvent(ev.id)}
+                  >
+                    <div className="h-1.5" style={{ background: color }} />
 
-                  <div className="p-5">
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex items-center gap-3">
-                        {ev.logo_url ? (
-                          <img
-                            src={ev.logo_url}
-                            alt=""
-                            className="w-12 h-12 rounded-xl object-contain bg-white/5 p-1 flex-shrink-0"
-                          />
-                        ) : (
-                          <div
-                            className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl flex-shrink-0"
-                            style={{ background: color + '30', border: `1px solid ${color}40` }}
-                          >
-                            {sport}
-                          </div>
-                        )}
-                        <div>
-                          <div className="font-cond text-[16px] font-black text-white leading-tight">
-                            {ev.name}
-                          </div>
-                          <div className="font-cond text-[10px] text-[#5a6e9a] capitalize mt-0.5">
-                            {ev.sport} {ev.event_type}
+                    <div className="p-5">
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          {ev.logo_url ? (
+                            <img
+                              src={ev.logo_url}
+                              alt=""
+                              className="w-12 h-12 rounded-xl object-contain bg-white/5 p-1 flex-shrink-0"
+                            />
+                          ) : (
+                            <div
+                              className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl flex-shrink-0"
+                              style={{ background: color + '30', border: `1px solid ${color}40` }}
+                            >
+                              {sport}
+                            </div>
+                          )}
+                          <div>
+                            <div className="font-cond text-[16px] font-black text-white leading-tight">
+                              {ev.name}
+                            </div>
+                            <div className="font-cond text-[10px] text-[#5a6e9a] capitalize mt-0.5">
+                              {ev.sport} {ev.event_type}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                      <div
-                        className={cn(
-                          'font-cond text-[9px] font-black tracking-[.15em] px-2 py-1 rounded flex-shrink-0',
-                          isLive
-                            ? 'bg-green-900/40 text-green-400'
-                            : ev.status === 'completed'
-                              ? 'bg-gray-800 text-gray-500'
-                              : 'bg-[#0d1a2e] text-[#5a6e9a]'
-                        )}
-                      >
-                        {ev.status.toUpperCase()}
-                      </div>
-                    </div>
-
-                    <div className="space-y-1.5 mb-4">
-                      <div className="flex items-center gap-2 font-cond text-[11px] text-[#5a6e9a]">
-                        <MapPin size={11} className="flex-shrink-0" />
-                        <span className="truncate">{ev.location}</span>
-                      </div>
-                      <div className="flex items-center gap-2 font-cond text-[11px] text-[#5a6e9a]">
-                        <Calendar size={11} className="flex-shrink-0" />
-                        <span>
-                          {formatDate(ev.start_date)}
-                          {ev.end_date && ev.end_date !== ev.start_date
-                            ? ` – ${formatDate(ev.end_date)}`
-                            : ''}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between pt-3 border-t border-[#1a2d50]">
-                      {ev.event_code && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            copyCode(ev.id, ev.event_code!)
-                          }}
-                          className="flex items-center gap-1.5 font-mono text-[11px] font-bold text-[#5a6e9a] hover:text-white transition-colors"
-                          title="Copy event code"
-                        >
-                          {copiedCode === ev.id ? (
-                            <>
-                              <CheckCircle size={11} className="text-green-400" />{' '}
-                              <span className="text-green-400">Copied!</span>
-                            </>
-                          ) : (
-                            <>
-                              <Copy size={11} /> {ev.event_code}
-                            </>
+                        <div
+                          className={cn(
+                            'font-cond text-[9px] font-black tracking-[.15em] px-2 py-1 rounded flex-shrink-0',
+                            isLive
+                              ? 'bg-green-900/40 text-green-400'
+                              : isArchived
+                                ? 'bg-amber-900/30 text-amber-500'
+                                : ev.status === 'completed'
+                                  ? 'bg-gray-800 text-gray-500'
+                                  : 'bg-[#0d1a2e] text-[#5a6e9a]'
                           )}
-                        </button>
-                      )}
-                      <div className="flex items-center gap-1.5 font-cond text-[11px] font-black tracking-[.08em] text-[#5a6e9a] group-hover:text-white transition-colors ml-auto">
-                        OPEN{' '}
-                        <ChevronRight
-                          size={13}
-                          className="group-hover:translate-x-0.5 transition-transform"
-                        />
+                        >
+                          {ev.status.toUpperCase()}
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5 mb-4">
+                        <div className="flex items-center gap-2 font-cond text-[11px] text-[#5a6e9a]">
+                          <MapPin size={11} className="flex-shrink-0" />
+                          <span className="truncate">{ev.location}</span>
+                        </div>
+                        <div className="flex items-center gap-2 font-cond text-[11px] text-[#5a6e9a]">
+                          <Calendar size={11} className="flex-shrink-0" />
+                          <span>
+                            {formatDate(ev.start_date)}
+                            {ev.end_date && ev.end_date !== ev.start_date
+                              ? ` – ${formatDate(ev.end_date)}`
+                              : ''}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-3 border-t border-[#1a2d50]">
+                        {ev.event_code && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              copyCode(ev.id, ev.event_code!)
+                            }}
+                            className="flex items-center gap-1.5 font-mono text-[11px] font-bold text-[#5a6e9a] hover:text-white transition-colors"
+                            title="Copy event code"
+                          >
+                            {copiedCode === ev.id ? (
+                              <>
+                                <CheckCircle size={11} className="text-green-400" />{' '}
+                                <span className="text-green-400">Copied!</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy size={11} /> {ev.event_code}
+                              </>
+                            )}
+                          </button>
+                        )}
+                        {isArchived ? (
+                          <button
+                            onClick={(e) => unarchiveEvent(e, ev.id)}
+                            className="flex items-center gap-1.5 font-cond text-[10px] font-black tracking-[.08em] text-amber-500 hover:text-amber-400 transition-colors"
+                            title="Unarchive event"
+                          >
+                            <ArchiveRestore size={12} /> UNARCHIVE
+                          </button>
+                        ) : (
+                          <button
+                            onClick={(e) => archiveEvent(e, ev.id)}
+                            className="flex items-center gap-1.5 font-cond text-[10px] font-black tracking-[.08em] text-[#5a6e9a] hover:text-amber-400 transition-colors opacity-0 group-hover:opacity-100"
+                            title="Archive event"
+                          >
+                            <Archive size={12} /> ARCHIVE
+                          </button>
+                        )}
+                        <div className="flex items-center gap-1.5 font-cond text-[11px] font-black tracking-[.08em] text-[#5a6e9a] group-hover:text-white transition-colors ml-auto">
+                          OPEN{' '}
+                          <ChevronRight
+                            size={13}
+                            className="group-hover:translate-x-0.5 transition-transform"
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              )
-            })}
+                )
+              })}
           </div>
         )}
       </div>

@@ -31,6 +31,7 @@ interface Player {
 
 export function RefereePortal() {
   const { userRole, signOut } = useAuth()
+  const portalEventId = userRole?.event_id
   const [tab, setTab] = useState<PortalTab>('checkin')
   const [ref, setRef] = useState<any>(null)
   const [games, setGames] = useState<AssignedGame[]>([])
@@ -46,7 +47,7 @@ export function RefereePortal() {
   const [rosterLoading, setRosterLoading] = useState(false)
 
   useEffect(() => {
-    if (!userRole?.referee_id) return
+    if (!portalEventId || !userRole?.referee_id) return
     loadData()
   }, [userRole])
 
@@ -136,11 +137,11 @@ export function RefereePortal() {
     await sb.from('portal_checkins').insert({
       person_type: 'referee',
       person_id: userRole.referee_id,
-      event_id: 1,
+      event_id: portalEventId,
       checked_in: newState,
     })
     await sb.from('ops_log').insert({
-      event_id: 1,
+      event_id: portalEventId,
       message: `Referee ${ref?.name} ${newState ? 'checked in' : 'checked out'} via portal`,
       log_type: newState ? 'ok' : 'info',
       occurred_at: new Date().toISOString(),
@@ -149,6 +150,8 @@ export function RefereePortal() {
     setCheckingIn(false)
     toast.success(newState ? '✓ You are checked in!' : 'Checked out')
   }
+
+  if (!portalEventId) return null
 
   if (loading)
     return (
@@ -396,7 +399,11 @@ export function RefereePortal() {
           </div>
         )}
         {tab === 'approvals' && (
-          <ApprovalsPanel personName={ref?.name ?? 'Referee'} personType="referee" />
+          <ApprovalsPanel
+            personName={ref?.name ?? 'Referee'}
+            personType="referee"
+            eventId={portalEventId}
+          />
         )}
       </div>
     </div>
@@ -407,9 +414,11 @@ export function RefereePortal() {
 function ApprovalsPanel({
   personName,
   personType,
+  eventId,
 }: {
   personName: string
   personType: 'referee' | 'volunteer'
+  eventId: number
 }) {
   const [approvals, setApprovals] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -421,7 +430,7 @@ function ApprovalsPanel({
 
   async function load() {
     setLoading(true)
-    const res = await fetch('/api/eligibility?all=1&event_id=1')
+    const res = await fetch(`/api/eligibility?all=1&event_id=${eventId}`)
     if (res.ok) setApprovals(await res.json())
     setLoading(false)
   }

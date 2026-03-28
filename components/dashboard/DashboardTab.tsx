@@ -2,16 +2,32 @@
 
 import { useState } from 'react'
 import { useApp } from '@/lib/store'
+import { useAuth } from '@/lib/auth'
 import { StatusBadge, Modal, Btn } from '@/components/ui'
 import { cn, nextStatusLabel, nextGameStatus } from '@/lib/utils'
+import { createClient } from '@/supabase/client'
 import toast from 'react-hot-toast'
 import type { Game, GameStatus } from '@/types'
 
+function timeToMin(t: string): number {
+  const m = t.match(/(\d+):(\d+)\s*(AM|PM)/i)
+  if (!m) return 0
+  let h = parseInt(m[1])
+  const min = parseInt(m[2])
+  if (m[3].toUpperCase() === 'PM' && h !== 12) h += 12
+  if (m[3].toUpperCase() === 'AM' && h === 12) h = 0
+  return h * 60 + min
+}
+
 export function DashboardTab() {
   const { state, updateGameStatus, updateGameScore, addLog } = useApp()
+  const { userRole, isCoach } = useAuth()
   const [selectedGame, setSelectedGame] = useState<Game | null>(null)
   const [homeScore, setHomeScore] = useState(0)
   const [awayScore, setAwayScore] = useState(0)
+  // Use latest weather reading from auto-poll (store)
+  const readings = Object.values(state.weatherReadings)
+  const latestWeather = readings.length > 0 ? readings[0] : null
 
   function openGame(game: Game) {
     setSelectedGame(game)
@@ -39,8 +55,198 @@ export function DashboardTab() {
   const fields = state.fields.slice(0, 12)
   const priority: GameStatus[] = ['Live', 'Starting', 'Halftime', 'Scheduled', 'Delayed', 'Final']
 
+  const lightningActive = state.lightningActive
+  const countdownM = Math.floor(state.lightningSecondsLeft / 60)
+  const countdownS = state.lightningSecondsLeft % 60
+  const activeAlerts = state.weatherAlerts.filter((a) => a.is_active).length
+
   return (
     <div>
+      {/* ── Weather / Lightning Banner (all users) ────────────── */}
+      {lightningActive ? (
+        <div
+          className="rounded-lg mb-4 px-4 py-2.5 flex items-center justify-between lightning-flash"
+          style={{
+            background: 'linear-gradient(90deg, #7f1d1d, #991b1b, #7f1d1d)',
+            border: '2px solid #ef4444',
+            boxShadow: '0 0 20px #ef444440',
+          }}
+        >
+          <div className="flex items-center gap-3">
+            <span className="text-lg">⚡</span>
+            <span className="font-cond text-[13px] font-black tracking-[.12em] text-white uppercase">
+              Lightning Delay Active
+            </span>
+          </div>
+          <div className="flex items-center gap-4">
+            {activeAlerts > 0 && (
+              <span className="font-cond text-[11px] font-bold tracking-wide text-yellow-300">
+                ⚠ {activeAlerts} ALERT{activeAlerts > 1 ? 'S' : ''}
+              </span>
+            )}
+            <span className="font-mono text-[22px] font-black text-white tabular-nums">
+              {countdownM}:{countdownS.toString().padStart(2, '0')}
+            </span>
+            <span className="font-cond text-[10px] font-bold tracking-wider text-red-200 uppercase">
+              Remaining
+            </span>
+          </div>
+        </div>
+      ) : activeAlerts > 0 ? (
+        <div
+          className="rounded-lg mb-4 px-4 py-2 flex items-center justify-between"
+          style={{
+            background: 'linear-gradient(90deg, #422006, #4a2506, #422006)',
+            border: '1px solid #a16207',
+          }}
+        >
+          <div className="flex items-center gap-3">
+            <span className="text-sm">⚠</span>
+            <span className="font-cond text-[12px] font-black tracking-[.1em] text-yellow-300 uppercase">
+              {activeAlerts} Active Weather Alert{activeAlerts > 1 ? 's' : ''}
+            </span>
+          </div>
+          <div className="flex items-center gap-3">
+            {latestWeather && (
+              <div className="flex items-center gap-3 text-[11px] font-mono text-yellow-200/70">
+                <span>{latestWeather.temperature_f}°F</span>
+                <span className="text-yellow-700">·</span>
+                <span>HI {latestWeather.heat_index_f}°F</span>
+              </div>
+            )}
+            <button
+              onClick={async () => {
+                const sb = createClient()
+                const active = state.weatherAlerts.filter((a) => a.is_active)
+                for (const a of active) {
+                  await sb.from('weather_alerts').update({ is_active: false }).eq('id', a.id)
+                }
+                toast.success(`${active.length} alert${active.length > 1 ? 's' : ''} resolved`)
+              }}
+              className="font-cond text-[10px] font-bold tracking-wider px-2.5 py-1 rounded bg-green-900/40 text-green-400 border border-green-800/50 hover:bg-green-800/60 transition-colors"
+            >
+              RESOLVE ALL
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div
+          className="rounded-lg mb-4 px-4 py-1.5 flex items-center justify-between"
+          style={{
+            background: '#051a10',
+            border: '1px solid #166534',
+          }}
+        >
+          <div className="flex items-center gap-2">
+            <span className="font-cond text-[11px] font-black tracking-[.1em] text-green-400 uppercase">
+              ✓ Weather: All Clear
+            </span>
+          </div>
+          {latestWeather ? (
+            <div className="flex items-center gap-3 text-[11px] font-mono text-green-200/60">
+              <span>{latestWeather.temperature_f}°F</span>
+              <span className="text-green-800">·</span>
+              <span>
+                Heat Index{' '}
+                <span
+                  className={cn(
+                    'font-bold',
+                    !latestWeather.heat_index_f
+                      ? ''
+                      : latestWeather.heat_index_f >= 113
+                        ? 'text-red-400'
+                        : latestWeather.heat_index_f >= 103
+                          ? 'text-orange-400'
+                          : latestWeather.heat_index_f >= 95
+                            ? 'text-yellow-400'
+                            : 'text-green-400'
+                  )}
+                >
+                  {latestWeather.heat_index_f}°F
+                </span>
+              </span>
+              <span className="text-green-800">·</span>
+              <span className="capitalize">{latestWeather.conditions}</span>
+            </div>
+          ) : (
+            <span className="font-cond text-[10px] text-green-600">No weather data yet</span>
+          )}
+        </div>
+      )}
+
+      {/* ── Coach: My Games ────────────────────────────── */}
+      {isCoach &&
+        userRole?.team_id &&
+        (() => {
+          const coachGames = state.games.filter(
+            (g) => g.home_team_id === userRole.team_id || g.away_team_id === userRole.team_id
+          )
+          const coachTeam = state.teams.find((t) => t.id === userRole.team_id)
+          return coachGames.length > 0 ? (
+            <div className="mb-6">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-1 h-5 rounded-sm bg-blue-400" />
+                <span className="font-cond text-[13px] font-black tracking-[.15em] text-white uppercase">
+                  My Games {coachTeam ? `— ${coachTeam.name}` : ''}
+                </span>
+              </div>
+              <div className="space-y-2">
+                {coachGames.map((g) => (
+                  <div
+                    key={g.id}
+                    className="bg-[#081428] border border-[#1a2d50] rounded-lg p-3 flex items-center justify-between cursor-pointer hover:border-blue-500/40 transition-colors"
+                    onClick={() => openGame(g)}
+                  >
+                    <div className="flex items-center gap-4">
+                      <StatusBadge status={g.status} />
+                      <div className="text-[11px] text-muted font-cond">
+                        {g.field?.name ?? 'TBD'} · {g.scheduled_time ?? '—'}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {g.home_team?.logo_url && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={g.home_team.logo_url}
+                          alt=""
+                          className="w-5 h-5 rounded object-cover"
+                        />
+                      )}
+                      <span
+                        className={cn(
+                          'font-cond text-[13px] font-bold',
+                          g.home_team_id === userRole.team_id ? 'text-blue-300' : 'text-white'
+                        )}
+                      >
+                        {g.home_team?.name ?? 'TBD'}
+                      </span>
+                      <span className="font-mono text-[15px] font-bold text-white">
+                        {g.home_score}–{g.away_score}
+                      </span>
+                      <span
+                        className={cn(
+                          'font-cond text-[13px] font-bold',
+                          g.away_team_id === userRole.team_id ? 'text-blue-300' : 'text-white'
+                        )}
+                      >
+                        {g.away_team?.name ?? 'TBD'}
+                      </span>
+                      {g.away_team?.logo_url && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={g.away_team.logo_url}
+                          alt=""
+                          className="w-5 h-5 rounded object-cover"
+                        />
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null
+        })()}
+
       {/* Section label */}
       <div className="flex items-center gap-3 mb-4">
         <div className="w-1 h-5 rounded-sm bg-red" />
@@ -52,26 +258,56 @@ export function DashboardTab() {
         </span>
       </div>
 
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-3">
         {fields.map((field) => {
-          const fieldGames = state.games.filter((g) => g.field_id === field.id)
-          let game: Game | undefined
+          const fieldGames = state.games
+            .filter((g) => g.field_id === field.id)
+            .sort((a, b) => timeToMin(a.scheduled_time) - timeToMin(b.scheduled_time))
+          // Show the current/active game in the main card
+          let activeGame: Game | undefined
           for (const p of priority) {
-            game = fieldGames.find((g) => g.status === p)
-            if (game) break
+            activeGame = fieldGames.find((g) => g.status === p)
+            if (activeGame) break
           }
-          if (!game) game = fieldGames[fieldGames.length - 1]
+          if (!activeGame) activeGame = fieldGames[0]
           return (
-            <FieldCard
-              key={field.id}
-              field={field}
-              game={game ?? null}
-              onOpen={openGame}
-              onCycleStatus={async (g) => {
-                const n = nextGameStatus(g.status)
-                if (n) await handleStatusChange(g, n)
-              }}
-            />
+            <div key={field.id} className="flex flex-col">
+              <FieldCard
+                field={field}
+                game={activeGame ?? null}
+                onOpen={openGame}
+                onCycleStatus={async (g) => {
+                  const n = nextGameStatus(g.status)
+                  if (n) await handleStatusChange(g, n)
+                }}
+              />
+              {/* Show all games for this field */}
+              {fieldGames.length > 1 && (
+                <div className="bg-surface-card/50 border border-t-0 border-border rounded-b-lg px-2 py-1 space-y-0.5 -mt-1">
+                  {fieldGames.map((g) => {
+                    const isActive = g.id === activeGame?.id
+                    return (
+                      <button
+                        key={g.id}
+                        onClick={() => openGame(g)}
+                        className={cn(
+                          'w-full flex items-center gap-2 px-2 py-1 rounded text-left transition-colors',
+                          isActive ? 'bg-blue-900/30 border border-blue-700/30' : 'hover:bg-white/5'
+                        )}
+                      >
+                        <span className="font-cond text-[10px] text-muted w-16 shrink-0">
+                          {g.scheduled_time}
+                        </span>
+                        <span className="font-cond text-[10px] font-bold text-white truncate flex-1">
+                          {g.home_team?.name ?? '?'} vs {g.away_team?.name ?? '?'}
+                        </span>
+                        <StatusBadge status={g.status} />
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
           )
         })}
       </div>
@@ -79,7 +315,7 @@ export function DashboardTab() {
       <Modal
         open={!!selectedGame}
         onClose={() => setSelectedGame(null)}
-        title={selectedGame ? `GAME #${selectedGame.id}` : ''}
+        title=""
         footer={
           <>
             <Btn variant="ghost" size="sm" onClick={() => setSelectedGame(null)}>
@@ -180,12 +416,22 @@ function FieldCard({
         <div className="p-3">
           {/* Scoreboard row */}
           <div className="flex items-center mb-2.5">
-            <div className="flex-1 min-w-0">
-              <div className="font-cond text-[15px] font-black text-white truncate leading-tight">
-                {game.home_team?.name ?? '?'}
-              </div>
-              <div className="font-cond text-[9px] tracking-[.1em]" style={{ color: '#5a6e9a' }}>
-                HOME
+            <div className="flex-1 min-w-0 flex items-center gap-1.5">
+              {game.home_team?.logo_url && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={game.home_team.logo_url}
+                  alt=""
+                  className="w-5 h-5 rounded object-cover flex-shrink-0"
+                />
+              )}
+              <div>
+                <div className="font-cond text-[15px] font-black text-white truncate leading-tight">
+                  {game.home_team?.name ?? '?'}
+                </div>
+                <div className="font-cond text-[9px] tracking-[.1em]" style={{ color: '#5a6e9a' }}>
+                  HOME
+                </div>
               </div>
             </div>
 
@@ -209,16 +455,26 @@ function FieldCard({
               </div>
             )}
 
-            <div className="flex-1 min-w-0 text-right">
-              <div className="font-cond text-[15px] font-black text-white truncate leading-tight">
-                {game.away_team?.name ?? '?'}
+            <div className="flex-1 min-w-0 flex items-center justify-end gap-1.5">
+              <div className="text-right">
+                <div className="font-cond text-[15px] font-black text-white truncate leading-tight">
+                  {game.away_team?.name ?? '?'}
+                </div>
+                <div
+                  className="font-cond text-[9px] tracking-[.1em] text-right"
+                  style={{ color: '#5a6e9a' }}
+                >
+                  AWAY
+                </div>
               </div>
-              <div
-                className="font-cond text-[9px] tracking-[.1em] text-right"
-                style={{ color: '#5a6e9a' }}
-              >
-                AWAY
-              </div>
+              {game.away_team?.logo_url && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={game.away_team.logo_url}
+                  alt=""
+                  className="w-5 h-5 rounded object-cover flex-shrink-0"
+                />
+              )}
             </div>
           </div>
 
@@ -296,7 +552,15 @@ function GameDetail({
           {game.field?.name?.toUpperCase()} · {game.scheduled_time} · {game.division}
         </div>
         <div className="flex items-center justify-center gap-6">
-          <div className="text-center flex-1">
+          <div className="text-center flex-1 flex flex-col items-center gap-1.5">
+            {game.home_team?.logo_url && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={game.home_team.logo_url}
+                alt=""
+                className="w-10 h-10 rounded object-cover"
+              />
+            )}
             <div className="font-cond text-[20px] font-black text-white leading-tight">
               {game.home_team?.name}
             </div>
@@ -351,7 +615,15 @@ function GameDetail({
               +
             </button>
           </div>
-          <div className="text-center flex-1">
+          <div className="text-center flex-1 flex flex-col items-center gap-1.5">
+            {game.away_team?.logo_url && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={game.away_team.logo_url}
+                alt=""
+                className="w-10 h-10 rounded object-cover"
+              />
+            )}
             <div className="font-cond text-[20px] font-black text-white leading-tight">
               {game.away_team?.name}
             </div>

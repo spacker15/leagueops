@@ -5,7 +5,6 @@ import { useApp } from '@/lib/store'
 import { useAuth } from '@/lib/auth'
 import { createClient } from '@/supabase/client'
 import { cn } from '@/lib/utils'
-import { runUnifiedEngine, resolveAlert, generateShiftHandoff } from '@/lib/engines/unified'
 import type { OpsAlert } from '@/lib/engines/unified'
 import toast from 'react-hot-toast'
 import {
@@ -42,7 +41,7 @@ interface OpsLogEntry {
 const SEVERITY_ORDER = { critical: 0, warning: 1, info: 2, resolved: 99 }
 
 export function CommandCenter() {
-  const { state, currentDate } = useApp()
+  const { state, currentDate, eventId } = useApp()
   const { userRole } = useAuth()
   const [tab, setTab] = useState<CmdTab>('alerts')
   const [running, setRunning] = useState(false)
@@ -58,12 +57,9 @@ export function CommandCenter() {
   const feedRef = useRef<HTMLDivElement>(null)
   const feedPausedRef = useRef(false)
 
-  const approverName = userRole?.display_name ?? 'Staff'
-  const eventDateId = currentDate?.id ?? 1
-
   const loadAlerts = useCallback(async () => {
     const sb = createClient()
-    const query = sb.from('ops_alerts').select('*').eq('event_id', 1)
+    const query = sb.from('ops_alerts').select('*').eq('event_id', eventId)
     const { data } = showResolved
       ? await query.order('created_at', { ascending: false }).limit(100)
       : await query.eq('resolved', false).order('created_at', { ascending: false })
@@ -81,7 +77,7 @@ export function CommandCenter() {
     const { data } = await sb
       .from('ops_log')
       .select('*')
-      .eq('event_id', 1)
+      .eq('event_id', eventId)
       .order('occurred_at', { ascending: false })
       .limit(80)
     setFeed((data as OpsLogEntry[]) ?? [])
@@ -138,7 +134,16 @@ export function CommandCenter() {
   async function handleRunAll() {
     setRunning(true)
     try {
-      const result = await runUnifiedEngine(eventDateId)
+      const response = await fetch('/api/unified-engine', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event_date_id: eventDateId, event_id: eventId }),
+      })
+      if (!response.ok) {
+        const { error } = await response.json()
+        throw new Error(error ?? 'Engine run failed')
+      }
+      const result = await response.json()
       setRunResult(result)
       setLastRun(new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }))
       await loadAlerts()
@@ -158,7 +163,15 @@ export function CommandCenter() {
   async function handleResolve(alertId: number, note?: string) {
     setResolvingId(alertId)
     try {
-      await resolveAlert(alertId, approverName, note)
+      const response = await fetch('/api/unified-engine/resolve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ alert_id: alertId, resolved_by: approverName, note }),
+      })
+      if (!response.ok) {
+        const { error } = await response.json()
+        throw new Error(error ?? 'Resolve failed')
+      }
       toast.success('Resolved')
       await loadAlerts()
     } catch (err: any) {
@@ -170,14 +183,29 @@ export function CommandCenter() {
   async function handleGenerateHandoff() {
     setGeneratingHandoff(true)
     try {
-      const summary = await generateShiftHandoff(approverName)
-      setHandoff(summary)
+      const response = await fetch('/api/shift-handoff', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ created_by: approverName }),
+      })
+      if (!response.ok) {
+        const { error } = await response.json()
+        throw new Error(error ?? 'Shift handoff failed')
+      }
+      const handoffData = await response.json()
+      setHandoff(handoffData.summary ?? handoffData)
       toast.success('Shift handoff generated')
     } catch (err: any) {
       toast.error(err.message)
     }
     setGeneratingHandoff(false)
   }
+
+  if (!eventId) return null
+  if (!currentDate) return null // D-02: guard before deriving eventDateId
+  const eventDateId = currentDate.id
+
+  const approverName = userRole?.display_name ?? 'Staff'
 
   const criticals = alerts.filter((a) => a.severity === 'critical' && !a.resolved)
   const warnings = alerts.filter((a) => a.severity === 'warning' && !a.resolved)
@@ -413,6 +441,7 @@ export function CommandCenter() {
                   games={fieldGames}
                   liveGame={liveGame}
                   fieldAlerts={fieldAlerts}
+                  eventId={eventId}
                 />
               )
             })}
@@ -461,7 +490,7 @@ export function CommandCenter() {
               </pre>
             </div>
           ) : (
-            <HandoffHistory />
+            <HandoffHistory eventId={eventId} />
           )}
         </div>
       )}
@@ -684,11 +713,13 @@ function FieldCard({
   games,
   liveGame,
   fieldAlerts,
+  eventId,
 }: {
   field: any
   games: any[]
   liveGame: any
   fieldAlerts: OpsAlert[]
+  eventId: number
 }) {
   const [expanded, setExpanded] = useState(false)
   const hasCritical = fieldAlerts.some((a) => a.severity === 'critical')
@@ -759,7 +790,7 @@ function FieldCard({
           {games.length === 0 ? (
             <div className="px-4 py-3 text-muted font-cond text-[11px]">No games assigned</div>
           ) : (
-            games.map((g: any) => <GameRow key={g.id} game={g} />)
+            games.map((g: any) => <GameRow key={g.id} game={g} eventId={eventId} />)
           )}
         </div>
       )}
@@ -768,7 +799,7 @@ function FieldCard({
 }
 
 // ─── Game Row in field card ────────────────────────────────────
-function GameRow({ game }: { game: any }) {
+function GameRow({ game, eventId }: { game: any; eventId: number }) {
   const [managing, setManaging] = useState(false)
 
   const statusCfg: Record<string, string> = {
@@ -784,7 +815,7 @@ function GameRow({ game }: { game: any }) {
     const sb = createClient()
     await sb.from('games').update({ status: newStatus }).eq('id', game.id)
     await sb.from('ops_log').insert({
-      event_id: 1,
+      event_id: eventId,
       message: `Game #${game.id} status → ${newStatus} (via Command Center)`,
       log_type: newStatus === 'Live' ? 'ok' : newStatus === 'Final' ? 'info' : 'warn',
       source: 'command_center',
@@ -850,7 +881,7 @@ function GameRow({ game }: { game: any }) {
 }
 
 // ─── Handoff History ──────────────────────────────────────────
-function HandoffHistory() {
+function HandoffHistory({ eventId }: { eventId: number }) {
   const [history, setHistory] = useState<any[]>([])
   const [selected, setSelected] = useState<any>(null)
 
@@ -858,7 +889,7 @@ function HandoffHistory() {
     const sb = createClient()
     sb.from('shift_handoffs')
       .select('*')
-      .eq('event_id', 1)
+      .eq('event_id', eventId)
       .order('created_at', { ascending: false })
       .limit(10)
       .then(({ data }) => setHistory(data ?? []))

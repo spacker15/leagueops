@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/supabase/client'
+import { useApp } from '@/lib/store'
 import { Btn, SectionHeader } from '@/components/ui'
 import { cn } from '@/lib/utils'
 import toast from 'react-hot-toast'
@@ -34,6 +35,7 @@ const QUESTION_TYPES = ['text', 'textarea', 'select', 'checkbox', 'number', 'pho
 const SECTIONS = ['program', 'team', 'coach']
 
 export function RegistrationConfig() {
+  const { eventId } = useApp()
   const [divisions, setDivisions] = useState<Division[]>([])
   const [questions, setQuestions] = useState<Question[]>([])
   const [activeTab, setActiveTab] = useState<'divisions' | 'questions'>('divisions')
@@ -55,14 +57,15 @@ export function RegistrationConfig() {
   const [newQOptions, setNewQOptions] = useState('') // comma-separated
 
   const load = useCallback(async () => {
+    if (!eventId) return
     const sb = createClient()
     setLoading(true)
     const [{ data: divs }, { data: qs }] = await Promise.all([
-      sb.from('registration_divisions').select('*').eq('event_id', 1).order('sort_order'),
+      sb.from('registration_divisions').select('*').eq('event_id', eventId).order('sort_order'),
       sb
         .from('registration_questions')
         .select('*')
-        .eq('event_id', 1)
+        .eq('event_id', eventId)
         .order('section')
         .order('sort_order'),
     ])
@@ -91,7 +94,7 @@ export function RegistrationConfig() {
     const sb = createClient()
     const nextOrder = Math.max(0, ...divisions.map((d) => d.sort_order)) + 1
     const { error } = await sb.from('registration_divisions').insert({
-      event_id: 1,
+      event_id: eventId,
       name: newDivName,
       age_group: newDivAge || null,
       gender: newDivGender || null,
@@ -152,7 +155,7 @@ export function RegistrationConfig() {
             .filter(Boolean)
         : null
     const { error } = await sb.from('registration_questions').insert({
-      event_id: 1,
+      event_id: eventId,
       section: newQSection,
       question_key: key,
       question_text: newQText,

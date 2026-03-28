@@ -1,19 +1,59 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/supabase/server'
+import { createClient } from '@/lib/supabase/server'
+import { createFieldSchema } from '@/schemas/fields'
 
 export async function GET(req: NextRequest) {
-  const sb = createClient()
+  // 1. Auth guard (SEC-02)
+  const supabase = await createClient()
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser()
+
+  if (authError || !user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
   const { searchParams } = new URL(req.url)
-  const eventId = searchParams.get('event_id') ?? '1'
-  const { data, error } = await sb.from('fields').select('*').eq('event_id', eventId).order('id')
+  const eventId = searchParams.get('event_id')
+  if (!eventId) return NextResponse.json({ error: 'event_id required' }, { status: 400 })
+  const { data, error } = await supabase
+    .from('fields')
+    .select('*')
+    .eq('event_id', eventId)
+    .order('id')
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data)
 }
 
 export async function POST(req: NextRequest) {
-  const sb = createClient()
-  const body = await req.json()
-  const { data, error } = await sb.from('fields').insert(body).select().single()
+  // 1. Auth guard (SEC-02)
+  const supabase = await createClient()
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser()
+
+  if (authError || !user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  // 2. Parse raw JSON body (SEC-07)
+  let body: unknown
+  try {
+    body = await req.json()
+  } catch {
+    return NextResponse.json({ success: false, error: 'Invalid JSON body' }, { status: 400 })
+  }
+
+  // 3. Zod validation (SEC-07)
+  const result = createFieldSchema.safeParse(body)
+  if (!result.success) {
+    return NextResponse.json({ success: false, error: result.error.flatten() }, { status: 400 })
+  }
+
+  // 4. Business logic
+  const { data, error } = await supabase.from('fields').insert(result.data).select().single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data, { status: 201 })
 }

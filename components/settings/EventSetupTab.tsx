@@ -25,20 +25,35 @@ import {
   Lock,
   Pencil,
   Check,
+  Shield,
+  ChevronDown,
+  Copy,
+  Share2,
+  Mail,
+  MessageSquare,
+  Download,
+  QrCode,
 } from 'lucide-react'
+import { QRCodeSVG, QRCodeCanvas } from 'qrcode.react'
+import { Btn, Modal, Pill } from '@/components/ui'
 import * as db from '@/lib/db'
-import type { Complex } from '@/types'
+import type { Complex, EventDate } from '@/types'
+import { VenueAutocompleteInput } from '@/components/events/VenueAutocompleteInput'
+import { MultiDatePicker } from '@/components/events/MultiDatePicker'
+import { format, parseISO } from 'date-fns'
 
 type SetupStep = 'sport' | 'type' | 'details' | 'done'
 type SettingsTab =
   | 'general'
   | 'schedule'
+  | 'rules'
   | 'public'
   | 'scoring'
   | 'advanced'
   | 'branding'
   | 'map'
   | 'permissions'
+  | 'sharing'
 
 const SPORTS = [
   { name: 'Lacrosse', icon: '🥍' },
@@ -87,6 +102,7 @@ interface EventData {
   end_date: string
   time_zone: string
   status: string
+  slug: string
   // General
   message: string
   hotel_link: string
@@ -104,6 +120,8 @@ interface EventData {
   back_to_back_warning: boolean
   // Public flags
   public_schedule: boolean
+  public_standings: boolean
+  public_results: boolean
   show_brackets: boolean
   show_team_list: boolean
   show_seeding: boolean
@@ -146,6 +164,15 @@ interface EventData {
   park_name: string
   primary_color: string
   secondary_color: string
+  // Venue (Phase 5)
+  venue_address: string
+  venue_lat: number | null
+  venue_lng: number | null
+  venue_place_id: string | null
+  // Registration window (Phase 6 -- REG-01)
+  registration_opens_at: string
+  registration_closes_at: string
+  registration_open: boolean | null
 }
 
 const DEFAULT_EVENT: Omit<EventData, 'id'> = {
@@ -157,6 +184,7 @@ const DEFAULT_EVENT: Omit<EventData, 'id'> = {
   end_date: '',
   time_zone: 'Eastern',
   status: 'draft',
+  slug: '',
   message: '',
   hotel_link: '',
   results_link: '',
@@ -171,6 +199,8 @@ const DEFAULT_EVENT: Omit<EventData, 'id'> = {
   highlight_schedule_changes: 0,
   back_to_back_warning: true,
   public_schedule: false,
+  public_standings: true,
+  public_results: true,
   show_brackets: true,
   show_team_list: true,
   show_seeding: false,
@@ -212,6 +242,13 @@ const DEFAULT_EVENT: Omit<EventData, 'id'> = {
   park_name: '',
   primary_color: '#0B3D91',
   secondary_color: '#D62828',
+  venue_address: '',
+  venue_lat: null,
+  venue_lng: null,
+  venue_place_id: null,
+  registration_opens_at: '',
+  registration_closes_at: '',
+  registration_open: null,
 }
 
 export function EventSetupTab({ eventId }: { eventId: number }) {
@@ -242,10 +279,469 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
   // Permissions tab state
   const [rolePerms, setRolePerms] = useState<Record<string, string[]>>({})
   const [permSaving, setPermSaving] = useState(false)
+  // Division timing overrides
+  const [divisionTimings, setDivisionTimings] = useState<
+    Record<
+      string,
+      {
+        schedule_increment?: number
+        time_between_games?: number
+        periods_per_game?: number
+        minutes_per_period?: number
+      }
+    >
+  >({})
+  const [divisionNames, setDivisionNames] = useState<string[]>([])
+  const [expandedDivision, setExpandedDivision] = useState<string | null>(null)
+  const [divTimingSaving, setDivTimingSaving] = useState(false)
+  // Season game days state
+  const [gameDays, setGameDays] = useState<
+    Record<number, { start_time: string; end_time: string; is_active: boolean }>
+  >({})
+  const [gameDaysSaving, setGameDaysSaving] = useState(false)
+  // Divisions state (general tab)
+  const [divisions, setDivisions] = useState<
+    {
+      id: number
+      name: string
+      age_group: string
+      gender: string
+      sort_order: number
+      is_active: boolean
+      max_teams: number | null
+      color: string
+    }[]
+  >([])
+  const [newDiv, setNewDiv] = useState({
+    name: '',
+    age_group: '',
+    gender: 'Coed',
+    color: '#0B3D91',
+  })
+  const [addingDiv, setAddingDiv] = useState(false)
+  const [divSaving, setDivSaving] = useState(false)
+  // Rules tab state
+  const [rules, setRules] = useState<any[]>([])
+  const [rulesLoading, setRulesLoading] = useState(false)
+  const [expandedRule, setExpandedRule] = useState<number | null>(null)
+  const [showAddRule, setShowAddRule] = useState(false)
+  const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set())
+  const [addRuleTemplate, setAddRuleTemplate] = useState('')
+  const [addRuleScope, setAddRuleScope] = useState<'global' | 'division'>('global')
+  const [addRuleDivision, setAddRuleDivision] = useState('')
+  const [ruleDivisions, setRuleDivisions] = useState<string[]>([])
+  // Copy rules state
+  const [showCopyRules, setShowCopyRules] = useState(false)
+  const [copySourceEventId, setCopySourceEventId] = useState<number | null>(null)
+  const [copyableEvents, setCopyableEvents] = useState<{ id: number; name: string }[]>([])
+  // Rule overrides state
+  const [ruleOverrides, setRuleOverrides] = useState<Record<number, any[]>>({})
+  const [overrideTeams, setOverrideTeams] = useState<
+    { id: number; name: string; division: string }[]
+  >([])
+  const [overrideEventDates, setOverrideEventDates] = useState<{ id: number; date: string }[]>([])
+  const [addingOverrideForRule, setAddingOverrideForRule] = useState<number | null>(null)
+  const [overrideForm, setOverrideForm] = useState({
+    scope_type: 'global' as string,
+    reason: '',
+    home_team_id: '',
+    away_team_id: '',
+    scope_team_id: '',
+    scope_event_date_id: '',
+    override_action: 'allow' as string,
+  })
+  // Sharing tab state
+  const [showQRModal, setShowQRModal] = useState(false)
+  const [linkCopied, setLinkCopied] = useState(false)
+  const svgRef = useRef<SVGSVGElement>(null)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  // Schedule dates state (Phase 6 -- REG-01)
+  const [eventDates, setEventDates] = useState<EventDate[]>([])
+  const [regSaving, setRegSaving] = useState(false)
 
   useEffect(() => {
     loadEvent()
+    if (eventId) {
+      loadDivisions()
+      loadEventDates()
+    }
   }, [eventId])
+
+  // Load division names and timing overrides when schedule tab is active
+  useEffect(() => {
+    if (settingsTab === 'schedule' && eventId) {
+      loadDivisionTimings()
+      if (event.event_type === 'season' || event.event_type === 'league') {
+        loadGameDays()
+      }
+    }
+  }, [settingsTab, eventId])
+
+  // Load rules when rules tab is active
+  useEffect(() => {
+    if (settingsTab === 'rules' && eventId) {
+      loadRules()
+      loadOverrideContext()
+      const sb = createClient()
+      sb.from('registration_divisions')
+        .select('name')
+        .eq('event_id', eventId)
+        .eq('is_active', true)
+        .order('sort_order')
+        .then(({ data }) => setRuleDivisions((data ?? []).map((d: { name: string }) => d.name)))
+    }
+  }, [settingsTab, eventId])
+
+  async function loadOverrideContext() {
+    if (!eventId) return
+    const sb = createClient()
+    const [teamsRes, datesRes] = await Promise.all([
+      sb.from('teams').select('id, name, division').eq('event_id', eventId).order('name'),
+      sb.from('event_dates').select('id, date').eq('event_id', eventId).order('date'),
+    ])
+    setOverrideTeams(teamsRes.data ?? [])
+    setOverrideEventDates(datesRes.data ?? [])
+  }
+
+  async function loadOverridesForRule(ruleId: number) {
+    const sb = createClient()
+    const { data } = await sb
+      .from('schedule_rule_overrides')
+      .select('*')
+      .eq('rule_id', ruleId)
+      .eq('event_id', eventId)
+      .order('created_at', { ascending: false })
+    setRuleOverrides((prev) => ({ ...prev, [ruleId]: data ?? [] }))
+  }
+
+  async function createOverride(ruleId: number) {
+    if (!overrideForm.reason.trim()) {
+      toast.error('Reason is required')
+      return
+    }
+    const sb = createClient()
+    const payload: Record<string, any> = {
+      event_id: eventId,
+      rule_id: ruleId,
+      scope_type: overrideForm.scope_type,
+      override_action: overrideForm.override_action,
+      reason: overrideForm.reason,
+      enabled: true,
+    }
+    if (overrideForm.scope_type === 'matchup') {
+      if (!overrideForm.home_team_id || !overrideForm.away_team_id) {
+        toast.error('Select both teams for matchup override')
+        return
+      }
+      payload.home_team_id = Number(overrideForm.home_team_id)
+      payload.away_team_id = Number(overrideForm.away_team_id)
+    }
+    if (overrideForm.scope_type === 'team') {
+      if (!overrideForm.scope_team_id) {
+        toast.error('Select a team')
+        return
+      }
+      payload.scope_team_id = Number(overrideForm.scope_team_id)
+    }
+    if (overrideForm.scope_type === 'week') {
+      if (!overrideForm.scope_event_date_id) {
+        toast.error('Select an event date')
+        return
+      }
+      payload.scope_event_date_id = Number(overrideForm.scope_event_date_id)
+    }
+    const { error } = await sb.from('schedule_rule_overrides').insert(payload)
+    if (error) {
+      toast.error('Failed to create override: ' + error.message)
+      return
+    }
+    toast.success('Override created')
+    setAddingOverrideForRule(null)
+    setOverrideForm({
+      scope_type: 'global',
+      reason: '',
+      home_team_id: '',
+      away_team_id: '',
+      scope_team_id: '',
+      scope_event_date_id: '',
+      override_action: 'allow',
+    })
+    loadOverridesForRule(ruleId)
+  }
+
+  async function toggleOverride(overrideId: number, ruleId: number, enabled: boolean) {
+    const sb = createClient()
+    await sb.from('schedule_rule_overrides').update({ enabled }).eq('id', overrideId)
+    loadOverridesForRule(ruleId)
+  }
+
+  async function deleteOverride(overrideId: number, ruleId: number) {
+    const sb = createClient()
+    await sb.from('schedule_rule_overrides').delete().eq('id', overrideId)
+    loadOverridesForRule(ruleId)
+    toast.success('Override deleted')
+  }
+
+  async function loadRules() {
+    if (!eventId) return
+    setRulesLoading(true)
+    try {
+      const res = await fetch(`/api/schedule-rules?event_id=${eventId}`)
+      const json = await res.json()
+      setRules(json.rules ?? [])
+    } catch {
+      toast.error('Failed to load rules')
+    } finally {
+      setRulesLoading(false)
+    }
+  }
+
+  async function toggleRuleEnabled(ruleId: number, enabled: boolean) {
+    try {
+      const res = await fetch('/api/schedule-rules', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: ruleId, enabled }),
+      })
+      if (!res.ok) throw new Error('Failed to update rule')
+      setRules((prev) => prev.map((r) => (r.id === ruleId ? { ...r, enabled } : r)))
+      toast.success(`Rule ${enabled ? 'enabled' : 'disabled'}`)
+    } catch {
+      toast.error('Failed to toggle rule')
+    }
+  }
+
+  async function deleteRule(ruleId: number) {
+    try {
+      const res = await fetch(`/api/schedule-rules?id=${ruleId}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error('Failed to delete rule')
+      setRules((prev) => prev.filter((r) => r.id !== ruleId))
+      toast.success('Rule deleted')
+    } catch {
+      toast.error('Failed to delete rule')
+    }
+  }
+
+  async function addRule(ruleData: any) {
+    try {
+      const res = await fetch('/api/schedule-rules', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event_id: eventId, ...ruleData }),
+      })
+      if (!res.ok) throw new Error('Failed to create rule')
+      const json = await res.json()
+      setRules((prev) => [...prev, json.rule])
+      setShowAddRule(false)
+      toast.success('Rule created')
+    } catch {
+      toast.error('Failed to create rule')
+    }
+  }
+
+  async function addStandardRule(templateKey: string, division?: string) {
+    const templates: Record<
+      string,
+      { rule_name: string; conditions: Record<string, unknown>; notes: string }
+    > = {
+      no_back_to_back: {
+        rule_name: 'No Back-to-Back Games',
+        conditions: { min_gap_slots: 1 },
+        notes: 'Teams must have at least 1 time slot gap between games',
+      },
+      max_games_per_day: {
+        rule_name: 'Max Games Per Day',
+        conditions: { max_games_per_day: 3 },
+        notes: 'Teams cannot play more than 3 games in a single day',
+      },
+      no_repeat_matchups: {
+        rule_name: 'No Repeat Matchups',
+        conditions: { max_meetings: 1 },
+        notes: 'Teams cannot play each other more than once',
+      },
+    }
+    const tpl = templates[templateKey]
+    if (!tpl) return
+    const ruleName = division ? `${tpl.rule_name} (${division})` : tpl.rule_name
+    if (rules.some((r) => r.rule_name === ruleName)) {
+      toast.error(`"${ruleName}" already exists`)
+      return
+    }
+    await addRule({
+      rule_name: ruleName,
+      rule_type: 'constraint',
+      category: division ? 'division' : 'global',
+      scope_division: division ?? null,
+      action: 'block',
+      enforcement: 'hard',
+      conditions: tpl.conditions,
+      action_params: {},
+      priority: division ? 90 : 100,
+      notes: division ? `${tpl.notes} — applies to ${division} only` : tpl.notes,
+    })
+  }
+
+  async function loadCopyableEvents() {
+    const sb = createClient()
+    const { data } = await sb.from('events').select('id, name').neq('id', eventId).order('name')
+    setCopyableEvents(data ?? [])
+    setShowCopyRules(true)
+  }
+
+  async function copyRulesFromEvent(sourceEventId: number) {
+    const sb = createClient()
+
+    // Fetch source rules
+    const { data: sourceRules, error: fetchErr } = await sb
+      .from('schedule_rules')
+      .select('*')
+      .eq('event_id', sourceEventId)
+
+    if (fetchErr || !sourceRules) {
+      toast.error('Failed to load source rules')
+      return
+    }
+
+    // Insert as new rules for current event
+    const newRules = sourceRules.map(({ id, event_id, created_at, updated_at, ...rule }: any) => ({
+      ...rule,
+      event_id: eventId,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }))
+
+    const { error: insertErr } = await sb
+      .from('schedule_rules')
+      .upsert(newRules, { onConflict: 'event_id,rule_name' })
+
+    if (insertErr) {
+      toast.error(insertErr.message)
+      return
+    }
+
+    const sourceName = copyableEvents.find((e) => e.id === sourceEventId)?.name ?? 'event'
+    toast.success(`Copied ${newRules.length} rules from ${sourceName}`)
+    setShowCopyRules(false)
+    setCopySourceEventId(null)
+    loadRules()
+  }
+
+  async function loadDivisionTimings() {
+    const sb = createClient()
+    const { data: divs } = await sb
+      .from('registration_divisions')
+      .select('name')
+      .eq('event_id', eventId)
+      .eq('is_active', true)
+      .order('sort_order')
+    const names = (divs ?? []).map((d: any) => d.name as string)
+    setDivisionNames(names)
+
+    const { data: timings } = await sb.from('division_timing').select('*').eq('event_id', eventId)
+    const map: Record<
+      string,
+      {
+        schedule_increment?: number
+        time_between_games?: number
+        periods_per_game?: number
+        minutes_per_period?: number
+      }
+    > = {}
+    for (const t of timings ?? []) {
+      map[(t as any).division_name] = {
+        schedule_increment: (t as any).schedule_increment ?? undefined,
+        time_between_games: (t as any).time_between_games ?? undefined,
+        periods_per_game: (t as any).periods_per_game ?? undefined,
+        minutes_per_period: (t as any).minutes_per_period ?? undefined,
+      }
+    }
+    setDivisionTimings(map)
+  }
+
+  async function saveDivisionTiming(divName: string) {
+    setDivTimingSaving(true)
+    const sb = createClient()
+    const vals = divisionTimings[divName]
+    if (
+      !vals ||
+      (vals.schedule_increment == null &&
+        vals.time_between_games == null &&
+        vals.periods_per_game == null &&
+        vals.minutes_per_period == null)
+    ) {
+      // Delete override if all blank
+      await sb.from('division_timing').delete().eq('event_id', eventId).eq('division_name', divName)
+    } else {
+      await sb.from('division_timing').upsert(
+        {
+          event_id: eventId,
+          division_name: divName,
+          schedule_increment: vals.schedule_increment ?? null,
+          time_between_games: vals.time_between_games ?? null,
+          periods_per_game: vals.periods_per_game ?? null,
+          minutes_per_period: vals.minutes_per_period ?? null,
+        },
+        { onConflict: 'event_id,division_name' }
+      )
+    }
+    setDivTimingSaving(false)
+    toast.success(`Timing saved for ${divName}`)
+  }
+
+  function clearDivisionTiming(divName: string) {
+    setDivisionTimings((prev) => {
+      const next = { ...prev }
+      delete next[divName]
+      return next
+    })
+  }
+
+  function setDivTiming(divName: string, field: string, value: number | undefined) {
+    setDivisionTimings((prev) => ({
+      ...prev,
+      [divName]: { ...prev[divName], [field]: value },
+    }))
+  }
+
+  async function loadGameDays() {
+    const sb = createClient()
+    const { data } = await sb.from('season_game_days').select('*').eq('event_id', eventId)
+    const map: Record<number, { start_time: string; end_time: string; is_active: boolean }> = {}
+    for (const row of data ?? []) {
+      map[(row as any).day_of_week] = {
+        start_time: (row as any).start_time ?? '09:00',
+        end_time: (row as any).end_time ?? '17:00',
+        is_active: (row as any).is_active ?? true,
+      }
+    }
+    setGameDays(map)
+  }
+
+  async function saveGameDays() {
+    setGameDaysSaving(true)
+    const sb = createClient()
+    // Delete all existing rows for this event, then insert active ones
+    await sb.from('season_game_days').delete().eq('event_id', eventId)
+    const rows = Object.entries(gameDays)
+      .filter(([, v]) => v.is_active)
+      .map(([day, v]) => ({
+        event_id: eventId,
+        day_of_week: Number(day),
+        start_time: v.start_time,
+        end_time: v.end_time,
+        is_active: true,
+      }))
+    if (rows.length > 0) {
+      const { error } = await sb.from('season_game_days').insert(rows)
+      if (error) {
+        toast.error(error.message)
+        setGameDaysSaving(false)
+        return
+      }
+    }
+    toast.success('Game days saved')
+    setGameDaysSaving(false)
+  }
 
   async function loadComplexes(eventId: number) {
     const data = await db.getComplexes(eventId)
@@ -267,6 +763,7 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
         end_date: d.end_date ?? '',
         time_zone: d.time_zone ?? 'Eastern',
         status: d.status ?? 'draft',
+        slug: d.slug ?? '',
         message: d.message ?? '',
         hotel_link: d.hotel_link ?? '',
         results_link: d.results_link ?? '',
@@ -281,6 +778,8 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
         highlight_schedule_changes: d.highlight_schedule_changes ?? 0,
         back_to_back_warning: d.back_to_back_warning ?? true,
         public_schedule: d.public_schedule ?? false,
+        public_standings: d.public_standings ?? true,
+        public_results: d.public_results ?? true,
         show_brackets: d.show_brackets ?? true,
         show_team_list: d.show_team_list ?? true,
         show_seeding: d.show_seeding ?? false,
@@ -322,6 +821,15 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
         park_name: d.park_name ?? '',
         primary_color: d.primary_color ?? '#0B3D91',
         secondary_color: d.secondary_color ?? '#D62828',
+        venue_address: d.venue_address ?? '',
+        venue_lat: d.venue_lat ?? null,
+        venue_lng: d.venue_lng ?? null,
+        venue_place_id: d.venue_place_id ?? null,
+        registration_opens_at: d.registration_opens_at ? d.registration_opens_at.slice(0, 16) : '',
+        registration_closes_at: d.registration_closes_at
+          ? d.registration_closes_at.slice(0, 16)
+          : '',
+        registration_open: d.registration_open ?? null,
       })
       setLogoPreview(d.logo_url ?? null)
       setMapPhotoUrl(d.park_photo_url ?? null)
@@ -333,6 +841,65 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
       loadComplexes(d.id)
     }
     setLoading(false)
+  }
+
+  async function loadEventDates() {
+    if (!eventId) return
+    const sb = createClient()
+    const { data } = await sb.from('event_dates').select('*').eq('event_id', eventId).order('date')
+    setEventDates((data as EventDate[]) ?? [])
+  }
+
+  async function toggleEventDate(isoDate: string) {
+    if (!eventId) return
+    const sb = createClient()
+    const existing = eventDates.find((d) => d.date === isoDate)
+    if (existing) {
+      // Delete it
+      const { error } = await sb.from('event_dates').delete().eq('id', existing.id)
+      if (error) {
+        toast.error(error.message)
+        return
+      }
+      setEventDates((prev) => prev.filter((d) => d.id !== existing.id))
+    } else {
+      // Insert new entry -- day_number is sequential based on sorted dates
+      const parsedDate = parseISO(isoDate)
+      const dayLabel = format(parsedDate, 'EEEE')
+      // Compute day_number as position in sorted list
+      const sortedDates = [...eventDates.map((d) => d.date), isoDate].sort()
+      const dayNumber = sortedDates.indexOf(isoDate) + 1
+      const { data, error } = await sb
+        .from('event_dates')
+        .insert({ event_id: eventId, date: isoDate, label: dayLabel, day_number: dayNumber })
+        .select()
+        .single()
+      if (error) {
+        toast.error(error.message)
+        return
+      }
+      setEventDates((prev) =>
+        [...prev, data as EventDate].sort((a, b) => a.date.localeCompare(b.date))
+      )
+    }
+    toast.success('Schedule dates saved')
+  }
+
+  async function saveRegistrationSettings() {
+    setRegSaving(true)
+    const sb = createClient()
+    const { error } = await sb
+      .from('events')
+      .update({
+        registration_opens_at: event.registration_opens_at || null,
+        registration_closes_at: event.registration_closes_at || null,
+        registration_open: event.registration_open,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', eventId)
+    if (error) toast.error(error.message)
+    else toast.success('Registration settings saved')
+    setRegSaving(false)
   }
 
   function handleMapPhotoFile(file: File) {
@@ -507,6 +1074,63 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
     setSaving(false)
   }
 
+  async function loadDivisions() {
+    const sb = createClient()
+    const { data } = await sb
+      .from('registration_divisions')
+      .select('*')
+      .eq('event_id', eventId)
+      .order('sort_order')
+    setDivisions((data as any[]) ?? [])
+  }
+
+  async function addDivision() {
+    if (!newDiv.name.trim()) return
+    setDivSaving(true)
+    const sb = createClient()
+    const { error } = await sb.from('registration_divisions').insert({
+      event_id: eventId,
+      name: newDiv.name.trim(),
+      age_group: newDiv.age_group.trim() || null,
+      gender: newDiv.gender,
+      color: newDiv.color,
+      sort_order: divisions.length + 1,
+      is_active: true,
+    })
+    if (error) toast.error(error.message)
+    else {
+      toast.success('Division added')
+      setNewDiv({ name: '', age_group: '', gender: 'Coed', color: '#0B3D91' })
+      setAddingDiv(false)
+      loadDivisions()
+      loadDivisionTimings()
+    }
+    setDivSaving(false)
+  }
+
+  async function removeDivision(id: number) {
+    const sb = createClient()
+    const { error } = await sb.from('registration_divisions').delete().eq('id', id)
+    if (error) toast.error(error.message)
+    else {
+      toast.success('Division removed')
+      loadDivisions()
+      loadDivisionTimings()
+    }
+  }
+
+  async function toggleDivisionActive(id: number, active: boolean) {
+    const sb = createClient()
+    await sb.from('registration_divisions').update({ is_active: active }).eq('id', id)
+    loadDivisions()
+  }
+
+  async function updateDivisionColor(id: number, color: string) {
+    const sb = createClient()
+    await sb.from('registration_divisions').update({ color }).eq('id', id)
+    setDivisions((prev) => prev.map((d) => (d.id === id ? { ...d, color } : d)))
+  }
+
   async function saveSettings() {
     setSaving(true)
     const sb = createClient()
@@ -554,6 +1178,8 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
         highlight_schedule_changes: event.highlight_schedule_changes,
         back_to_back_warning: event.back_to_back_warning,
         public_schedule: event.public_schedule,
+        public_standings: event.public_standings,
+        public_results: event.public_results,
         show_brackets: event.show_brackets,
         show_team_list: event.show_team_list,
         show_seeding: event.show_seeding,
@@ -591,6 +1217,13 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
         primary_color: event.primary_color,
         secondary_color: event.secondary_color,
         logo_url: finalLogoUrl,
+        venue_address: event.venue_address || null,
+        venue_lat: event.venue_lat,
+        venue_lng: event.venue_lng,
+        venue_place_id: event.venue_place_id || null,
+        registration_opens_at: event.registration_opens_at || null,
+        registration_closes_at: event.registration_closes_at || null,
+        registration_open: event.registration_open,
         updated_at: new Date().toISOString(),
       })
       .eq('id', eventId)
@@ -757,11 +1390,17 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
 
               <div>
                 <label className={lbl}>Location / Venue *</label>
-                <input
-                  className={inp}
+                <VenueAutocompleteInput
                   value={event.location}
-                  onChange={(e) => set('location', e.target.value)}
-                  placeholder="e.g. Julington Creek Plantation Park, Jacksonville FL"
+                  onLocationChange={(text) => set('location', text)}
+                  onVenueSelect={(venue) => {
+                    set('location', venue.address || venue.name)
+                    set('venue_address', venue.address)
+                    set('venue_lat', venue.lat)
+                    set('venue_lng', venue.lng)
+                    set('venue_place_id', venue.place_id)
+                  }}
+                  selectedPlaceId={event.venue_place_id}
                 />
               </div>
 
@@ -826,15 +1465,98 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
   const sport = SPORTS.find((s) => s.name === event.sport)
   const evType = EVENT_TYPES.find((t) => t.id === event.event_type)
 
+  function getRegistrationStatus(ev: EventData): 'open' | 'closed' | 'not_set' {
+    const now = new Date()
+    if (ev.registration_open === true) return 'open'
+    if (ev.registration_open === false) return 'closed'
+    // Auto / date-based
+    if (ev.registration_opens_at && ev.registration_closes_at) {
+      const opens = new Date(ev.registration_opens_at)
+      const closes = new Date(ev.registration_closes_at)
+      if (now >= opens && now <= closes) return 'open'
+      if (now > closes) return 'closed'
+      return 'closed' // before window opens
+    }
+    if (ev.registration_opens_at) {
+      const opens = new Date(ev.registration_opens_at)
+      if (now >= opens) return 'open'
+    }
+    return 'not_set'
+  }
+
+  const registrationStatus = getRegistrationStatus(event)
+
+  // ── SHARING TAB HELPERS ─────────────────────────────────────
+  // Registration URL uses public-results domain (separate Vercel deployment).
+  // CRITICAL: Do NOT use window.location.origin -- the /e/[slug]/register route
+  // lives in apps/public-results which is deployed at a different domain.
+  const publicResultsUrl =
+    process.env.NEXT_PUBLIC_PUBLIC_RESULTS_URL ||
+    (typeof window !== 'undefined' ? window.location.origin : '')
+  const registrationUrl = event.slug ? `${publicResultsUrl}/e/${event.slug}/register` : ''
+
+  function copyRegistrationLink() {
+    if (!registrationUrl) return
+    navigator.clipboard.writeText(registrationUrl)
+    setLinkCopied(true)
+    setTimeout(() => setLinkCopied(false), 2000)
+    toast.success('Link copied')
+  }
+
+  function downloadSVG() {
+    const svgEl = svgRef.current
+    if (!svgEl) return
+    const serializer = new XMLSerializer()
+    const source = '<?xml version="1.0" encoding="UTF-8"?>' + serializer.serializeToString(svgEl)
+    const blob = new Blob([source], { type: 'image/svg+xml;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${event.slug || 'event'}-registration-qr.svg`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  function downloadPNG() {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const url = canvas.toDataURL('image/png')
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${event.slug || 'event'}-registration-qr.png`
+    a.click()
+  }
+
+  function formatDateRange(start: string, end: string): string {
+    if (!start) return ''
+    const opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' }
+    const s = new Date(start + 'T00:00:00')
+    const e = end ? new Date(end + 'T00:00:00') : null
+    if (e && e.getTime() !== s.getTime()) {
+      return `${s.toLocaleDateString('en-US', opts)}-${e.toLocaleDateString('en-US', { ...opts, year: 'numeric' })}`
+    }
+    return s.toLocaleDateString('en-US', { ...opts, year: 'numeric' })
+  }
+
+  const shareSubject = encodeURIComponent(`Register for ${event.name}`)
+  const shareBody = encodeURIComponent(
+    `Register for ${event.name}${event.start_date ? ` (${formatDateRange(event.start_date, event.end_date)})` : ''}:\n${registrationUrl}`
+  )
+  const mailtoHref = `mailto:?subject=${shareSubject}&body=${shareBody}`
+  const smsBody = encodeURIComponent(`Register for ${event.name}: ${registrationUrl}`)
+  const smsHref = `sms:?body=${smsBody}`
+
   const SETTINGS_TABS: { id: SettingsTab; label: string; icon: React.ReactNode }[] = [
     { id: 'general', label: 'General', icon: <Settings size={13} /> },
     { id: 'schedule', label: 'Schedule', icon: <Calendar size={13} /> },
+    { id: 'rules', label: 'Rules', icon: <Shield size={13} /> },
     { id: 'public', label: 'Public', icon: <Globe size={13} /> },
     { id: 'scoring', label: 'Scoring', icon: <BarChart2 size={13} /> },
     { id: 'advanced', label: 'Advanced', icon: <Sliders size={13} /> },
     { id: 'branding', label: 'Branding', icon: <FileText size={13} /> },
     { id: 'map', label: 'Map', icon: <Map size={13} /> },
     { id: 'permissions', label: 'Permissions', icon: <Lock size={13} /> },
+    { id: 'sharing', label: 'Sharing', icon: <Share2 size={13} /> },
   ]
 
   return (
@@ -959,12 +1681,26 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                   </select>
                 </div>
                 <div>
-                  <label className={lbl}>General Location</label>
-                  <input
-                    className={inp}
+                  <label className={lbl}>Location / Venue</label>
+                  <VenueAutocompleteInput
                     value={event.location}
-                    onChange={(e) => set('location', e.target.value)}
-                    placeholder="Venue / Park name, City"
+                    onLocationChange={(text) => set('location', text)}
+                    onVenueSelect={async (venue) => {
+                      set('location', venue.address || venue.name)
+                      set('venue_address', venue.address)
+                      set('venue_lat', venue.lat)
+                      set('venue_lng', venue.lng)
+                      set('venue_place_id', venue.place_id)
+                      // Per D-03: also update associated complex record
+                      const sb = createClient()
+                      await sb
+                        .from('complexes')
+                        .update({ address: venue.address, lat: venue.lat, lng: venue.lng })
+                        .eq('event_id', eventId)
+                        .is('lat', null)
+                        .limit(1)
+                    }}
+                    selectedPlaceId={event.venue_place_id}
                   />
                 </div>
                 <div>
@@ -1058,13 +1794,27 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
             <Card title="Links & Info" icon={<Globe size={14} />}>
               <div className="space-y-3">
                 <div>
-                  <label className={lbl}>Results Link</label>
-                  <input
-                    className={inp}
-                    value={event.results_link}
-                    onChange={(e) => set('results_link', e.target.value)}
-                    placeholder="https://"
-                  />
+                  <label className={lbl}>Results Link (auto-generated)</label>
+                  <div className="flex gap-2">
+                    <input
+                      className={cn(inp, 'flex-1 text-muted')}
+                      value={event.results_link}
+                      readOnly
+                      placeholder="Created when event is saved"
+                    />
+                    {event.results_link && (
+                      <button
+                        type="button"
+                        className="font-cond text-[10px] font-bold tracking-wider text-blue-300 bg-navy/60 px-3 py-1.5 rounded hover:bg-navy transition-colors whitespace-nowrap"
+                        onClick={() => {
+                          navigator.clipboard.writeText(event.results_link)
+                          toast.success('Results link copied!')
+                        }}
+                      >
+                        COPY
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <div>
                   <label className={lbl}>Tournament Info URL</label>
@@ -1130,6 +1880,275 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                 </div>
               </div>
             </Card>
+
+            {/* ── DIVISIONS ── */}
+            <Card title="Divisions" icon={<Sliders size={14} />}>
+              <div className="space-y-2">
+                {divisions.length === 0 && !addingDiv && (
+                  <p className="text-[11px] text-muted font-cond">No divisions configured yet.</p>
+                )}
+                {divisions.map((d) => (
+                  <div
+                    key={d.id}
+                    className="flex items-center justify-between bg-[#040e24] border border-[#1a2d50] rounded-lg px-3 py-2"
+                    style={{ borderLeftWidth: 3, borderLeftColor: d.color || '#0B3D91' }}
+                  >
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => toggleDivisionActive(d.id, !d.is_active)}
+                        className={cn(
+                          'w-3 h-3 rounded-full border-2 transition-colors',
+                          d.is_active
+                            ? 'bg-green-400 border-green-400'
+                            : 'bg-transparent border-[#5a6e9a]'
+                        )}
+                        title={
+                          d.is_active
+                            ? 'Active — click to deactivate'
+                            : 'Inactive — click to activate'
+                        }
+                      />
+                      <label className="relative cursor-pointer" title="Change division color">
+                        <span
+                          className="block w-4 h-4 rounded border border-white/20"
+                          style={{ backgroundColor: d.color || '#0B3D91' }}
+                        />
+                        <input
+                          type="color"
+                          value={d.color || '#0B3D91'}
+                          onChange={(e) => updateDivisionColor(d.id, e.target.value)}
+                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                        />
+                      </label>
+                      <span
+                        className={cn(
+                          'font-cond text-[12px] font-bold',
+                          d.is_active ? 'text-white' : 'text-muted'
+                        )}
+                      >
+                        {d.name}
+                      </span>
+                      {d.age_group && (
+                        <span className="font-cond text-[10px] text-muted">{d.age_group}</span>
+                      )}
+                      {d.gender && d.gender !== 'Coed' && (
+                        <span className="font-cond text-[10px] text-blue-300">{d.gender}</span>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => removeDivision(d.id)}
+                      className="text-[#5a6e9a] hover:text-red-400 transition-colors text-[10px] font-cond font-bold"
+                    >
+                      REMOVE
+                    </button>
+                  </div>
+                ))}
+
+                {addingDiv ? (
+                  <div className="bg-[#040e24] border border-[#1a2d50] rounded-lg p-3 space-y-2">
+                    <div className="grid grid-cols-4 gap-2">
+                      <div>
+                        <label className={lbl}>Division Name *</label>
+                        <input
+                          className={inp}
+                          value={newDiv.name}
+                          onChange={(e) => setNewDiv({ ...newDiv, name: e.target.value })}
+                          placeholder="e.g. 14U Boys"
+                        />
+                      </div>
+                      <div>
+                        <label className={lbl}>Age Group</label>
+                        <input
+                          className={inp}
+                          value={newDiv.age_group}
+                          onChange={(e) => setNewDiv({ ...newDiv, age_group: e.target.value })}
+                          placeholder="e.g. U14, U12"
+                        />
+                      </div>
+                      <div>
+                        <label className={lbl}>Gender</label>
+                        <select
+                          className={inp}
+                          value={newDiv.gender}
+                          onChange={(e) => setNewDiv({ ...newDiv, gender: e.target.value })}
+                        >
+                          <option value="Coed">Coed</option>
+                          <option value="Boys">Boys</option>
+                          <option value="Girls">Girls</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className={lbl}>Color</label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="color"
+                            value={newDiv.color}
+                            onChange={(e) => setNewDiv({ ...newDiv, color: e.target.value })}
+                            className="w-8 h-8 rounded border border-[#1a2d50] cursor-pointer bg-transparent"
+                          />
+                          <input
+                            className={cn(inp, 'flex-1')}
+                            value={newDiv.color}
+                            onChange={(e) => setNewDiv({ ...newDiv, color: e.target.value })}
+                            placeholder="#0B3D91"
+                            maxLength={7}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={addDivision}
+                        disabled={divSaving || !newDiv.name.trim()}
+                        className="font-cond text-[10px] font-bold tracking-wider text-white bg-navy px-3 py-1.5 rounded hover:bg-navy-light transition-colors disabled:opacity-40"
+                      >
+                        {divSaving ? 'SAVING...' : 'ADD DIVISION'}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setAddingDiv(false)
+                          setNewDiv({ name: '', age_group: '', gender: 'Coed', color: '#0B3D91' })
+                        }}
+                        className="font-cond text-[10px] font-bold tracking-wider text-muted px-3 py-1.5 rounded hover:text-white transition-colors"
+                      >
+                        CANCEL
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setAddingDiv(true)}
+                    className="font-cond text-[10px] font-bold tracking-wider text-blue-300 hover:text-white transition-colors"
+                  >
+                    + ADD DIVISION
+                  </button>
+                )}
+              </div>
+            </Card>
+
+            {/* ── SCHEDULE DATES (D-11) ── */}
+            <Card title="Schedule Dates" icon={<Calendar size={14} />}>
+              <div>
+                {event.start_date && event.end_date ? (
+                  <MultiDatePicker
+                    startDate={event.start_date}
+                    endDate={event.end_date}
+                    selectedDates={eventDates.map((d) => d.date)}
+                    onToggleDate={toggleEventDate}
+                  />
+                ) : (
+                  <div className="font-cond text-[11px] text-muted">
+                    Set event start and end dates above to configure schedule dates.
+                  </div>
+                )}
+                {eventDates.length > 0 && (
+                  <div className="mt-4 space-y-2">
+                    <div className="font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase">
+                      Game Day Names
+                    </div>
+                    {eventDates
+                      .slice()
+                      .sort((a, b) => a.day_number - b.day_number)
+                      .map((ed) => (
+                        <GameDayLabelRow
+                          key={ed.id}
+                          eventDate={ed}
+                          onUpdate={(newLabel) => {
+                            setEventDates((prev) =>
+                              prev.map((d) => (d.id === ed.id ? { ...d, label: newLabel } : d))
+                            )
+                          }}
+                          onDelete={() => toggleEventDate(ed.date)}
+                        />
+                      ))}
+                  </div>
+                )}
+              </div>
+            </Card>
+
+            {/* ── REGISTRATION WINDOW (D-13, D-14, D-15) ── */}
+            <Card title="Registration Window" icon={<Calendar size={14} />}>
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className={lbl}>Registration Opens</label>
+                    <input
+                      type="datetime-local"
+                      className={inp}
+                      value={event.registration_opens_at}
+                      onChange={(e) => set('registration_opens_at', e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className={lbl}>Registration Closes</label>
+                    <input
+                      type="datetime-local"
+                      className={inp}
+                      value={event.registration_closes_at}
+                      onChange={(e) => set('registration_closes_at', e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                {/* Manual override toggle */}
+                <div>
+                  <label className={lbl}>Manual Override</label>
+                  <div className="flex items-center gap-3">
+                    <button
+                      role="switch"
+                      aria-checked={
+                        event.registration_open === true
+                          ? true
+                          : event.registration_open === false
+                            ? false
+                            : undefined
+                      }
+                      onClick={() => {
+                        // Cycle: null/auto → true/manual open → false/manual closed → null/auto
+                        if (
+                          event.registration_open === null ||
+                          event.registration_open === undefined
+                        ) {
+                          set('registration_open', true)
+                        } else if (event.registration_open === true) {
+                          set('registration_open', false)
+                        } else {
+                          set('registration_open', null)
+                        }
+                      }}
+                      className={
+                        event.registration_open === true
+                          ? 'px-4 py-2 rounded-lg font-cond text-[11px] font-black tracking-[.1em] uppercase bg-green-700 text-white transition-colors'
+                          : event.registration_open === false
+                            ? 'px-4 py-2 rounded-lg font-cond text-[11px] font-black tracking-[.1em] uppercase bg-red text-white transition-colors'
+                            : event.registration_opens_at || event.registration_closes_at
+                              ? 'px-4 py-2 rounded-lg font-cond text-[11px] font-black tracking-[.1em] uppercase bg-[#0B3D91] text-white transition-colors'
+                              : 'px-4 py-2 rounded-lg font-cond text-[11px] font-black tracking-[.1em] uppercase bg-[#1a2d50] text-muted transition-colors'
+                      }
+                    >
+                      {event.registration_open === true
+                        ? 'Override: Open'
+                        : event.registration_open === false
+                          ? 'Override: Closed'
+                          : event.registration_opens_at || event.registration_closes_at
+                            ? 'Auto'
+                            : 'OFF'}
+                    </button>
+                    <span className="font-cond text-[10px] text-muted">
+                      {event.registration_open === true
+                        ? 'Manually forced open — ignores dates'
+                        : event.registration_open === false
+                          ? 'Manually forced closed — ignores dates'
+                          : 'Date-based window (or no window if dates are empty)'}
+                    </span>
+                  </div>
+                </div>
+
+                <Btn variant="primary" onClick={saveRegistrationSettings} disabled={regSaving}>
+                  {regSaving ? 'SAVING...' : 'SAVE REGISTRATION SETTINGS'}
+                </Btn>
+              </div>
+            </Card>
           </div>
         )}
 
@@ -1187,6 +2206,178 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                 />
               </div>
             </Card>
+
+            {/* Division Timing Overrides */}
+            <Card title="Division Timing Overrides" icon={<Sliders size={14} />}>
+              {divisionNames.length === 0 ? (
+                <div className="font-cond text-[11px] text-muted">
+                  No active divisions found. Add divisions in the registration settings to configure
+                  per-division timing.
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  {divisionNames.map((divName) => {
+                    const isOpen = expandedDivision === divName
+                    const vals = divisionTimings[divName]
+                    const hasOverride =
+                      vals &&
+                      (vals.schedule_increment != null ||
+                        vals.time_between_games != null ||
+                        vals.periods_per_game != null ||
+                        vals.minutes_per_period != null)
+                    return (
+                      <div
+                        key={divName}
+                        className="border border-[#1a2d50] rounded-lg overflow-hidden"
+                      >
+                        <button
+                          type="button"
+                          onClick={() => setExpandedDivision(isOpen ? null : divName)}
+                          className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-[#0d1a2e] transition-colors"
+                        >
+                          <div className="flex items-center gap-2">
+                            <ChevronRight
+                              size={12}
+                              className={cn(
+                                'text-muted transition-transform',
+                                isOpen && 'rotate-90'
+                              )}
+                            />
+                            <span className="font-cond text-[13px] font-bold text-white">
+                              {divName}
+                            </span>
+                          </div>
+                          {hasOverride ? (
+                            <span className="font-cond text-[9px] font-black tracking-[.12em] text-blue-400 uppercase">
+                              Custom
+                            </span>
+                          ) : (
+                            <span className="font-cond text-[9px] tracking-[.12em] text-muted uppercase">
+                              Using global defaults
+                            </span>
+                          )}
+                        </button>
+                        {isOpen && (
+                          <div className="px-4 pb-4 pt-2 border-t border-[#1a2d50]">
+                            <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                <label className={lbl}>Schedule Increment (minutes)</label>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  className="w-full bg-[#081428] border border-[#1a2d50] text-white px-3 py-2 rounded-lg text-[13px] outline-none focus:border-blue-400 transition-colors font-mono"
+                                  value={vals?.schedule_increment ?? ''}
+                                  placeholder={String(event.schedule_increment)}
+                                  onChange={(e) =>
+                                    setDivTiming(
+                                      divName,
+                                      'schedule_increment',
+                                      e.target.value === '' ? undefined : Number(e.target.value)
+                                    )
+                                  }
+                                />
+                                <div className="font-cond text-[9px] text-muted mt-1">
+                                  Global: {event.schedule_increment}
+                                </div>
+                              </div>
+                              <div>
+                                <label className={lbl}>Time Between Games (minutes)</label>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  className="w-full bg-[#081428] border border-[#1a2d50] text-white px-3 py-2 rounded-lg text-[13px] outline-none focus:border-blue-400 transition-colors font-mono"
+                                  value={vals?.time_between_games ?? ''}
+                                  placeholder={String(event.time_between_games)}
+                                  onChange={(e) =>
+                                    setDivTiming(
+                                      divName,
+                                      'time_between_games',
+                                      e.target.value === '' ? undefined : Number(e.target.value)
+                                    )
+                                  }
+                                />
+                                <div className="font-cond text-[9px] text-muted mt-1">
+                                  Global: {event.time_between_games}
+                                </div>
+                              </div>
+                              <div>
+                                <label className={lbl}>Periods / Innings per Game</label>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  className="w-full bg-[#081428] border border-[#1a2d50] text-white px-3 py-2 rounded-lg text-[13px] outline-none focus:border-blue-400 transition-colors font-mono"
+                                  value={vals?.periods_per_game ?? ''}
+                                  placeholder={String(event.periods_per_game)}
+                                  onChange={(e) =>
+                                    setDivTiming(
+                                      divName,
+                                      'periods_per_game',
+                                      e.target.value === '' ? undefined : Number(e.target.value)
+                                    )
+                                  }
+                                />
+                                <div className="font-cond text-[9px] text-muted mt-1">
+                                  Global: {event.periods_per_game}
+                                </div>
+                              </div>
+                              <div>
+                                <label className={lbl}>Minutes per Period</label>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  className="w-full bg-[#081428] border border-[#1a2d50] text-white px-3 py-2 rounded-lg text-[13px] outline-none focus:border-blue-400 transition-colors font-mono"
+                                  value={vals?.minutes_per_period ?? ''}
+                                  placeholder={String(event.minutes_per_period)}
+                                  onChange={(e) =>
+                                    setDivTiming(
+                                      divName,
+                                      'minutes_per_period',
+                                      e.target.value === '' ? undefined : Number(e.target.value)
+                                    )
+                                  }
+                                />
+                                <div className="font-cond text-[9px] text-muted mt-1">
+                                  Global: {event.minutes_per_period}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 mt-4">
+                              <button
+                                type="button"
+                                onClick={() => saveDivisionTiming(divName)}
+                                disabled={divTimingSaving}
+                                className="font-cond text-[11px] font-black tracking-[.08em] uppercase px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors disabled:opacity-50"
+                              >
+                                {divTimingSaving ? 'Saving...' : 'Save Override'}
+                              </button>
+                              {hasOverride && (
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    clearDivisionTiming(divName)
+                                    const sb = createClient()
+                                    await sb
+                                      .from('division_timing')
+                                      .delete()
+                                      .eq('event_id', eventId)
+                                      .eq('division_name', divName)
+                                    toast.success(`Override cleared for ${divName}`)
+                                  }}
+                                  className="font-cond text-[11px] font-black tracking-[.08em] uppercase px-4 py-1.5 bg-transparent border border-[#1a2d50] text-muted hover:text-white hover:border-red-500 rounded-lg transition-colors"
+                                >
+                                  Clear Override
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </Card>
+
             <Card title="Schedule Options">
               <div className="space-y-1">
                 <Toggle
@@ -1212,6 +2403,577 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
           </div>
         )}
 
+        {/* ── RULES ── */}
+        {settingsTab === 'rules' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className={sectionHdr}>
+                <Shield size={14} /> Schedule Rules
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={loadCopyableEvents}
+                  className="flex items-center gap-1.5 font-cond font-black text-[11px] tracking-[.1em] px-4 py-2 rounded-lg border border-[#1a2d50] hover:bg-[#0c1a35] text-[#5a6e9a] hover:text-white transition-colors"
+                >
+                  <Copy size={12} /> COPY RULES FROM EVENT
+                </button>
+                <div className="flex items-center gap-2">
+                  <select
+                    className="bg-[#040e24] border border-[#1a2d50] text-white font-cond text-[11px] font-bold px-2 py-2 rounded-lg outline-none"
+                    value={addRuleScope}
+                    onChange={(e) => setAddRuleScope(e.target.value as 'global' | 'division')}
+                  >
+                    <option value="global">Global</option>
+                    <option value="division">By Division</option>
+                  </select>
+                  {addRuleScope === 'division' && (
+                    <select
+                      className="bg-[#040e24] border border-[#1a2d50] text-white font-cond text-[11px] font-bold px-2 py-2 rounded-lg outline-none"
+                      value={addRuleDivision}
+                      onChange={(e) => setAddRuleDivision(e.target.value)}
+                    >
+                      <option value="">Select Division</option>
+                      {ruleDivisions.map((d) => (
+                        <option key={d} value={d}>
+                          {d}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  <select
+                    className="bg-[#040e24] border border-[#1a2d50] text-white font-cond text-[11px] font-bold px-2 py-2 rounded-lg outline-none"
+                    value={addRuleTemplate}
+                    onChange={(e) => setAddRuleTemplate(e.target.value)}
+                  >
+                    <option value="">Select Rule</option>
+                    <option value="no_back_to_back">No Back-to-Back Games</option>
+                    <option value="max_games_per_day">Max Games Per Day</option>
+                    <option value="no_repeat_matchups">No Repeat Matchups</option>
+                  </select>
+                  <button
+                    onClick={() => {
+                      if (!addRuleTemplate) return
+                      if (addRuleScope === 'division' && !addRuleDivision) {
+                        toast.error('Select a division')
+                        return
+                      }
+                      addStandardRule(
+                        addRuleTemplate,
+                        addRuleScope === 'division' ? addRuleDivision : undefined
+                      )
+                      setAddRuleTemplate('')
+                      setAddRuleDivision('')
+                    }}
+                    disabled={!addRuleTemplate || (addRuleScope === 'division' && !addRuleDivision)}
+                    className="flex items-center gap-1.5 font-cond font-black text-[11px] tracking-[.1em] px-4 py-2 rounded-lg bg-red hover:bg-red/80 text-white transition-colors disabled:opacity-40"
+                  >
+                    <Plus size={12} /> ADD
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Copy Rules Dropdown */}
+            {showCopyRules && (
+              <div className="bg-[#081428] border border-[#1a2d50] rounded-xl p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-cond font-bold text-[12px] tracking-[.08em] text-white uppercase">
+                    Select Source Event
+                  </span>
+                  <button
+                    onClick={() => {
+                      setShowCopyRules(false)
+                      setCopySourceEventId(null)
+                    }}
+                    className="text-muted hover:text-white"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+                {copyableEvents.length === 0 ? (
+                  <div className="text-center py-4 text-muted font-cond text-[12px]">
+                    No other events found.
+                  </div>
+                ) : (
+                  <div className="space-y-1 max-h-48 overflow-y-auto">
+                    {copyableEvents.map((ev) => (
+                      <button
+                        key={ev.id}
+                        onClick={() => setCopySourceEventId(ev.id)}
+                        className={cn(
+                          'w-full text-left px-3 py-2 rounded-lg font-cond text-[12px] transition-colors',
+                          copySourceEventId === ev.id
+                            ? 'bg-red/20 text-white border border-red/40'
+                            : 'hover:bg-[#0c1a35] text-[#8a9bc0]'
+                        )}
+                      >
+                        {ev.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {copySourceEventId && (
+                  <button
+                    onClick={() => copyRulesFromEvent(copySourceEventId)}
+                    className="w-full flex items-center justify-center gap-2 font-cond font-black text-[11px] tracking-[.1em] px-4 py-2.5 rounded-lg bg-red hover:bg-red/80 text-white transition-colors"
+                  >
+                    <Copy size={12} /> COPY RULES
+                  </button>
+                )}
+              </div>
+            )}
+
+            {rulesLoading ? (
+              <div className="text-center py-8 text-muted font-cond text-[12px]">
+                Loading rules...
+              </div>
+            ) : rules.length === 0 ? (
+              <div className="text-center py-8 text-muted font-cond text-[12px]">
+                No schedule rules configured. Click "Add Rule" to create one.
+              </div>
+            ) : (
+              (() => {
+                const CATEGORIES = [
+                  'global',
+                  'division',
+                  'program',
+                  'team',
+                  'weekly',
+                  'season',
+                ] as const
+                const grouped = CATEGORIES.map((cat) => ({
+                  category: cat,
+                  rules: rules.filter((r) => r.category === cat),
+                })).filter((g) => g.rules.length > 0)
+
+                return grouped.map(({ category, rules: catRules }) => (
+                  <div
+                    key={category}
+                    className="bg-[#081428] border border-[#1a2d50] rounded-xl overflow-hidden"
+                  >
+                    <button
+                      onClick={() =>
+                        setCollapsedCategories((prev) => {
+                          const next = new Set(prev)
+                          if (next.has(category)) next.delete(category)
+                          else next.add(category)
+                          return next
+                        })
+                      }
+                      className="w-full flex items-center justify-between px-5 py-3 border-b border-[#1a2d50] hover:bg-[#0c1a35] transition-colors"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Shield size={13} className="text-muted" />
+                        <span className="font-cond text-[11px] font-black tracking-[.12em] text-white uppercase">
+                          {category}
+                        </span>
+                        <span className="font-cond text-[10px] text-muted">
+                          {catRules.length} rule{catRules.length !== 1 ? 's' : ''}
+                        </span>
+                      </div>
+                      <ChevronDown
+                        size={14}
+                        className={cn(
+                          'text-muted transition-transform',
+                          collapsedCategories.has(category) ? '-rotate-90' : ''
+                        )}
+                      />
+                    </button>
+
+                    {!collapsedCategories.has(category) && (
+                      <div className="divide-y divide-[#1a2d50]">
+                        {catRules.map((rule) => (
+                          <div key={rule.id}>
+                            <div
+                              className="flex items-center gap-3 px-5 py-2.5 hover:bg-[#0c1a35] cursor-pointer transition-colors"
+                              onClick={() =>
+                                setExpandedRule(expandedRule === rule.id ? null : rule.id)
+                              }
+                            >
+                              {/* Enable toggle */}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  toggleRuleEnabled(rule.id, !rule.enabled)
+                                }}
+                                className={cn(
+                                  'w-8 h-4 rounded-full transition-colors flex-shrink-0 relative',
+                                  rule.enabled ? 'bg-green-600' : 'bg-gray-700'
+                                )}
+                              >
+                                <span
+                                  className={cn(
+                                    'absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all',
+                                    rule.enabled ? 'left-4' : 'left-0.5'
+                                  )}
+                                />
+                              </button>
+
+                              {/* Rule name */}
+                              <span
+                                className={cn(
+                                  'font-cond text-[12px] font-bold flex-1 min-w-0 truncate',
+                                  rule.enabled ? 'text-white' : 'text-muted'
+                                )}
+                              >
+                                {rule.rule_name}
+                              </span>
+
+                              {/* Category badge */}
+                              <span className="font-cond text-[9px] font-bold tracking-wider px-2 py-0.5 rounded bg-[#1a2d50] text-muted uppercase flex-shrink-0">
+                                {rule.category}
+                              </span>
+
+                              {/* Enforcement badge */}
+                              <span
+                                className={cn(
+                                  'font-cond text-[9px] font-bold tracking-wider px-2 py-0.5 rounded uppercase flex-shrink-0',
+                                  rule.enforcement === 'hard'
+                                    ? 'bg-red-900/40 text-red-400'
+                                    : rule.enforcement === 'soft'
+                                      ? 'bg-yellow-900/40 text-yellow-400'
+                                      : 'bg-gray-800 text-gray-400'
+                                )}
+                              >
+                                {rule.enforcement}
+                              </span>
+
+                              {/* Priority */}
+                              <span className="font-cond text-[10px] text-muted w-6 text-right flex-shrink-0">
+                                P{rule.priority}
+                              </span>
+
+                              {/* Delete */}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  if (confirm(`Delete rule "${rule.rule_name}"?`))
+                                    deleteRule(rule.id)
+                                }}
+                                className="text-muted hover:text-red-400 transition-colors flex-shrink-0"
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </div>
+
+                            {/* Expanded details */}
+                            {expandedRule === rule.id && (
+                              <div className="px-5 pb-3 pt-1 bg-[#060f20] space-y-2">
+                                <div className="grid grid-cols-2 gap-3">
+                                  <div>
+                                    <div className={lbl}>Rule Type</div>
+                                    <div className="text-[12px] text-white">{rule.rule_type}</div>
+                                  </div>
+                                  <div>
+                                    <div className={lbl}>Action</div>
+                                    <div className="text-[12px] text-white">{rule.action}</div>
+                                  </div>
+                                </div>
+                                {rule.conditions && Object.keys(rule.conditions).length > 0 && (
+                                  <div>
+                                    <div className={lbl}>Parameters</div>
+                                    <div className="space-y-1">
+                                      {Object.entries(
+                                        rule.conditions as Record<string, unknown>
+                                      ).map(([key, val]) => (
+                                        <div key={key} className="flex items-center gap-2">
+                                          <span className="font-cond text-[11px] text-muted capitalize">
+                                            {key.replace(/_/g, ' ')}:
+                                          </span>
+                                          <span className="font-mono text-[12px] text-white font-bold">
+                                            {String(val)}
+                                          </span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                                {rule.notes && (
+                                  <div>
+                                    <div className={lbl}>Notes</div>
+                                    <div className="text-[11px] text-gray-400">{rule.notes}</div>
+                                  </div>
+                                )}
+
+                                {/* ── Admin Overrides Section ── */}
+                                <div className="mt-3 pt-3 border-t border-[#1a2d50]">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <div className="font-cond text-[10px] font-black tracking-[.12em] text-[#5a6e9a] uppercase">
+                                      Admin Overrides
+                                    </div>
+                                    <button
+                                      onClick={() => {
+                                        if (addingOverrideForRule === rule.id) {
+                                          setAddingOverrideForRule(null)
+                                        } else {
+                                          setAddingOverrideForRule(rule.id)
+                                          setOverrideForm({
+                                            scope_type: 'global',
+                                            reason: '',
+                                            home_team_id: '',
+                                            away_team_id: '',
+                                            scope_team_id: '',
+                                            scope_event_date_id: '',
+                                            override_action: 'allow',
+                                          })
+                                          if (!ruleOverrides[rule.id]) loadOverridesForRule(rule.id)
+                                        }
+                                      }}
+                                      className="flex items-center gap-1 font-cond font-black text-[10px] tracking-[.08em] px-2.5 py-1 rounded bg-blue-900/40 hover:bg-blue-900/60 text-blue-400 transition-colors"
+                                    >
+                                      <Plus size={10} /> ADD OVERRIDE
+                                    </button>
+                                  </div>
+
+                                  {/* Existing overrides */}
+                                  {(ruleOverrides[rule.id] ?? []).length > 0 && (
+                                    <div className="space-y-1 mb-2">
+                                      {(ruleOverrides[rule.id] ?? []).map((ov: any) => (
+                                        <div
+                                          key={ov.id}
+                                          className={cn(
+                                            'flex items-center gap-2 px-2 py-1.5 rounded text-[10px]',
+                                            ov.enabled
+                                              ? 'bg-[#081428]'
+                                              : 'bg-[#081428]/50 opacity-60'
+                                          )}
+                                        >
+                                          <span
+                                            className={cn(
+                                              'font-cond font-bold px-1.5 py-0.5 rounded uppercase tracking-wider',
+                                              ov.override_action === 'allow'
+                                                ? 'bg-green-900/40 text-green-400'
+                                                : 'bg-red-900/40 text-red-400'
+                                            )}
+                                          >
+                                            {ov.override_action}
+                                          </span>
+                                          <span className="font-cond font-bold text-muted uppercase px-1.5 py-0.5 rounded bg-[#1a2d50]">
+                                            {ov.scope_type}
+                                          </span>
+                                          <span className="text-gray-300 flex-1 truncate">
+                                            {ov.reason}
+                                          </span>
+                                          <button
+                                            onClick={() =>
+                                              toggleOverride(ov.id, rule.id, !ov.enabled)
+                                            }
+                                            className={cn(
+                                              'w-6 h-3 rounded-full transition-colors flex-shrink-0 relative',
+                                              ov.enabled ? 'bg-green-600' : 'bg-gray-700'
+                                            )}
+                                          >
+                                            <span
+                                              className={cn(
+                                                'absolute top-0.5 w-2 h-2 rounded-full bg-white transition-all',
+                                                ov.enabled ? 'left-3.5' : 'left-0.5'
+                                              )}
+                                            />
+                                          </button>
+                                          <button
+                                            onClick={() => {
+                                              if (confirm('Delete this override?'))
+                                                deleteOverride(ov.id, rule.id)
+                                            }}
+                                            className="text-muted hover:text-red-400 transition-colors flex-shrink-0"
+                                          >
+                                            <Trash2 size={10} />
+                                          </button>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+
+                                  {!ruleOverrides[rule.id] && (
+                                    <button
+                                      onClick={() => loadOverridesForRule(rule.id)}
+                                      className="text-[10px] text-blue-400 hover:underline font-cond"
+                                    >
+                                      Load overrides...
+                                    </button>
+                                  )}
+
+                                  {/* Add override form */}
+                                  {addingOverrideForRule === rule.id && (
+                                    <div className="bg-[#081428] border border-[#1a2d50] rounded-lg p-3 space-y-2 mt-2">
+                                      <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                          <div className={lbl}>Scope</div>
+                                          <select
+                                            className={inp}
+                                            value={overrideForm.scope_type}
+                                            onChange={(e) =>
+                                              setOverrideForm((f) => ({
+                                                ...f,
+                                                scope_type: e.target.value,
+                                              }))
+                                            }
+                                          >
+                                            <option value="global">Global</option>
+                                            <option value="matchup">Matchup</option>
+                                            <option value="team">Team</option>
+                                            <option value="week">Week / Event Date</option>
+                                          </select>
+                                        </div>
+                                        <div>
+                                          <div className={lbl}>Action</div>
+                                          <select
+                                            className={inp}
+                                            value={overrideForm.override_action}
+                                            onChange={(e) =>
+                                              setOverrideForm((f) => ({
+                                                ...f,
+                                                override_action: e.target.value,
+                                              }))
+                                            }
+                                          >
+                                            <option value="allow">Allow (bypass rule)</option>
+                                            <option value="block">Block (enforce extra)</option>
+                                          </select>
+                                        </div>
+                                      </div>
+
+                                      {overrideForm.scope_type === 'matchup' && (
+                                        <div className="grid grid-cols-2 gap-2">
+                                          <div>
+                                            <div className={lbl}>Home Team</div>
+                                            <select
+                                              className={inp}
+                                              value={overrideForm.home_team_id}
+                                              onChange={(e) =>
+                                                setOverrideForm((f) => ({
+                                                  ...f,
+                                                  home_team_id: e.target.value,
+                                                }))
+                                              }
+                                            >
+                                              <option value="">-- Select --</option>
+                                              {overrideTeams.map((t) => (
+                                                <option key={t.id} value={t.id}>
+                                                  {t.name} ({t.division})
+                                                </option>
+                                              ))}
+                                            </select>
+                                          </div>
+                                          <div>
+                                            <div className={lbl}>Away Team</div>
+                                            <select
+                                              className={inp}
+                                              value={overrideForm.away_team_id}
+                                              onChange={(e) =>
+                                                setOverrideForm((f) => ({
+                                                  ...f,
+                                                  away_team_id: e.target.value,
+                                                }))
+                                              }
+                                            >
+                                              <option value="">-- Select --</option>
+                                              {overrideTeams.map((t) => (
+                                                <option key={t.id} value={t.id}>
+                                                  {t.name} ({t.division})
+                                                </option>
+                                              ))}
+                                            </select>
+                                          </div>
+                                        </div>
+                                      )}
+
+                                      {overrideForm.scope_type === 'team' && (
+                                        <div>
+                                          <div className={lbl}>Team</div>
+                                          <select
+                                            className={inp}
+                                            value={overrideForm.scope_team_id}
+                                            onChange={(e) =>
+                                              setOverrideForm((f) => ({
+                                                ...f,
+                                                scope_team_id: e.target.value,
+                                              }))
+                                            }
+                                          >
+                                            <option value="">-- Select --</option>
+                                            {overrideTeams.map((t) => (
+                                              <option key={t.id} value={t.id}>
+                                                {t.name} ({t.division})
+                                              </option>
+                                            ))}
+                                          </select>
+                                        </div>
+                                      )}
+
+                                      {overrideForm.scope_type === 'week' && (
+                                        <div>
+                                          <div className={lbl}>Event Date</div>
+                                          <select
+                                            className={inp}
+                                            value={overrideForm.scope_event_date_id}
+                                            onChange={(e) =>
+                                              setOverrideForm((f) => ({
+                                                ...f,
+                                                scope_event_date_id: e.target.value,
+                                              }))
+                                            }
+                                          >
+                                            <option value="">-- Select --</option>
+                                            {overrideEventDates.map((d) => (
+                                              <option key={d.id} value={d.id}>
+                                                {d.date}
+                                              </option>
+                                            ))}
+                                          </select>
+                                        </div>
+                                      )}
+
+                                      <div>
+                                        <div className={lbl}>Reason (required)</div>
+                                        <input
+                                          className={inp}
+                                          placeholder="Why is this override needed?"
+                                          value={overrideForm.reason}
+                                          onChange={(e) =>
+                                            setOverrideForm((f) => ({
+                                              ...f,
+                                              reason: e.target.value,
+                                            }))
+                                          }
+                                        />
+                                      </div>
+
+                                      <div className="flex gap-2 justify-end">
+                                        <button
+                                          onClick={() => setAddingOverrideForRule(null)}
+                                          className="font-cond font-black text-[10px] tracking-[.08em] px-3 py-1.5 rounded border border-[#1a2d50] text-muted hover:text-white transition-colors"
+                                        >
+                                          CANCEL
+                                        </button>
+                                        <button
+                                          onClick={() => createOverride(rule.id)}
+                                          className="font-cond font-black text-[10px] tracking-[.08em] px-3 py-1.5 rounded bg-red hover:bg-red/80 text-white transition-colors"
+                                        >
+                                          CREATE OVERRIDE
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))
+              })()
+            )}
+
+            {/* Add Rule Form */}
+            {showAddRule && (
+              <AddRuleForm onSubmit={addRule} onCancel={() => setShowAddRule(false)} />
+            )}
+          </div>
+        )}
+
         {/* ── PUBLIC ── */}
         {settingsTab === 'public' && (
           <div className="space-y-6">
@@ -1224,6 +2986,18 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                   onChange={(v) => set('public_schedule', v)}
                   highlight={!event.public_schedule && event.status === 'draft'}
                   highlightMsg="Switch status to Active to enable"
+                />
+                <Toggle
+                  label="Show Standings"
+                  help="Show standings tab on public results page"
+                  value={event.public_standings}
+                  onChange={(v) => set('public_standings', v)}
+                />
+                <Toggle
+                  label="Show Results"
+                  help="Show results tab on public results page"
+                  value={event.public_results}
+                  onChange={(v) => set('public_results', v)}
                 />
                 <Toggle
                   label="Allow Public to Post Scores"
@@ -1380,6 +3154,7 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
             <RefRequirementsCard
               value={event.ref_requirements}
               onChange={(v) => set('ref_requirements', v)}
+              eventId={eventId}
             />
           </div>
         )}
@@ -1809,6 +3584,152 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
             onSave={savePermissions}
           />
         )}
+
+        {/* ── SHARING ── */}
+        {settingsTab === 'sharing' && (
+          <div className="space-y-6">
+            {event.status !== 'active' ? (
+              /* Draft gate -- sharing only available for active events */
+              <div className="border border-[#1a2d50] bg-[#030d20] rounded-lg p-6 flex items-center gap-3">
+                <Lock size={14} className="text-[#5a6e9a] flex-shrink-0" />
+                <div>
+                  <div className="font-cond text-[12px] font-black text-white mb-1">
+                    Registration link available after publishing
+                  </div>
+                  <div className="text-[11px] text-[#5a6e9a]">
+                    Publish this event to generate the registration link and QR code.
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <>
+                {/* Registration */}
+                <Card title="Registration" icon={<QrCode size={14} />}>
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      {registrationStatus === 'open' && <Pill variant="green">Open</Pill>}
+                      {registrationStatus === 'closed' && <Pill variant="red">Closed</Pill>}
+                      {registrationStatus === 'not_set' && (
+                        <Pill variant="gray">Window Not Set</Pill>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <input
+                        className={cn(inp, 'cursor-default select-all')}
+                        value={registrationUrl}
+                        readOnly
+                        onClick={(e) => (e.target as HTMLInputElement).select()}
+                      />
+                      <Btn variant="primary" size="sm" onClick={copyRegistrationLink}>
+                        {linkCopied ? <Check size={13} /> : <Copy size={13} />}
+                        <span className="ml-1.5">{linkCopied ? 'COPIED' : 'COPY'}</span>
+                      </Btn>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="w-16 h-16 bg-white rounded p-1 flex-shrink-0">
+                        <QRCodeSVG
+                          value={registrationUrl}
+                          size={56}
+                          bgColor="#ffffff"
+                          fgColor="#000000"
+                          level="M"
+                        />
+                      </div>
+                      <div className="flex gap-2">
+                        <Btn variant="ghost" size="sm" onClick={() => setShowQRModal(true)}>
+                          PREVIEW
+                        </Btn>
+                        <a
+                          href={mailtoHref}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 font-cond font-bold text-[10px] uppercase tracking-[.1em] text-[#5a6e9a] hover:text-white transition-colors px-2.5 py-1.5 rounded border border-[#1a2d50]"
+                        >
+                          <Mail size={11} /> EMAIL
+                        </a>
+                        <a
+                          href={smsHref}
+                          className="inline-flex items-center gap-1 font-cond font-bold text-[10px] uppercase tracking-[.1em] text-[#5a6e9a] hover:text-white transition-colors px-2.5 py-1.5 rounded border border-[#1a2d50]"
+                        >
+                          <MessageSquare size={11} /> TEXT
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+
+                {/* Public Results Site */}
+                <Card title="Public Results Site" icon={<Globe size={14} />}>
+                  <ShareLinkSection
+                    label=""
+                    url={`${process.env.NEXT_PUBLIC_PUBLIC_RESULTS_URL ?? 'https://public-results-gamma.vercel.app'}/e/${event.slug}`}
+                  />
+                </Card>
+
+                {/* Referee Sign-up */}
+                <Card title="Referee Sign-up" icon={<Users size={14} />}>
+                  <InviteLinkSection eventId={eventId!} type="referee" label="" />
+                </Card>
+
+                {/* Volunteer Sign-up */}
+                <Card title="Volunteer Sign-up" icon={<Users size={14} />}>
+                  <InviteLinkSection eventId={eventId!} type="volunteer" label="" />
+                </Card>
+
+                {/* Player Check-in */}
+                <Card title="Player Check-in" icon={<Users size={14} />}>
+                  <div className="font-cond text-[11px] text-[#5a6e9a]">
+                    Individual player QR codes are managed in the{' '}
+                    <span className="text-white font-bold">QR Codes</span> tab. Each player gets a
+                    unique check-in link.
+                  </div>
+                </Card>
+
+                {/* Hidden canvas for PNG export -- always mounted (not conditionally rendered) */}
+                <div style={{ display: 'none' }}>
+                  <QRCodeCanvas
+                    ref={canvasRef}
+                    value={registrationUrl}
+                    size={512}
+                    bgColor="#ffffff"
+                    fgColor="#000000"
+                    level="M"
+                  />
+                </div>
+
+                {/* QR Preview Modal */}
+                <Modal
+                  open={showQRModal}
+                  onClose={() => setShowQRModal(false)}
+                  title="Registration QR Code"
+                >
+                  <div
+                    className="flex flex-col items-center gap-3 p-6 bg-white rounded-lg mx-auto"
+                    style={{ maxWidth: 300 }}
+                  >
+                    <QRCodeSVG
+                      ref={svgRef}
+                      value={registrationUrl}
+                      size={256}
+                      bgColor="#ffffff"
+                      fgColor="#000000"
+                      level="M"
+                    />
+                    <div className="text-black font-bold text-[14px] text-center">{event.name}</div>
+                  </div>
+                  <div className="flex gap-3 justify-center mt-4">
+                    <Btn variant="primary" size="sm" onClick={downloadSVG}>
+                      <Download size={13} /> <span className="ml-1.5">DOWNLOAD SVG</span>
+                    </Btn>
+                    <Btn variant="outline" size="sm" onClick={downloadPNG}>
+                      <Download size={13} /> <span className="ml-1.5">DOWNLOAD PNG</span>
+                    </Btn>
+                  </div>
+                </Modal>
+              </>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -2080,33 +4001,42 @@ type RefRules = Record<string, { adult: number; youth: number }>
 function RefRequirementsCard({
   value,
   onChange,
+  eventId,
 }: {
   value: RefRules
   onChange: (v: RefRules) => void
+  eventId: number | undefined
 }) {
-  const [newDiv, setNewDiv] = useState('')
+  const [divisions, setDivisions] = useState<string[]>([])
 
-  // Separate division rows from 'default'
-  const divRows = Object.entries(value)
-    .filter(([k]) => k !== 'default')
-    .sort(([a], [b]) => a.localeCompare(b))
+  useEffect(() => {
+    if (!eventId) return
+    const sb = createClient()
+    sb.from('registration_divisions')
+      .select('name')
+      .eq('event_id', eventId)
+      .eq('is_active', true)
+      .order('sort_order')
+      .then(({ data }) => {
+        const divNames = (data ?? []).map((d: { name: string }) => d.name)
+        setDivisions(divNames)
+        // Auto-populate all divisions into ref_requirements if not already there
+        const updated = { ...value }
+        let changed = false
+        divNames.forEach((d: string) => {
+          if (!updated[d]) {
+            updated[d] = { adult: 2, youth: 0 }
+            changed = true
+          }
+        })
+        if (changed) onChange(updated)
+      })
+  }, [eventId])
+
   const def = value['default'] ?? { adult: 2, youth: 0 }
 
   function updateRule(div: string, field: 'adult' | 'youth', n: number) {
     onChange({ ...value, [div]: { ...value[div], [field]: Math.max(0, n) } })
-  }
-
-  function removeRule(div: string) {
-    const next = { ...value }
-    delete next[div]
-    onChange(next)
-  }
-
-  function addRule() {
-    const d = newDiv.trim()
-    if (!d || value[d]) return
-    onChange({ ...value, [d]: { adult: 2, youth: 0 } })
-    setNewDiv('')
   }
 
   const numInp =
@@ -2121,7 +4051,7 @@ function RefRequirementsCard({
       </div>
 
       {/* Column headers */}
-      <div className="grid grid-cols-[1fr_80px_80px_32px] gap-2 mb-1 px-1">
+      <div className="grid grid-cols-[1fr_80px_80px] gap-2 mb-1 px-1">
         <span className="font-cond text-[9px] font-black tracking-[.12em] text-muted uppercase">
           Division
         </span>
@@ -2131,47 +4061,43 @@ function RefRequirementsCard({
         <span className="font-cond text-[9px] font-black tracking-[.12em] text-[#34d399] uppercase text-center">
           Youth Refs
         </span>
-        <span />
       </div>
 
       <div className="space-y-1.5">
-        {divRows.map(([div, rule]) => (
-          <div
-            key={div}
-            className="grid grid-cols-[1fr_80px_80px_32px] gap-2 items-center px-1 py-1 rounded hover:bg-[#050f20] group"
-          >
-            <span className="font-cond text-[13px] font-bold text-white">{div}</span>
-            <div className="flex justify-center">
-              <input
-                type="number"
-                min={0}
-                max={9}
-                className={numInp}
-                value={rule.adult}
-                onChange={(e) => updateRule(div, 'adult', Number(e.target.value))}
-              />
-            </div>
-            <div className="flex justify-center">
-              <input
-                type="number"
-                min={0}
-                max={9}
-                className={numInp}
-                value={rule.youth}
-                onChange={(e) => updateRule(div, 'youth', Number(e.target.value))}
-              />
-            </div>
-            <button
-              onClick={() => removeRule(div)}
-              className="opacity-0 group-hover:opacity-100 flex items-center justify-center w-7 h-7 rounded hover:bg-red/20 transition-all"
+        {divisions.map((div) => {
+          const rule = value[div] ?? { adult: 2, youth: 0 }
+          return (
+            <div
+              key={div}
+              className="grid grid-cols-[1fr_80px_80px] gap-2 items-center px-1 py-1 rounded hover:bg-[#050f20]"
             >
-              <Trash2 size={12} className="text-red-400" />
-            </button>
-          </div>
-        ))}
+              <span className="font-cond text-[13px] font-bold text-white">{div}</span>
+              <div className="flex justify-center">
+                <input
+                  type="number"
+                  min={0}
+                  max={9}
+                  className={numInp}
+                  value={rule.adult}
+                  onChange={(e) => updateRule(div, 'adult', Number(e.target.value))}
+                />
+              </div>
+              <div className="flex justify-center">
+                <input
+                  type="number"
+                  min={0}
+                  max={9}
+                  className={numInp}
+                  value={rule.youth}
+                  onChange={(e) => updateRule(div, 'youth', Number(e.target.value))}
+                />
+              </div>
+            </div>
+          )
+        })}
 
         {/* Default row */}
-        <div className="grid grid-cols-[1fr_80px_80px_32px] gap-2 items-center px-1 py-1 rounded border-t border-[#1a2d50] mt-2 pt-3">
+        <div className="grid grid-cols-[1fr_80px_80px] gap-2 items-center px-1 py-1 rounded border-t border-[#1a2d50] mt-2 pt-3">
           <span className="font-cond text-[11px] font-black tracking-[.08em] text-muted uppercase">
             All Other Divisions
           </span>
@@ -2195,27 +4121,432 @@ function RefRequirementsCard({
               onChange={(e) => updateRule('default', 'youth', Number(e.target.value))}
             />
           </div>
-          <span />
         </div>
       </div>
+    </Card>
+  )
+}
 
-      {/* Add division row */}
-      <div className="flex items-center gap-2 mt-4 pt-4 border-t border-[#1a2d50]">
-        <input
-          value={newDiv}
-          onChange={(e) => setNewDiv(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && addRule()}
-          placeholder="Division name (e.g. U8, U12B)"
-          className="flex-1 bg-[#050f20] border border-[#1a2d50] text-white px-3 py-1.5 rounded text-[12px] font-cond outline-none focus:border-blue-400 placeholder:text-[#1a2d50] transition-colors"
-        />
-        <button
-          onClick={addRule}
-          disabled={!newDiv.trim() || !!value[newDiv.trim()]}
-          className="flex items-center gap-1.5 font-cond text-[11px] font-black tracking-[.08em] px-3 py-1.5 rounded border border-[#1a2d50] text-muted hover:text-white hover:border-blue-400 disabled:opacity-30 transition-all"
-        >
-          <Plus size={12} /> ADD
+// ── Add Rule Form ───────────────────────────────────────────────
+
+const RULE_TYPES = ['constraint', 'preference', 'override', 'forced_matchup'] as const
+const RULE_CATEGORIES = ['global', 'division', 'program', 'team', 'weekly', 'season'] as const
+const RULE_ACTIONS = ['block', 'allow', 'force', 'warn', 'set_param'] as const
+const RULE_ENFORCEMENTS = ['hard', 'soft', 'info'] as const
+
+function AddRuleForm({
+  onSubmit,
+  onCancel,
+}: {
+  onSubmit: (data: any) => void
+  onCancel: () => void
+}) {
+  const [form, setForm] = useState({
+    rule_name: '',
+    rule_type: 'constraint' as string,
+    category: 'global' as string,
+    action: 'block' as string,
+    enforcement: 'hard' as string,
+    priority: 50,
+    conditions: '{}',
+    action_params: '{}',
+    notes: '',
+    enabled: true,
+  })
+
+  function handleSubmit() {
+    if (!form.rule_name.trim()) {
+      toast.error('Rule name is required')
+      return
+    }
+    let conditions: any, action_params: any
+    try {
+      conditions = JSON.parse(form.conditions)
+    } catch {
+      toast.error('Invalid JSON in conditions')
+      return
+    }
+    try {
+      action_params = JSON.parse(form.action_params)
+    } catch {
+      toast.error('Invalid JSON in action_params')
+      return
+    }
+    onSubmit({
+      rule_name: form.rule_name,
+      rule_type: form.rule_type,
+      category: form.category,
+      action: form.action,
+      enforcement: form.enforcement,
+      priority: form.priority,
+      conditions,
+      action_params,
+      notes: form.notes || null,
+      enabled: form.enabled,
+    })
+  }
+
+  const formInp =
+    'w-full bg-[#081428] border border-[#1a2d50] text-white px-3 py-2 rounded-lg text-[13px] outline-none focus:border-blue-400 transition-colors'
+  const formLbl =
+    'font-cond text-[10px] font-black tracking-[.12em] text-[#5a6e9a] uppercase block mb-1.5'
+
+  return (
+    <div className="bg-[#081428] border border-[#1a2d50] rounded-xl overflow-hidden">
+      <div className="flex items-center justify-between px-5 py-3 border-b border-[#1a2d50]">
+        <span className="font-cond text-[11px] font-black tracking-[.12em] text-white uppercase">
+          New Rule
+        </span>
+        <button onClick={onCancel} className="text-muted hover:text-white">
+          <X size={14} />
         </button>
       </div>
-    </Card>
+      <div className="p-5 space-y-4">
+        <div>
+          <label className={formLbl}>Rule Name</label>
+          <input
+            className={formInp}
+            value={form.rule_name}
+            onChange={(e) => setForm((f) => ({ ...f, rule_name: e.target.value }))}
+            placeholder="e.g. No back-to-back games"
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className={formLbl}>Rule Type</label>
+            <select
+              className={formInp}
+              value={form.rule_type}
+              onChange={(e) => setForm((f) => ({ ...f, rule_type: e.target.value }))}
+            >
+              {RULE_TYPES.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className={formLbl}>Category</label>
+            <select
+              className={formInp}
+              value={form.category}
+              onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
+            >
+              {RULE_CATEGORIES.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-3 gap-4">
+          <div>
+            <label className={formLbl}>Action</label>
+            <select
+              className={formInp}
+              value={form.action}
+              onChange={(e) => setForm((f) => ({ ...f, action: e.target.value }))}
+            >
+              {RULE_ACTIONS.map((a) => (
+                <option key={a} value={a}>
+                  {a}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className={formLbl}>Enforcement</label>
+            <select
+              className={formInp}
+              value={form.enforcement}
+              onChange={(e) => setForm((f) => ({ ...f, enforcement: e.target.value }))}
+            >
+              {RULE_ENFORCEMENTS.map((e) => (
+                <option key={e} value={e}>
+                  {e}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className={formLbl}>Priority</label>
+            <input
+              type="number"
+              className={formInp}
+              value={form.priority}
+              onChange={(e) => setForm((f) => ({ ...f, priority: parseInt(e.target.value) || 0 }))}
+            />
+          </div>
+        </div>
+
+        <div>
+          <label className={formLbl}>Conditions (JSON)</label>
+          <textarea
+            className={cn(formInp, 'font-mono text-[11px] h-20 resize-y')}
+            value={form.conditions}
+            onChange={(e) => setForm((f) => ({ ...f, conditions: e.target.value }))}
+            placeholder='{"type": "same_division_only"}'
+          />
+        </div>
+
+        <div>
+          <label className={formLbl}>Action Params (JSON)</label>
+          <textarea
+            className={cn(formInp, 'font-mono text-[11px] h-20 resize-y')}
+            value={form.action_params}
+            onChange={(e) => setForm((f) => ({ ...f, action_params: e.target.value }))}
+            placeholder="{}"
+          />
+        </div>
+
+        <div>
+          <label className={formLbl}>Notes</label>
+          <input
+            className={formInp}
+            value={form.notes}
+            onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+            placeholder="Optional notes"
+          />
+        </div>
+
+        <div className="flex items-center justify-end gap-3 pt-2">
+          <button
+            onClick={onCancel}
+            className="font-cond font-black text-[11px] tracking-[.1em] px-4 py-2 rounded-lg border border-[#1a2d50] text-muted hover:text-white transition-colors"
+          >
+            CANCEL
+          </button>
+          <button
+            onClick={handleSubmit}
+            className="font-cond font-black text-[11px] tracking-[.1em] px-5 py-2 rounded-lg bg-red hover:bg-red/80 text-white transition-colors"
+          >
+            CREATE RULE
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Game Day Label Editor ─────────────────────────────────────────────────────
+
+function GameDayLabelRow({
+  eventDate,
+  onUpdate,
+  onDelete,
+}: {
+  eventDate: { id: number; date: string; day_number: number; label: string }
+  onUpdate: (newLabel: string) => void
+  onDelete: () => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const [value, setValue] = useState(eventDate.label)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (editing) inputRef.current?.focus()
+  }, [editing])
+
+  const save = async () => {
+    const trimmed = value.trim()
+    if (!trimmed || trimmed === eventDate.label) {
+      setValue(eventDate.label)
+      setEditing(false)
+      return
+    }
+    const sb = createClient()
+    const { error } = await sb.from('event_dates').update({ label: trimmed }).eq('id', eventDate.id)
+    if (error) {
+      toast.error(error.message)
+      return
+    }
+    onUpdate(trimmed)
+    setEditing(false)
+    toast.success('Label updated')
+  }
+
+  const dateStr = (() => {
+    try {
+      const d = new Date(eventDate.date + 'T00:00:00')
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    } catch {
+      return eventDate.date
+    }
+  })()
+
+  return (
+    <div className="flex items-center gap-3 py-1.5 px-3 rounded-lg bg-surface-card border border-border">
+      <span className="font-mono text-[10px] text-muted w-6 shrink-0">{eventDate.day_number}</span>
+      <span className="font-cond text-[11px] text-muted w-24 shrink-0">{dateStr}</span>
+      {editing ? (
+        <input
+          ref={inputRef}
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') save()
+            if (e.key === 'Escape') {
+              setValue(eventDate.label)
+              setEditing(false)
+            }
+          }}
+          onBlur={save}
+          className="flex-1 bg-[#040e24] border border-blue-400 text-white px-2 py-0.5 rounded text-[12px] font-cond font-bold outline-none"
+        />
+      ) : (
+        <span className="flex-1 font-cond text-[12px] font-bold text-white truncate">
+          {eventDate.label}
+        </span>
+      )}
+      {!editing && (
+        <>
+          <button
+            onClick={() => setEditing(true)}
+            className="text-muted hover:text-white transition-colors"
+          >
+            <Pencil size={11} />
+          </button>
+          <button
+            onClick={onDelete}
+            className="text-muted hover:text-red-400 transition-colors"
+            title="Remove game day"
+          >
+            <Trash2 size={11} />
+          </button>
+        </>
+      )}
+    </div>
+  )
+}
+
+// ─── Share Link Helpers ────────────────────────────────────────────────────────
+
+function ShareLinkSection({ label, url }: { label: string; url: string }) {
+  const [copied, setCopied] = useState(false)
+  const copy = () => {
+    navigator.clipboard.writeText(url)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+  return (
+    <div className="flex items-start gap-4">
+      <div className="w-20 h-20 bg-white rounded-lg p-1.5 flex-shrink-0">
+        <QRCodeSVG value={url} size={68} bgColor="#ffffff" fgColor="#000000" level="M" />
+      </div>
+      <div className="flex-1 min-w-0 space-y-2">
+        <div className="flex items-center gap-3">
+          <input
+            className="flex-1 bg-[#081428] border border-[#1a2d50] text-white px-3 py-2 rounded text-[12px] outline-none cursor-default select-all"
+            value={url}
+            readOnly
+            onClick={(e) => (e.target as HTMLInputElement).select()}
+          />
+          <button
+            onClick={copy}
+            className="flex items-center gap-1.5 font-cond font-black text-[10px] tracking-[.1em] px-3 py-2 rounded-lg bg-navy hover:bg-navy/80 text-white transition-colors shrink-0"
+          >
+            {copied ? <Check size={13} /> : <Copy size={13} />}
+            <span>{copied ? 'COPIED' : 'COPY'}</span>
+          </button>
+        </div>
+        <div className="font-cond text-[10px] text-[#5a6e9a]">Scan to view public results</div>
+      </div>
+    </div>
+  )
+}
+
+function InviteLinkSection({
+  eventId,
+  type,
+  label,
+}: {
+  eventId: number
+  type: 'referee' | 'volunteer'
+  label: string
+}) {
+  const [url, setUrl] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [copied, setCopied] = useState(false)
+
+  useEffect(() => {
+    const sb = createClient()
+    sb.from('registration_invites')
+      .select('token')
+      .eq('event_id', eventId)
+      .eq('type', type)
+      .eq('is_active', true)
+      .limit(1)
+      .then(({ data }) => {
+        if (data && data.length > 0) {
+          setUrl(`${window.location.origin}/join/${data[0].token}`)
+        }
+        setLoading(false)
+      })
+  }, [eventId, type])
+
+  const generate = async () => {
+    const sb = createClient()
+    const token = crypto.randomUUID().replace(/-/g, '')
+    const { error } = await sb
+      .from('registration_invites')
+      .insert({ event_id: eventId, type, token, is_active: true })
+    if (error) {
+      toast.error(error.message)
+      return
+    }
+    setUrl(`${window.location.origin}/join/${token}`)
+    toast.success(`${type} sign-up link generated`)
+  }
+
+  const copy = () => {
+    if (!url) return
+    navigator.clipboard.writeText(url)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  return (
+    <div>
+      {loading ? (
+        <div className="text-[11px] text-muted font-cond">Loading...</div>
+      ) : url ? (
+        <div className="flex items-start gap-4">
+          <div className="w-20 h-20 bg-white rounded-lg p-1.5 flex-shrink-0">
+            <QRCodeSVG value={url} size={68} bgColor="#ffffff" fgColor="#000000" level="M" />
+          </div>
+          <div className="flex-1 min-w-0 space-y-2">
+            <div className="flex items-center gap-3">
+              <input
+                className="flex-1 bg-[#081428] border border-[#1a2d50] text-white px-3 py-2 rounded text-[12px] outline-none cursor-default select-all"
+                value={url}
+                readOnly
+                onClick={(e) => (e.target as HTMLInputElement).select()}
+              />
+              <button
+                onClick={copy}
+                className="flex items-center gap-1.5 font-cond font-black text-[10px] tracking-[.1em] px-3 py-2 rounded-lg bg-navy hover:bg-navy/80 text-white transition-colors shrink-0"
+              >
+                {copied ? <Check size={13} /> : <Copy size={13} />}
+                <span>{copied ? 'COPIED' : 'COPY'}</span>
+              </button>
+            </div>
+            <div className="font-cond text-[10px] text-[#5a6e9a]">
+              Scan to open {type} sign-up form
+            </div>
+          </div>
+        </div>
+      ) : (
+        <button
+          onClick={generate}
+          className="flex items-center gap-1.5 font-cond font-black text-[11px] tracking-[.1em] px-4 py-2 rounded-lg border border-[#1a2d50] text-[#5a6e9a] hover:text-white hover:border-blue-400 transition-colors"
+        >
+          <Plus size={12} /> GENERATE LINK
+        </button>
+      )}
+    </div>
   )
 }

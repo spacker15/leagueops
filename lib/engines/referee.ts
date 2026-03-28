@@ -11,7 +11,7 @@
  *   missing_referee      — game has no referee assigned
  */
 
-import { createClient } from '@/supabase/client'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import type {
   Referee,
   RefAssignment,
@@ -21,8 +21,6 @@ import type {
   ConflictSeverity,
   ResolutionOption,
 } from '@/types'
-
-const EVENT_ID = 1
 
 // ---- Time helpers ----
 
@@ -83,9 +81,11 @@ export interface RefereeEngineResult {
  * Run the full referee engine for a given event date.
  * Returns detected conflicts and writes them to the DB.
  */
-export async function runRefereeEngine(eventDateId: number): Promise<RefereeEngineResult> {
-  const sb = createClient()
-
+export async function runRefereeEngine(
+  eventDateId: number,
+  eventId: number,
+  sb: SupabaseClient
+): Promise<RefereeEngineResult> {
   // 1. Load all games for this date with their ref assignments
   const { data: games } = await sb
     .from('games')
@@ -100,7 +100,7 @@ export async function runRefereeEngine(eventDateId: number): Promise<RefereeEngi
     .order('scheduled_time')
 
   // 2. Load all referees with their profiles
-  const { data: referees } = await sb.from('referees').select('*').eq('event_id', EVENT_ID)
+  const { data: referees } = await sb.from('referees').select('*').eq('event_id', eventId)
 
   // 3. Load availability for this date
   const { data: eventDate } = await sb
@@ -302,16 +302,16 @@ export async function runRefereeEngine(eventDateId: number): Promise<RefereeEngi
   }
 
   // ---- Write conflicts to DB (clear stale, insert fresh) ----
-  await clearStaleConflicts(eventDateId, [
-    'ref_double_booked',
-    'ref_unavailable',
-    'max_games_exceeded',
-    'missing_referee',
-  ])
+  await clearStaleConflicts(
+    eventDateId,
+    ['ref_double_booked', 'ref_unavailable', 'max_games_exceeded', 'missing_referee'],
+    eventId,
+    sb
+  )
 
   for (const conflict of conflicts) {
     await sb.from('operational_conflicts').insert({
-      event_id: EVENT_ID,
+      event_id: eventId,
       conflict_type: conflict.type,
       severity: conflict.severity,
       impacted_game_ids: conflict.gameIds,
@@ -337,8 +337,12 @@ export async function runRefereeEngine(eventDateId: number): Promise<RefereeEngi
 }
 
 /** Clear existing unresolved conflicts of given types before re-running */
-async function clearStaleConflicts(eventDateId: number, types: ConflictType[]) {
-  const sb = createClient()
+async function clearStaleConflicts(
+  eventDateId: number,
+  types: ConflictType[],
+  eventId: number,
+  sb: SupabaseClient
+) {
   // Get game IDs for this date to scope the delete
   const { data: games } = await sb.from('games').select('id').eq('event_date_id', eventDateId)
 
@@ -349,7 +353,7 @@ async function clearStaleConflicts(eventDateId: number, types: ConflictType[]) {
   const { data: existing } = await sb
     .from('operational_conflicts')
     .select('id, impacted_game_ids')
-    .eq('event_id', EVENT_ID)
+    .eq('event_id', eventId)
     .eq('resolved', false)
     .in('conflict_type', types)
 
@@ -372,10 +376,10 @@ export async function findAvailableRefs(
   eventDateId: number,
   gameTime: string,
   division: string,
-  excludeRefIds: number[] = []
+  excludeRefIds: number[] = [],
+  eventId: number,
+  sb: SupabaseClient
 ): Promise<Referee[]> {
-  const sb = createClient()
-
   const { data: eventDate } = await sb
     .from('event_dates')
     .select('date')
@@ -385,7 +389,7 @@ export async function findAvailableRefs(
   const { data: refs } = await sb
     .from('referees')
     .select('*')
-    .eq('event_id', EVENT_ID)
+    .eq('event_id', eventId)
     .eq('checked_in', true)
 
   if (!refs || !eventDate) return []

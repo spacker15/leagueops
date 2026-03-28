@@ -3,6 +3,7 @@ import type {
   Event,
   EventDate,
   Field,
+  FieldAvailability,
   Team,
   Player,
   Game,
@@ -17,6 +18,8 @@ import type {
   OpsLogEntry,
   LogType,
   GameStatus,
+  NotificationLogEntry,
+  ScheduleChangeRequest,
 } from '@/types'
 
 // ---- Events ----
@@ -105,10 +108,59 @@ export async function deleteField(fieldId: number): Promise<void> {
   await sb.from('fields').delete().eq('id', fieldId)
 }
 
+// ---- Field Availability ----
+export async function getFieldAvailability(eventId: number): Promise<FieldAvailability[]> {
+  const sb = createClient()
+  const { data } = await sb.from('field_availability').select('*').eq('event_id', eventId)
+  return data ?? []
+}
+
+export async function upsertFieldAvailability(
+  fieldId: number,
+  eventDateId: number,
+  eventId: number,
+  availableFrom: string,
+  availableTo: string
+): Promise<void> {
+  const sb = createClient()
+  await sb.from('field_availability').upsert(
+    {
+      field_id: fieldId,
+      event_date_id: eventDateId,
+      event_id: eventId,
+      available_from: availableFrom,
+      available_to: availableTo,
+    },
+    { onConflict: 'field_id,event_date_id' }
+  )
+}
+
+export async function bulkSetFieldAvailability(
+  fieldId: number,
+  eventId: number,
+  eventDateIds: number[],
+  availableFrom: string,
+  availableTo: string
+): Promise<void> {
+  const sb = createClient()
+  const rows = eventDateIds.map((edId) => ({
+    field_id: fieldId,
+    event_date_id: edId,
+    event_id: eventId,
+    available_from: availableFrom,
+    available_to: availableTo,
+  }))
+  await sb.from('field_availability').upsert(rows, { onConflict: 'field_id,event_date_id' })
+}
+
 // ---- Teams ----
 export async function getTeams(eventId: number): Promise<Team[]> {
   const sb = createClient()
-  const { data } = await sb.from('teams').select('*').eq('event_id', eventId).order('division')
+  const { data } = await sb
+    .from('teams')
+    .select('*, programs(name)')
+    .eq('event_id', eventId)
+    .order('division')
   return data ?? []
 }
 
@@ -218,6 +270,11 @@ export async function updateGameScore(
 export async function updateGameField(gameId: number, fieldId: number): Promise<void> {
   const sb = createClient()
   await sb.from('games').update({ field_id: fieldId }).eq('id', gameId)
+}
+
+export async function deleteGame(gameId: number): Promise<void> {
+  const sb = createClient()
+  await sb.from('games').delete().eq('id', gameId)
 }
 
 export async function insertGame(
@@ -427,6 +484,7 @@ export async function getWeatherAlerts(eventId: number): Promise<WeatherAlert[]>
     .from('weather_alerts')
     .select('*')
     .eq('event_id', eventId)
+    .eq('is_active', true)
     .order('created_at', { ascending: false })
   return data ?? []
 }
@@ -589,6 +647,56 @@ export async function upsertRefAvailability(availability: {
   return data
 }
 
+// ---- Trainers ----
+export async function getTrainers(eventId: number) {
+  const sb = createClient()
+  const { data } = await sb.from('trainers').select('*').eq('event_id', eventId).order('name')
+  return data ?? []
+}
+
+export async function insertTrainer(trainer: {
+  event_id: number
+  name: string
+  email: string | null
+  phone: string | null
+  certifications: string | null
+}) {
+  const sb = createClient()
+  const { data } = await sb
+    .from('trainers')
+    .insert({ ...trainer, checked_in: false })
+    .select()
+    .single()
+  return data
+}
+
+export async function deleteTrainer(id: number) {
+  const sb = createClient()
+  await sb.from('trainers').delete().eq('id', id)
+}
+
+export async function getTrainerAvailability(trainerId: number) {
+  const sb = createClient()
+  const { data } = await sb
+    .from('trainer_availability')
+    .select('*')
+    .eq('trainer_id', trainerId)
+    .order('date')
+  return data ?? []
+}
+
+export async function upsertTrainerAvailability(trainerId: number, date: string) {
+  const sb = createClient()
+  await sb
+    .from('trainer_availability')
+    .upsert({ trainer_id: trainerId, date }, { onConflict: 'trainer_id,date' })
+}
+
+export async function deleteTrainerAvailability(id: number) {
+  const sb = createClient()
+  await sb.from('trainer_availability').delete().eq('id', id)
+}
+
 // ---- Operational Conflicts ----
 export async function getOpenConflicts(eventId: number) {
   const sb = createClient()
@@ -627,4 +735,134 @@ export async function resolveConflict(id: number, resolvedBy?: string) {
       resolved_by: resolvedBy ?? 'operator',
     })
     .eq('id', id)
+}
+
+// === Phase 7: Notification helpers ===
+
+/** Get unread notification count for current user */
+export async function getUnreadNotificationCount(userId: string): Promise<number> {
+  const sb = createClient()
+  const { count } = await sb
+    .from('notification_log')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .is('read_at', null)
+    .eq('status', 'delivered')
+  return count ?? 0
+}
+
+/** Get recent notifications for dropdown (last 20) */
+export async function getRecentNotifications(userId: string): Promise<NotificationLogEntry[]> {
+  const sb = createClient()
+  const { data } = await sb
+    .from('notification_log')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('status', 'delivered')
+    .order('delivered_at', { ascending: false })
+    .limit(20)
+  return (data ?? []) as NotificationLogEntry[]
+}
+
+/** Mark all notifications as read for current user */
+export async function markAllNotificationsRead(userId: string): Promise<void> {
+  const sb = createClient()
+  await sb
+    .from('notification_log')
+    .update({ read_at: new Date().toISOString() })
+    .eq('user_id', userId)
+    .is('read_at', null)
+}
+
+/** Mark a single notification as read */
+export async function markNotificationRead(notificationId: number): Promise<void> {
+  const sb = createClient()
+  await sb
+    .from('notification_log')
+    .update({ read_at: new Date().toISOString() })
+    .eq('id', notificationId)
+}
+
+// ---- Schedule Change Requests ----
+
+/** Get all schedule change requests for an event, with joined games and team */
+export async function getScheduleChangeRequests(eventId: number): Promise<ScheduleChangeRequest[]> {
+  const sb = createClient()
+  const { data } = await sb
+    .from('schedule_change_requests')
+    .select(
+      '*, team:teams(*), games:schedule_change_request_games(*, game:games(*, event_date:event_dates(id, date, label), home_team:teams!games_home_team_id_fkey(id, name), away_team:teams!games_away_team_id_fkey(id, name), field:fields(id, name)))'
+    )
+    .eq('event_id', eventId)
+    .order('created_at', { ascending: false })
+  return (data ?? []) as ScheduleChangeRequest[]
+}
+
+/** Insert a new schedule change request and its junction rows */
+export async function insertScheduleChangeRequest(
+  request: Omit<
+    ScheduleChangeRequest,
+    | 'id'
+    | 'created_at'
+    | 'updated_at'
+    | 'team'
+    | 'games'
+    | 'reviewed_by'
+    | 'reviewed_at'
+    | 'admin_notes'
+  >,
+  gameIds: number[]
+): Promise<ScheduleChangeRequest | null> {
+  const sb = createClient()
+  const { data: inserted, error } = await sb
+    .from('schedule_change_requests')
+    .insert(request)
+    .select()
+    .single()
+  if (error || !inserted) return null
+
+  const junctionRows = gameIds.map((gameId) => ({
+    request_id: inserted.id,
+    game_id: gameId,
+    status: 'pending' as const,
+  }))
+  await sb.from('schedule_change_request_games').insert(junctionRows)
+
+  return inserted as ScheduleChangeRequest
+}
+
+/** Update the status, admin notes, reviewer info, and updated_at of a schedule change request */
+export async function updateScheduleChangeRequestStatus(
+  id: number,
+  status: string,
+  adminNotes?: string | null,
+  reviewedBy?: string
+): Promise<ScheduleChangeRequest | null> {
+  const sb = createClient()
+  const now = new Date().toISOString()
+  const updatePayload: Record<string, unknown> = {
+    status,
+    updated_at: now,
+  }
+  if (adminNotes !== undefined) updatePayload.admin_notes = adminNotes
+  if (reviewedBy !== undefined) updatePayload.reviewed_by = reviewedBy
+  if (status === 'approved' || status === 'denied') {
+    updatePayload.reviewed_at = now
+  }
+  const { data } = await sb
+    .from('schedule_change_requests')
+    .update(updatePayload)
+    .eq('id', id)
+    .select()
+    .single()
+  return (data ?? null) as ScheduleChangeRequest | null
+}
+
+/** Update the status of a single schedule_change_request_games row */
+export async function updateScheduleChangeRequestGameStatus(
+  id: number,
+  status: string
+): Promise<void> {
+  const sb = createClient()
+  await sb.from('schedule_change_request_games').update({ status }).eq('id', id)
 }

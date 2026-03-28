@@ -29,6 +29,7 @@ interface Player {
 
 export function VolunteerPortal() {
   const { userRole, signOut } = useAuth()
+  const portalEventId = userRole?.event_id
   const [tab, setTab] = useState<PortalTab>('checkin')
   const [vol, setVol] = useState<any>(null)
   const [games, setGames] = useState<AssignedGame[]>([])
@@ -44,7 +45,7 @@ export function VolunteerPortal() {
   const [rosterLoading, setRosterLoading] = useState(false)
 
   useEffect(() => {
-    if (!userRole?.volunteer_id) return
+    if (!portalEventId || !userRole?.volunteer_id) return
     loadData()
   }, [userRole])
 
@@ -129,11 +130,11 @@ export function VolunteerPortal() {
     await sb.from('portal_checkins').insert({
       person_type: 'volunteer',
       person_id: userRole.volunteer_id,
-      event_id: 1,
+      event_id: portalEventId,
       checked_in: newState,
     })
     await sb.from('ops_log').insert({
-      event_id: 1,
+      event_id: portalEventId,
       message: `Volunteer ${vol?.name} (${vol?.role}) ${newState ? 'checked in' : 'checked out'} via portal`,
       log_type: newState ? 'ok' : 'info',
       occurred_at: new Date().toISOString(),
@@ -142,6 +143,8 @@ export function VolunteerPortal() {
     setCheckingIn(false)
     toast.success(newState ? '✓ You are checked in!' : 'Checked out')
   }
+
+  if (!portalEventId) return null
 
   if (loading)
     return (
@@ -370,7 +373,11 @@ export function VolunteerPortal() {
           </div>
         )}
         {tab === 'approvals' && (
-          <ApprovalsPanel personName={vol?.name ?? 'Volunteer'} personType="volunteer" />
+          <ApprovalsPanel
+            personName={vol?.name ?? 'Volunteer'}
+            personType="volunteer"
+            eventId={portalEventId}
+          />
         )}
       </div>
     </div>
@@ -380,9 +387,11 @@ export function VolunteerPortal() {
 function ApprovalsPanel({
   personName,
   personType,
+  eventId,
 }: {
   personName: string
   personType: 'referee' | 'volunteer'
+  eventId: number
 }) {
   const [approvals, setApprovals] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -394,7 +403,7 @@ function ApprovalsPanel({
 
   async function load() {
     setLoading(true)
-    const res = await fetch('/api/eligibility?all=1&event_id=1')
+    const res = await fetch(`/api/eligibility?all=1&event_id=${eventId}`)
     if (res.ok) setApprovals(await res.json())
     setLoading(false)
   }

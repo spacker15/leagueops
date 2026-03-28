@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/supabase/client'
+import { useApp } from '@/lib/store'
 import { cn } from '@/lib/utils'
 import { SectionHeader } from '@/components/ui'
 import toast from 'react-hot-toast'
@@ -23,6 +24,7 @@ const inp =
 const lbl = 'font-cond text-[10px] font-bold tracking-widest text-muted uppercase block mb-1.5'
 
 export function LeagueSettingsTab() {
+  const { eventId } = useApp()
   const fileRef = useRef<HTMLInputElement>(null)
   const [settings, setSettings] = useState<EventSettings | null>(null)
   const [loading, setLoading] = useState(true)
@@ -136,7 +138,7 @@ export function LeagueSettingsTab() {
       toast.success('League settings saved')
       // Log it
       await sb.from('ops_log').insert({
-        event_id: 1,
+        event_id: eventId,
         message: `League settings updated: "${name}"`,
         log_type: 'info',
         occurred_at: new Date().toISOString(),

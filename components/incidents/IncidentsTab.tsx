@@ -26,7 +26,7 @@ const INJURY_TYPES: InjuryType[] = [
   'Arm / Shoulder',
   'General / Unknown',
 ]
-const TRAINERS = ['Sarah Mitchell (AT)', 'Tom Guerrero (AT)', '911 / EMS']
+const FALLBACK_TRAINERS = ['911 / EMS']
 
 export function IncidentsTab() {
   const {
@@ -97,7 +97,26 @@ export function IncidentsTab() {
   const [trPlayerId, setTrPlayerId] = useState('')
   const [trField, setTrField] = useState('')
   const [trInjury, setTrInjury] = useState<InjuryType>('Knee / Leg')
-  const [trTrainer, setTrTrainer] = useState(TRAINERS[0])
+  const [trainerNames, setTrainerNames] = useState<string[]>(FALLBACK_TRAINERS)
+  const [trTrainer, setTrTrainer] = useState(FALLBACK_TRAINERS[0])
+
+  // Load trainers from DB
+  useEffect(() => {
+    if (!eventId) return
+    const sb = createClient()
+    sb.from('trainers')
+      .select('name, certifications')
+      .eq('event_id', eventId)
+      .order('name')
+      .then(({ data }) => {
+        const names = (data ?? []).map((t: any) =>
+          t.certifications ? `${t.name} (${t.certifications})` : t.name
+        )
+        const all = [...names, ...FALLBACK_TRAINERS]
+        setTrainerNames(all)
+        if (all.length > 0) setTrTrainer(all[0])
+      })
+  }, [eventId])
 
   // When field selected, filter games on that field
   const fieldGames = useMemo(() => {
@@ -145,6 +164,8 @@ export function IncidentsTab() {
     if (!incTeam) return rosterPlayers
     return rosterPlayers
   }, [rosterPlayers, incTeam])
+
+  if (!eventId) return null
 
   function getPersonName(): string {
     if (incPersonMode === 'freeform') return incPersonFree.trim()
@@ -506,7 +527,7 @@ export function IncidentsTab() {
                 value={trTrainer}
                 onChange={(e) => setTrTrainer(e.target.value)}
               >
-                {TRAINERS.map((t) => (
+                {trainerNames.map((t) => (
                   <option key={t} value={t}>
                     {t}
                   </option>

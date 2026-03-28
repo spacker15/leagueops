@@ -48,7 +48,7 @@ interface CheckinState {
 }
 
 // ─── Auto-generate QR tokens for a list of player IDs ─────────
-async function ensureTokens(playerIds: number[]): Promise<Record<number, string>> {
+async function ensureTokens(playerIds: number[], eventId: number): Promise<Record<number, string>> {
   if (!playerIds.length) return {}
   const sb = createClient()
   // Upsert tokens silently
@@ -56,7 +56,7 @@ async function ensureTokens(playerIds: number[]): Promise<Record<number, string>
     playerIds.map((id) =>
       sb
         .from('player_qr_tokens')
-        .upsert({ player_id: id, event_id: 1 }, { onConflict: 'player_id,event_id' })
+        .upsert({ player_id: id, event_id: eventId }, { onConflict: 'player_id,event_id' })
     )
   )
   // Fetch back tokens
@@ -70,7 +70,7 @@ async function ensureTokens(playerIds: number[]): Promise<Record<number, string>
 }
 
 export function CheckInTab() {
-  const { state } = useApp()
+  const { state, eventId } = useApp()
   const { userRole } = useAuth()
 
   const [tab, setTab] = useState<Tab>('game')
@@ -152,7 +152,10 @@ export function CheckInTab() {
     if (!players.length) return players
 
     // Auto-generate tokens for any missing ones
-    const tokenMap = await ensureTokens(players.map((p) => p.id))
+    const tokenMap = await ensureTokens(
+      players.map((p) => p.id),
+      eventId
+    )
     return players.map((p) => ({ ...p, token: tokenMap[p.id] }))
   }
 
@@ -188,7 +191,7 @@ export function CheckInTab() {
   }
 
   const loadAllApprovals = useCallback(async () => {
-    const res = await fetch('/api/eligibility?all=1&event_id=1')
+    const res = await fetch(`/api/eligibility?all=1&event_id=${eventId}`)
     if (res.ok) setAllApprovals(await res.json())
   }, [])
 
@@ -213,6 +216,8 @@ export function CheckInTab() {
       sb.removeChannel(sub)
     }
   }, [selectedGameId, loadAllApprovals])
+
+  if (!eventId) return null
 
   async function togglePlayer(player: PlayerWithExtras) {
     if (!selectedGameId || !selectedGame) return
@@ -595,7 +600,7 @@ export function CheckInTab() {
             <>
               {/* ── LIST VIEW ── */}
               {viewMode === 'list' && (
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <RosterList
                     label={selectedGame.home_team?.name ?? 'Home'}
                     players={homePlayers}
@@ -641,7 +646,7 @@ export function CheckInTab() {
                           <Printer size={10} className="inline mr-1" /> PRINT TEAM
                         </Btn>
                       </div>
-                      <div className="grid grid-cols-[repeat(auto-fill,minmax(175px,1fr))] gap-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(175px,1fr))] gap-3">
                         {players.map((p) => (
                           <PlayerCard
                             key={p.id}

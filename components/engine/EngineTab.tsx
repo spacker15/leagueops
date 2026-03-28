@@ -9,7 +9,7 @@ import { X } from 'lucide-react'
 import type { GeneratedGame } from '@/types'
 
 export function EngineTab() {
-  const { state, addGame, currentDate } = useApp()
+  const { state, addGame, currentDate, eventId } = useApp()
 
   const [engDivision, setEngDivision] = useState('U14')
   const [teamInput, setTeamInput] = useState('')
@@ -23,6 +23,8 @@ export function EngineTab() {
   )
   const [generated, setGenerated] = useState<GeneratedGame[] | null>(null)
   const [importing, setImporting] = useState(false)
+
+  if (!eventId) return null
 
   function addTeam() {
     const name = teamInput.trim()
@@ -80,7 +82,7 @@ export function EngineTab() {
       const field = state.fields.find((f) => f.name === g.field)
       if (!homeTeam || !awayTeam || !field) continue
       await addGame({
-        event_id: 1,
+        event_id: eventId,
         event_date_id: currentDate.id,
         field_id: field.id,
         home_team_id: homeTeam.id,

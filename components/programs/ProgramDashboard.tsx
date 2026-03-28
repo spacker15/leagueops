@@ -5,22 +5,22 @@ import { useAuth } from '@/lib/auth'
 import { createClient } from '@/supabase/client'
 import { cn } from '@/lib/utils'
 import toast from 'react-hot-toast'
-import { LogOut, Upload, Plus, Trash2, Download, Users, CheckCircle, Clock } from 'lucide-react'
+import {
+  LogOut,
+  Upload,
+  Plus,
+  Trash2,
+  Download,
+  Users,
+  CheckCircle,
+  Clock,
+  CalendarX,
+  DollarSign,
+} from 'lucide-react'
+import { ScheduleChangeRequestModal } from '@/components/schedule/ScheduleChangeRequestModal'
+import type { Game } from '@/types'
 
-const DIVISIONS = [
-  '8U Boys',
-  '10U Boys',
-  '12U Boys',
-  '14U Boys',
-  '16U Boys',
-  '18U Boys',
-  '8U Girls',
-  '10U Girls',
-  '12U Girls',
-  '14U Girls',
-  '16U Girls',
-  '18U Girls',
-]
+// Divisions are derived dynamically from event data (registration_fees + existing teams)
 
 interface Program {
   id: number
@@ -33,6 +33,7 @@ interface Program {
   contact_email: string
   contact_phone: string | null
   association: string | null
+  logo_url: string | null
 }
 
 interface TeamReg {
@@ -59,6 +60,7 @@ type Tab = 'overview' | 'teams' | 'rosters' | 'register'
 
 export function ProgramDashboard() {
   const { userRole, signOut } = useAuth()
+  const portalEventId = userRole?.event_id
   const [program, setProgram] = useState<Program | null>(null)
   const [teamRegs, setTeamRegs] = useState<TeamReg[]>([])
   const [teams, setTeams] = useState<any[]>([])
@@ -68,40 +70,127 @@ export function ProgramDashboard() {
   const [selectedTeam, setSelectedTeam] = useState<number | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
+  // Fee/payment data for the program
+  const [programFees, setProgramFees] = useState<any[]>([])
+  const [programPayments, setProgramPayments] = useState<any[]>([])
+  const [programGameCounts, setProgramGameCounts] = useState<Record<number, number>>({})
+  const [availableDivisions, setAvailableDivisions] = useState<string[]>([])
+
   // New team form
   const [newTeamName, setNewTeamName] = useState('')
-  const [newTeamDiv, setNewTeamDiv] = useState('14U Boys')
+  const [newTeamDiv, setNewTeamDiv] = useState('')
   const [newCoachName, setNewCoachName] = useState('')
   const [newCoachEmail, setNewCoachEmail] = useState('')
   const [newPlayerCount, setNewPlayerCount] = useState('')
   const [addingTeam, setAddingTeam] = useState(false)
 
+  // Schedule change request state
+  const [programGames, setProgramGames] = useState<Game[]>([])
+  const [pendingGameIds, setPendingGameIds] = useState<Set<number>>(new Set())
+  const [gameScrStatus, setGameScrStatus] = useState<Map<number, string>>(new Map())
+  const [scrModalOpen, setScrModalOpen] = useState(false)
+  const [scrPreSelectedGameId, setScrPreSelectedGameId] = useState<number | undefined>()
+  const [scrTeamId, setScrTeamId] = useState<number | undefined>()
+
   useEffect(() => {
     loadData()
   }, [userRole])
 
+  if (!portalEventId) return null
+
   async function loadData() {
-    if (!userRole?.program_id) return
+    if (!userRole?.program_id) {
+      setLoading(false)
+      return
+    }
     const sb = createClient()
     setLoading(true)
 
-    const [{ data: prog }, { data: regs }, { data: teamData }] = await Promise.all([
-      sb.from('programs').select('*').eq('id', userRole.program_id).single(),
-      sb
-        .from('team_registrations')
-        .select('*')
-        .eq('program_id', userRole.program_id)
-        .order('created_at'),
-      sb
-        .from('program_teams')
-        .select('*, team:teams(id, name, division)')
-        .eq('program_id', userRole.program_id),
-    ])
+    try {
+      const [{ data: prog }, { data: regs }, { data: teamData }] = await Promise.all([
+        sb.from('programs').select('*').eq('id', userRole.program_id).single(),
+        sb
+          .from('team_registrations')
+          .select('*')
+          .eq('program_id', userRole.program_id)
+          .order('created_at'),
+        sb
+          .from('program_teams')
+          .select('*, team:teams(id, name, division, logo_url)')
+          .eq('program_id', userRole.program_id),
+      ])
 
-    setProgram(prog as Program)
-    setTeamRegs((regs as TeamReg[]) ?? [])
-    setTeams((teamData ?? []).map((pt: any) => pt.team).filter(Boolean))
-    setLoading(false)
+      setProgram(prog as Program)
+      setTeamRegs((regs as TeamReg[]) ?? [])
+      const teamsList = (teamData ?? []).map((pt: any) => pt.team).filter(Boolean)
+      setTeams(teamsList)
+
+      // Load games and pending schedule change requests for Request Change buttons
+      if (teamsList.length > 0) {
+        const teamIds = teamsList.map((t: any) => t.id)
+        const { data: gamesData } = await sb
+          .from('games')
+          .select(
+            '*, home_team:teams!games_home_team_id_fkey(id, name), away_team:teams!games_away_team_id_fkey(id, name), field:fields(id, name), event_date:event_dates(id, date, label)'
+          )
+          .eq('event_id', portalEventId!)
+          .or(`home_team_id.in.(${teamIds.join(',')}),away_team_id.in.(${teamIds.join(',')})`)
+          .order('event_date_id')
+          .order('scheduled_time')
+        setProgramGames((gamesData as Game[]) ?? [])
+
+        const { data: scrData } = await sb
+          .from('schedule_change_requests')
+          .select('id, status, schedule_change_request_games(game_id, status)')
+          .eq('event_id', portalEventId!)
+          .in('team_id', teamIds)
+        const pendingIds = new Set<number>()
+        const gameRequestStatus = new Map<number, string>()
+        for (const r of (scrData ?? []) as any[]) {
+          for (const g of r.schedule_change_request_games ?? []) {
+            if (['pending', 'under_review'].includes(r.status)) {
+              pendingIds.add(g.game_id)
+            }
+            // Track the most recent game-level status
+            gameRequestStatus.set(g.game_id, g.status)
+          }
+        }
+        setPendingGameIds(pendingIds)
+        setGameScrStatus(gameRequestStatus)
+
+        // Count games per team
+        const counts: Record<number, number> = {}
+        for (const g of (gamesData ?? []) as any[]) {
+          if (g.home_team_id) counts[g.home_team_id] = (counts[g.home_team_id] || 0) + 1
+          if (g.away_team_id) counts[g.away_team_id] = (counts[g.away_team_id] || 0) + 1
+        }
+        setProgramGameCounts(counts)
+      }
+
+      // Load fees and payment records for this program's teams
+      const [{ data: feesData }, { data: paymentsData }] = await Promise.all([
+        sb.from('registration_fees').select('*').eq('event_id', portalEventId!),
+        sb
+          .from('team_payments')
+          .select('*')
+          .eq('event_id', portalEventId!)
+          .eq('program_name', prog?.name || ''),
+      ])
+      setProgramFees(feesData ?? [])
+      setProgramPayments(paymentsData ?? [])
+      // Derive available divisions from fee config + existing team registrations
+      const feeDivs = (feesData ?? []).map((f: any) => f.division as string)
+      const regDivs = ((regs as TeamReg[]) ?? []).map((r) => r.division)
+      const teamDivs = teamsList.map((t: any) => t.division as string)
+      const allDivs = Array.from(
+        new Set([...feeDivs, ...regDivs, ...teamDivs].filter(Boolean))
+      ).sort()
+      setAvailableDivisions(allDivs)
+    } catch (err) {
+      console.error('ProgramDashboard loadData error:', err)
+    } finally {
+      setLoading(false)
+    }
   }
 
   async function loadPlayers(teamId: number) {
@@ -119,22 +208,47 @@ export function ProgramDashboard() {
     if (!userRole?.program_id) return
     setAddingTeam(true)
     const sb = createClient()
-    const { error } = await sb.from('team_registrations').insert({
-      program_id: userRole.program_id,
-      event_id: 1,
-      team_name: newTeamName,
-      division: newTeamDiv,
-      head_coach_name: newCoachName || null,
-      head_coach_email: newCoachEmail || null,
-      player_count: newPlayerCount ? Number(newPlayerCount) : null,
-      status: 'pending',
-    })
+    const { data: reg, error } = await sb
+      .from('team_registrations')
+      .insert({
+        program_id: userRole.program_id,
+        event_id: portalEventId,
+        team_name: newTeamName,
+        division: newTeamDiv,
+        head_coach_name: newCoachName || null,
+        head_coach_email: newCoachEmail || null,
+        player_count: newPlayerCount ? Number(newPlayerCount) : null,
+        status: 'approved',
+      })
+      .select()
+      .single()
     if (error) {
       toast.error(error.message)
       setAddingTeam(false)
       return
     }
-    toast.success('Team registration submitted for review')
+    // Auto-create team record
+    if (reg) {
+      const { data: newTeam } = await sb
+        .from('teams')
+        .insert({
+          event_id: portalEventId,
+          name: newTeamName,
+          division: newTeamDiv,
+          program_id: userRole.program_id || null,
+        })
+        .select()
+        .single()
+      if (newTeam && userRole.program_id) {
+        await sb.from('program_teams').insert({
+          program_id: userRole.program_id,
+          team_id: (newTeam as any).id,
+          event_id: portalEventId,
+          division: newTeamDiv,
+        })
+      }
+    }
+    toast.success('Team registered and approved!')
     setNewTeamName('')
     setNewCoachName('')
     setNewCoachEmail('')
@@ -291,67 +405,243 @@ export function ProgramDashboard() {
 
         {/* ── OVERVIEW ── */}
         {tab === 'overview' && (
-          <div className="grid grid-cols-3 gap-4">
-            {/* Program card */}
-            <div className="col-span-2 bg-surface-card border border-border rounded-xl p-5">
-              <div className="flex items-start justify-between mb-4">
-                <div>
-                  <div className="font-cond font-black text-[22px] text-white">{program?.name}</div>
-                  {program?.short_name && (
-                    <div className="font-cond text-[12px] text-blue-300">{program.short_name}</div>
-                  )}
-                  <div className="font-cond text-[12px] text-muted mt-1">
-                    {[program?.city, program?.state, program?.association]
-                      .filter(Boolean)
-                      .join(' · ')}
+          <>
+            <div className="grid grid-cols-3 gap-4">
+              {/* Program card */}
+              <div className="col-span-2 bg-surface-card border border-border rounded-xl p-5">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    {program?.logo_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={program.logo_url}
+                        alt=""
+                        className="w-12 h-12 rounded-lg object-cover flex-shrink-0"
+                      />
+                    ) : null}
+                    <div>
+                      <div className="font-cond font-black text-[22px] text-white">
+                        {program?.name}
+                      </div>
+                      {program?.short_name && (
+                        <div className="font-cond text-[12px] text-blue-300">
+                          {program.short_name}
+                        </div>
+                      )}
+                      <div className="font-cond text-[12px] text-muted mt-1">
+                        {[program?.city, program?.state, program?.association]
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </div>
+                    </div>
+                  </div>
+                  <span
+                    className={cn(
+                      'font-cond text-[11px] font-black px-3 py-1 rounded tracking-wider',
+                      program?.status === 'approved'
+                        ? 'bg-green-900/40 text-green-400 border border-green-800/50'
+                        : program?.status === 'pending'
+                          ? 'bg-yellow-900/40 text-yellow-400 border border-yellow-800/50'
+                          : program?.status === 'rejected'
+                            ? 'bg-red-900/40 text-red-400 border border-red-800/50'
+                            : 'bg-surface text-muted border border-border'
+                    )}
+                  >
+                    {program?.status?.toUpperCase()}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-3 text-[12px]">
+                  <div>
+                    <div className="font-cond text-[10px] text-muted uppercase tracking-widest mb-0.5">
+                      Contact
+                    </div>
+                    <div className="text-white font-cond font-bold">{program?.contact_name}</div>
+                    <div className="text-muted">{program?.contact_email}</div>
+                    {program?.contact_phone && (
+                      <div className="text-muted">{program.contact_phone}</div>
+                    )}
                   </div>
                 </div>
-                <span
-                  className={cn(
-                    'font-cond text-[11px] font-black px-3 py-1 rounded tracking-wider',
-                    program?.status === 'approved'
-                      ? 'bg-green-900/40 text-green-400 border border-green-800/50'
-                      : program?.status === 'pending'
-                        ? 'bg-yellow-900/40 text-yellow-400 border border-yellow-800/50'
-                        : program?.status === 'rejected'
-                          ? 'bg-red-900/40 text-red-400 border border-red-800/50'
-                          : 'bg-surface text-muted border border-border'
-                  )}
-                >
-                  {program?.status?.toUpperCase()}
-                </span>
               </div>
-              <div className="grid grid-cols-2 gap-3 text-[12px]">
-                <div>
-                  <div className="font-cond text-[10px] text-muted uppercase tracking-widest mb-0.5">
-                    Contact
+
+              {/* Stats */}
+              <div className="space-y-3">
+                {[
+                  { label: 'TEAMS REGISTERED', value: teamRegs.length, color: 'text-blue-300' },
+                  { label: 'APPROVED TEAMS', value: approvedTeams.length, color: 'text-green-400' },
+                  { label: 'PENDING REVIEW', value: pendingTeams.length, color: 'text-yellow-400' },
+                  { label: 'TOTAL PLAYERS', value: players.length, color: 'text-white' },
+                ].map((s) => (
+                  <div
+                    key={s.label}
+                    className="bg-surface-card border border-border rounded-xl p-4"
+                  >
+                    <div className="font-cond text-[9px] font-bold tracking-widest text-muted uppercase mb-1">
+                      {s.label}
+                    </div>
+                    <div className={cn('font-mono text-3xl font-bold', s.color)}>{s.value}</div>
                   </div>
-                  <div className="text-white font-cond font-bold">{program?.contact_name}</div>
-                  <div className="text-muted">{program?.contact_email}</div>
-                  {program?.contact_phone && (
-                    <div className="text-muted">{program.contact_phone}</div>
-                  )}
-                </div>
+                ))}
               </div>
             </div>
 
-            {/* Stats */}
-            <div className="space-y-3">
-              {[
-                { label: 'TEAMS REGISTERED', value: teamRegs.length, color: 'text-blue-300' },
-                { label: 'APPROVED TEAMS', value: approvedTeams.length, color: 'text-green-400' },
-                { label: 'PENDING REVIEW', value: pendingTeams.length, color: 'text-yellow-400' },
-                { label: 'TOTAL PLAYERS', value: players.length, color: 'text-white' },
-              ].map((s) => (
-                <div key={s.label} className="bg-surface-card border border-border rounded-xl p-4">
-                  <div className="font-cond text-[9px] font-bold tracking-widest text-muted uppercase mb-1">
-                    {s.label}
-                  </div>
-                  <div className={cn('font-mono text-3xl font-bold', s.color)}>{s.value}</div>
+            {/* Fees Summary */}
+            {programPayments.length > 0 && (
+              <div className="bg-surface-card border border-border rounded-xl overflow-hidden mt-5">
+                <div className="px-4 py-3 border-b border-border flex items-center gap-2">
+                  <DollarSign size={13} className="text-muted" />
+                  <span className="font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase">
+                    Fees & Payments
+                  </span>
                 </div>
-              ))}
-            </div>
-          </div>
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-border">
+                      {[
+                        'Team',
+                        'Division',
+                        'Reg Fee',
+                        'Games',
+                        'Extra',
+                        'Extra Fee',
+                        'Total Due',
+                        'Paid',
+                        'Balance',
+                      ].map((h) => (
+                        <th
+                          key={h}
+                          className="font-cond text-[10px] font-black tracking-[.1em] text-muted uppercase text-left px-3 py-2"
+                        >
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {programPayments.map((p: any) => {
+                      const gamesPlayed = p.team_id ? programGameCounts[p.team_id] || 0 : 0
+                      const feeConfig = programFees.find((f: any) => f.division === p.division)
+                      const gamesIncluded = feeConfig ? Number(feeConfig.games_included) || 0 : 0
+                      const extraGames =
+                        gamesIncluded > 0 ? Math.max(0, gamesPlayed - gamesIncluded) : 0
+                      const perGame = feeConfig
+                        ? (Number(feeConfig.extra_game_ref_fee) || 0) +
+                          (Number(feeConfig.extra_game_assigner_fee) || 0)
+                        : 0
+                      const extraFee = extraGames * perGame
+                      const totalDue = Number(p.amount_due) + extraFee
+                      const balance = totalDue - Number(p.amount_paid)
+                      return (
+                        <tr key={p.id} className="border-b border-[#0d1a2e] last:border-0">
+                          <td className="px-3 py-2.5 font-cond font-bold text-[12px] text-white">
+                            <div className="flex items-center gap-2">
+                              {(() => {
+                                const t = teams.find((tm: any) => tm.id === p.team_id)
+                                const logoSrc = t?.logo_url || program?.logo_url || null
+                                return logoSrc ? (
+                                  // eslint-disable-next-line @next/next/no-img-element
+                                  <img
+                                    src={logoSrc}
+                                    alt=""
+                                    className="w-5 h-5 rounded object-cover flex-shrink-0"
+                                  />
+                                ) : null
+                              })()}
+                              {p.team_name}
+                            </div>
+                          </td>
+                          <td className="px-3 py-2.5">
+                            <span className="font-cond text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#1a2d50] text-blue-300">
+                              {p.division}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2.5 font-cond text-[12px] text-white">
+                            ${Number(p.amount_due).toFixed(2)}
+                          </td>
+                          <td className="px-3 py-2.5 font-mono text-[11px] text-muted">
+                            {gamesPlayed}
+                          </td>
+                          <td className="px-3 py-2.5 font-mono text-[11px] text-orange-400">
+                            {extraGames > 0 ? `+${extraGames}` : '—'}
+                          </td>
+                          <td className="px-3 py-2.5 font-cond text-[12px] text-orange-400">
+                            {extraFee > 0 ? `$${extraFee.toFixed(2)}` : '—'}
+                          </td>
+                          <td className="px-3 py-2.5 font-cond text-[12px] font-bold text-white">
+                            ${totalDue.toFixed(2)}
+                          </td>
+                          <td className="px-3 py-2.5 font-cond text-[12px] text-green-400">
+                            ${Number(p.amount_paid).toFixed(2)}
+                          </td>
+                          <td
+                            className={cn(
+                              'px-3 py-2.5 font-cond text-[12px] font-bold',
+                              balance > 0 ? 'text-yellow-400' : 'text-green-400'
+                            )}
+                          >
+                            ${balance.toFixed(2)}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                    {(() => {
+                      const totRegFee = programPayments.reduce(
+                        (s: number, p: any) => s + Number(p.amount_due),
+                        0
+                      )
+                      const totExtraFee = programPayments.reduce((s: number, p: any) => {
+                        const gp = p.team_id ? programGameCounts[p.team_id] || 0 : 0
+                        const fc = programFees.find((f: any) => f.division === p.division)
+                        const gi = fc ? Number(fc.games_included) || 0 : 0
+                        const eg = gi > 0 ? Math.max(0, gp - gi) : 0
+                        const pg = fc
+                          ? (Number(fc.extra_game_ref_fee) || 0) +
+                            (Number(fc.extra_game_assigner_fee) || 0)
+                          : 0
+                        return s + eg * pg
+                      }, 0)
+                      const totPaid = programPayments.reduce(
+                        (s: number, p: any) => s + Number(p.amount_paid),
+                        0
+                      )
+                      const grandTotal = totRegFee + totExtraFee
+                      return (
+                        <tr className="bg-[#040d1c]">
+                          <td
+                            colSpan={2}
+                            className="px-3 py-2.5 font-cond text-[11px] font-black tracking-wider text-muted uppercase text-right"
+                          >
+                            Totals
+                          </td>
+                          <td className="px-3 py-2.5 font-cond text-[12px] font-bold text-white">
+                            ${totRegFee.toFixed(2)}
+                          </td>
+                          <td colSpan={2} />
+                          <td className="px-3 py-2.5 font-cond text-[12px] font-bold text-orange-400">
+                            {totExtraFee > 0 ? `$${totExtraFee.toFixed(2)}` : '—'}
+                          </td>
+                          <td className="px-3 py-2.5 font-cond text-[14px] font-black text-white">
+                            ${grandTotal.toFixed(2)}
+                          </td>
+                          <td className="px-3 py-2.5 font-cond text-[12px] font-bold text-green-400">
+                            ${totPaid.toFixed(2)}
+                          </td>
+                          <td
+                            className={cn(
+                              'px-3 py-2.5 font-cond text-[14px] font-black',
+                              grandTotal - totPaid > 0 ? 'text-yellow-400' : 'text-green-400'
+                            )}
+                          >
+                            ${(grandTotal - totPaid).toFixed(2)}
+                          </td>
+                        </tr>
+                      )
+                    })()}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
         )}
 
         {/* ── TEAMS ── */}
@@ -375,22 +665,40 @@ export function ProgramDashboard() {
                   )}
                 >
                   <div className="flex items-start justify-between">
-                    <div>
-                      <div className="font-cond font-black text-[16px] text-white">
-                        {reg.team_name}
+                    <div className="flex items-start gap-3">
+                      {(() => {
+                        const matchedTeam = teams.find(
+                          (t: any) => t.name.toLowerCase() === reg.team_name.toLowerCase()
+                        )
+                        const logoSrc = matchedTeam?.logo_url || program?.logo_url || null
+                        return logoSrc ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={logoSrc}
+                            alt=""
+                            className="w-9 h-9 rounded object-cover flex-shrink-0 mt-0.5"
+                          />
+                        ) : null
+                      })()}
+                      <div>
+                        <div className="font-cond font-black text-[16px] text-white">
+                          {reg.team_name}
+                        </div>
+                        <div className="font-cond text-[12px] text-blue-300 mb-2">
+                          {reg.division}
+                        </div>
+                        {reg.head_coach_name && (
+                          <div className="font-cond text-[11px] text-muted">
+                            Coach: {reg.head_coach_name}
+                            {reg.head_coach_email && ` · ${reg.head_coach_email}`}
+                          </div>
+                        )}
+                        {reg.player_count && (
+                          <div className="font-cond text-[11px] text-muted">
+                            {reg.player_count} players expected
+                          </div>
+                        )}
                       </div>
-                      <div className="font-cond text-[12px] text-blue-300 mb-2">{reg.division}</div>
-                      {reg.head_coach_name && (
-                        <div className="font-cond text-[11px] text-muted">
-                          Coach: {reg.head_coach_name}
-                          {reg.head_coach_email && ` · ${reg.head_coach_email}`}
-                        </div>
-                      )}
-                      {reg.player_count && (
-                        <div className="font-cond text-[11px] text-muted">
-                          {reg.player_count} players expected
-                        </div>
-                      )}
                     </div>
                     <div className="flex items-center gap-3">
                       {reg.status === 'approved' && reg.team_id && (
@@ -425,6 +733,93 @@ export function ProgramDashboard() {
                       Note: {reg.notes}
                     </div>
                   )}
+                  {/* Games with Request Change buttons */}
+                  {(() => {
+                    const matchedTeam = teams.find(
+                      (t: any) => t.name.toLowerCase() === reg.team_name.toLowerCase()
+                    )
+                    if (!matchedTeam) return null
+                    const teamGames = programGames.filter(
+                      (g) => g.home_team_id === matchedTeam.id || g.away_team_id === matchedTeam.id
+                    )
+                    if (teamGames.length === 0) return null
+                    return (
+                      <div className="mt-3 pt-3 border-t border-border/40">
+                        <div className="font-cond text-[10px] font-black tracking-widest text-muted uppercase mb-2">
+                          UPCOMING GAMES
+                        </div>
+                        <div className="space-y-1.5">
+                          {teamGames.map((game) => {
+                            const isPending = pendingGameIds.has(game.id)
+                            const isCancelled = game.status === 'Cancelled'
+                            const scrStatus = gameScrStatus.get(game.id)
+                            const opponent =
+                              game.home_team_id === matchedTeam.id
+                                ? ((game.away_team as any)?.name ?? `Team #${game.away_team_id}`)
+                                : ((game.home_team as any)?.name ?? `Team #${game.home_team_id}`)
+                            return (
+                              <div
+                                key={game.id}
+                                className={`flex items-center justify-between gap-2 rounded-lg px-2.5 py-2 bg-surface border border-border/40 ${isCancelled ? 'opacity-50' : ''}`}
+                              >
+                                <div className="flex items-center gap-2 flex-1 min-w-0">
+                                  <span
+                                    className={`font-mono text-[11px] text-muted whitespace-nowrap ${isCancelled ? 'line-through' : ''}`}
+                                  >
+                                    {(game.event_date as any)?.date
+                                      ? new Date(
+                                          (game.event_date as any).date + 'T00:00:00'
+                                        ).toLocaleDateString('en-US', {
+                                          month: 'short',
+                                          day: 'numeric',
+                                        })
+                                      : ''}{' '}
+                                    {game.scheduled_time}
+                                  </span>
+                                  <span className="font-cond text-[12px] text-white font-black truncate">
+                                    vs {opponent}
+                                  </span>
+                                </div>
+                                {isPending && (
+                                  <span className="badge-request-pending font-cond text-[9px] font-black tracking-wider px-2 py-0.5 rounded">
+                                    REQUEST PENDING
+                                  </span>
+                                )}
+                                {!isPending && scrStatus === 'rescheduled' && (
+                                  <span className="badge-request-approved font-cond text-[9px] font-black tracking-wider px-2 py-0.5 rounded">
+                                    RESCHEDULED
+                                  </span>
+                                )}
+                                {!isPending && scrStatus === 'denied' && (
+                                  <span className="badge-request-denied font-cond text-[9px] font-black tracking-wider px-2 py-0.5 rounded">
+                                    DENIED
+                                  </span>
+                                )}
+                                {!isPending && scrStatus === 'cancelled' && (
+                                  <span className="badge-request-approved font-cond text-[9px] font-black tracking-wider px-2 py-0.5 rounded">
+                                    CANCELLED
+                                  </span>
+                                )}
+                                {!isCancelled && !isPending && (
+                                  <button
+                                    onClick={() => {
+                                      setScrTeamId(matchedTeam.id)
+                                      setScrPreSelectedGameId(game.id)
+                                      setScrModalOpen(true)
+                                    }}
+                                    className="flex items-center gap-1 font-cond text-[10px] font-bold tracking-wider text-muted hover:text-white border border-border rounded px-2 py-1 transition-colors"
+                                  >
+                                    <CalendarX size={11} />
+                                    REQUEST CHANGE
+                                  </button>
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )
+                  })()}
                 </div>
               ))
             )}
@@ -588,7 +983,7 @@ export function ProgramDashboard() {
                     className="w-full bg-surface border border-border text-white px-3 py-2 rounded-lg text-[13px] outline-none focus:border-blue-400"
                     value={newTeamName}
                     onChange={(e) => setNewTeamName(e.target.value)}
-                    placeholder={`${program?.short_name ?? 'Program'} 14U Boys`}
+                    placeholder={`${program?.short_name ?? 'Program'} Team Name`}
                   />
                 </div>
                 <div>
@@ -600,7 +995,8 @@ export function ProgramDashboard() {
                     value={newTeamDiv}
                     onChange={(e) => setNewTeamDiv(e.target.value)}
                   >
-                    {DIVISIONS.map((d) => (
+                    <option value="">— Select Division —</option>
+                    {availableDivisions.map((d) => (
                       <option key={d} value={d}>
                         {d}
                       </option>
@@ -659,6 +1055,25 @@ export function ProgramDashboard() {
           </div>
         )}
       </div>
+
+      {/* Schedule Change Request modal */}
+      {scrTeamId && (
+        <ScheduleChangeRequestModal
+          open={scrModalOpen}
+          onClose={() => {
+            setScrModalOpen(false)
+            setScrPreSelectedGameId(undefined)
+            setScrTeamId(undefined)
+            loadData()
+          }}
+          preSelectedGameId={scrPreSelectedGameId}
+          teamId={scrTeamId}
+          teamGames={programGames.filter(
+            (g) => g.home_team_id === scrTeamId || g.away_team_id === scrTeamId
+          )}
+          eventId={portalEventId!}
+        />
+      )}
     </div>
   )
 }

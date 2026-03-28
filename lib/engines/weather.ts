@@ -1,16 +1,17 @@
 /**
  * LeagueOps — Weather Engine (Phase 3)
  *
- * Monitors weather per complex using GPS coordinates via OpenWeatherMap.
+ * Monitors weather per complex using GPS coordinates.
  * Detects: lightning radius, severe weather, heat index, high winds.
  * Writes alerts, readings, and triggers game delays automatically.
  *
- * API: OpenWeatherMap One Call API 3.0
- *   https://openweathermap.org/api/one-call-3
- *   Free tier: 1,000 calls/day — we cache per 5 minutes per complex
+ * Data sources:
+ *   1. NWS (api.weather.gov) — free, no key — official severe weather alerts + observations
+ *   2. OpenWeatherMap (optional) — current conditions if API key provided
+ *   3. Mock data — fallback for dev/testing
  */
 
-import { createClient } from '@/supabase/client'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
 const CACHE_MINUTES = 5
 
@@ -67,6 +68,7 @@ export interface WeatherAlert {
     | 'high_wind'
     | 'severe_weather'
     | 'heavy_rain'
+    | 'nws_alert'
   severity: 'info' | 'warning' | 'critical'
   title: string
   description: string
@@ -85,11 +87,10 @@ export interface WeatherEngineResult {
 // ─── Main engine function ─────────────────────────────────────
 export async function runWeatherEngine(
   complexId: number,
-  apiKey?: string,
-  eventId: number = 1
+  apiKey: string | undefined,
+  eventId: number,
+  sb: SupabaseClient
 ): Promise<WeatherEngineResult> {
-  const sb = createClient()
-
   // Load complex
   const { data: complex } = await sb.from('complexes').select('*').eq('id', complexId).single()
 
@@ -97,7 +98,7 @@ export async function runWeatherEngine(
 
   // Fetch weather — priority: OpenWeatherMap (if key) → NWS free API (if coords) → mock
   let reading: WeatherReading
-  const key = apiKey ?? process.env.NEXT_PUBLIC_OPENWEATHER_KEY ?? ''
+  const key = apiKey ?? process.env.OPENWEATHER_API_KEY ?? ''
 
   if (key && complex.lat && complex.lng) {
     reading = await fetchLiveWeather(complex, key)
@@ -109,6 +110,12 @@ export async function runWeatherEngine(
     }
   } else {
     reading = getMockWeather(complex)
+  }
+
+  // Fetch NWS official alerts (free, always available when we have coordinates)
+  let nwsAlerts: WeatherAlert[] = []
+  if (complex.lat && complex.lng) {
+    nwsAlerts = await fetchNWSAlerts(complex.lat, complex.lng)
   }
 
   // Store the reading
@@ -139,8 +146,8 @@ export async function runWeatherEngine(
     .update({ last_weather_fetch: new Date().toISOString() })
     .eq('id', complexId)
 
-  // Evaluate alerts
-  const alerts = evaluateAlerts(reading)
+  // Evaluate alerts from reading + merge NWS official alerts
+  const alerts = [...evaluateAlerts(reading), ...nwsAlerts]
   const actions_taken: string[] = []
   let games_affected = 0
   let lightning_active = false
@@ -227,6 +234,20 @@ export async function runWeatherEngine(
 
     if (alert.type === 'high_wind' && reading.wind_mph >= THRESHOLDS.wind.suspend_mph) {
       actions_taken.push(`💨 High wind — play suspended (${reading.wind_mph} mph)`)
+    }
+
+    if (alert.type === 'nws_alert') {
+      actions_taken.push(`🏛 NWS: ${alert.title}`)
+      // Critical NWS alerts (tornado, severe thunderstorm) suspend play
+      if (alert.auto_action === 'suspend_all_fields' && activeGameIds.length > 0) {
+        lightning_active = true
+        games_affected = activeGameIds.length
+        await sb
+          .from('games')
+          .update({ status: 'Delayed' })
+          .in('id', activeGameIds)
+          .in('status', ['Scheduled', 'Starting', 'Live', 'Halftime'])
+      }
     }
   }
 
@@ -362,11 +383,167 @@ export function calcHeatIndex(tempF: number, humidity: number): number {
   return Math.round(hi * 10) / 10
 }
 
+// ─── NWS Active Alerts (api.weather.gov) — free, no key ──────
+async function fetchNWSAlerts(lat: number, lng: number): Promise<WeatherAlert[]> {
+  try {
+    const url = `https://api.weather.gov/alerts/active?point=${lat},${lng}&status=actual&message_type=alert`
+    const res = await fetch(url, {
+      headers: { 'User-Agent': 'LeagueOps/1.0 (tournament-ops-platform)' },
+      cache: 'no-store',
+    })
+    if (!res.ok) return []
+
+    const data = await res.json()
+    const features = data.features ?? []
+    const alerts: WeatherAlert[] = []
+
+    for (const f of features) {
+      const props = f.properties
+      if (!props) continue
+
+      // Map NWS severity → our severity
+      const nwsSeverity = (props.severity ?? '').toLowerCase()
+      const nwsCertainty = (props.certainty ?? '').toLowerCase()
+      const eventName = (props.event ?? '').toLowerCase()
+
+      let severity: 'info' | 'warning' | 'critical' = 'info'
+      let autoAction: string | null = null
+
+      // Critical: tornado, severe thunderstorm, extreme wind
+      if (
+        nwsSeverity === 'extreme' ||
+        eventName.includes('tornado') ||
+        eventName.includes('severe thunderstorm warning')
+      ) {
+        severity = 'critical'
+        autoAction = 'suspend_all_fields'
+      } else if (
+        nwsSeverity === 'severe' ||
+        eventName.includes('warning') ||
+        eventName.includes('thunderstorm')
+      ) {
+        severity = 'warning'
+      } else if (nwsCertainty === 'observed' || nwsCertainty === 'likely') {
+        severity = 'warning'
+      }
+
+      // Truncate description to something reasonable
+      const desc = props.description
+        ? props.description.slice(0, 300) + (props.description.length > 300 ? '...' : '')
+        : (props.headline ?? props.event)
+
+      alerts.push({
+        type: 'nws_alert',
+        severity,
+        title: `NWS: ${props.event ?? 'Weather Alert'}`,
+        description: props.headline ?? desc,
+        auto_action: autoAction,
+      })
+    }
+
+    return alerts
+  } catch {
+    // NWS API failure should not block weather scan
+    return []
+  }
+}
+
+// ─── NWS Observation (free fallback when no OWM key) ─────────
+async function fetchNWSObservation(complex: any): Promise<WeatherReading> {
+  try {
+    // Step 1: Get nearest station from NWS points endpoint
+    const pointUrl = `https://api.weather.gov/points/${complex.lat},${complex.lng}`
+    const pointRes = await fetch(pointUrl, {
+      headers: { 'User-Agent': 'LeagueOps/1.0 (tournament-ops-platform)' },
+      cache: 'no-store', // cache station lookup for 1 hour
+    })
+    if (!pointRes.ok) return getMockWeather(complex)
+
+    const pointData = await pointRes.json()
+    const stationUrl = pointData.properties?.observationStations
+    if (!stationUrl) return getMockWeather(complex)
+
+    // Step 2: Get the nearest station
+    const stationsRes = await fetch(stationUrl, {
+      headers: { 'User-Agent': 'LeagueOps/1.0 (tournament-ops-platform)' },
+      cache: 'no-store',
+    })
+    if (!stationsRes.ok) return getMockWeather(complex)
+
+    const stationsData = await stationsRes.json()
+    const stationId = stationsData.features?.[0]?.properties?.stationIdentifier
+    if (!stationId) return getMockWeather(complex)
+
+    // Step 3: Get latest observation
+    const obsUrl = `https://api.weather.gov/stations/${stationId}/observations/latest`
+    const obsRes = await fetch(obsUrl, {
+      headers: { 'User-Agent': 'LeagueOps/1.0 (tournament-ops-platform)' },
+      cache: 'no-store',
+    })
+    if (!obsRes.ok) return getMockWeather(complex)
+
+    const obsData = await obsRes.json()
+    const p = obsData.properties
+    if (!p) return getMockWeather(complex)
+
+    // Convert Celsius → Fahrenheit, m/s → mph, m → miles, Pa → mb
+    const tempC = p.temperature?.value
+    const tempF = tempC != null ? Math.round((tempC * 9) / 5 + 32) : 80
+    const humidity = Math.round(p.relativeHumidity?.value ?? 50)
+    const windMs = p.windSpeed?.value ?? 0
+    const windMph = Math.round(windMs * 2.237 * 10) / 10
+    const gustMs = p.windGust?.value ?? windMs
+    const gustMph = Math.round(gustMs * 2.237 * 10) / 10
+    const windDeg = p.windDirection?.value ?? 0
+    const visM = p.visibility?.value ?? 16000
+    const visMi = Math.round((visM / 1609) * 10) / 10
+    const pressurePa = p.barometricPressure?.value ?? 101500
+    const pressureMb = Math.round(pressurePa / 100)
+    const heatIdx = calcHeatIndex(tempF, humidity)
+    const desc = p.textDescription ?? 'Unknown'
+
+    // Map NWS text conditions to approximate OWM code for evaluateAlerts
+    const lowerDesc = desc.toLowerCase()
+    let condCode = 800 // clear
+    if (lowerDesc.includes('thunder')) condCode = 211
+    else if (lowerDesc.includes('heavy rain') || lowerDesc.includes('downpour')) condCode = 502
+    else if (lowerDesc.includes('rain') || lowerDesc.includes('drizzle')) condCode = 500
+    else if (lowerDesc.includes('overcast')) condCode = 804
+    else if (lowerDesc.includes('cloud') || lowerDesc.includes('mostly cloudy')) condCode = 803
+    else if (lowerDesc.includes('partly')) condCode = 802
+    else if (lowerDesc.includes('fog') || lowerDesc.includes('mist')) condCode = 741
+
+    return {
+      temperature_f: tempF,
+      feels_like_f: tempF, // NWS doesn't provide feels_like directly
+      heat_index_f: heatIdx,
+      humidity_pct: humidity,
+      wind_mph: windMph,
+      wind_gust_mph: gustMph,
+      wind_dir_deg: windDeg,
+      conditions: desc,
+      conditions_code: condCode,
+      visibility_mi: visMi,
+      pressure_mb: pressureMb,
+      cloud_pct: lowerDesc.includes('overcast') ? 100 : lowerDesc.includes('cloud') ? 60 : 20,
+      uv_index: 0,
+      lightning_detected: condCode >= 200 && condCode < 300,
+      lightning_miles: null,
+      complex_id: complex.id,
+      complex_name: complex.name,
+      fetched_at: new Date().toISOString(),
+      source: 'live',
+    }
+  } catch {
+    return getMockWeather(complex)
+  }
+}
+
 // ─── Live weather fetch from OpenWeatherMap ───────────────────
 async function fetchLiveWeather(complex: any, apiKey: string): Promise<WeatherReading> {
   const url = `https://api.openweathermap.org/data/2.5/weather?lat=${complex.lat}&lon=${complex.lng}&appid=${apiKey}&units=imperial`
 
-  const res = await fetch(url, { next: { revalidate: CACHE_MINUTES * 60 } })
+  const res = await fetch(url, { cache: 'no-store' })
   if (!res.ok) throw new Error(`OpenWeatherMap error: ${res.status}`)
 
   const d = await res.json()
@@ -523,8 +700,7 @@ export function getMockWeather(complex: any): WeatherReading {
 }
 
 // ─── Get latest reading for a complex ────────────────────────
-export async function getLatestReading(complexId: number) {
-  const sb = createClient()
+export async function getLatestReading(complexId: number, sb: SupabaseClient) {
   const { data } = await sb
     .from('weather_readings')
     .select('*')
@@ -536,8 +712,7 @@ export async function getLatestReading(complexId: number) {
 }
 
 // ─── Get reading history ──────────────────────────────────────
-export async function getReadingHistory(complexId: number, hours = 6) {
-  const sb = createClient()
+export async function getReadingHistory(complexId: number, hours = 6, sb: SupabaseClient) {
   const since = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString()
   const { data } = await sb
     .from('weather_readings')
@@ -549,8 +724,7 @@ export async function getReadingHistory(complexId: number, hours = 6) {
 }
 
 // ─── Check if lightning delay is still active ────────────────
-export async function checkLightningStatus(complexId: number) {
-  const sb = createClient()
+export async function checkLightningStatus(complexId: number, sb: SupabaseClient) {
   const { data } = await sb
     .from('lightning_events')
     .select('*')
@@ -574,9 +748,7 @@ export async function checkLightningStatus(complexId: number) {
 }
 
 // ─── Lift lightning delay ─────────────────────────────────────
-export async function liftLightningDelay(complexId: number, eventId: number) {
-  const sb = createClient()
-
+export async function liftLightningDelay(complexId: number, eventId: number, sb: SupabaseClient) {
   // Mark event as cleared
   await sb
     .from('lightning_events')

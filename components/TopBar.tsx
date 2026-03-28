@@ -4,7 +4,8 @@ import { useState, useRef, useEffect } from 'react'
 import { cn } from '@/lib/utils'
 import type { TabName } from '@/components/AppShell'
 import type { UserRole } from '@/lib/auth'
-import { LogOut, ChevronDown } from 'lucide-react'
+import { LogOut, ChevronDown, Menu, X as XIcon } from 'lucide-react'
+import { NotificationBell } from '@/components/notifications/NotificationBell'
 
 const ROLE_BADGE: Record<string, string> = {
   admin: 'bg-red text-white',
@@ -54,6 +55,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'ADMIN',
     adminOnly: true,
     items: [
+      { id: 'requests', label: 'Requests' },
       { id: 'rules', label: 'Rules' },
       { id: 'fields', label: 'Fields' },
       { id: 'programs', label: 'Programs' },
@@ -73,6 +75,7 @@ interface Props {
   onSignOut?: () => void
   isAdmin?: boolean
   onChangeEvent?: () => void // ← ADD THIS LINE
+  pendingRequestCount?: number
   rightSlot?: React.ReactNode
 }
 
@@ -84,9 +87,11 @@ export function TopBar({
   onSignOut,
   isAdmin,
   onChangeEvent,
+  pendingRequestCount = 0,
   rightSlot,
 }: Props) {
   const [openGroup, setOpenGroup] = useState<string | null>(null)
+  const [mobileOpen, setMobileOpen] = useState(false)
   const navRef = useRef<HTMLDivElement>(null)
 
   // Close dropdown on outside click
@@ -136,8 +141,17 @@ export function TopBar({
         </span>
       </div>
 
+      {/* Hamburger button — mobile only */}
+      <button
+        className="md:hidden flex items-center px-4 h-full text-white"
+        onClick={() => setMobileOpen(true)}
+        aria-label="Open navigation menu"
+      >
+        <Menu size={20} />
+      </button>
+
       {/* Grouped nav */}
-      <nav ref={navRef} className="flex flex-1">
+      <nav ref={navRef} className="hidden md:flex flex-1">
         {visibleGroups.map((group) => {
           const active = groupIsActive(group)
           const subLabel = activeSubLabel(group)
@@ -240,11 +254,16 @@ export function TopBar({
                       )}
                       <span
                         className={cn(
-                          'font-cond text-[12px] font-black tracking-[0.08em]',
+                          'font-cond text-[12px] font-black tracking-[0.08em] flex items-center gap-1',
                           activeTab === item.id ? 'text-white' : 'text-[#5a6e9a]'
                         )}
                       >
                         {item.label.toUpperCase()}
+                        {item.id === 'requests' && pendingRequestCount > 0 && (
+                          <span className="font-mono text-[10px] font-black bg-navy rounded-full px-1.5 py-0.5 ml-1 text-white">
+                            {pendingRequestCount}
+                          </span>
+                        )}
                       </span>
                     </button>
                   ))}
@@ -255,9 +274,23 @@ export function TopBar({
         })}
       </nav>
 
-      {/* Right — live + user */}
+      {/* Right — mobile: bell + sign-out only */}
+      <div className="flex sm:hidden items-center gap-2 px-3 flex-shrink-0 ml-auto">
+        <NotificationBell />
+        {onSignOut && (
+          <button
+            onClick={onSignOut}
+            title="Sign out"
+            className="text-[#4a5e80] hover:text-white transition-colors"
+          >
+            <LogOut size={13} />
+          </button>
+        )}
+      </div>
+
+      {/* Right — live + user (desktop) */}
       <div
-        className="flex items-center gap-4 px-5 flex-shrink-0"
+        className="hidden sm:flex items-center gap-4 px-5 flex-shrink-0"
         style={{ borderLeft: '1px solid #1a2d50' }}
       >
         <div className="flex items-center gap-2">
@@ -306,6 +339,95 @@ export function TopBar({
           </div>
         )}
       </div>
+      {/* Mobile slide-out drawer */}
+      {mobileOpen && (
+        <div className="md:hidden fixed inset-0 z-50">
+          {/* Backdrop */}
+          <div className="absolute inset-0 bg-black/60" onClick={() => setMobileOpen(false)} />
+          {/* Drawer panel */}
+          <div className="absolute left-0 top-0 bottom-0 w-72 bg-[#030d20] border-r border-border overflow-y-auto">
+            {/* Close button */}
+            <div className="flex items-center justify-between px-4 h-12 border-b border-border">
+              <span className="font-cond text-sm font-black tracking-widest text-white">MENU</span>
+              <button onClick={() => setMobileOpen(false)} className="text-muted hover:text-white">
+                <XIcon size={18} />
+              </button>
+            </div>
+            {/* Nav groups — vertically stacked */}
+            <div className="py-2">
+              {visibleGroups.map((group) => (
+                <div key={group.label} className="mb-1">
+                  {/* Group label */}
+                  <div className="px-4 pt-3 pb-1">
+                    <span
+                      className="font-cond text-[10px] font-black tracking-[.12em] uppercase"
+                      style={{ color: group.accent ? '#d97706' : '#5a6e9a' }}
+                    >
+                      {group.label}
+                    </span>
+                  </div>
+                  {/* Direct tab or items */}
+                  {group.tab ? (
+                    <button
+                      className={cn(
+                        'w-full flex items-center gap-2 px-4 py-2.5 transition-colors',
+                        activeTab === group.tab ? 'bg-navy/30' : 'hover:bg-white/5'
+                      )}
+                      onClick={() => {
+                        onTabChange(group.tab!)
+                        setMobileOpen(false)
+                      }}
+                    >
+                      {activeTab === group.tab && (
+                        <span className="w-1 h-4 rounded-sm bg-red flex-shrink-0" />
+                      )}
+                      <span
+                        className={cn(
+                          'font-cond text-[12px] font-black tracking-[.08em]',
+                          activeTab === group.tab ? 'text-white' : 'text-[#5a6e9a]'
+                        )}
+                      >
+                        {group.label}
+                      </span>
+                    </button>
+                  ) : (
+                    group.items?.map((item) => (
+                      <button
+                        key={item.id}
+                        className={cn(
+                          'w-full flex items-center gap-2 px-4 py-2.5 transition-colors',
+                          activeTab === item.id ? 'bg-navy/30' : 'hover:bg-white/5'
+                        )}
+                        onClick={() => {
+                          onTabChange(item.id)
+                          setMobileOpen(false)
+                        }}
+                      >
+                        {activeTab === item.id && (
+                          <span className="w-1 h-4 rounded-sm bg-red flex-shrink-0" />
+                        )}
+                        <span
+                          className={cn(
+                            'font-cond text-[12px] font-black tracking-[.08em] flex items-center gap-1',
+                            activeTab === item.id ? 'text-white' : 'text-[#5a6e9a]'
+                          )}
+                        >
+                          {item.label.toUpperCase()}
+                          {item.id === 'requests' && pendingRequestCount > 0 && (
+                            <span className="font-mono text-[10px] font-black bg-navy rounded-full px-1.5 py-0.5 ml-1 text-white">
+                              {pendingRequestCount}
+                            </span>
+                          )}
+                        </span>
+                      </button>
+                    ))
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   )
 }

@@ -17,14 +17,15 @@ interface UserRoleRow {
   is_active: boolean
   referee_id: number | null
   volunteer_id: number | null
+  program_id: number | null
+  coach_id: number | null
   created_at: string
   email?: string
 }
 
 export function UserManagement() {
   const { userRole: currentRole } = useAuth()
-  const { state } = useApp()
-  const eventId = (state.event as any)?.id ?? 1
+  const { state, eventId } = useApp()
   const [users, setUsers] = useState<UserRoleRow[]>([])
   const [loading, setLoading] = useState(true)
   const [inviteEmail, setInviteEmail] = useState('')
@@ -33,14 +34,29 @@ export function UserManagement() {
   const [inviteVolId, setInviteVolId] = useState('')
   const [inviteName, setInviteName] = useState('')
   const [invitePassword, setInvitePassword] = useState('')
+  const [inviteProgramId, setInviteProgramId] = useState('')
+  const [inviteCoachId, setInviteCoachId] = useState('')
+  const [inviteTrainerId, setInviteTrainerId] = useState('')
+  // Inline creation fields for refs/volunteers/trainers
+  const [newRefPhone, setNewRefPhone] = useState('')
+  const [newVolRole, setNewVolRole] = useState('Score Table')
+  const [newVolPhone, setNewVolPhone] = useState('')
+  const [newTrainerPhone, setNewTrainerPhone] = useState('')
+  const [newTrainerCerts, setNewTrainerCerts] = useState('')
   const [sending, setSending] = useState(false)
   const [refs, setRefs] = useState<any[]>([])
   const [vols, setVols] = useState<any[]>([])
+  const [trainers, setTrainers] = useState<any[]>([])
+  const [programs, setPrograms] = useState<any[]>([])
+  const [coaches, setCoaches] = useState<any[]>([])
 
   useEffect(() => {
     loadUsers()
     loadRefVol()
+    loadProgramsCoaches()
   }, [])
+
+  if (!eventId) return null
 
   async function loadUsers() {
     const sb = createClient()
@@ -55,12 +71,24 @@ export function UserManagement() {
 
   async function loadRefVol() {
     const sb = createClient()
-    const [{ data: r }, { data: v }] = await Promise.all([
-      sb.from('referees').select('id, name, grade_level').eq('event_id', eventId).order('name'),
+    const [{ data: r }, { data: v }, { data: t }] = await Promise.all([
+      sb.from('referees').select('id, name').eq('event_id', eventId).order('name'),
       sb.from('volunteers').select('id, name, role').eq('event_id', eventId).order('name'),
+      sb.from('trainers').select('id, name, email').eq('event_id', eventId).order('name'),
     ])
     setRefs(r ?? [])
     setVols(v ?? [])
+    setTrainers(t ?? [])
+  }
+
+  async function loadProgramsCoaches() {
+    const sb = createClient()
+    const [{ data: p }, { data: c }] = await Promise.all([
+      sb.from('programs').select('id, name, short_name').order('name'),
+      sb.from('coaches').select('id, name, email').order('name'),
+    ])
+    setPrograms(p ?? [])
+    setCoaches(c ?? [])
   }
 
   async function createUser() {
@@ -70,6 +98,72 @@ export function UserManagement() {
     }
     setSending(true)
     const sb = createClient()
+    const displayName = inviteName || inviteEmail
+
+    let refId = inviteRefId ? Number(inviteRefId) : null
+    let volId = inviteVolId ? Number(inviteVolId) : null
+    let trainerId = inviteTrainerId ? Number(inviteTrainerId) : null
+
+    // Create new referee record inline if "new" selected
+    if (inviteRole === 'referee' && inviteRefId === '__new__') {
+      const { data: newRef, error } = await sb
+        .from('referees')
+        .insert({
+          event_id: eventId,
+          name: displayName,
+          phone: newRefPhone || null,
+          email: inviteEmail,
+        })
+        .select('id')
+        .single()
+      if (error || !newRef) {
+        toast.error(error?.message ?? 'Failed to create referee')
+        setSending(false)
+        return
+      }
+      refId = newRef.id
+    }
+
+    // Create new volunteer record inline if "new" selected
+    if (inviteRole === 'volunteer' && inviteVolId === '__new__') {
+      const { data: newVol, error } = await sb
+        .from('volunteers')
+        .insert({
+          event_id: eventId,
+          name: displayName,
+          role: newVolRole,
+          phone: newVolPhone || null,
+        })
+        .select('id')
+        .single()
+      if (error || !newVol) {
+        toast.error(error?.message ?? 'Failed to create volunteer')
+        setSending(false)
+        return
+      }
+      volId = newVol.id
+    }
+
+    // Create new trainer record inline if "new" selected
+    if (inviteRole === 'trainer' && inviteTrainerId === '__new__') {
+      const { data: newTrainer, error } = await sb
+        .from('trainers')
+        .insert({
+          event_id: eventId,
+          name: displayName,
+          email: inviteEmail,
+          phone: newTrainerPhone || null,
+          certifications: newTrainerCerts || null,
+        })
+        .select('id')
+        .single()
+      if (error || !newTrainer) {
+        toast.error(error?.message ?? 'Failed to create trainer')
+        setSending(false)
+        return
+      }
+      trainerId = newTrainer.id
+    }
 
     // Create auth user via admin API (requires service role in API route)
     const res = await fetch('/api/admin/create-user', {
@@ -79,24 +173,54 @@ export function UserManagement() {
         email: inviteEmail,
         password: invitePassword,
         role: inviteRole,
-        display_name: inviteName || inviteEmail,
-        referee_id: inviteRefId ? Number(inviteRefId) : null,
-        volunteer_id: inviteVolId ? Number(inviteVolId) : null,
+        display_name: displayName,
+        referee_id: refId,
+        volunteer_id: volId,
+        program_id: inviteProgramId ? Number(inviteProgramId) : null,
+        coach_id: inviteCoachId ? Number(inviteCoachId) : null,
+        trainer_id: trainerId,
         event_id: eventId,
       }),
     })
 
     const data = await res.json()
     if (data.error) {
-      toast.error(data.error)
+      toast.error(typeof data.error === 'string' ? data.error : 'Failed to create user')
     } else {
       toast.success(`User created: ${inviteEmail}`)
+      // Send invite email for applicable roles
+      if (['referee', 'volunteer', 'coach', 'program_leader', 'trainer'].includes(inviteRole)) {
+        try {
+          const emailRes = await fetch('/api/admin/send-invite', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              email: inviteEmail,
+              name: displayName,
+              roleName: inviteRole,
+              eventId,
+            }),
+          })
+          if (emailRes.ok) toast.success(`Invite email sent to ${inviteEmail}`)
+        } catch {
+          // Non-blocking — user still created
+        }
+      }
       setInviteEmail('')
       setInvitePassword('')
       setInviteName('')
       setInviteRefId('')
       setInviteVolId('')
+      setInviteProgramId('')
+      setInviteCoachId('')
+      setInviteTrainerId('')
+      setNewRefPhone('')
+      setNewVolRole('Score Table')
+      setNewVolPhone('')
+      setNewTrainerPhone('')
+      setNewTrainerCerts('')
       loadUsers()
+      loadRefVol()
     }
     setSending(false)
   }
@@ -114,6 +238,8 @@ export function UserManagement() {
     referee: 'text-yellow-400 bg-yellow-900/30',
     volunteer: 'text-green-400 bg-green-900/30',
     player: 'text-purple-400 bg-purple-900/30',
+    program_leader: 'text-orange-400 bg-orange-900/30',
+    coach: 'text-cyan-400 bg-cyan-900/30',
   }
 
   return (
@@ -163,42 +289,163 @@ export function UserManagement() {
                   <option value="league_admin">League Admin</option>
                   <option value="referee">Referee</option>
                   <option value="volunteer">Volunteer</option>
-                  <option value="trainer">Trainer</option>
+                  <option value="program_leader">Program Leader</option>
+                  <option value="coach">Coach</option>
+                  <option value="trainer">Trainer (Athletic)</option>
                 </select>
               </FormField>
 
               {inviteRole === 'referee' && (
-                <FormField label="Link to Referee">
+                <>
+                  <FormField label="Referee">
+                    <select
+                      className="w-full bg-surface border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400"
+                      value={inviteRefId}
+                      onChange={(e) => setInviteRefId(e.target.value)}
+                    >
+                      <option value="">Select referee…</option>
+                      <option value="__new__">+ Create new referee</option>
+                      {refs.map((r) => (
+                        <option key={r.id} value={r.id}>
+                          {r.name}
+                        </option>
+                      ))}
+                    </select>
+                  </FormField>
+                  {inviteRefId === '__new__' && (
+                    <div className="pl-3 border-l-2 border-yellow-800/50 space-y-2">
+                      <FormField label="Phone (optional)">
+                        <input
+                          className="w-full bg-surface border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400"
+                          value={newRefPhone}
+                          onChange={(e) => setNewRefPhone(e.target.value)}
+                          placeholder="555-0100"
+                        />
+                      </FormField>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {inviteRole === 'volunteer' && (
+                <>
+                  <FormField label="Volunteer">
+                    <select
+                      className="w-full bg-surface border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400"
+                      value={inviteVolId}
+                      onChange={(e) => setInviteVolId(e.target.value)}
+                    >
+                      <option value="">Select volunteer…</option>
+                      <option value="__new__">+ Create new volunteer</option>
+                      {vols.map((v) => (
+                        <option key={v.id} value={v.id}>
+                          {v.name} ({v.role})
+                        </option>
+                      ))}
+                    </select>
+                  </FormField>
+                  {inviteVolId === '__new__' && (
+                    <div className="pl-3 border-l-2 border-green-800/50 space-y-2">
+                      <FormField label="Volunteer Role">
+                        <select
+                          className="w-full bg-surface border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400"
+                          value={newVolRole}
+                          onChange={(e) => setNewVolRole(e.target.value)}
+                        >
+                          <option>Score Table</option>
+                          <option>Clock</option>
+                          <option>Field Marshal</option>
+                          <option>Operations</option>
+                          <option>Gate</option>
+                        </select>
+                      </FormField>
+                      <FormField label="Phone (optional)">
+                        <input
+                          className="w-full bg-surface border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400"
+                          value={newVolPhone}
+                          onChange={(e) => setNewVolPhone(e.target.value)}
+                          placeholder="555-0100"
+                        />
+                      </FormField>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {inviteRole === 'program_leader' && (
+                <FormField label="Link to Program">
                   <select
                     className="w-full bg-surface border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400"
-                    value={inviteRefId}
-                    onChange={(e) => setInviteRefId(e.target.value)}
+                    value={inviteProgramId}
+                    onChange={(e) => setInviteProgramId(e.target.value)}
                   >
-                    <option value="">Select referee…</option>
-                    {refs.map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {r.name} ({r.grade_level})
+                    <option value="">Select program…</option>
+                    {programs.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                        {p.short_name ? ` (${p.short_name})` : ''}
                       </option>
                     ))}
                   </select>
                 </FormField>
               )}
 
-              {inviteRole === 'volunteer' && (
-                <FormField label="Link to Volunteer">
+              {inviteRole === 'coach' && (
+                <FormField label="Link to Coach">
                   <select
                     className="w-full bg-surface border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400"
-                    value={inviteVolId}
-                    onChange={(e) => setInviteVolId(e.target.value)}
+                    value={inviteCoachId}
+                    onChange={(e) => setInviteCoachId(e.target.value)}
                   >
-                    <option value="">Select volunteer…</option>
-                    {vols.map((v) => (
-                      <option key={v.id} value={v.id}>
-                        {v.name} ({v.role})
+                    <option value="">Select coach…</option>
+                    {coaches.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name} ({c.email})
                       </option>
                     ))}
                   </select>
                 </FormField>
+              )}
+
+              {inviteRole === 'trainer' && (
+                <>
+                  <FormField label="Trainer">
+                    <select
+                      className="w-full bg-surface border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400"
+                      value={inviteTrainerId}
+                      onChange={(e) => setInviteTrainerId(e.target.value)}
+                    >
+                      <option value="">Select trainer…</option>
+                      <option value="__new__">+ Create new trainer</option>
+                      {trainers.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.name}
+                          {t.email ? ` (${t.email})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </FormField>
+                  {inviteTrainerId === '__new__' && (
+                    <div className="pl-3 border-l-2 border-teal-800/50 space-y-2">
+                      <FormField label="Phone (optional)">
+                        <input
+                          className="w-full bg-surface border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400"
+                          value={newTrainerPhone}
+                          onChange={(e) => setNewTrainerPhone(e.target.value)}
+                          placeholder="555-0100"
+                        />
+                      </FormField>
+                      <FormField label="Certifications (optional)">
+                        <input
+                          className="w-full bg-surface border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400"
+                          value={newTrainerCerts}
+                          onChange={(e) => setNewTrainerCerts(e.target.value)}
+                          placeholder="ATC, CPR, First Aid"
+                        />
+                      </FormField>
+                    </div>
+                  )}
+                </>
               )}
 
               <Btn variant="primary" className="w-full" onClick={createUser} disabled={sending}>
@@ -238,6 +485,8 @@ export function UserManagement() {
                     <div className="font-cond text-[10px] text-muted">
                       {u.referee_id && `Ref #${u.referee_id}`}
                       {u.volunteer_id && `Vol #${u.volunteer_id}`}
+                      {u.program_id && `Program #${u.program_id}`}
+                      {u.coach_id && `Coach #${u.coach_id}`}
                     </div>
                   </div>
                   <span

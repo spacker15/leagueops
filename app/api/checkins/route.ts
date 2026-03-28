@@ -1,7 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/supabase/server'
+import { publicRatelimit } from '@/lib/ratelimit'
+
+// PUBLIC ROUTE — intentionally excluded from auth guard per SEC-02.
+// Token-gated by QR code scan flow for player check-in.
 
 export async function GET(req: NextRequest) {
+  // Rate limit by IP (SEC-08)
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? '127.0.0.1'
+  const { success, limit, remaining, reset, pending } = await publicRatelimit.limit(ip)
+  void pending
+
+  if (!success) {
+    return NextResponse.json(
+      { error: 'Too many requests' },
+      {
+        status: 429,
+        headers: {
+          'X-RateLimit-Limit': String(limit),
+          'X-RateLimit-Remaining': String(remaining),
+          'X-RateLimit-Reset': String(reset),
+        },
+      }
+    )
+  }
+
   const sb = createClient()
   const { searchParams } = new URL(req.url)
   const gameId = searchParams.get('game_id')
@@ -17,6 +40,25 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  // Rate limit by IP (SEC-08)
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? '127.0.0.1'
+  const { success, limit, remaining, reset, pending } = await publicRatelimit.limit(ip)
+  void pending
+
+  if (!success) {
+    return NextResponse.json(
+      { error: 'Too many requests' },
+      {
+        status: 429,
+        headers: {
+          'X-RateLimit-Limit': String(limit),
+          'X-RateLimit-Remaining': String(remaining),
+          'X-RateLimit-Reset': String(reset),
+        },
+      }
+    )
+  }
+
   const sb = createClient()
   const body = await req.json()
 
@@ -31,6 +73,25 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  // Rate limit by IP (SEC-08)
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? '127.0.0.1'
+  const { success, limit, remaining, reset, pending } = await publicRatelimit.limit(ip)
+  void pending
+
+  if (!success) {
+    return NextResponse.json(
+      { error: 'Too many requests' },
+      {
+        status: 429,
+        headers: {
+          'X-RateLimit-Limit': String(limit),
+          'X-RateLimit-Remaining': String(remaining),
+          'X-RateLimit-Reset': String(reset),
+        },
+      }
+    )
+  }
+
   const sb = createClient()
   const { searchParams } = new URL(req.url)
   const gameId = searchParams.get('game_id')

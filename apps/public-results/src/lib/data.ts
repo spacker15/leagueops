@@ -8,6 +8,10 @@ export interface PublicEvent {
   start_date: string
   end_date: string
   logo_url?: string
+  public_schedule?: boolean
+  public_standings?: boolean
+  public_results?: boolean
+  has_bracket?: boolean
 }
 
 export interface PublicGame {
@@ -33,21 +37,31 @@ export interface PublicTeam {
 export async function getPublicEvents(): Promise<PublicEvent[]> {
   const { data, error } = await supabase
     .from('events')
-    .select('id, name, slug, location, start_date, end_date, logo_url')
+    .select(
+      'id, name, slug, location, start_date, end_date, logo_url, public_schedule, public_standings, public_results, has_bracket'
+    )
     .order('start_date', { ascending: false })
 
-  if (error) throw error
+  if (error) {
+    console.error('[getPublicEvents]', error.message, error.code, error.details)
+    throw error
+  }
   return (data ?? []) as PublicEvent[]
 }
 
 export async function getPublicEventBySlug(slug: string): Promise<PublicEvent | null> {
   const { data, error } = await supabase
     .from('events')
-    .select('id, name, slug, location, start_date, end_date, logo_url')
+    .select(
+      'id, name, slug, location, start_date, end_date, logo_url, public_schedule, public_standings, public_results, has_bracket'
+    )
     .eq('slug', slug)
     .single()
 
-  if (error) return null
+  if (error) {
+    console.error('[getPublicEventBySlug]', slug, error.message, error.code, error.details)
+    return null
+  }
   return data as PublicEvent
 }
 
@@ -156,4 +170,113 @@ export function computeStandings(teams: PublicTeam[], games: PublicGame[]): Stan
   }
 
   return Array.from(map.values())
+}
+
+// New types for Phase 9 bracket and extended queries
+
+export interface PublicEventDate {
+  id: number
+  date: string
+  day_number: number
+  label: string | null
+}
+
+export interface PublicField {
+  id: number
+  name: string
+}
+
+export interface BracketRound {
+  id: number
+  format: 'single' | 'double'
+  bracket_side: 'winners' | 'losers' | 'grand_final'
+  round_number: number
+  round_label: string | null
+  matchups: BracketMatchup[]
+}
+
+export interface BracketMatchup {
+  id: number
+  seed_top: number | null
+  seed_bottom: number | null
+  team_top: { id: number; name: string } | null
+  team_bottom: { id: number; name: string } | null
+  game_id: number | null
+  score_top: number
+  score_bottom: number
+  winner_id: number | null
+  position: number
+}
+
+export interface ViewStanding {
+  team_id: number
+  team_name: string
+  division: string
+  association: string | null
+  event_id: number
+  wins: number
+  losses: number
+  ties: number
+  points_for: number
+  points_against: number
+  goal_diff: number
+}
+
+export async function getPublicEventDates(eventId: number): Promise<PublicEventDate[]> {
+  const { data, error } = await supabase
+    .from('event_dates')
+    .select('id, date, day_number, label')
+    .eq('event_id', eventId)
+    .order('day_number')
+
+  if (error) throw error
+  return (data ?? []) as PublicEventDate[]
+}
+
+export async function getPublicFields(eventId: number): Promise<PublicField[]> {
+  const { data, error } = await supabase
+    .from('fields')
+    .select('id, name')
+    .eq('event_id', eventId)
+    .order('name')
+
+  if (error) throw error
+  return (data ?? []) as PublicField[]
+}
+
+export async function getPublicStandings(eventId: number): Promise<ViewStanding[]> {
+  const { data, error } = await supabase
+    .from('standings_by_division')
+    .select('*')
+    .eq('event_id', eventId)
+    .order('division')
+    .order('wins', { ascending: false })
+    .order('goal_diff', { ascending: false })
+
+  if (error) throw error
+  return (data ?? []) as ViewStanding[]
+}
+
+export async function getPublicBracket(eventId: number): Promise<{
+  format: 'single' | 'double' | null
+  rounds: BracketRound[]
+}> {
+  const { data, error } = await supabase
+    .from('bracket_rounds')
+    .select(
+      `
+      id, format, bracket_side, round_number, round_label,
+      matchups:bracket_matchups(
+        id, seed_top, seed_bottom, score_top, score_bottom, winner_id, position, game_id,
+        team_top:teams!bracket_matchups_team_top_id_fkey(id, name),
+        team_bottom:teams!bracket_matchups_team_bottom_id_fkey(id, name)
+      )
+    `
+    )
+    .eq('event_id', eventId)
+    .order('round_number')
+
+  if (error || !data?.length) return { format: null, rounds: [] }
+  const format = (data[0] as unknown as BracketRound).format
+  return { format, rounds: data as unknown as BracketRound[] }
 }

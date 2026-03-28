@@ -29,14 +29,35 @@ export function ReportsTab() {
 
   const finalGames = useMemo(() => allGames.filter((g) => g.status === 'Final'), [allGames])
 
+  // Fetch registration_divisions from settings so divisions with no games still appear
+  const [settingsDivisions, setSettingsDivisions] = useState<string[]>([])
+  useEffect(() => {
+    if (!state.event?.id) return
+    const sb = createClient()
+    sb.from('registration_divisions')
+      .select('name')
+      .eq('event_id', state.event.id)
+      .eq('is_active', true)
+      .order('sort_order')
+      .then(({ data }) => {
+        setSettingsDivisions((data ?? []).map((d: { name: string }) => d.name))
+      })
+  }, [state.event?.id])
+
+  // Event-scoped divisions: only from registration_divisions for this event
+  // If no registration_divisions exist, fall back to divisions found in THIS event's games only
   const divisions = useMemo(() => {
-    const divs = [...new Set(allGames.map((g) => g.division))].sort()
-    return ['ALL', ...divs]
-  }, [allGames])
+    if (settingsDivisions.length > 0) {
+      return ['ALL', ...settingsDivisions]
+    }
+    // Fallback: divisions from this event's games only (already scoped by getAllGamesByEvent)
+    const gameDivs = [...new Set(allGames.map((g) => g.division))].sort()
+    return ['ALL', ...gameDivs]
+  }, [allGames, settingsDivisions])
 
   const [divFilter, setDivFilter] = useState('ALL')
 
-  const showDivFilter = sub !== 'ref-schedule'
+  const showDivFilter = true // show division filter on all tabs including ref-schedule
 
   return (
     <div className="p-4 max-w-6xl">
@@ -106,6 +127,7 @@ export function ReportsTab() {
           fields={state.fields}
           referees={state.referees}
           eventId={state.event?.id ?? null}
+          divFilter={divFilter}
         />
       )}
     </div>
@@ -428,6 +450,7 @@ function MatchupsView({
 }) {
   const [allGames, setAllGames] = useState<AllGame[]>([])
   const [loading, setLoading] = useState(true)
+  const [settingsDivisions, setSettingsDivisions] = useState<string[]>([])
 
   useEffect(() => {
     if (!eventId) {
@@ -438,50 +461,121 @@ function MatchupsView({
     sb.from('games')
       .select('id, home_team_id, away_team_id, division')
       .eq('event_id', eventId)
-      .then(({ data }) => {
+      .then(({ data, error }) => {
+        if (error) console.error('MatchupsView: failed to load games', error)
         setAllGames((data as AllGame[]) ?? [])
         setLoading(false)
       })
   }, [eventId])
 
-  const filteredTeams = useMemo(() => {
-    if (divFilter === 'ALL') return [...teams].sort((a, b) => a.name.localeCompare(b.name))
-    return teams
-      .filter((t) => t.division === divFilter)
-      .sort((a, b) => a.name.localeCompare(b.name))
-  }, [teams, divFilter])
+  // Fetch registration_divisions so divisions with no games appear in per-division view
+  useEffect(() => {
+    if (!eventId) return
+    const sb = createClient()
+    sb.from('registration_divisions')
+      .select('name')
+      .eq('event_id', eventId)
+      .eq('is_active', true)
+      .order('sort_order')
+      .then(({ data }) => {
+        setSettingsDivisions((data ?? []).map((d: { name: string }) => d.name))
+      })
+  }, [eventId])
 
-  const filteredGames = useMemo(() => {
-    if (divFilter === 'ALL') return allGames
-    return allGames.filter((g) => g.division === divFilter)
-  }, [allGames, divFilter])
+  // All unique divisions (from settings + games), sorted
+  const allDivisions = useMemo(() => {
+    const gameDivs = allGames.map((g) => g.division)
+    return [...new Set([...settingsDivisions, ...gameDivs])].sort()
+  }, [allGames, settingsDivisions])
 
+  if (loading) return <Empty message="Loading matchup data..." />
+
+  // Helper: find teams that participate in games for a given division
+  // (uses game division, NOT team.division — teams can play across divisions)
+  function teamsForDivGames(divGames: AllGame[]): Team[] {
+    const teamIds = new Set<number>()
+    for (const g of divGames) {
+      teamIds.add(g.home_team_id)
+      teamIds.add(g.away_team_id)
+    }
+    return teams.filter((t) => teamIds.has(t.id)).sort((a, b) => a.name.localeCompare(b.name))
+  }
+
+  // When a specific division is selected, show a single matrix
+  if (divFilter !== 'ALL') {
+    const divGames = allGames.filter((g) => g.division === divFilter)
+    const divTeams = teamsForDivGames(divGames)
+    if (divTeams.length === 0) return <Empty message="No teams found for this division." />
+    return <MatchupMatrix teams={divTeams} games={divGames} showDivisionOnRow={false} />
+  }
+
+  // "ALL" — show separate matrices per division
+  const divisionsWithGames = allDivisions.filter((div) => allGames.some((g) => g.division === div))
+  if (divisionsWithGames.length === 0) return <Empty message="No teams found." />
+
+  return (
+    <div className="space-y-8">
+      {divisionsWithGames.map((div) => {
+        const divGames = allGames.filter((g) => g.division === div)
+        const divTeams = teamsForDivGames(divGames)
+        return (
+          <div key={div}>
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-1 h-4 rounded-sm bg-navy" />
+              <span className="font-cond text-[11px] font-black tracking-[.12em] text-blue-300 uppercase">
+                {div}
+              </span>
+              <span className="font-cond text-[9px] text-muted ml-1">
+                {divTeams.length} teams · {divGames.length} games
+              </span>
+            </div>
+            <MatchupMatrix teams={divTeams} games={divGames} showDivisionOnRow={false} />
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+/** Renders a single matchup matrix table for a set of teams and games */
+function MatchupMatrix({
+  teams: matrixTeams,
+  games,
+  showDivisionOnRow,
+}: {
+  teams: Team[]
+  games: AllGame[]
+  showDivisionOnRow: boolean
+}) {
   // Build matrix: matrix[rowTeamId][colTeamId] = count
   const matrix = useMemo(() => {
     const m: Record<number, Record<number, number>> = {}
-    for (const g of filteredGames) {
+    for (const g of games) {
       if (!m[g.home_team_id]) m[g.home_team_id] = {}
       if (!m[g.away_team_id]) m[g.away_team_id] = {}
       m[g.home_team_id][g.away_team_id] = (m[g.home_team_id][g.away_team_id] ?? 0) + 1
       m[g.away_team_id][g.home_team_id] = (m[g.away_team_id][g.home_team_id] ?? 0) + 1
     }
     return m
-  }, [filteredGames])
+  }, [games])
 
-  if (loading) return <Empty message="Loading matchup data…" />
-  if (filteredTeams.length === 0) return <Empty message="No teams found for this division." />
+  if (matrixTeams.length === 0) {
+    return (
+      <div className="font-cond text-[10px] text-muted italic py-2">No teams in this division.</div>
+    )
+  }
 
   const maxCount = Math.max(
     1,
-    ...filteredTeams.flatMap((row) =>
-      filteredTeams.map((col) => (row.id !== col.id ? (matrix[row.id]?.[col.id] ?? 0) : 0))
+    ...matrixTeams.flatMap((row) =>
+      matrixTeams.map((col) => (row.id !== col.id ? (matrix[row.id]?.[col.id] ?? 0) : 0))
     )
   )
 
   return (
     <div>
       <div className="font-cond text-[10px] font-black tracking-[.15em] text-muted uppercase mb-3">
-        Games Played Between Teams · {filteredGames.length} total games
+        Games Played Between Teams · {games.length} total games
       </div>
       <div className="overflow-auto rounded-lg border border-[#1a2d50]">
         <table className="border-collapse" style={{ minWidth: 'max-content' }}>
@@ -496,7 +590,7 @@ function MatchupsView({
                   vs →
                 </span>
               </th>
-              {filteredTeams.map((col) => (
+              {matrixTeams.map((col) => (
                 <th
                   key={col.id}
                   className="px-2 py-2 border-b border-[#1a2d50]"
@@ -511,14 +605,14 @@ function MatchupsView({
                     }}
                     title={col.name}
                   >
-                    {col.name.length > 14 ? col.name.slice(0, 13) + '…' : col.name}
+                    {col.name.length > 14 ? col.name.slice(0, 13) + '...' : col.name}
                   </div>
                 </th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {filteredTeams.map((row, ri) => (
+            {matrixTeams.map((row, ri) => (
               <tr key={row.id} style={{ background: ri % 2 === 0 ? '#050f20' : '#030c1a' }}>
                 {/* Row header */}
                 <td
@@ -529,12 +623,14 @@ function MatchupsView({
                     className="font-cond text-[11px] font-bold text-white whitespace-nowrap"
                     title={row.name}
                   >
-                    {row.name.length > 18 ? row.name.slice(0, 17) + '…' : row.name}
+                    {row.name.length > 18 ? row.name.slice(0, 17) + '...' : row.name}
                   </span>
-                  <span className="ml-1.5 font-cond text-[9px] text-muted">{row.division}</span>
+                  {showDivisionOnRow && (
+                    <span className="ml-1.5 font-cond text-[9px] text-muted">{row.division}</span>
+                  )}
                 </td>
                 {/* Matrix cells */}
-                {filteredTeams.map((col) => {
+                {matrixTeams.map((col) => {
                   const isSelf = row.id === col.id
                   const count = isSelf ? null : (matrix[row.id]?.[col.id] ?? 0)
                   const intensity = isSelf ? 0 : (count ?? 0) / maxCount
@@ -551,7 +647,7 @@ function MatchupsView({
                           style={{ background: '#0d1e3a' }}
                         />
                       ) : count === 0 ? (
-                        <span className="font-mono text-[12px] text-[#1a2d50]">—</span>
+                        <span className="font-mono text-[12px] text-[#1a2d50]">---</span>
                       ) : (
                         <div
                           className="w-8 h-6 mx-auto rounded flex items-center justify-center"
@@ -617,23 +713,18 @@ function isYouthRef(gradeLevel: string): boolean {
   return !isNaN(num) && num >= 8
 }
 
-function hhLabel(hour: number): string {
-  if (hour === 0) return '12:00 AM'
-  if (hour < 12) return `${hour}:00 AM`
-  if (hour === 12) return '12:00 PM'
-  return `${hour - 12}:00 PM`
-}
-
 function RefScheduleView({
   games,
   fields,
   referees,
   eventId,
+  divFilter,
 }: {
   games: Game[]
   fields: { id: number; name: string }[]
   referees: Referee[]
   eventId: number | null
+  divFilter: string
 }) {
   const [assignments, setAssignments] = useState<RefAssignmentRow[]>([])
   const [refRules, setRefRules] = useState<RefRules>({
@@ -642,6 +733,10 @@ function RefScheduleView({
     default: { adult: 2, youth: 0 },
   })
   const [loading, setLoading] = useState(true)
+  const [eventDates, setEventDates] = useState<
+    { id: number; date: string; label: string | null }[]
+  >([])
+  const [selectedDateId, setSelectedDateId] = useState<string>('all')
 
   useEffect(() => {
     if (!eventId) {
@@ -649,6 +744,18 @@ function RefScheduleView({
       return
     }
     const sb = createClient()
+    // Fetch event_dates for the date filter
+    sb.from('event_dates')
+      .select('id, date, label')
+      .eq('event_id', eventId)
+      .order('date', { ascending: true })
+      .then(({ data }) => {
+        const dates = data ?? []
+        setEventDates(dates)
+        if (dates.length > 0) {
+          setSelectedDateId(String(dates[0].id))
+        }
+      })
     // Fetch ref_requirements from event config
     sb.from('events')
       .select('ref_requirements')
@@ -673,32 +780,46 @@ function RefScheduleView({
       })
   }, [eventId, games])
 
-  // Build: fieldId → hour → { adult: RefAssignmentRow[], youth: RefAssignmentRow[], divisions: string[] }
+  // Filter games by selected date and division
+  const filteredGames = useMemo(() => {
+    let filtered = games
+    if (selectedDateId !== 'all') {
+      const dateId = parseInt(selectedDateId)
+      filtered = filtered.filter((g) => g.event_date_id === dateId)
+    }
+    if (divFilter !== 'ALL') {
+      filtered = filtered.filter((g) => g.division === divFilter)
+    }
+    return filtered
+  }, [games, selectedDateId, divFilter])
+
+  // Build: fieldId → timeStr → { adult: RefAssignmentRow[], youth: RefAssignmentRow[], divisions: string[] }
   const schedule = useMemo(() => {
     type Slot = { adult: RefAssignmentRow[]; youth: RefAssignmentRow[]; divisions: string[] }
-    const byField: Record<number, Record<number, Slot>> = {}
+    const byField: Record<number, Record<string, Slot>> = {}
 
-    // Index games by id
+    // Index filtered games by id
     const gameById: Record<number, Game> = {}
-    for (const g of games) gameById[g.id] = g
+    for (const g of filteredGames) gameById[g.id] = g
 
-    // Collect divisions per field/hour slot (from games, not assignments)
-    for (const g of games) {
-      const hour = g.scheduled_time ? parseInt(g.scheduled_time.split(':')[0]) : -1
+    // Collect divisions per field/time slot (from games, not assignments)
+    for (const g of filteredGames) {
+      const timeKey = g.scheduled_time ?? ''
       if (!byField[g.field_id]) byField[g.field_id] = {}
-      if (!byField[g.field_id][hour])
-        byField[g.field_id][hour] = { adult: [], youth: [], divisions: [] }
-      byField[g.field_id][hour].divisions.push(g.division)
+      if (!byField[g.field_id][timeKey])
+        byField[g.field_id][timeKey] = { adult: [], youth: [], divisions: [] }
+      byField[g.field_id][timeKey].divisions.push(g.division)
     }
 
     for (const a of assignments) {
       const game = gameById[a.game_id]
       if (!game) continue
       const fieldId = game.field_id
-      const hour = game.scheduled_time ? parseInt(game.scheduled_time.split(':')[0]) : -1
+      const timeKey = game.scheduled_time ?? ''
       if (!byField[fieldId]) byField[fieldId] = {}
-      if (!byField[fieldId][hour]) byField[fieldId][hour] = { adult: [], youth: [], divisions: [] }
-      const slot = byField[fieldId][hour]
+      if (!byField[fieldId][timeKey])
+        byField[fieldId][timeKey] = { adult: [], youth: [], divisions: [] }
+      const slot = byField[fieldId][timeKey]
       if (a.referee && isYouthRef(a.referee.grade_level)) {
         slot.youth.push(a)
       } else {
@@ -706,44 +827,68 @@ function RefScheduleView({
       }
     }
     return byField
-  }, [assignments, games])
+  }, [assignments, filteredGames])
 
-  // Collect all unique hours across all fields
-  const allHours = useMemo(() => {
-    const hrs = new Set<number>()
-    for (const g of games) {
-      if (g.scheduled_time) hrs.add(parseInt(g.scheduled_time.split(':')[0]))
+  // Collect all unique time strings across all fields, sorted chronologically
+  const allTimes = useMemo(() => {
+    const times = new Set<string>()
+    for (const g of filteredGames) {
+      if (g.scheduled_time) times.add(g.scheduled_time)
     }
-    return [...hrs].sort((a, b) => a - b)
-  }, [games])
+    return [...times].sort()
+  }, [filteredGames])
 
   // Fields that have at least one game
   const activeFieldIds = useMemo(() => {
-    const ids = new Set(games.map((g) => g.field_id))
+    const ids = new Set(filteredGames.map((g) => g.field_id))
     return fields.filter((f) => ids.has(f.id))
-  }, [games, fields])
+  }, [filteredGames, fields])
 
-  if (loading) return <Empty message="Loading ref schedule…" />
-  if (games.length === 0) return <Empty message="No games scheduled for today." />
+  if (loading) return <Empty message="Loading ref schedule..." />
+  if (games.length === 0) return <Empty message="No games scheduled." />
 
-  // Summarize unassigned games per field/hour
-  const gamesByFieldHour: Record<number, Record<number, number>> = {}
-  for (const g of games) {
-    const hour = g.scheduled_time ? parseInt(g.scheduled_time.split(':')[0]) : -1
-    if (!gamesByFieldHour[g.field_id]) gamesByFieldHour[g.field_id] = {}
-    gamesByFieldHour[g.field_id][hour] = (gamesByFieldHour[g.field_id][hour] ?? 0) + 1
+  // Summarize game counts per field/time slot
+  const gamesByFieldTime: Record<number, Record<string, number>> = {}
+  for (const g of filteredGames) {
+    const timeKey = g.scheduled_time ?? ''
+    if (!gamesByFieldTime[g.field_id]) gamesByFieldTime[g.field_id] = {}
+    gamesByFieldTime[g.field_id][timeKey] = (gamesByFieldTime[g.field_id][timeKey] ?? 0) + 1
   }
 
-  const totalAssigned = assignments.length
-  const totalAdult = assignments.filter(
+  // Only count assignments for filtered games
+  const filteredGameIds = new Set(filteredGames.map((g) => g.id))
+  const filteredAssignments = assignments.filter((a) => filteredGameIds.has(a.game_id))
+  const totalAssigned = filteredAssignments.length
+  const totalAdult = filteredAssignments.filter(
     (a) => a.referee && !isYouthRef(a.referee.grade_level)
   ).length
-  const totalYouth = assignments.filter(
+  const totalYouth = filteredAssignments.filter(
     (a) => a.referee && isYouthRef(a.referee.grade_level)
   ).length
 
   return (
     <div className="space-y-5">
+      {/* Date filter */}
+      {eventDates.length > 0 && (
+        <div className="flex items-center gap-3">
+          <label className="font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase">
+            Game Date
+          </label>
+          <select
+            value={selectedDateId}
+            onChange={(e) => setSelectedDateId(e.target.value)}
+            className="bg-[#040e24] border border-[#1a2d50] rounded px-3 py-1.5 text-sm text-white font-cond focus:outline-none focus:ring-1 focus:ring-[#0B3D91]"
+          >
+            <option value="all">All Dates</option>
+            {eventDates.map((d) => (
+              <option key={d.id} value={String(d.id)}>
+                {d.label || d.date}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       {/* Summary row */}
       <div className="grid grid-cols-3 gap-3">
         {[
@@ -766,164 +911,261 @@ function RefScheduleView({
         ))}
       </div>
 
-      {/* Per-field tables */}
-      {activeFieldIds.map((field) => {
-        const fieldSlots = schedule[field.id] ?? {}
-        const fieldGames = gamesByFieldHour[field.id] ?? {}
+      {/* ── Ref Demand Summary by Hour/Division ── */}
+      {(() => {
+        // Build rows: group by time + division, sum refs needed
+        type DemandRow = {
+          time: string
+          division: string
+          games: number
+          adultNeed: number
+          youthNeed: number
+          totalNeed: number
+        }
+        const demandMap = new Map<string, DemandRow>()
+        for (const g of filteredGames) {
+          const timeKey = g.scheduled_time ?? ''
+          const key = `${timeKey}|${g.division}`
+          const existing = demandMap.get(key)
+          const exp = getExpected(g.division, refRules)
+          if (existing) {
+            existing.games += 1
+            existing.adultNeed += exp.adult
+            existing.youthNeed += exp.youth
+            existing.totalNeed += exp.adult + exp.youth
+          } else {
+            demandMap.set(key, {
+              time: timeKey,
+              division: g.division,
+              games: 1,
+              adultNeed: exp.adult,
+              youthNeed: exp.youth,
+              totalNeed: exp.adult + exp.youth,
+            })
+          }
+        }
+        const demandRows = [...demandMap.values()].sort(
+          (a, b) => a.time.localeCompare(b.time) || a.division.localeCompare(b.division)
+        )
+        const totGames = demandRows.reduce((s, r) => s + r.games, 0)
+        const totAdult = demandRows.reduce((s, r) => s + r.adultNeed, 0)
+        const totYouth = demandRows.reduce((s, r) => s + r.youthNeed, 0)
+        const totRefs = demandRows.reduce((s, r) => s + r.totalNeed, 0)
 
+        if (demandRows.length === 0) return null
         return (
-          <div key={field.id}>
+          <div>
             <div className="flex items-center gap-2 mb-2">
-              <div className="w-1 h-4 rounded-sm" style={{ background: '#0B3D91' }} />
+              <div className="w-1 h-4 rounded-sm bg-red" />
               <span className="font-cond text-[11px] font-black tracking-[.12em] text-white uppercase">
-                {field.name}
+                Referee Demand Summary
               </span>
             </div>
             <div className="rounded-lg overflow-hidden border border-[#1a2d50]">
               <table className="w-full">
                 <thead>
                   <tr style={{ background: '#081428' }}>
-                    <Th>Hour</Th>
+                    <Th>Time</Th>
+                    <Th>Division</Th>
                     <Th align="center">Games</Th>
                     <Th align="center">
-                      <span style={{ color: '#60a5fa' }}>Adult</span>
-                      <span className="text-muted"> Need</span>
+                      <span style={{ color: '#60a5fa' }}>Adult Refs</span>
                     </Th>
                     <Th align="center">
-                      <span style={{ color: '#60a5fa' }}>Adult</span>
-                      <span className="text-muted"> Have</span>
+                      <span style={{ color: '#34d399' }}>Youth Refs</span>
                     </Th>
-                    <Th align="center">
-                      <span style={{ color: '#34d399' }}>Youth</span>
-                      <span className="text-muted"> Need</span>
-                    </Th>
-                    <Th align="center">
-                      <span style={{ color: '#34d399' }}>Youth</span>
-                      <span className="text-muted"> Have</span>
-                    </Th>
-                    <Th>Assigned Refs</Th>
+                    <Th align="center">Total Refs</Th>
                   </tr>
                 </thead>
                 <tbody>
-                  {allHours
-                    .filter((h) => (fieldGames[h] ?? 0) > 0)
-                    .map((hour, i) => {
-                      const slot = fieldSlots[hour] ?? { adult: [], youth: [], divisions: [] }
-                      const gameCount = fieldGames[hour] ?? 0
-                      const allRefs = [...slot.adult, ...slot.youth]
+                  {demandRows.map((row, i) => (
+                    <tr
+                      key={`${row.time}-${row.division}`}
+                      style={{ background: i % 2 === 0 ? '#050f20' : '#030c1a' }}
+                    >
+                      <Td>
+                        <span className="font-mono text-[12px] font-bold text-white">
+                          {formatTime(row.time)}
+                        </span>
+                      </Td>
+                      <Td>
+                        <span className="font-cond text-[11px] font-bold text-white">
+                          {row.division}
+                        </span>
+                      </Td>
+                      <Td align="center">
+                        <span className="font-mono text-[12px] text-[#8a9ec0]">{row.games}</span>
+                      </Td>
+                      <Td align="center">
+                        <span className="font-mono text-[12px] text-[#60a5fa]">
+                          {row.adultNeed}
+                        </span>
+                      </Td>
+                      <Td align="center">
+                        <span className="font-mono text-[12px] text-[#34d399]">
+                          {row.youthNeed}
+                        </span>
+                      </Td>
+                      <Td align="center">
+                        <span className="font-mono text-[13px] font-bold text-white">
+                          {row.totalNeed}
+                        </span>
+                      </Td>
+                    </tr>
+                  ))}
+                  {/* Totals row */}
+                  <tr style={{ background: '#081428', borderTop: '2px solid #1a2d50' }}>
+                    <Td>
+                      <span className="font-cond text-[11px] font-black tracking-[.12em] text-white uppercase">
+                        Total
+                      </span>
+                    </Td>
+                    <Td />
+                    <Td align="center">
+                      <span className="font-mono text-[13px] font-bold text-white">{totGames}</span>
+                    </Td>
+                    <Td align="center">
+                      <span className="font-mono text-[13px] font-bold text-[#60a5fa]">
+                        {totAdult}
+                      </span>
+                    </Td>
+                    <Td align="center">
+                      <span className="font-mono text-[13px] font-bold text-[#34d399]">
+                        {totYouth}
+                      </span>
+                    </Td>
+                    <Td align="center">
+                      <span className="font-mono text-[14px] font-bold text-white">{totRefs}</span>
+                    </Td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* ── Ref Grid: Time (rows) × Field (columns) ── */}
+      {activeFieldIds.length > 0 && allTimes.length > 0 && (
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            <div className="w-1 h-4 rounded-sm" style={{ background: '#0B3D91' }} />
+            <span className="font-cond text-[11px] font-black tracking-[.12em] text-white uppercase">
+              Ref Assignments by Field &amp; Time
+            </span>
+          </div>
+          <div className="rounded-lg overflow-auto border border-[#1a2d50]">
+            <table className="w-full border-collapse" style={{ minWidth: 'max-content' }}>
+              <thead>
+                <tr style={{ background: '#081428' }}>
+                  <Th>Time</Th>
+                  {activeFieldIds.map((field) => {
+                    // Extract field number from name (e.g., "Field 1" → "1")
+                    const fieldNum = field.name.replace(/[^0-9]/g, '') || field.name
+                    return (
+                      <th
+                        key={field.id}
+                        className="px-3 py-2 border-b border-[#1a2d50] text-center"
+                        colSpan={1}
+                      >
+                        <span className="font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase">
+                          Field {fieldNum}
+                        </span>
+                      </th>
+                    )
+                  })}
+                </tr>
+              </thead>
+              <tbody>
+                {allTimes.map((timeStr, i) => (
+                  <tr key={timeStr} style={{ background: i % 2 === 0 ? '#050f20' : '#030c1a' }}>
+                    <Td>
+                      <span className="font-mono text-[12px] font-bold text-white">
+                        {formatTime(timeStr)}
+                      </span>
+                    </Td>
+                    {activeFieldIds.map((field) => {
+                      const fieldSlots = schedule[field.id] ?? {}
+                      const slot = fieldSlots[timeStr] ?? { adult: [], youth: [], divisions: [] }
+                      const gameCount = gamesByFieldTime[field.id]?.[timeStr] ?? 0
+
+                      if (gameCount === 0) {
+                        return (
+                          <td
+                            key={field.id}
+                            className="px-2 py-2 text-center border-l border-[#0d1e3a]"
+                          >
+                            <span className="font-mono text-[10px] text-[#1a2d50]">—</span>
+                          </td>
+                        )
+                      }
 
                       // Sum expected refs across all games in this slot
-                      const divs = slot.divisions
                       let needAdult = 0,
                         needYouth = 0
-                      for (const div of divs) {
+                      for (const div of slot.divisions) {
                         const exp = getExpected(div, refRules)
                         needAdult += exp.adult
                         needYouth += exp.youth
                       }
                       const shortAdult = slot.adult.length < needAdult
                       const shortYouth = slot.youth.length < needYouth
+                      const allGood = !shortAdult && !shortYouth && needAdult + needYouth > 0
 
                       return (
-                        <tr key={hour} style={{ background: i % 2 === 0 ? '#050f20' : '#030c1a' }}>
-                          <Td>
-                            <span className="font-mono text-[12px] font-bold text-white">
-                              {hhLabel(hour)}
-                            </span>
-                          </Td>
-                          <Td align="center">
-                            <span className="font-mono text-[12px] text-[#8a9ec0]">
-                              {gameCount}
-                            </span>
-                          </Td>
-                          {/* Adult Need */}
-                          <Td align="center">
-                            <span className="font-mono text-[12px] text-[#60a5fa]">
-                              {needAdult}
-                            </span>
-                          </Td>
-                          {/* Adult Have */}
-                          <Td align="center">
+                        <td
+                          key={field.id}
+                          className="px-2 py-1.5 text-center border-l border-[#0d1e3a]"
+                          style={{
+                            background: allGood
+                              ? 'rgba(52,211,153,0.05)'
+                              : shortAdult || shortYouth
+                                ? 'rgba(214,40,40,0.06)'
+                                : undefined,
+                          }}
+                        >
+                          <div className="flex items-center justify-center gap-2">
+                            {/* Adult refs: have/need */}
                             <span
                               className={cn(
-                                'font-mono text-[13px] font-bold',
-                                shortAdult
-                                  ? 'text-red-400'
-                                  : slot.adult.length > 0
-                                    ? 'text-[#60a5fa]'
-                                    : 'text-[#1a2d50]'
+                                'font-mono text-[12px] font-bold',
+                                shortAdult ? 'text-red-400' : 'text-[#60a5fa]'
                               )}
+                              title={`Adult refs: ${slot.adult.length} assigned / ${needAdult} needed`}
                             >
-                              {slot.adult.length}
-                              {shortAdult && <span className="font-cond text-[9px] ml-0.5">▲</span>}
+                              {slot.adult.length}/{needAdult}
+                              <span className="font-cond text-[8px] ml-0.5 text-[#60a5fa]/50">
+                                A
+                              </span>
                             </span>
-                          </Td>
-                          {/* Youth Need */}
-                          <Td align="center">
-                            <span className="font-mono text-[12px] text-[#34d399]">
-                              {needYouth}
-                            </span>
-                          </Td>
-                          {/* Youth Have */}
-                          <Td align="center">
+                            {/* Youth refs: have/need */}
                             <span
                               className={cn(
-                                'font-mono text-[13px] font-bold',
-                                shortYouth
-                                  ? 'text-red-400'
-                                  : slot.youth.length > 0
-                                    ? 'text-[#34d399]'
-                                    : 'text-[#1a2d50]'
+                                'font-mono text-[12px] font-bold',
+                                shortYouth ? 'text-red-400' : 'text-[#34d399]'
                               )}
+                              title={`Youth refs: ${slot.youth.length} assigned / ${needYouth} needed`}
                             >
-                              {slot.youth.length}
-                              {shortYouth && <span className="font-cond text-[9px] ml-0.5">▲</span>}
+                              {slot.youth.length}/{needYouth}
+                              <span className="font-cond text-[8px] ml-0.5 text-[#34d399]/50">
+                                Y
+                              </span>
                             </span>
-                          </Td>
-                          <Td>
-                            <div className="flex flex-wrap gap-1">
-                              {allRefs.length === 0 ? (
-                                <span className="font-cond text-[10px] text-[#1a2d50]">
-                                  none assigned
-                                </span>
-                              ) : (
-                                allRefs.map((a) => {
-                                  const youth = a.referee
-                                    ? isYouthRef(a.referee.grade_level)
-                                    : false
-                                  return (
-                                    <span
-                                      key={a.id}
-                                      title={a.referee?.grade_level}
-                                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded font-cond text-[10px] font-bold"
-                                      style={{
-                                        background: youth
-                                          ? 'rgba(52,211,153,0.12)'
-                                          : 'rgba(96,165,250,0.12)',
-                                        border: `1px solid ${youth ? 'rgba(52,211,153,0.3)' : 'rgba(96,165,250,0.3)'}`,
-                                        color: youth ? '#34d399' : '#60a5fa',
-                                      }}
-                                    >
-                                      <span
-                                        className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                                        style={{ background: youth ? '#34d399' : '#60a5fa' }}
-                                      />
-                                      {a.referee?.name ?? `Ref ${a.referee_id}`}
-                                    </span>
-                                  )
-                                })
-                              )}
-                            </div>
-                          </Td>
-                        </tr>
+                          </div>
+                          {/* Division tag */}
+                          <div className="font-cond text-[8px] text-muted mt-0.5">
+                            {[...new Set(slot.divisions)].join(', ')}
+                          </div>
+                        </td>
                       )
                     })}
-                </tbody>
-              </table>
-            </div>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        )
-      })}
+        </div>
+      )}
 
       {/* Legend */}
       <div className="flex items-center gap-4 pt-1 flex-wrap">
