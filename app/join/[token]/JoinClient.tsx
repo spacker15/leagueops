@@ -5,7 +5,7 @@ import { CheckCircle } from 'lucide-react'
 
 interface Props {
   token: string
-  type: 'referee' | 'volunteer'
+  type: 'referee' | 'volunteer' | 'trainer'
   eventName: string
   primaryColor: string
   logoUrl: string | null
@@ -20,7 +20,8 @@ export function JoinClient({ token, type, eventName, primaryColor, logoUrl }: Pr
   const [done, setDone] = useState(false)
   const [error, setError] = useState('')
 
-  const label = type === 'referee' ? 'Referee' : 'Volunteer'
+  const label =
+    type === 'referee' ? 'Referee' : type === 'trainer' ? 'Athletic Trainer' : 'Volunteer'
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()

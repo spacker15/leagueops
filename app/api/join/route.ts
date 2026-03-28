@@ -8,11 +8,8 @@ import { publicRatelimit } from '@/lib/ratelimit'
 // GET /api/join?token=xxx — validate invite and return event info
 export async function GET(req: NextRequest) {
   // Rate limit by IP (SEC-08)
-  const ip =
-    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
-    '127.0.0.1'
-  const { success, limit, remaining, reset, pending } =
-    await publicRatelimit.limit(ip)
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? '127.0.0.1'
+  const { success, limit, remaining, reset, pending } = await publicRatelimit.limit(ip)
   void pending
 
   if (!success) {
@@ -48,11 +45,8 @@ export async function GET(req: NextRequest) {
 // POST /api/join — submit registration
 export async function POST(req: NextRequest) {
   // Rate limit by IP (SEC-08)
-  const ip =
-    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
-    '127.0.0.1'
-  const { success, limit, remaining, reset, pending } =
-    await publicRatelimit.limit(ip)
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? '127.0.0.1'
+  const { success, limit, remaining, reset, pending } = await publicRatelimit.limit(ip)
   void pending
 
   if (!success) {
@@ -98,6 +92,16 @@ export async function POST(req: NextRequest) {
       email: email.trim(),
       phone: phone?.trim() || null,
       grade_level: 'Grade 5',
+      checked_in: false,
+    })
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  } else if (invite.type === 'trainer') {
+    const { error } = await sb.from('trainers').insert({
+      event_id: invite.event_id,
+      name,
+      email: email.trim(),
+      phone: phone?.trim() || null,
+      certifications: null,
       checked_in: false,
     })
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })

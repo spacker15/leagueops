@@ -32,7 +32,7 @@ export default async function JoinPage({ params }: { params: { token: string } }
   return (
     <JoinClient
       token={params.token}
-      type={invite.type as 'referee' | 'volunteer'}
+      type={invite.type as 'referee' | 'volunteer' | 'trainer'}
       eventName={event?.name ?? 'Event'}
       primaryColor={event?.primary_color ?? '#0B3D91'}
       logoUrl={event?.logo_url ?? null}

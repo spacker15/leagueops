@@ -18,7 +18,15 @@ import { useApp } from '@/lib/store'
 import { Avatar, Pill, Modal, Btn, FormField } from '@/components/ui'
 import { cn, findCsvMismatches, type CsvMismatch } from '@/lib/utils'
 import toast from 'react-hot-toast'
-import type { OperationalConflict, Referee, Volunteer, Game, RefereeAvailability } from '@/types'
+import type {
+  OperationalConflict,
+  Referee,
+  Trainer,
+  Volunteer,
+  Game,
+  RefereeAvailability,
+  TrainerAvailability,
+} from '@/types'
 import { createClient } from '@/supabase/client'
 import {
   AlertTriangle,
@@ -37,7 +45,7 @@ import {
 } from 'lucide-react'
 
 // ─── Types ───────────────────────────────────────────────────
-type SubTab = 'board' | 'referees' | 'volunteers' | 'conflicts' | 'availability'
+type SubTab = 'board' | 'referees' | 'volunteers' | 'trainers' | 'conflicts' | 'availability'
 type PersonType = 'ref' | 'vol'
 
 interface Assignment {
@@ -319,7 +327,9 @@ export function RefsTab() {
   const [conflicts, setConflicts] = useState<OperationalConflict[]>([])
   const [running, setRunning] = useState(false)
   const [engineResult, setEngineResult] = useState<string | null>(null)
-  const [copyingInvite, setCopyingInvite] = useState<'referee' | 'volunteer' | null>(null)
+  const [copyingInvite, setCopyingInvite] = useState<'referee' | 'volunteer' | 'trainer' | null>(
+    null
+  )
   const [roleModal, setRoleModal] = useState<{
     personId: number
     personType: PersonType
@@ -365,6 +375,135 @@ export function RefsTab() {
   const [newVolPhone, setNewVolPhone] = useState('')
   const [newVolEmail, setNewVolEmail] = useState('')
   const [addingSaving, setAddingSaving] = useState(false)
+
+  // Trainers
+  const [trainers, setTrainers] = useState<Trainer[]>([])
+  const [trainerAvailCounts, setTrainerAvailCounts] = useState<Record<number, number>>({})
+  const [addTrainerOpen, setAddTrainerOpen] = useState(false)
+  const [newTrainerName, setNewTrainerName] = useState('')
+  const [newTrainerPhone, setNewTrainerPhone] = useState('')
+  const [newTrainerEmail, setNewTrainerEmail] = useState('')
+  const [trainerAvailModal, setTrainerAvailModal] = useState(false)
+  const [selectedTrainer, setSelectedTrainer] = useState<Trainer | null>(null)
+  const [trainerAvailability, setTrainerAvailability] = useState<TrainerAvailability[]>([])
+
+  const loadTrainers = useCallback(async () => {
+    if (!eventId) return
+    const sb = createClient()
+    const { data } = await sb.from('trainers').select('*').eq('event_id', eventId).order('name')
+    const list = (data as Trainer[]) ?? []
+    setTrainers(list)
+    // Load availability counts for all trainers
+    if (list.length > 0) {
+      const { data: avail } = await sb
+        .from('trainer_availability')
+        .select('trainer_id')
+        .in(
+          'trainer_id',
+          list.map((t) => t.id)
+        )
+      const counts: Record<number, number> = {}
+      for (const row of avail ?? []) {
+        counts[row.trainer_id] = (counts[row.trainer_id] ?? 0) + 1
+      }
+      setTrainerAvailCounts(counts)
+    }
+  }, [eventId])
+
+  useEffect(() => {
+    loadTrainers()
+  }, [loadTrainers])
+
+  async function saveNewTrainer() {
+    if (!newTrainerName.trim()) {
+      toast.error('Name is required')
+      return
+    }
+    setAddingSaving(true)
+    const sb = createClient()
+    const { error } = await sb.from('trainers').insert({
+      event_id: eventId,
+      name: newTrainerName.trim(),
+      phone: newTrainerPhone || null,
+      email: newTrainerEmail || null,
+      certifications: null,
+      checked_in: false,
+    })
+    if (error) {
+      toast.error(error.message)
+      setAddingSaving(false)
+      return
+    }
+    toast.success(`Trainer "${newTrainerName.trim()}" added`)
+    setNewTrainerName('')
+    setNewTrainerPhone('')
+    setNewTrainerEmail('')
+    setAddTrainerOpen(false)
+    setAddingSaving(false)
+    await loadTrainers()
+  }
+
+  async function deleteTrainer(id: number) {
+    const sb = createClient()
+    await sb.from('trainers').delete().eq('id', id)
+    setTrainers((prev) => prev.filter((t) => t.id !== id))
+    toast.success('Trainer removed')
+  }
+
+  async function openTrainerAvailability(trainer: Trainer) {
+    setSelectedTrainer(trainer)
+    const sb = createClient()
+    const { data } = await sb
+      .from('trainer_availability')
+      .select('*')
+      .eq('trainer_id', trainer.id)
+      .order('date')
+    setTrainerAvailability((data as TrainerAvailability[]) ?? [])
+    setTrainerAvailModal(true)
+  }
+
+  async function refreshTrainerAvail(trainerId: number) {
+    const sb = createClient()
+    const { data } = await sb
+      .from('trainer_availability')
+      .select('*')
+      .eq('trainer_id', trainerId)
+      .order('date')
+    const list = (data as TrainerAvailability[]) ?? []
+    setTrainerAvailability(list)
+    setTrainerAvailCounts((prev) => ({ ...prev, [trainerId]: list.length }))
+  }
+
+  async function addTrainerAvailDate(date: string) {
+    if (!selectedTrainer || !date) return
+    const sb = createClient()
+    await sb
+      .from('trainer_availability')
+      .upsert({ trainer_id: selectedTrainer.id, date }, { onConflict: 'trainer_id,date' })
+    await refreshTrainerAvail(selectedTrainer.id)
+    toast.success('Availability saved')
+  }
+
+  async function addAllTrainerAvailDates() {
+    if (!selectedTrainer) return
+    const sb = createClient()
+    const rows = state.eventDates.map((d) => ({ trainer_id: selectedTrainer.id, date: d.date }))
+    await sb.from('trainer_availability').upsert(rows, { onConflict: 'trainer_id,date' })
+    await refreshTrainerAvail(selectedTrainer.id)
+    toast.success('All dates marked available')
+  }
+
+  async function removeTrainerAvailDate(id: number) {
+    const sb = createClient()
+    await sb.from('trainer_availability').delete().eq('id', id)
+    if (selectedTrainer) {
+      setTrainerAvailability((prev) => {
+        const next = prev.filter((a) => a.id !== id)
+        setTrainerAvailCounts((c) => ({ ...c, [selectedTrainer.id]: next.length }))
+        return next
+      })
+    }
+  }
 
   async function sendInviteEmail(email: string, name: string, roleName: string) {
     try {
@@ -900,7 +1039,7 @@ export function RefsTab() {
     setNewDate('')
   }
 
-  async function copyInviteLink(type: 'referee' | 'volunteer') {
+  async function copyInviteLink(type: 'referee' | 'volunteer' | 'trainer') {
     setCopyingInvite(type)
     const sb = createClient()
     const token = crypto.randomUUID().replace(/-/g, '')
@@ -914,7 +1053,9 @@ export function RefsTab() {
     }
     const url = `${window.location.origin}/join/${token}`
     await navigator.clipboard.writeText(url)
-    toast.success(`${type === 'referee' ? 'Referee' : 'Volunteer'} invite link copied!`)
+    toast.success(
+      `${type === 'referee' ? 'Referee' : type === 'trainer' ? 'Trainer' : 'Volunteer'} invite link copied!`
+    )
     setCopyingInvite(null)
   }
 
@@ -1140,6 +1281,7 @@ export function RefsTab() {
     { id: 'board', label: 'Assignment Board' },
     { id: 'referees', label: 'Referees' },
     { id: 'volunteers', label: 'Volunteers' },
+    { id: 'trainers', label: 'Trainers' },
     {
       id: 'conflicts',
       label: conflicts.length > 0 ? `Conflicts (${conflicts.length})` : 'Conflicts',
@@ -1713,6 +1855,127 @@ export function RefsTab() {
       )}
 
       {/* ═══ AVAILABILITY TAB ════════════════════════════════════ */}
+      {/* ═══ TRAINERS TAB ════════════════════════════════════════ */}
+      {subTab === 'trainers' && (
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <div className="font-cond text-[11px] text-muted">
+              {trainers.length} trainer{trainers.length !== 1 ? 's' : ''} registered
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => copyInviteLink('trainer')}
+                disabled={!!copyingInvite}
+                className="flex items-center gap-1.5 font-cond text-[11px] font-black tracking-wider px-3 py-1.5 rounded-lg bg-blue-900/30 border border-blue-700/50 text-blue-300 hover:bg-blue-900/50 transition-colors disabled:opacity-50"
+              >
+                <Link2 size={11} />
+                {copyingInvite === 'trainer' ? 'COPYING...' : 'COPY INVITE LINK'}
+              </button>
+              <button
+                onClick={() => setAddTrainerOpen(!addTrainerOpen)}
+                className="flex items-center gap-1.5 font-cond text-[11px] font-black tracking-wider px-3 py-1.5 rounded-lg bg-green-900/30 border border-green-700/50 text-green-300 hover:bg-green-900/50 transition-colors"
+              >
+                <UserPlus size={11} />
+                ADD TRAINER
+              </button>
+            </div>
+          </div>
+
+          {addTrainerOpen && (
+            <div className="bg-surface-card border border-border rounded-lg p-3 mb-4">
+              <div className="font-cond text-[10px] font-black tracking-widest text-muted uppercase mb-2">
+                New Trainer
+              </div>
+              <div className="grid grid-cols-3 gap-2 mb-2">
+                <input
+                  className="bg-surface border border-border text-white px-2 py-1.5 rounded text-[12px] outline-none focus:border-blue-400 col-span-3"
+                  placeholder="Full name *"
+                  value={newTrainerName}
+                  onChange={(e) => setNewTrainerName(e.target.value)}
+                />
+                <input
+                  className="bg-surface border border-border text-white px-2 py-1.5 rounded text-[12px] outline-none focus:border-blue-400"
+                  placeholder="Email"
+                  value={newTrainerEmail}
+                  onChange={(e) => setNewTrainerEmail(e.target.value)}
+                />
+                <input
+                  className="bg-surface border border-border text-white px-2 py-1.5 rounded text-[12px] outline-none focus:border-blue-400"
+                  placeholder="Phone"
+                  value={newTrainerPhone}
+                  onChange={(e) => setNewTrainerPhone(e.target.value)}
+                />
+                <Btn variant="primary" size="sm" onClick={saveNewTrainer} disabled={addingSaving}>
+                  {addingSaving ? 'SAVING...' : 'SAVE'}
+                </Btn>
+              </div>
+            </div>
+          )}
+
+          {trainers.length === 0 ? (
+            <div className="text-center py-10 text-muted font-cond text-sm">
+              No trainers registered. Add one or send an invite link.
+            </div>
+          ) : (
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-3">
+              {trainers.map((trainer) => {
+                const availCount = trainerAvailCounts[trainer.id] ?? 0
+                const noAvail = availCount === 0
+                return (
+                  <div
+                    key={trainer.id}
+                    className={cn(
+                      'bg-surface-card border rounded-lg p-3',
+                      noAvail ? 'border-yellow-700/50' : 'border-border'
+                    )}
+                  >
+                    <div className="flex gap-2 items-start mb-2">
+                      <Avatar name={trainer.name} variant="red" />
+                      <div className="min-w-0 flex-1">
+                        <div className="font-cond font-black text-[13px] truncate">
+                          {trainer.name}
+                        </div>
+                        {trainer.email && (
+                          <div className="font-cond text-[10px] text-muted truncate">
+                            {trainer.email}
+                          </div>
+                        )}
+                        {trainer.phone && (
+                          <div className="font-cond text-[10px] text-muted">{trainer.phone}</div>
+                        )}
+                      </div>
+                    </div>
+                    {noAvail && (
+                      <div className="flex items-center gap-1 mb-2 px-2 py-1 rounded bg-yellow-900/20 border border-yellow-700/30">
+                        <AlertTriangle size={10} className="text-yellow-400 shrink-0" />
+                        <span className="font-cond text-[9px] text-yellow-300 font-bold tracking-wide">
+                          NO AVAILABILITY SET
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex gap-1 mt-2">
+                      <button
+                        onClick={() => openTrainerAvailability(trainer)}
+                        className="flex-1 flex items-center justify-center gap-1 font-cond text-[10px] font-bold tracking-wider py-1 rounded bg-surface border border-border text-muted hover:text-white hover:border-blue-400 transition-colors"
+                      >
+                        <Calendar size={10} />
+                        AVAILABILITY
+                      </button>
+                      <button
+                        onClick={() => deleteTrainer(trainer.id)}
+                        className="px-2 py-1 rounded bg-surface border border-border text-muted hover:text-red-400 hover:border-red-400/40 transition-colors"
+                      >
+                        <Trash2 size={11} />
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
       {subTab === 'availability' && (
         <div>
           <div className="font-cond text-[11px] text-muted mb-4">
@@ -1997,6 +2260,101 @@ export function RefsTab() {
                   ? `Will be assigned to ALL upcoming games on this field`
                   : `Will be assigned to the next ${blockGames} game${blockGames > 1 ? 's' : ''} on this field`}
               </div>
+            )}
+          </div>
+        )}
+      </Modal>
+
+      {/* ═══ TRAINER AVAILABILITY MODAL ══════════════════════════ */}
+      <Modal
+        open={trainerAvailModal}
+        onClose={() => setTrainerAvailModal(false)}
+        title={`AVAILABILITY — ${selectedTrainer?.name ?? ''}`}
+        footer={
+          <Btn variant="ghost" size="sm" onClick={() => setTrainerAvailModal(false)}>
+            CLOSE
+          </Btn>
+        }
+      >
+        {selectedTrainer && (
+          <div>
+            {state.eventDates.length === 0 ? (
+              <div className="text-center py-4 text-muted font-cond text-sm">
+                No event dates configured.
+              </div>
+            ) : (
+              <div className="bg-surface-card rounded-md p-3 mb-4">
+                <div className="font-cond text-[10px] font-black tracking-widest text-muted uppercase mb-2">
+                  Mark Available
+                </div>
+                <div className="flex gap-2 items-end">
+                  <div className="flex-1">
+                    <select
+                      id="trainer-avail-date"
+                      className="w-full bg-[#040e24] border border-border text-white px-2 py-1.5 rounded text-[12px] outline-none focus:border-blue-400"
+                      defaultValue=""
+                      onChange={(e) => {
+                        if (e.target.value) addTrainerAvailDate(e.target.value)
+                        e.target.value = ''
+                      }}
+                    >
+                      <option value="">Select a date…</option>
+                      {state.eventDates.map((d) => (
+                        <option key={d.id} value={d.date}>
+                          {d.label || d.date}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <Btn variant="ghost" size="sm" onClick={addAllTrainerAvailDates}>
+                    ALL DATES
+                  </Btn>
+                </div>
+              </div>
+            )}
+            {trainerAvailability.length === 0 ? (
+              <div className="flex items-center gap-2 py-4 px-3 rounded-lg bg-yellow-900/20 border border-yellow-700/40">
+                <AlertTriangle size={14} className="text-yellow-400 shrink-0" />
+                <span className="font-cond text-[12px] text-yellow-300">
+                  No availability set for this trainer.
+                </span>
+              </div>
+            ) : (
+              <table className="w-full border-collapse text-[12px]">
+                <thead>
+                  <tr className="bg-navy">
+                    {['DATE', 'LABEL', ''].map((h) => (
+                      <th
+                        key={h}
+                        className="font-cond text-[10px] font-black tracking-widest text-muted px-3 py-1.5 text-left"
+                      >
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {trainerAvailability.map((a) => {
+                    const ed = state.eventDates.find((d) => d.date === a.date)
+                    return (
+                      <tr key={a.id} className="border-b border-border/40">
+                        <td className="font-mono text-blue-300 text-[11px] px-3 py-2">{a.date}</td>
+                        <td className="font-cond text-[11px] text-muted px-3 py-2">
+                          {ed?.label ?? '—'}
+                        </td>
+                        <td className="px-3 py-2">
+                          <button
+                            onClick={() => removeTrainerAvailDate(a.id)}
+                            className="text-muted hover:text-red-400"
+                          >
+                            <XCircle size={14} />
+                          </button>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
             )}
           </div>
         )}

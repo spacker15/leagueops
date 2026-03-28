@@ -351,6 +351,13 @@ export interface RefereeAvailability {
   created_at: string
 }
 
+export interface TrainerAvailability {
+  id: number
+  trainer_id: number
+  date: string
+  created_at: string
+}
+
 export type ConflictType =
   | 'ref_double_booked'
   | 'ref_unavailable'

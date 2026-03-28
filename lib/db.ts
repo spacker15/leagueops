@@ -632,6 +632,56 @@ export async function upsertRefAvailability(availability: {
   return data
 }
 
+// ---- Trainers ----
+export async function getTrainers(eventId: number) {
+  const sb = createClient()
+  const { data } = await sb.from('trainers').select('*').eq('event_id', eventId).order('name')
+  return data ?? []
+}
+
+export async function insertTrainer(trainer: {
+  event_id: number
+  name: string
+  email: string | null
+  phone: string | null
+  certifications: string | null
+}) {
+  const sb = createClient()
+  const { data } = await sb
+    .from('trainers')
+    .insert({ ...trainer, checked_in: false })
+    .select()
+    .single()
+  return data
+}
+
+export async function deleteTrainer(id: number) {
+  const sb = createClient()
+  await sb.from('trainers').delete().eq('id', id)
+}
+
+export async function getTrainerAvailability(trainerId: number) {
+  const sb = createClient()
+  const { data } = await sb
+    .from('trainer_availability')
+    .select('*')
+    .eq('trainer_id', trainerId)
+    .order('date')
+  return data ?? []
+}
+
+export async function upsertTrainerAvailability(trainerId: number, date: string) {
+  const sb = createClient()
+  await sb
+    .from('trainer_availability')
+    .upsert({ trainer_id: trainerId, date }, { onConflict: 'trainer_id,date' })
+}
+
+export async function deleteTrainerAvailability(id: number) {
+  const sb = createClient()
+  await sb.from('trainer_availability').delete().eq('id', id)
+}
+
 // ---- Operational Conflicts ----
 export async function getOpenConflicts(eventId: number) {
   const sb = createClient()
