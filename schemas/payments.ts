@@ -27,9 +27,9 @@ export type UpdateTeamPaymentInput = z.infer<typeof updateTeamPaymentSchema>
 export const createPaymentEntrySchema = z.object({
   team_payment_id: z.number().int().positive(),
   amount: z.number().min(0),
-  payment_method: z.enum(['check', 'cash', 'bank_transfer', 'waived']),
-  reference_number: z.string().optional(),
-  notes: z.string().optional(),
+  payment_method: z.enum(['check', 'cash', 'bank_transfer', 'waived', 'other']),
+  reference_number: z.string().nullable().optional(),
+  notes: z.string().nullable().optional(),
   paid_at: z.string().datetime().optional(),
 })
 

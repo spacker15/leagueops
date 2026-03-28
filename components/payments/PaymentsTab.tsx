@@ -92,7 +92,8 @@ function RecordPaymentModal({ payment, onClose, onSaved }: RecordPaymentModalPro
     })
     setSaving(false)
     if (!res.ok) {
-      toast.error('Failed to record payment')
+      const err = await res.json().catch(() => ({}))
+      toast.error(err?.error || 'Failed to record payment')
       return
     }
     toast.success('Payment recorded')
