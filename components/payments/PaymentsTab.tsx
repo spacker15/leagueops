@@ -407,7 +407,7 @@ function ProgramPaymentModal({
       if (share <= 0) continue
       remaining -= share
 
-      await fetch('/api/payment-entries', {
+      const res = await fetch('/api/payment-entries', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -421,6 +421,11 @@ function ProgramPaymentModal({
             : `[${programName}] Program payment`,
         }),
       })
+      if (!res.ok) {
+        setSaving(false)
+        toast.error('Failed to record payment — check console')
+        return
+      }
     }
 
     setSaving(false)
@@ -555,6 +560,7 @@ export function PaymentsTab() {
   const [feeEdits, setFeeEdits] = useState<Record<string, string>>({})
   const [extraRefEdits, setExtraRefEdits] = useState<Record<string, string>>({})
   const [extraAssignerEdits, setExtraAssignerEdits] = useState<Record<string, string>>({})
+  const [gamesIncludedEdits, setGamesIncludedEdits] = useState<Record<string, string>>({})
   const [savingFee, setSavingFee] = useState<string | null>(null)
   const [generating, setGenerating] = useState(false)
   const [expandedProgram, setExpandedProgram] = useState<string | null>(null)
@@ -624,6 +630,7 @@ export function PaymentsTab() {
     }
     const refFee = parseFloat(extraRefEdits[division] ?? '') || 0
     const assignerFee = parseFloat(extraAssignerEdits[division] ?? '') || 0
+    const gamesInc = parseInt(gamesIncludedEdits[division] ?? '') || 0
     if (refFee < 0 || assignerFee < 0) {
       toast.error('Extra game fees must be >= 0')
       return
@@ -637,6 +644,7 @@ export function PaymentsTab() {
         event_id: eventId,
         division,
         amount: val,
+        games_included: gamesInc,
         extra_game_ref_fee: refFee,
         extra_game_assigner_fee: assignerFee,
         ...(existing ? { id: existing.id } : {}),
@@ -659,6 +667,11 @@ export function PaymentsTab() {
       return n
     })
     setExtraAssignerEdits((e) => {
+      const n = { ...e }
+      delete n[division]
+      return n
+    })
+    setGamesIncludedEdits((e) => {
       const n = { ...e }
       delete n[division]
       return n
@@ -719,29 +732,30 @@ export function PaymentsTab() {
     return Object.values(groups).sort((a, b) => a.programName.localeCompare(b.programName))
   })()
 
-  // Extra game fee calculation
-  const gameGuarantee = (state.event as any)?.game_guarantee || 0
-  const feeByDivision: Record<string, { ref: number; assigner: number }> = {}
+  // Extra game fee calculation — per-division games_included
+  const feeByDivision: Record<string, { ref: number; assigner: number; gamesIncluded: number }> = {}
   for (const f of fees) {
     feeByDivision[f.division] = {
       ref: Number(f.extra_game_ref_fee) || 0,
       assigner: Number(f.extra_game_assigner_fee) || 0,
+      gamesIncluded: Number(f.games_included) || 0,
     }
   }
 
-  // Per-team extra game fee: { teamPaymentId → { extraGames, extraFee, gamesPlayed } }
+  // Per-team extra game fee: { teamPaymentId → { extraGames, extraFee, gamesPlayed, gamesIncluded } }
   const teamExtraFees: Record<
     number,
-    { extraGames: number; extraFee: number; gamesPlayed: number }
+    { extraGames: number; extraFee: number; gamesPlayed: number; gamesIncluded: number }
   > = {}
   let totalExtraGameFees = 0
   for (const p of payments) {
     const gamesPlayed = p.team_id ? teamGameCounts[p.team_id] || 0 : 0
-    const extra = gameGuarantee > 0 ? Math.max(0, gamesPlayed - gameGuarantee) : 0
     const rates = feeByDivision[p.division]
+    const gamesIncluded = rates?.gamesIncluded || 0
+    const extra = gamesIncluded > 0 ? Math.max(0, gamesPlayed - gamesIncluded) : 0
     const perGame = rates ? rates.ref + rates.assigner : 0
     const extraFee = extra * perGame
-    teamExtraFees[p.id] = { extraGames: extra, extraFee, gamesPlayed }
+    teamExtraFees[p.id] = { extraGames: extra, extraFee, gamesPlayed, gamesIncluded }
     totalExtraGameFees += extraFee
   }
 
@@ -1151,7 +1165,7 @@ export function PaymentsTab() {
           )}
 
           {/* Extra Game Fees Breakdown */}
-          {totalExtraGameFees > 0 && gameGuarantee > 0 && (
+          {totalExtraGameFees > 0 && (
             <div className="bg-[#081428] border border-[#1a2d50] rounded-xl overflow-hidden">
               <div className="px-4 py-3 border-b border-[#1a2d50] flex items-center gap-2">
                 <AlertCircle size={13} className="text-orange-400" />
@@ -1159,7 +1173,7 @@ export function PaymentsTab() {
                   Extra Game Fees
                 </span>
                 <span className="font-cond text-[10px] text-muted ml-1">
-                  — Games over {gameGuarantee} guaranteed
+                  — Games over included amount
                 </span>
               </div>
               <table className="w-full">
@@ -1425,8 +1439,8 @@ export function PaymentsTab() {
       {!loading && subTab === 'fees' && (
         <div className="space-y-4">
           <div className="font-cond text-[11px] text-muted">
-            Set a registration fee per division. Extra game fees apply per team for each game beyond
-            the guaranteed {gameGuarantee || '—'} games.
+            Set a registration fee per division. Set games included — extra game fees apply per team
+            for each game beyond the included amount.
           </div>
 
           <div className="bg-[#081428] border border-[#1a2d50] rounded-xl overflow-hidden">
@@ -1436,10 +1450,13 @@ export function PaymentsTab() {
                   <th className="font-cond text-[10px] font-black tracking-[.1em] text-muted uppercase text-left px-4 py-2.5">
                     Division
                   </th>
-                  <th className="font-cond text-[10px] font-black tracking-[.1em] text-muted uppercase text-left px-4 py-2.5 w-36">
+                  <th className="font-cond text-[10px] font-black tracking-[.1em] text-muted uppercase text-left px-4 py-2.5 w-32">
                     Reg Fee (USD)
                   </th>
-                  <th className="font-cond text-[10px] font-black tracking-[.1em] text-muted uppercase text-left px-4 py-2.5 w-36">
+                  <th className="font-cond text-[10px] font-black tracking-[.1em] text-muted uppercase text-left px-4 py-2.5 w-24">
+                    Games Incl.
+                  </th>
+                  <th className="font-cond text-[10px] font-black tracking-[.1em] text-muted uppercase text-left px-4 py-2.5 w-32">
                     Extra Game Ref Fee
                   </th>
                   <th className="font-cond text-[10px] font-black tracking-[.1em] text-muted uppercase text-left px-4 py-2.5 w-36">
@@ -1455,6 +1472,8 @@ export function PaymentsTab() {
                 {divisions.map((div) => {
                   const existing = fees.find((f) => f.division === div)
                   const editVal = feeEdits[div] ?? (existing ? String(existing.amount) : '')
+                  const gamesIncVal =
+                    gamesIncludedEdits[div] ?? (existing ? String(existing.games_included) : '')
                   const refVal =
                     extraRefEdits[div] ?? (existing ? String(existing.extra_game_ref_fee) : '')
                   const assignerVal =
@@ -1463,6 +1482,7 @@ export function PaymentsTab() {
                   const totalPerGame = (parseFloat(refVal) || 0) + (parseFloat(assignerVal) || 0)
                   const hasEdits =
                     feeEdits[div] !== undefined ||
+                    gamesIncludedEdits[div] !== undefined ||
                     extraRefEdits[div] !== undefined ||
                     extraAssignerEdits[div] !== undefined
                   return (
@@ -1485,6 +1505,19 @@ export function PaymentsTab() {
                             placeholder="0.00"
                           />
                         </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <input
+                          className={cn(inp, 'w-16 text-center')}
+                          type="number"
+                          min="0"
+                          step="1"
+                          value={gamesIncVal}
+                          onChange={(e) =>
+                            setGamesIncludedEdits((f) => ({ ...f, [div]: e.target.value }))
+                          }
+                          placeholder="0"
+                        />
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1">
@@ -1548,7 +1581,7 @@ export function PaymentsTab() {
                 {divisions.length === 0 && (
                   <tr>
                     <td
-                      colSpan={6}
+                      colSpan={7}
                       className="px-4 py-8 text-center font-cond text-[12px] text-muted"
                     >
                       No divisions found. Add teams to the event first.

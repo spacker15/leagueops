@@ -20,20 +20,7 @@ import {
 import { ScheduleChangeRequestModal } from '@/components/schedule/ScheduleChangeRequestModal'
 import type { Game } from '@/types'
 
-const DIVISIONS = [
-  '8U Boys',
-  '10U Boys',
-  '12U Boys',
-  '14U Boys',
-  '16U Boys',
-  '18U Boys',
-  '8U Girls',
-  '10U Girls',
-  '12U Girls',
-  '14U Girls',
-  '16U Girls',
-  '18U Girls',
-]
+// Divisions are derived dynamically from event data (registration_fees + existing teams)
 
 interface Program {
   id: number
@@ -86,11 +73,11 @@ export function ProgramDashboard() {
   const [programFees, setProgramFees] = useState<any[]>([])
   const [programPayments, setProgramPayments] = useState<any[]>([])
   const [programGameCounts, setProgramGameCounts] = useState<Record<number, number>>({})
-  const [eventGameGuarantee, setEventGameGuarantee] = useState(0)
+  const [availableDivisions, setAvailableDivisions] = useState<string[]>([])
 
   // New team form
   const [newTeamName, setNewTeamName] = useState('')
-  const [newTeamDiv, setNewTeamDiv] = useState('14U Boys')
+  const [newTeamDiv, setNewTeamDiv] = useState('')
   const [newCoachName, setNewCoachName] = useState('')
   const [newCoachEmail, setNewCoachEmail] = useState('')
   const [newPlayerCount, setNewPlayerCount] = useState('')
@@ -180,18 +167,24 @@ export function ProgramDashboard() {
       }
 
       // Load fees and payment records for this program's teams
-      const [{ data: feesData }, { data: paymentsData }, { data: eventData }] = await Promise.all([
+      const [{ data: feesData }, { data: paymentsData }] = await Promise.all([
         sb.from('registration_fees').select('*').eq('event_id', portalEventId!),
         sb
           .from('team_payments')
           .select('*')
           .eq('event_id', portalEventId!)
           .eq('program_name', prog?.name || ''),
-        sb.from('events').select('game_guarantee').eq('id', portalEventId!).single(),
       ])
       setProgramFees(feesData ?? [])
       setProgramPayments(paymentsData ?? [])
-      setEventGameGuarantee(eventData?.game_guarantee || 0)
+      // Derive available divisions from fee config + existing team registrations
+      const feeDivs = (feesData ?? []).map((f: any) => f.division as string)
+      const regDivs = ((regs as TeamReg[]) ?? []).map((r) => r.division)
+      const teamDivs = teamsList.map((t: any) => t.division as string)
+      const allDivs = Array.from(
+        new Set([...feeDivs, ...regDivs, ...teamDivs].filter(Boolean))
+      ).sort()
+      setAvailableDivisions(allDivs)
     } catch (err) {
       console.error('ProgramDashboard loadData error:', err)
     } finally {
@@ -516,9 +509,10 @@ export function ProgramDashboard() {
                   <tbody>
                     {programPayments.map((p: any) => {
                       const gamesPlayed = p.team_id ? programGameCounts[p.team_id] || 0 : 0
-                      const extraGames =
-                        eventGameGuarantee > 0 ? Math.max(0, gamesPlayed - eventGameGuarantee) : 0
                       const feeConfig = programFees.find((f: any) => f.division === p.division)
+                      const gamesIncluded = feeConfig ? Number(feeConfig.games_included) || 0 : 0
+                      const extraGames =
+                        gamesIncluded > 0 ? Math.max(0, gamesPlayed - gamesIncluded) : 0
                       const perGame = feeConfig
                         ? (Number(feeConfig.extra_game_ref_fee) || 0) +
                           (Number(feeConfig.extra_game_assigner_fee) || 0)
@@ -572,8 +566,9 @@ export function ProgramDashboard() {
                       )
                       const totExtraFee = programPayments.reduce((s: number, p: any) => {
                         const gp = p.team_id ? programGameCounts[p.team_id] || 0 : 0
-                        const eg = eventGameGuarantee > 0 ? Math.max(0, gp - eventGameGuarantee) : 0
                         const fc = programFees.find((f: any) => f.division === p.division)
+                        const gi = fc ? Number(fc.games_included) || 0 : 0
+                        const eg = gi > 0 ? Math.max(0, gp - gi) : 0
                         const pg = fc
                           ? (Number(fc.extra_game_ref_fee) || 0) +
                             (Number(fc.extra_game_assigner_fee) || 0)
@@ -945,7 +940,7 @@ export function ProgramDashboard() {
                     className="w-full bg-surface border border-border text-white px-3 py-2 rounded-lg text-[13px] outline-none focus:border-blue-400"
                     value={newTeamName}
                     onChange={(e) => setNewTeamName(e.target.value)}
-                    placeholder={`${program?.short_name ?? 'Program'} 14U Boys`}
+                    placeholder={`${program?.short_name ?? 'Program'} Team Name`}
                   />
                 </div>
                 <div>
@@ -957,7 +952,8 @@ export function ProgramDashboard() {
                     value={newTeamDiv}
                     onChange={(e) => setNewTeamDiv(e.target.value)}
                   >
-                    {DIVISIONS.map((d) => (
+                    <option value="">— Select Division —</option>
+                    {availableDivisions.map((d) => (
                       <option key={d} value={d}>
                         {d}
                       </option>

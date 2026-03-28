@@ -5,6 +5,7 @@ export const createRegistrationFeeSchema = z.object({
   event_id: z.number().int().positive(),
   division: z.string().min(1),
   amount: z.number().min(0),
+  games_included: z.number().int().min(0).default(0).optional(),
   extra_game_ref_fee: z.number().min(0).default(0).optional(),
   extra_game_assigner_fee: z.number().min(0).default(0).optional(),
   currency: z.string().default('USD').optional(),
@@ -17,6 +18,7 @@ export type CreateRegistrationFeeInput = z.infer<typeof createRegistrationFeeSch
 export const updateRegistrationFeeSchema = z.object({
   division: z.string().min(1).optional(),
   amount: z.number().min(0).optional(),
+  games_included: z.number().int().min(0).optional(),
   extra_game_ref_fee: z.number().min(0).optional(),
   extra_game_assigner_fee: z.number().min(0).optional(),
   description: z.string().optional(),

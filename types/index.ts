@@ -443,6 +443,7 @@ export interface RegistrationFee {
   division: string
   amount: number
   currency: string
+  games_included: number
   extra_game_ref_fee: number
   extra_game_assigner_fee: number
   notes: string | null
