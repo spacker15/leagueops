@@ -121,6 +121,14 @@ body {
   border: 1px solid rgba(244, 63, 94, 0.25);
 }
 
+/* Game status: No Show */
+.badge-no-show {
+  @apply inline-flex items-center font-cond text-[10px] font-black tracking-[0.1em] px-2 py-0.5 rounded-full border uppercase;
+  background: #1a1200;
+  color: #f59e0b;
+  border-color: rgba(245, 158, 11, 0.25);
+}
+
 /* Game status: Cancelled */
 .badge-cancelled {
   @apply inline-flex items-center font-cond text-[10px] font-black tracking-[0.1em] px-2 py-0.5 rounded-full border uppercase;

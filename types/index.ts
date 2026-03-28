@@ -11,6 +11,7 @@ export type GameStatus =
   | 'Delayed'
   | 'Cancelled'
   | 'Unscheduled'
+  | 'No Show'
 export type Division = 'U10' | 'U12' | 'U14' | 'U16' | 'U18' | 'U12B' | 'U14B' | 'U16B' | 'Open'
 export type IncidentType =
   | 'Player Injury'

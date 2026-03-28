@@ -1434,13 +1434,21 @@ export function ScheduleTab() {
           onChange={(e) => setStatusFilter(e.target.value)}
         >
           <option value="">All Status</option>
-          {(['Scheduled', 'Starting', 'Live', 'Halftime', 'Final', 'Delayed'] as GameStatus[]).map(
-            (s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            )
-          )}
+          {(
+            [
+              'Scheduled',
+              'Starting',
+              'Live',
+              'Halftime',
+              'Final',
+              'Delayed',
+              'No Show',
+            ] as GameStatus[]
+          ).map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
         </select>
 
         <Btn size="sm" variant="primary" onClick={() => setAddOpen(true)}>
@@ -2915,7 +2923,7 @@ function QuickRescheduleBtn({ game, onRescheduled }: { game: any; onRescheduled:
   const [open, setOpen] = useState(false)
   const [time, setTime] = useState('')
   const [field, setField] = useState('')
-  const { state, eventId } = useApp()
+  const { state, eventId, refreshGames, addLog } = useApp()
 
   async function save() {
     const sb = createClient()
@@ -2925,6 +2933,7 @@ function QuickRescheduleBtn({ game, onRescheduled }: { game: any; onRescheduled:
       const ampm = h >= 12 ? 'PM' : 'AM'
       const dh = h > 12 ? h - 12 : h === 0 ? 12 : h
       updates.scheduled_time = `${dh}:${m.toString().padStart(2, '0')} ${ampm}`
+      updates.sort_order = h * 60 + m
     }
     if (field) updates.field_id = Number(field)
     if (Object.keys(updates).length === 0) {
@@ -2933,21 +2942,21 @@ function QuickRescheduleBtn({ game, onRescheduled }: { game: any; onRescheduled:
     }
 
     await sb.from('games').update(updates).eq('id', game.id)
-    await fetch('/api/ops-log', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        event_id: eventId,
-        message: `Game #${game.id} rescheduled: ${Object.entries(updates)
-          .map(([k, v]) => `${k}=${v}`)
-          .join(', ')}`,
-        log_type: 'ok',
-      }),
-    })
-    toast.success(`Game #${game.id} updated`)
+
+    const parts: string[] = []
+    if (updates.scheduled_time) parts.push(`time → ${updates.scheduled_time}`)
+    if (updates.field_id) {
+      const f = state.fields.find((x) => x.id === updates.field_id)
+      parts.push(`field → ${f?.name ?? `Field ${updates.field_id}`}`)
+    }
+    const home = game.home_team?.name ?? `Team ${game.home_team_id}`
+    const away = game.away_team?.name ?? `Team ${game.away_team_id}`
+    await addLog(`Rescheduled: ${home} vs ${away} — ${parts.join(', ')}`, 'ok')
+
+    toast.success(`Game #${game.id} rescheduled`)
     setOpen(false)
     onRescheduled()
-    window.location.reload()
+    await refreshGames()
   }
 
   if (!open)
@@ -2989,6 +2998,66 @@ function QuickRescheduleBtn({ game, onRescheduled }: { game: any; onRescheduled:
       </button>
       <button
         onClick={() => setOpen(false)}
+        className="font-cond text-[9px] font-bold px-1.5 py-0.5 rounded bg-surface-card border border-border text-muted"
+      >
+        ✕
+      </button>
+    </div>
+  )
+}
+
+// ─── No Show button ──────────────────────────────────────────
+function NoShowBtn({ game }: { game: any }) {
+  const [open, setOpen] = useState(false)
+  const [note, setNote] = useState('')
+  const { updateGameStatus, addLog } = useApp()
+
+  async function confirm() {
+    await updateGameStatus(game.id, 'No Show')
+    const home = game.home_team?.name ?? `Team ${game.home_team_id}`
+    const away = game.away_team?.name ?? `Team ${game.away_team_id}`
+    const msg = note.trim()
+      ? `NO SHOW: ${home} vs ${away} — ${note.trim()}`
+      : `NO SHOW: ${home} vs ${away}`
+    await addLog(msg, 'alert')
+    toast(`No Show recorded for Game #${game.id}`, { icon: '⚠' })
+    setOpen(false)
+    setNote('')
+  }
+
+  if (!open)
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        className="font-cond text-[10px] font-bold px-2 py-0.5 rounded bg-surface-card border border-border text-amber-500/70 hover:text-amber-400 hover:border-amber-500/40 transition-colors"
+        title="Record no show"
+      >
+        NO SHOW
+      </button>
+    )
+
+  return (
+    <div className="flex items-center gap-1 mt-1 w-full">
+      <input
+        autoFocus
+        type="text"
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+        onKeyDown={(e) => e.key === 'Enter' && confirm()}
+        placeholder="Note (optional)…"
+        className="flex-1 bg-surface border border-amber-500/40 text-white px-2 py-0.5 rounded text-[10px] outline-none focus:border-amber-400"
+      />
+      <button
+        onClick={confirm}
+        className="font-cond text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-700 text-white"
+      >
+        ✓
+      </button>
+      <button
+        onClick={() => {
+          setOpen(false)
+          setNote('')
+        }}
         className="font-cond text-[9px] font-bold px-1.5 py-0.5 rounded bg-surface-card border border-border text-muted"
       >
         ✕
@@ -3340,6 +3409,7 @@ function GameCard({
   const isLive = game.status === 'Live' || game.status === 'Halftime'
   const isFinal = game.status === 'Final'
   const isCancelled = game.status === 'Cancelled'
+  const isNoShow = game.status === 'No Show'
   const isDelayed = game.status === 'Delayed'
   const isStarting = game.status === 'Starting'
   const isUnscheduled = game.status === 'Unscheduled'
@@ -3383,7 +3453,7 @@ function GameCard({
         'rounded-lg border overflow-hidden transition-all relative',
         borderColor,
         bgColor,
-        (isFinal || isCancelled || isUnscheduled) && 'opacity-50',
+        (isFinal || isCancelled || isUnscheduled || isNoShow) && 'opacity-50',
         selectionMode && isSelected && 'ring-2 ring-blue-500/60'
       )}
       onClick={selectionMode ? () => onToggleSelect(game.id) : undefined}
@@ -3597,7 +3667,7 @@ function GameCard({
         )}
 
         {/* Action buttons */}
-        {!isFinal && !isCancelled && !isUnscheduled && (
+        {!isFinal && !isCancelled && !isUnscheduled && !isNoShow && (
           <div className="flex gap-1 flex-wrap">
             <button
               onClick={() => onCycleStatus(game.id, game.status)}
@@ -3615,6 +3685,7 @@ function GameCard({
               {nextStatusLabel(game.status)}
             </button>
             <QuickRescheduleBtn game={game} onRescheduled={onRescheduled} />
+            <NoShowBtn game={game} />
             {onUnschedule && (
               <button
                 onClick={() => onUnschedule(game.id)}
