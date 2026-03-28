@@ -315,6 +315,7 @@ export interface Complex {
   weather_provider: string
   notes: string | null
   created_at: string
+  last_weather_fetch: string | null
   fields?: Field[]
 }
 

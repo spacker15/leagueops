@@ -277,7 +277,7 @@ function ConflictPanel({ onNavigate }: { onNavigate: (tab: TabName) => void }) {
   )
 }
 
-// ─── Right Panel Weather component ─────────────────────────────
+// ─── Right Panel Weather component — one card per complex ──────
 function WeatherRPPanel({
   lightningActive,
   timerM,
@@ -293,106 +293,151 @@ function WeatherRPPanel({
 }) {
   const { state, liftLightning } = useApp()
   const { isAdmin } = useAuth()
+  const [complexes, setComplexes] = useState<{ id: number; name: string }[]>([])
 
-  // Use the latest weather reading from auto-poll (store)
-  const readings = Object.values(state.weatherReadings)
-  const latestReading = readings.length > 0 ? readings[0] : null
+  // Load complexes for this event so we can label each weather reading
+  useEffect(() => {
+    const eventId = state.event?.id
+    if (!eventId) return
+    const sb = createClient()
+    sb.from('complexes')
+      .select('id, name')
+      .eq('event_id', eventId)
+      .order('id')
+      .then(({ data }) => setComplexes(data ?? []))
+  }, [state.event?.id])
 
-  const heatIdx = latestReading?.heat_index_f
-  const heatColor = !heatIdx
-    ? 'text-white'
-    : heatIdx >= 113
-      ? 'text-red-400'
-      : heatIdx >= 103
-        ? 'text-orange-400'
-        : heatIdx >= 95
-          ? 'text-yellow-400'
-          : 'text-green-400'
+  // weatherReadings keyed by complex_id
+  const readings = state.weatherReadings as Record<
+    number,
+    import('@/lib/engines/weather').WeatherReading
+  >
+
+  // Lightning timer display
+  const timerStr = `${timerM}:${timerS.toString().padStart(2, '0')}`
+
+  const activeAlerts = state.weatherAlerts.filter((a) => a.is_active)
+
+  function heatColor(hi: number | undefined) {
+    if (!hi) return 'text-white'
+    if (hi >= 113) return 'text-red-400'
+    if (hi >= 103) return 'text-orange-400'
+    if (hi >= 95) return 'text-yellow-400'
+    return 'text-green-400'
+  }
 
   return (
     <Section title="WEATHER / LIGHTNING" action={() => onNavigate('weather')} actionLabel="VIEW">
-      {lightningActive ? (
-        <div>
-          <div className="font-cond text-[11px] font-black text-red-400 text-center tracking-wider mb-1 border border-red-500/40 rounded p-1 lightning-flash">
-            ⚡ LIGHTNING DELAY ACTIVE
-          </div>
-          <div className="font-mono text-xl text-red-400 text-center">
-            {timerM}:{timerS.toString().padStart(2, '0')}
+      {/* Global lightning banner */}
+      {lightningActive && (
+        <div className="mb-3">
+          <div className="font-cond text-[11px] font-black text-red-400 text-center tracking-wider border border-red-500/40 rounded p-1 mb-1 lightning-flash">
+            ⚡ LIGHTNING DELAY — {timerStr}
           </div>
           {isAdmin && (
             <button
               onClick={() => liftLightning()}
-              className="w-full mt-2 font-cond text-[10px] font-bold tracking-wider px-2 py-1 rounded bg-green-900/40 text-green-400 border border-green-800/50 hover:bg-green-800/60 transition-colors text-center"
+              className="w-full font-cond text-[10px] font-bold tracking-wider px-2 py-1 rounded bg-green-900/40 text-green-400 border border-green-800/50 hover:bg-green-800/60 transition-colors text-center"
             >
               LIFT DELAY
             </button>
           )}
         </div>
+      )}
+
+      {/* Per-complex weather rows */}
+      {complexes.length === 0 && Object.keys(readings).length === 0 ? (
+        <div className="text-[10px] text-muted font-cond text-center py-2">
+          No complexes — add one in Settings
+        </div>
       ) : (
-        <div>
-          <div className="font-cond text-[10px] font-black text-green-400 text-center tracking-wider border border-green-500/30 rounded p-1 mb-2">
-            ALL CLEAR
-          </div>
-          {latestReading ? (
-            <div className="text-[10px] space-y-0.5">
-              <div className="flex justify-between">
-                <span className="text-muted">Temp</span>
-                <span className="text-white font-mono">{latestReading.temperature_f}°F</span>
+        <div className="space-y-2">
+          {/* Show complexes that have a reading */}
+          {complexes.map((cx) => {
+            const r = readings[cx.id]
+            return (
+              <div key={cx.id} className="rounded bg-white/4 border border-border/60 p-2">
+                <div className="flex justify-between items-center mb-1">
+                  <span className="font-cond text-[10px] font-black tracking-wide text-muted uppercase truncate max-w-[120px]">
+                    {cx.name}
+                  </span>
+                  {r ? (
+                    <span className="font-cond text-[10px] font-bold text-green-400">LIVE</span>
+                  ) : (
+                    <span className="font-cond text-[9px] text-muted">NO DATA</span>
+                  )}
+                </div>
+                {r ? (
+                  <div className="text-[10px] space-y-0.5">
+                    <div className="flex justify-between">
+                      <span className="text-muted">Temp</span>
+                      <span className="text-white font-mono">{r.temperature_f}°F</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted">Heat Idx</span>
+                      <span className={cn('font-mono font-bold', heatColor(r.heat_index_f))}>
+                        {r.heat_index_f}°F
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted">Wind</span>
+                      <span className="text-white font-mono">
+                        {r.wind_mph} mph{r.wind_gust_mph > r.wind_mph ? ` g${r.wind_gust_mph}` : ''}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted">Conditions</span>
+                      <span className="text-white capitalize truncate max-w-[90px] text-right">
+                        {r.conditions}
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-[9px] text-muted">Scan pending…</div>
+                )}
               </div>
-              <div className="flex justify-between">
-                <span className="text-muted">Heat Index</span>
-                <span className={cn('font-mono font-bold', heatColor)}>
-                  {latestReading.heat_index_f}°F
-                </span>
+            )
+          })}
+
+          {/* Complexes that have readings but aren't in complexes list yet */}
+          {Object.entries(readings)
+            .filter(([id]) => !complexes.find((c) => c.id === Number(id)))
+            .map(([id, r]) => (
+              <div key={id} className="rounded bg-white/4 border border-border/60 p-2">
+                <div className="flex justify-between items-center mb-1">
+                  <span className="font-cond text-[10px] font-black tracking-wide text-muted uppercase">
+                    {r.complex_name}
+                  </span>
+                  <span className="font-cond text-[10px] font-bold text-green-400">LIVE</span>
+                </div>
+                <div className="text-[10px] flex gap-3">
+                  <span className="text-white font-mono">{r.temperature_f}°F</span>
+                  <span className="text-muted">{r.conditions}</span>
+                </div>
               </div>
-              <div className="flex justify-between">
-                <span className="text-muted">Humidity</span>
-                <span className="text-white font-mono">{latestReading.humidity_pct}%</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted">Wind</span>
-                <span className="text-white font-mono">{latestReading.wind_mph} mph</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted">Conditions</span>
-                <span className="text-white capitalize">{latestReading.conditions}</span>
-              </div>
-            </div>
-          ) : (
-            <div className="text-[10px] text-muted font-cond text-center">
-              Loading weather data...
-            </div>
-          )}
+            ))}
         </div>
       )}
+
+      {/* Active alert count */}
       {alertCount > 0 && (
         <div className="mt-2 flex items-center justify-between">
           <span className="text-[10px] text-yellow-400 font-cond font-bold tracking-wide">
             ⚠ {alertCount} ACTIVE ALERT{alertCount > 1 ? 'S' : ''}
           </span>
-          <button
-            onClick={async () => {
-              const sb = createClient()
-              const active = state.weatherAlerts.filter((a) => a.is_active)
-              for (const a of active) {
-                await sb.from('weather_alerts').update({ is_active: false }).eq('id', a.id)
-              }
-              // Force refresh alerts from DB so UI updates immediately
-              const eventId = state.event?.id
-              if (eventId) {
-                const { data } = await sb
-                  .from('weather_alerts')
-                  .select('*')
-                  .eq('event_id', eventId)
-                  .eq('is_active', true)
-                  .order('created_at', { ascending: false })
-                // The realtime subscription will pick up the changes
-              }
-            }}
-            className="font-cond text-[9px] font-bold tracking-wider px-1.5 py-0.5 rounded bg-green-900/40 text-green-400 border border-green-800/50 hover:bg-green-800/60 transition-colors"
-          >
-            RESOLVE
-          </button>
+          {isAdmin && (
+            <button
+              onClick={async () => {
+                const sb = createClient()
+                for (const a of activeAlerts) {
+                  await sb.from('weather_alerts').update({ is_active: false }).eq('id', a.id)
+                }
+              }}
+              className="font-cond text-[9px] font-bold tracking-wider px-1.5 py-0.5 rounded bg-green-900/40 text-green-400 border border-green-800/50 hover:bg-green-800/60 transition-colors"
+            >
+              RESOLVE ALL
+            </button>
+          )}
         </div>
       )}
     </Section>
