@@ -381,6 +381,21 @@ export async function insertIncident(
   return data
 }
 
+export async function updateIncident(
+  id: number,
+  fields: Partial<
+    Pick<Incident, 'type' | 'description' | 'person_involved' | 'field_id' | 'team_id' | 'game_id'>
+  >
+): Promise<void> {
+  const sb = createClient()
+  await sb.from('incidents').update(fields).eq('id', id)
+}
+
+export async function deleteIncident(id: number): Promise<void> {
+  const sb = createClient()
+  await sb.from('incidents').delete().eq('id', id)
+}
+
 // ---- Medical ----
 export async function getMedicalIncidents(eventId: number): Promise<MedicalIncident[]> {
   const sb = createClient()

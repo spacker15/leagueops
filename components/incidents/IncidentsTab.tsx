@@ -5,8 +5,9 @@ import { useApp } from '@/lib/store'
 import { SectionHeader, Btn, FormField } from '@/components/ui'
 import { cn } from '@/lib/utils'
 import toast from 'react-hot-toast'
-import type { IncidentType, InjuryType } from '@/types'
+import type { IncidentType, InjuryType, Incident } from '@/types'
 import { createClient } from '@/supabase/client'
+import { Pencil, Trash2, X, Check } from 'lucide-react'
 
 const INCIDENT_TYPES: IncidentType[] = [
   'Player Injury',
@@ -28,7 +29,15 @@ const INJURY_TYPES: InjuryType[] = [
 const TRAINERS = ['Sarah Mitchell (AT)', 'Tom Guerrero (AT)', '911 / EMS']
 
 export function IncidentsTab() {
-  const { state, logIncident, dispatchTrainer, updateMedicalStatus } = useApp()
+  const {
+    state,
+    logIncident,
+    updateIncident,
+    deleteIncident,
+    dispatchTrainer,
+    updateMedicalStatus,
+    eventId,
+  } = useApp()
 
   // Incident form
   const [incType, setIncType] = useState<IncidentType>('Player Injury')
@@ -41,6 +50,43 @@ export function IncidentsTab() {
   const [incDesc, setIncDesc] = useState('')
   const [rosterPlayers, setRosterPlayers] = useState<any[]>([])
   const [loadingRoster, setLoadingRoster] = useState(false)
+
+  // Edit incident state
+  const [editingId, setEditingId] = useState<number | null>(null)
+  const [editType, setEditType] = useState<IncidentType>('Player Injury')
+  const [editDesc, setEditDesc] = useState('')
+  const [editPerson, setEditPerson] = useState('')
+  const [savingEdit, setSavingEdit] = useState(false)
+
+  function startEdit(inc: Incident) {
+    setEditingId(inc.id)
+    setEditType(inc.type)
+    setEditDesc(inc.description)
+    setEditPerson(inc.person_involved ?? '')
+  }
+
+  function cancelEdit() {
+    setEditingId(null)
+  }
+
+  async function saveEdit() {
+    if (!editingId) return
+    setSavingEdit(true)
+    await updateIncident(editingId, {
+      type: editType,
+      description: editDesc.trim(),
+      person_involved: editPerson.trim() || null,
+    })
+    setEditingId(null)
+    setSavingEdit(false)
+    toast.success('Incident updated')
+  }
+
+  async function handleDelete(id: number) {
+    if (!confirm('Delete this incident? This cannot be undone.')) return
+    await deleteIncident(id)
+    toast.success('Incident deleted')
+  }
 
   // Trainer form
   const [trPlayer, setTrPlayer] = useState('')
@@ -122,7 +168,7 @@ export function IncidentsTab() {
       return
     }
     await logIncident({
-      event_id: 1,
+      event_id: eventId,
       game_id: incGame ? Number(incGame) : null,
       field_id: incField ? Number(incField) : null,
       team_id: incTeam ? Number(incTeam) : null,
@@ -144,7 +190,7 @@ export function IncidentsTab() {
       return
     }
     await dispatchTrainer({
-      event_id: 1,
+      event_id: eventId,
       game_id: incGame ? Number(incGame) : null,
       field_id: trField ? Number(trField) : null,
       player_name: playerName,
@@ -493,6 +539,7 @@ export function IncidentsTab() {
           )}
           {state.incidents.map((inc) => {
             const isAlert = ['Player Injury', 'Ejection'].includes(inc.type)
+            const isEditing = editingId === inc.id
             return (
               <div
                 key={inc.id}
@@ -512,20 +559,87 @@ export function IncidentsTab() {
                   >
                     {inc.type.toUpperCase()} {isAlert ? '🚨' : '⚠️'}
                   </span>
-                  <span className="font-mono text-[10px] text-muted">
-                    {new Date(inc.occurred_at).toLocaleTimeString('en-US', {
-                      hour: 'numeric',
-                      minute: '2-digit',
-                    })}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-[10px] text-muted">
+                      {new Date(inc.occurred_at).toLocaleTimeString('en-US', {
+                        hour: 'numeric',
+                        minute: '2-digit',
+                      })}
+                    </span>
+                    {!isEditing && (
+                      <>
+                        <button
+                          onClick={() => startEdit(inc)}
+                          className="text-muted hover:text-white transition-colors"
+                          title="Edit"
+                        >
+                          <Pencil size={11} />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(inc.id)}
+                          className="text-muted hover:text-red-400 transition-colors"
+                          title="Delete"
+                        >
+                          <Trash2 size={11} />
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
-                <div className="text-[11px] text-muted font-cond font-bold mb-0.5">
-                  {inc.field?.name ?? '—'} · {inc.team?.name ?? '—'}
-                </div>
-                {inc.person_involved && (
-                  <div className="text-[12px] text-white font-bold">{inc.person_involved}</div>
+
+                {isEditing ? (
+                  <div className="space-y-2 mt-2">
+                    <select
+                      className="w-full bg-surface border border-border text-white px-2 py-1 rounded text-[12px] outline-none focus:border-blue-400"
+                      value={editType}
+                      onChange={(e) => setEditType(e.target.value as IncidentType)}
+                    >
+                      {INCIDENT_TYPES.map((t) => (
+                        <option key={t} value={t}>
+                          {t}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      className="w-full bg-surface border border-border text-white px-2 py-1 rounded text-[12px] outline-none focus:border-blue-400"
+                      value={editPerson}
+                      onChange={(e) => setEditPerson(e.target.value)}
+                      placeholder="Person involved (optional)"
+                    />
+                    <textarea
+                      className="w-full bg-surface border border-border text-white px-2 py-1 rounded text-[12px] outline-none focus:border-blue-400 resize-y min-h-[60px]"
+                      value={editDesc}
+                      onChange={(e) => setEditDesc(e.target.value)}
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        onClick={saveEdit}
+                        disabled={savingEdit}
+                        className="flex items-center gap-1 font-cond text-[11px] font-bold px-3 py-1 rounded bg-green-900/40 text-green-400 border border-green-800/50 hover:bg-green-900/60 transition-colors disabled:opacity-50"
+                      >
+                        <Check size={11} /> SAVE
+                      </button>
+                      <button
+                        onClick={cancelEdit}
+                        className="flex items-center gap-1 font-cond text-[11px] font-bold px-3 py-1 rounded bg-surface border border-border text-muted hover:text-white transition-colors"
+                      >
+                        <X size={11} /> CANCEL
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="text-[11px] text-muted font-cond font-bold mb-0.5">
+                      {inc.field?.name ?? '—'} · {inc.team?.name ?? '—'}
+                    </div>
+                    {inc.person_involved && (
+                      <div className="text-[12px] text-white font-bold">{inc.person_involved}</div>
+                    )}
+                    <div className="text-[11px] text-gray-300 mt-1 leading-snug">
+                      {inc.description}
+                    </div>
+                  </>
                 )}
-                <div className="text-[11px] text-gray-300 mt-1 leading-snug">{inc.description}</div>
               </div>
             )
           })}

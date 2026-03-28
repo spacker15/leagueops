@@ -53,6 +53,8 @@ type Action =
   | { type: 'UPDATE_VOL'; payload: Volunteer }
   | { type: 'SET_INCIDENTS'; payload: Incident[] }
   | { type: 'ADD_INCIDENT'; payload: Incident }
+  | { type: 'UPDATE_INCIDENT'; payload: Incident }
+  | { type: 'DELETE_INCIDENT'; payload: number }
   | { type: 'SET_MEDICAL'; payload: MedicalIncident[] }
   | { type: 'ADD_MEDICAL'; payload: MedicalIncident }
   | { type: 'UPDATE_MEDICAL'; payload: MedicalIncident }
@@ -101,6 +103,13 @@ function reducer(state: State, action: Action): State {
       return { ...state, incidents: action.payload }
     case 'ADD_INCIDENT':
       return { ...state, incidents: [action.payload, ...state.incidents] }
+    case 'UPDATE_INCIDENT':
+      return {
+        ...state,
+        incidents: state.incidents.map((i) => (i.id === action.payload.id ? action.payload : i)),
+      }
+    case 'DELETE_INCIDENT':
+      return { ...state, incidents: state.incidents.filter((i) => i.id !== action.payload) }
     case 'SET_MEDICAL':
       return { ...state, medicalIncidents: action.payload }
     case 'ADD_MEDICAL':
@@ -178,6 +187,16 @@ interface ContextValue {
   logIncident: (
     incident: Omit<Incident, 'id' | 'created_at' | 'field' | 'team' | 'game'>
   ) => Promise<void>
+  updateIncident: (
+    id: number,
+    fields: Partial<
+      Pick<
+        Incident,
+        'type' | 'description' | 'person_involved' | 'field_id' | 'team_id' | 'game_id'
+      >
+    >
+  ) => Promise<void>
+  deleteIncident: (id: number) => Promise<void>
   dispatchTrainer: (incident: Omit<MedicalIncident, 'id' | 'created_at' | 'field'>) => Promise<void>
   updateMedicalStatus: (id: number, status: string) => Promise<void>
   triggerLightning: () => Promise<void>
@@ -403,6 +422,28 @@ export function AppProvider({
     [addLog]
   )
 
+  const updateIncident = useCallback(
+    async (
+      id: number,
+      fields: Partial<
+        Pick<
+          Incident,
+          'type' | 'description' | 'person_involved' | 'field_id' | 'team_id' | 'game_id'
+        >
+      >
+    ) => {
+      await db.updateIncident(id, fields)
+      const inc = state.incidents.find((i) => i.id === id)
+      if (inc) dispatch({ type: 'UPDATE_INCIDENT', payload: { ...inc, ...fields } })
+    },
+    [state.incidents]
+  )
+
+  const deleteIncident = useCallback(async (id: number) => {
+    await db.deleteIncident(id)
+    dispatch({ type: 'DELETE_INCIDENT', payload: id })
+  }, [])
+
   const dispatchTrainer = useCallback(
     async (incident: Omit<MedicalIncident, 'id' | 'created_at' | 'field'>) => {
       const created = await db.insertMedicalIncident(incident)
@@ -527,6 +568,8 @@ export function AppProvider({
         toggleRefCheckin,
         toggleVolCheckin,
         logIncident,
+        updateIncident,
+        deleteIncident,
         dispatchTrainer,
         updateMedicalStatus,
         triggerLightning,
