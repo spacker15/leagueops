@@ -99,10 +99,20 @@ export function WeatherBar() {
   const hasReadings = Object.keys(readings).length > 0
   const hasAlerts = alerts.length > 0
 
-  // Don't render at all if no complexes and no data
-  if (complexes.length === 0 && !hasReadings && !hasAlerts) return null
+  // Only show conditions strip when there's something actionable
+  const hasWeatherIssue =
+    hasReadings &&
+    Object.values(readings).some(
+      (r) =>
+        r.heat_index_f >= 95 || // heat advisory threshold
+        r.wind_mph >= 25 || // wind advisory threshold
+        r.wind_gust_mph >= 35 || // gusts
+        r.lightning_detected
+    )
 
-  // Build complex list from either loaded complexes or reading complex names
+  // Don't render at all if nothing to show
+  if (!hasWeatherIssue && !hasAlerts) return null
+
   const displayComplexes: { id: number; name: string }[] =
     complexes.length > 0
       ? complexes
@@ -110,8 +120,8 @@ export function WeatherBar() {
 
   return (
     <div className="flex-shrink-0" style={{ borderBottom: '1px solid #1a2d50' }}>
-      {/* ── Conditions strip ─────────────────────────────────── */}
-      {hasReadings && (
+      {/* ── Conditions strip — only when advisory conditions exist ── */}
+      {hasWeatherIssue && (
         <div
           className="flex items-center gap-0 overflow-x-auto scrollbar-none"
           style={{ height: 30, background: '#020c1e' }}
