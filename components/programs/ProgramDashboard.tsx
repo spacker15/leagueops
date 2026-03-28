@@ -33,6 +33,7 @@ interface Program {
   contact_email: string
   contact_phone: string | null
   association: string | null
+  logo_url: string | null
 }
 
 interface TeamReg {
@@ -115,7 +116,7 @@ export function ProgramDashboard() {
           .order('created_at'),
         sb
           .from('program_teams')
-          .select('*, team:teams(id, name, division)')
+          .select('*, team:teams(id, name, division, logo_url)')
           .eq('program_id', userRole.program_id),
       ])
 
@@ -409,19 +410,29 @@ export function ProgramDashboard() {
               {/* Program card */}
               <div className="col-span-2 bg-surface-card border border-border rounded-xl p-5">
                 <div className="flex items-start justify-between mb-4">
-                  <div>
-                    <div className="font-cond font-black text-[22px] text-white">
-                      {program?.name}
-                    </div>
-                    {program?.short_name && (
-                      <div className="font-cond text-[12px] text-blue-300">
-                        {program.short_name}
+                  <div className="flex items-center gap-3">
+                    {program?.logo_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={program.logo_url}
+                        alt=""
+                        className="w-12 h-12 rounded-lg object-cover flex-shrink-0"
+                      />
+                    ) : null}
+                    <div>
+                      <div className="font-cond font-black text-[22px] text-white">
+                        {program?.name}
                       </div>
-                    )}
-                    <div className="font-cond text-[12px] text-muted mt-1">
-                      {[program?.city, program?.state, program?.association]
-                        .filter(Boolean)
-                        .join(' · ')}
+                      {program?.short_name && (
+                        <div className="font-cond text-[12px] text-blue-300">
+                          {program.short_name}
+                        </div>
+                      )}
+                      <div className="font-cond text-[12px] text-muted mt-1">
+                        {[program?.city, program?.state, program?.association]
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </div>
                     </div>
                   </div>
                   <span
@@ -523,7 +534,21 @@ export function ProgramDashboard() {
                       return (
                         <tr key={p.id} className="border-b border-[#0d1a2e] last:border-0">
                           <td className="px-3 py-2.5 font-cond font-bold text-[12px] text-white">
-                            {p.team_name}
+                            <div className="flex items-center gap-2">
+                              {(() => {
+                                const t = teams.find((tm: any) => tm.id === p.team_id)
+                                const logoSrc = t?.logo_url || program?.logo_url || null
+                                return logoSrc ? (
+                                  // eslint-disable-next-line @next/next/no-img-element
+                                  <img
+                                    src={logoSrc}
+                                    alt=""
+                                    className="w-5 h-5 rounded object-cover flex-shrink-0"
+                                  />
+                                ) : null
+                              })()}
+                              {p.team_name}
+                            </div>
                           </td>
                           <td className="px-3 py-2.5">
                             <span className="font-cond text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#1a2d50] text-blue-300">
@@ -640,22 +665,40 @@ export function ProgramDashboard() {
                   )}
                 >
                   <div className="flex items-start justify-between">
-                    <div>
-                      <div className="font-cond font-black text-[16px] text-white">
-                        {reg.team_name}
+                    <div className="flex items-start gap-3">
+                      {(() => {
+                        const matchedTeam = teams.find(
+                          (t: any) => t.name.toLowerCase() === reg.team_name.toLowerCase()
+                        )
+                        const logoSrc = matchedTeam?.logo_url || program?.logo_url || null
+                        return logoSrc ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={logoSrc}
+                            alt=""
+                            className="w-9 h-9 rounded object-cover flex-shrink-0 mt-0.5"
+                          />
+                        ) : null
+                      })()}
+                      <div>
+                        <div className="font-cond font-black text-[16px] text-white">
+                          {reg.team_name}
+                        </div>
+                        <div className="font-cond text-[12px] text-blue-300 mb-2">
+                          {reg.division}
+                        </div>
+                        {reg.head_coach_name && (
+                          <div className="font-cond text-[11px] text-muted">
+                            Coach: {reg.head_coach_name}
+                            {reg.head_coach_email && ` · ${reg.head_coach_email}`}
+                          </div>
+                        )}
+                        {reg.player_count && (
+                          <div className="font-cond text-[11px] text-muted">
+                            {reg.player_count} players expected
+                          </div>
+                        )}
                       </div>
-                      <div className="font-cond text-[12px] text-blue-300 mb-2">{reg.division}</div>
-                      {reg.head_coach_name && (
-                        <div className="font-cond text-[11px] text-muted">
-                          Coach: {reg.head_coach_name}
-                          {reg.head_coach_email && ` · ${reg.head_coach_email}`}
-                        </div>
-                      )}
-                      {reg.player_count && (
-                        <div className="font-cond text-[11px] text-muted">
-                          {reg.player_count} players expected
-                        </div>
-                      )}
                     </div>
                     <div className="flex items-center gap-3">
                       {reg.status === 'approved' && reg.team_id && (

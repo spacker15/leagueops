@@ -573,6 +573,8 @@ export function PaymentsTab() {
 
   // Game counts per team for extra game fee calculation
   const [teamGameCounts, setTeamGameCounts] = useState<Record<number, number>>({})
+  // Program logos by program name
+  const [programLogos, setProgramLogos] = useState<Record<string, string | null>>({})
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -582,6 +584,22 @@ export function PaymentsTab() {
     ])
     if (feesRes.ok) setFees(await feesRes.json())
     if (paymentsRes.ok) setPayments(await paymentsRes.json())
+
+    // Fetch program logos
+    try {
+      const sb = (await import('@/supabase/client')).createClient()
+      const { data: progs } = await sb
+        .from('programs')
+        .select('name, logo_url')
+        .eq('event_id', eventId!)
+      if (progs) {
+        const logoMap: Record<string, string | null> = {}
+        for (const p of progs) logoMap[p.name] = p.logo_url ?? null
+        setProgramLogos(logoMap)
+      }
+    } catch {
+      // non-critical
+    }
 
     // Count games per team from state
     const counts: Record<number, number> = {}
@@ -1024,6 +1042,16 @@ export function PaymentsTab() {
                           isExpanded && 'rotate-180'
                         )}
                       />
+                      {programLogos[pg.programName] ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={programLogos[pg.programName]!}
+                          alt=""
+                          className="w-6 h-6 rounded object-cover flex-shrink-0"
+                        />
+                      ) : (
+                        <Building2 size={16} className="text-muted flex-shrink-0" />
+                      )}
                       <span className="font-cond font-black text-[14px] text-white flex-1 text-left">
                         {pg.programName}
                       </span>
@@ -1088,11 +1116,24 @@ export function PaymentsTab() {
                                 {/* Team rows */}
                                 {divTeams.map((t) => {
                                   const tExtra = teamExtraFees[t.id]
+                                  const stateTeam = state.teams?.find((st) => st.id === t.team_id)
+                                  const teamLogo =
+                                    stateTeam?.logo_url || programLogos[pg.programName] || null
                                   return (
                                     <div
                                       key={t.id}
                                       className="flex items-center gap-3 px-8 py-2 border-b border-[#0d1a2e] last:border-0 hover:bg-white/[0.02]"
                                     >
+                                      {teamLogo ? (
+                                        // eslint-disable-next-line @next/next/no-img-element
+                                        <img
+                                          src={teamLogo}
+                                          alt=""
+                                          className="w-5 h-5 rounded object-cover flex-shrink-0"
+                                        />
+                                      ) : (
+                                        <div className="w-5 h-5 rounded bg-[#1a2d50] flex-shrink-0" />
+                                      )}
                                       <span className="font-cond text-[12px] text-white flex-1">
                                         {t.team_name}
                                       </span>
