@@ -147,6 +147,9 @@ interface FieldConflict extends OperationalConflict {
 export function ScheduleTab() {
   const { state, updateGameStatus, addGame, deleteGame, refreshGames, currentDate, eventId } =
     useApp()
+
+  // Logo lookup from state.teams (always current, even after uploads)
+  const teamLogoMap = Object.fromEntries((state.teams ?? []).map((t) => [t.id, t.logo_url ?? null]))
   const { userRole } = useAuth()
   const [viewMode, setViewMode] = useState<ViewMode>('board')
   const [fieldFilter, setFieldFilter] = useState('')
@@ -1799,10 +1802,10 @@ export function ScheduleTab() {
                     </td>
                     <td className="font-cond font-bold text-white px-3 py-2">
                       <div className="flex items-center gap-1.5">
-                        {game.home_team?.logo_url && (
+                        {teamLogoMap[game.home_team_id] && (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img
-                            src={game.home_team.logo_url}
+                            src={teamLogoMap[game.home_team_id]!}
                             alt=""
                             className="w-4 h-4 rounded object-cover flex-shrink-0"
                           />
@@ -1815,10 +1818,10 @@ export function ScheduleTab() {
                     </td>
                     <td className="font-cond font-bold text-white px-3 py-2">
                       <div className="flex items-center gap-1.5">
-                        {game.away_team?.logo_url && (
+                        {teamLogoMap[game.away_team_id] && (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img
-                            src={game.away_team.logo_url}
+                            src={teamLogoMap[game.away_team_id]!}
                             alt=""
                             className="w-4 h-4 rounded object-cover flex-shrink-0"
                           />
@@ -1960,6 +1963,7 @@ export function ScheduleTab() {
           selectionMode={selectionMode}
           selectedGameIds={selectedGameIds}
           onToggleSelect={toggleGameSelection}
+          teamLogoMap={teamLogoMap}
         />
       )}
 
@@ -3115,6 +3119,7 @@ function ScheduleBoardView({
   selectionMode,
   selectedGameIds,
   onToggleSelect,
+  teamLogoMap,
 }: {
   fieldColumns: Array<{ field: any; games: any[] }>
   conflicts: any[]
@@ -3132,6 +3137,7 @@ function ScheduleBoardView({
   selectionMode: boolean
   selectedGameIds: Set<number>
   onToggleSelect: (gameId: number) => void
+  teamLogoMap: Record<number, string | null>
 }) {
   return (
     <div className="overflow-x-auto pb-3">
@@ -3239,6 +3245,7 @@ function ScheduleBoardView({
                     selectionMode={selectionMode}
                     isSelected={selectedGameIds.has(game.id)}
                     onToggleSelect={onToggleSelect}
+                    teamLogoMap={teamLogoMap}
                   />
                 ))}
               </div>
@@ -3280,6 +3287,7 @@ function ScheduleBoardView({
                   selectionMode={selectionMode}
                   isSelected={selectedGameIds.has(game.id)}
                   onToggleSelect={onToggleSelect}
+                  teamLogoMap={teamLogoMap}
                 />
               ))}
             </div>
@@ -3307,6 +3315,7 @@ function GameCard({
   selectionMode,
   isSelected,
   onToggleSelect,
+  teamLogoMap,
 }: {
   game: any
   hasConflict: boolean
@@ -3323,6 +3332,7 @@ function GameCard({
   selectionMode: boolean
   isSelected: boolean
   onToggleSelect: (gameId: number) => void
+  teamLogoMap: Record<number, string | null>
 }) {
   const [expanded, setExpanded] = useState(false)
   const isLive = game.status === 'Live' || game.status === 'Halftime'
@@ -3454,10 +3464,10 @@ function GameCard({
         {isLive || isFinal ? (
           <div className="flex items-center justify-between mb-2">
             <div className="flex-1 min-w-0 flex items-center gap-1.5">
-              {game.home_team?.logo_url && (
+              {teamLogoMap[game.home_team_id] && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={game.home_team.logo_url}
+                  src={teamLogoMap[game.home_team_id]!}
                   alt=""
                   className="w-4 h-4 rounded object-cover flex-shrink-0"
                 />
@@ -3495,10 +3505,10 @@ function GameCard({
                   <Star size={9} className="inline ml-1 text-yellow-400 fill-yellow-400" />
                 )}
               </div>
-              {game.away_team?.logo_url && (
+              {teamLogoMap[game.away_team_id] && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={game.away_team.logo_url}
+                  src={teamLogoMap[game.away_team_id]!}
                   alt=""
                   className="w-4 h-4 rounded object-cover flex-shrink-0"
                 />
@@ -3508,10 +3518,10 @@ function GameCard({
         ) : (
           <div className="mb-2">
             <div className="flex items-center gap-1.5 font-cond font-black text-[13px] leading-tight mb-0.5">
-              {game.home_team?.logo_url && (
+              {teamLogoMap[game.home_team_id] && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={game.home_team.logo_url}
+                  src={teamLogoMap[game.home_team_id]!}
                   alt=""
                   className="w-4 h-4 rounded object-cover flex-shrink-0"
                 />
@@ -3523,10 +3533,10 @@ function GameCard({
             </div>
             <div className="font-cond text-[10px] text-muted mb-0.5 pl-5">vs</div>
             <div className="flex items-center gap-1.5 font-cond font-black text-[13px] leading-tight">
-              {game.away_team?.logo_url && (
+              {teamLogoMap[game.away_team_id] && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={game.away_team.logo_url}
+                  src={teamLogoMap[game.away_team_id]!}
                   alt=""
                   className="w-4 h-4 rounded object-cover flex-shrink-0"
                 />
