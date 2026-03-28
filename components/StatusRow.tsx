@@ -24,7 +24,7 @@ export function StatusRow() {
 
   return (
     <div
-      className="flex items-stretch flex-shrink-0"
+      className="flex items-stretch flex-shrink-0 overflow-x-auto scrollbar-none"
       style={{ height: 38, background: '#020810', borderBottom: '1px solid #1a2d50' }}
     >
       {/* Game status pills */}
@@ -34,7 +34,7 @@ export function StatusRow() {
         return (
           <div
             key={p.key}
-            className="flex items-center gap-2 px-4"
+            className="flex items-center gap-1.5 px-2.5 lg:px-4 flex-shrink-0"
             style={{ borderRight: '1px solid #1a2d50', background: active ? p.bg : 'transparent' }}
           >
             <span

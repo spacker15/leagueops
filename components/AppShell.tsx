@@ -61,7 +61,7 @@ export function AppShell({
 }) {
   const [activeTab, setActiveTab] = useState<TabName>(initialTab ?? 'dashboard')
   const [drawerOpen, setDrawerOpen] = useState(false)
-  const [isLg, setIsLg] = useState(true) // default true for SSR/initial render
+  const [isLg, setIsLg] = useState(false) // default false; corrected on mount
 
   useEffect(() => {
     const mql = window.matchMedia('(min-width: 1024px)')
