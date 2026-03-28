@@ -461,7 +461,8 @@ function MatchupsView({
     sb.from('games')
       .select('id, home_team_id, away_team_id, division')
       .eq('event_id', eventId)
-      .then(({ data }) => {
+      .then(({ data, error }) => {
+        if (error) console.error('MatchupsView: failed to load games', error)
         setAllGames((data as AllGame[]) ?? [])
         setLoading(false)
       })
@@ -489,27 +490,34 @@ function MatchupsView({
 
   if (loading) return <Empty message="Loading matchup data..." />
 
+  // Helper: find teams that participate in games for a given division
+  // (uses game division, NOT team.division — teams can play across divisions)
+  function teamsForDivGames(divGames: AllGame[]): Team[] {
+    const teamIds = new Set<number>()
+    for (const g of divGames) {
+      teamIds.add(g.home_team_id)
+      teamIds.add(g.away_team_id)
+    }
+    return teams.filter((t) => teamIds.has(t.id)).sort((a, b) => a.name.localeCompare(b.name))
+  }
+
   // When a specific division is selected, show a single matrix
   if (divFilter !== 'ALL') {
-    const divTeams = teams
-      .filter((t) => t.division === divFilter)
-      .sort((a, b) => a.name.localeCompare(b.name))
     const divGames = allGames.filter((g) => g.division === divFilter)
+    const divTeams = teamsForDivGames(divGames)
     if (divTeams.length === 0) return <Empty message="No teams found for this division." />
     return <MatchupMatrix teams={divTeams} games={divGames} showDivisionOnRow={false} />
   }
 
   // "ALL" — show separate matrices per division
-  const divisionsWithTeams = allDivisions.filter((div) => teams.some((t) => t.division === div))
-  if (divisionsWithTeams.length === 0) return <Empty message="No teams found." />
+  const divisionsWithGames = allDivisions.filter((div) => allGames.some((g) => g.division === div))
+  if (divisionsWithGames.length === 0) return <Empty message="No teams found." />
 
   return (
     <div className="space-y-8">
-      {divisionsWithTeams.map((div) => {
-        const divTeams = teams
-          .filter((t) => t.division === div)
-          .sort((a, b) => a.name.localeCompare(b.name))
+      {divisionsWithGames.map((div) => {
         const divGames = allGames.filter((g) => g.division === div)
+        const divTeams = teamsForDivGames(divGames)
         return (
           <div key={div}>
             <div className="flex items-center gap-2 mb-3">
@@ -1037,167 +1045,127 @@ function RefScheduleView({
         )
       })()}
 
-      {/* Per-field tables */}
-      {activeFieldIds.map((field) => {
-        const fieldSlots = schedule[field.id] ?? {}
-        const fieldGames = gamesByFieldTime[field.id] ?? {}
-
-        return (
-          <div key={field.id}>
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-1 h-4 rounded-sm" style={{ background: '#0B3D91' }} />
-              <span className="font-cond text-[11px] font-black tracking-[.12em] text-white uppercase">
-                {field.name}
-              </span>
-            </div>
-            <div className="rounded-lg overflow-hidden border border-[#1a2d50]">
-              <table className="w-full">
-                <thead>
-                  <tr style={{ background: '#081428' }}>
-                    <Th>Time</Th>
-                    <Th align="center">Games</Th>
-                    <Th align="center">
-                      <span style={{ color: '#60a5fa' }}>Adult</span>
-                      <span className="text-muted"> Need</span>
-                    </Th>
-                    <Th align="center">
-                      <span style={{ color: '#60a5fa' }}>Adult</span>
-                      <span className="text-muted"> Have</span>
-                    </Th>
-                    <Th align="center">
-                      <span style={{ color: '#34d399' }}>Youth</span>
-                      <span className="text-muted"> Need</span>
-                    </Th>
-                    <Th align="center">
-                      <span style={{ color: '#34d399' }}>Youth</span>
-                      <span className="text-muted"> Have</span>
-                    </Th>
-                    <Th>Assigned Refs</Th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {allTimes
-                    .filter((t) => (fieldGames[t] ?? 0) > 0)
-                    .map((timeStr, i) => {
+      {/* ── Ref Grid: Time (rows) × Field (columns) ── */}
+      {activeFieldIds.length > 0 && allTimes.length > 0 && (
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            <div className="w-1 h-4 rounded-sm" style={{ background: '#0B3D91' }} />
+            <span className="font-cond text-[11px] font-black tracking-[.12em] text-white uppercase">
+              Ref Assignments by Field &amp; Time
+            </span>
+          </div>
+          <div className="rounded-lg overflow-auto border border-[#1a2d50]">
+            <table className="w-full border-collapse" style={{ minWidth: 'max-content' }}>
+              <thead>
+                <tr style={{ background: '#081428' }}>
+                  <Th>Time</Th>
+                  {activeFieldIds.map((field) => {
+                    // Extract field number from name (e.g., "Field 1" → "1")
+                    const fieldNum = field.name.replace(/[^0-9]/g, '') || field.name
+                    return (
+                      <th
+                        key={field.id}
+                        className="px-3 py-2 border-b border-[#1a2d50] text-center"
+                        colSpan={1}
+                      >
+                        <span className="font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase">
+                          Field {fieldNum}
+                        </span>
+                      </th>
+                    )
+                  })}
+                </tr>
+              </thead>
+              <tbody>
+                {allTimes.map((timeStr, i) => (
+                  <tr key={timeStr} style={{ background: i % 2 === 0 ? '#050f20' : '#030c1a' }}>
+                    <Td>
+                      <span className="font-mono text-[12px] font-bold text-white">
+                        {formatTime(timeStr)}
+                      </span>
+                    </Td>
+                    {activeFieldIds.map((field) => {
+                      const fieldSlots = schedule[field.id] ?? {}
                       const slot = fieldSlots[timeStr] ?? { adult: [], youth: [], divisions: [] }
-                      const gameCount = fieldGames[timeStr] ?? 0
-                      const allRefs = [...slot.adult, ...slot.youth]
+                      const gameCount = gamesByFieldTime[field.id]?.[timeStr] ?? 0
+
+                      if (gameCount === 0) {
+                        return (
+                          <td
+                            key={field.id}
+                            className="px-2 py-2 text-center border-l border-[#0d1e3a]"
+                          >
+                            <span className="font-mono text-[10px] text-[#1a2d50]">—</span>
+                          </td>
+                        )
+                      }
 
                       // Sum expected refs across all games in this slot
-                      const divs = slot.divisions
                       let needAdult = 0,
                         needYouth = 0
-                      for (const div of divs) {
+                      for (const div of slot.divisions) {
                         const exp = getExpected(div, refRules)
                         needAdult += exp.adult
                         needYouth += exp.youth
                       }
                       const shortAdult = slot.adult.length < needAdult
                       const shortYouth = slot.youth.length < needYouth
+                      const allGood = !shortAdult && !shortYouth && needAdult + needYouth > 0
 
                       return (
-                        <tr
-                          key={timeStr}
-                          style={{ background: i % 2 === 0 ? '#050f20' : '#030c1a' }}
+                        <td
+                          key={field.id}
+                          className="px-2 py-1.5 text-center border-l border-[#0d1e3a]"
+                          style={{
+                            background: allGood
+                              ? 'rgba(52,211,153,0.05)'
+                              : shortAdult || shortYouth
+                                ? 'rgba(214,40,40,0.06)'
+                                : undefined,
+                          }}
                         >
-                          <Td>
-                            <span className="font-mono text-[12px] font-bold text-white">
-                              {formatTime(timeStr)}
-                            </span>
-                          </Td>
-                          <Td align="center">
-                            <span className="font-mono text-[12px] text-[#8a9ec0]">
-                              {gameCount}
-                            </span>
-                          </Td>
-                          {/* Adult Need */}
-                          <Td align="center">
-                            <span className="font-mono text-[12px] text-[#60a5fa]">
-                              {needAdult}
-                            </span>
-                          </Td>
-                          {/* Adult Have */}
-                          <Td align="center">
+                          <div className="flex items-center justify-center gap-2">
+                            {/* Adult refs: have/need */}
                             <span
                               className={cn(
-                                'font-mono text-[13px] font-bold',
-                                shortAdult
-                                  ? 'text-red-400'
-                                  : slot.adult.length > 0
-                                    ? 'text-[#60a5fa]'
-                                    : 'text-[#1a2d50]'
+                                'font-mono text-[12px] font-bold',
+                                shortAdult ? 'text-red-400' : 'text-[#60a5fa]'
                               )}
+                              title={`Adult refs: ${slot.adult.length} assigned / ${needAdult} needed`}
                             >
-                              {slot.adult.length}
-                              {shortAdult && <span className="font-cond text-[9px] ml-0.5">▲</span>}
+                              {slot.adult.length}/{needAdult}
+                              <span className="font-cond text-[8px] ml-0.5 text-[#60a5fa]/50">
+                                A
+                              </span>
                             </span>
-                          </Td>
-                          {/* Youth Need */}
-                          <Td align="center">
-                            <span className="font-mono text-[12px] text-[#34d399]">
-                              {needYouth}
-                            </span>
-                          </Td>
-                          {/* Youth Have */}
-                          <Td align="center">
+                            {/* Youth refs: have/need */}
                             <span
                               className={cn(
-                                'font-mono text-[13px] font-bold',
-                                shortYouth
-                                  ? 'text-red-400'
-                                  : slot.youth.length > 0
-                                    ? 'text-[#34d399]'
-                                    : 'text-[#1a2d50]'
+                                'font-mono text-[12px] font-bold',
+                                shortYouth ? 'text-red-400' : 'text-[#34d399]'
                               )}
+                              title={`Youth refs: ${slot.youth.length} assigned / ${needYouth} needed`}
                             >
-                              {slot.youth.length}
-                              {shortYouth && <span className="font-cond text-[9px] ml-0.5">▲</span>}
+                              {slot.youth.length}/{needYouth}
+                              <span className="font-cond text-[8px] ml-0.5 text-[#34d399]/50">
+                                Y
+                              </span>
                             </span>
-                          </Td>
-                          <Td>
-                            <div className="flex flex-wrap gap-1">
-                              {allRefs.length === 0 ? (
-                                <span className="font-cond text-[10px] text-[#1a2d50]">
-                                  none assigned
-                                </span>
-                              ) : (
-                                allRefs.map((a) => {
-                                  const youth = a.referee
-                                    ? isYouthRef(a.referee.grade_level)
-                                    : false
-                                  return (
-                                    <span
-                                      key={a.id}
-                                      title={a.referee?.grade_level}
-                                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded font-cond text-[10px] font-bold"
-                                      style={{
-                                        background: youth
-                                          ? 'rgba(52,211,153,0.12)'
-                                          : 'rgba(96,165,250,0.12)',
-                                        border: `1px solid ${youth ? 'rgba(52,211,153,0.3)' : 'rgba(96,165,250,0.3)'}`,
-                                        color: youth ? '#34d399' : '#60a5fa',
-                                      }}
-                                    >
-                                      <span
-                                        className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                                        style={{ background: youth ? '#34d399' : '#60a5fa' }}
-                                      />
-                                      {a.referee?.name ?? `Ref ${a.referee_id}`}
-                                    </span>
-                                  )
-                                })
-                              )}
-                            </div>
-                          </Td>
-                        </tr>
+                          </div>
+                          {/* Division tag */}
+                          <div className="font-cond text-[8px] text-muted mt-0.5">
+                            {[...new Set(slot.divisions)].join(', ')}
+                          </div>
+                        </td>
                       )
                     })}
-                </tbody>
-              </table>
-            </div>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        )
-      })}
+        </div>
+      )}
 
       {/* Legend */}
       <div className="flex items-center gap-4 pt-1 flex-wrap">

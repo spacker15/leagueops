@@ -36,6 +36,7 @@ import {
   Trash2,
   CheckSquare,
   Square,
+  GitCompareArrows,
 } from 'lucide-react'
 
 type ViewMode = 'table' | 'board'
@@ -178,6 +179,23 @@ export function ScheduleTab() {
   // Enhanced resolver state
   const [resolverEntries, setResolverEntries] = useState<ResolverEntry[]>([])
   const [csvPrograms, setCsvPrograms] = useState<CsvProgram[]>([])
+
+  // CSV compare state
+  const compareFileRef = useRef<HTMLInputElement>(null)
+  const [compareResult, setCompareResult] = useState<{
+    matched: number
+    missingInApp: { time: string; home: string; away: string; division: string; field: string }[]
+    missingInCsv: { time: string; home: string; away: string; division: string; field: string }[]
+    differences: {
+      time: string
+      home: string
+      away: string
+      csvField: string
+      appField: string
+      csvDiv: string
+      appDiv: string
+    }[]
+  } | null>(null)
 
   // Follow teams
   const [followedTeams, setFollowedTeams] = useState<number[]>(loadFollowedTeams)
@@ -328,13 +346,13 @@ export function ScheduleTab() {
     return h * 60 + min
   }
 
-  // Filter games — sort by FIELD first, then TIME
+  // Filter games — sort by TIME first (earliest → latest), then FIELD
   const filtered = useMemo(() => {
     let g = [...state.games]
       .filter((x) => x.status !== 'Unscheduled')
       .sort(
         (a, b) =>
-          a.field_id - b.field_id || timeToMin(a.scheduled_time) - timeToMin(b.scheduled_time)
+          timeToMin(a.scheduled_time) - timeToMin(b.scheduled_time) || a.field_id - b.field_id
       )
     if (fieldFilter) g = g.filter((x) => String(x.field_id) === fieldFilter)
     if (divFilter) g = g.filter((x) => x.division.startsWith(divFilter))
@@ -968,6 +986,135 @@ export function ScheduleTab() {
     URL.revokeObjectURL(url)
   }
 
+  function handleCompareCSV(file: File) {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const text = reader.result as string
+      const lines = text.split(/\r?\n/).filter((l) => l.trim())
+      if (lines.length < 2) return
+
+      // Parse header
+      const headers = lines[0].split(',').map((h) => h.trim().replace(/^"|"$/g, '').toLowerCase())
+      const timeIdx = headers.findIndex((h) => h === 'time')
+      const homeIdx = headers.findIndex((h) => h.includes('home'))
+      const awayIdx = headers.findIndex((h) => h.includes('away'))
+      const divIdx = headers.findIndex((h) => h.includes('div'))
+      const fieldIdx = headers.findIndex((h) => h.includes('field'))
+
+      if (timeIdx < 0 || homeIdx < 0 || awayIdx < 0) {
+        toast.error('CSV must have time, home_team, away_team columns')
+        return
+      }
+
+      // Parse CSV rows
+      function parseCSVLine(line: string): string[] {
+        const values: string[] = []
+        let current = ''
+        let inQuotes = false
+        for (let i = 0; i < line.length; i++) {
+          const ch = line[i]
+          if (ch === '"') {
+            inQuotes = !inQuotes
+            continue
+          }
+          if (ch === ',' && !inQuotes) {
+            values.push(current.trim())
+            current = ''
+            continue
+          }
+          current += ch
+        }
+        values.push(current.trim())
+        return values
+      }
+
+      const csvGames = lines
+        .slice(1)
+        .map((line) => {
+          const cols = parseCSVLine(line)
+          return {
+            time: (cols[timeIdx] ?? '').trim(),
+            home: (cols[homeIdx] ?? '').trim().toLowerCase(),
+            away: (cols[awayIdx] ?? '').trim().toLowerCase(),
+            division: divIdx >= 0 ? (cols[divIdx] ?? '').trim().toLowerCase() : '',
+            field: fieldIdx >= 0 ? (cols[fieldIdx] ?? '').trim().toLowerCase() : '',
+          }
+        })
+        .filter((g) => g.home && g.away)
+
+      // Build app games lookup
+      const appGames = filtered.map((g) => ({
+        time: g.scheduled_time ?? '',
+        home: (g.home_team?.name ?? '').toLowerCase(),
+        away: (g.away_team?.name ?? '').toLowerCase(),
+        division: (g.division ?? '').toLowerCase(),
+        field: (g.field?.name ?? '').toLowerCase(),
+      }))
+
+      // Match by home+away team names (order-independent)
+      const makeKey = (home: string, away: string) => [home, away].sort().join('|||')
+      const appMap = new Map<string, (typeof appGames)[0][]>()
+      for (const g of appGames) {
+        const key = makeKey(g.home, g.away)
+        if (!appMap.has(key)) appMap.set(key, [])
+        appMap.get(key)!.push(g)
+      }
+
+      let matched = 0
+      const missingInApp: typeof csvGames = []
+      const differences: {
+        time: string
+        home: string
+        away: string
+        csvField: string
+        appField: string
+        csvDiv: string
+        appDiv: string
+      }[] = []
+      const matchedAppKeys = new Set<string>()
+
+      for (const csvGame of csvGames) {
+        const key = makeKey(csvGame.home, csvGame.away)
+        const appMatches = appMap.get(key)
+        if (!appMatches || appMatches.length === 0) {
+          missingInApp.push(csvGame)
+        } else {
+          const appGame = appMatches.shift()!
+          if (appMatches.length === 0) appMap.delete(key)
+          matchedAppKeys.add(key)
+          // Check for field/division differences
+          const fieldDiff = csvGame.field && appGame.field && csvGame.field !== appGame.field
+          const divDiff =
+            csvGame.division && appGame.division && csvGame.division !== appGame.division
+          if (fieldDiff || divDiff) {
+            differences.push({
+              time: csvGame.time || appGame.time,
+              home: csvGame.home,
+              away: csvGame.away,
+              csvField: csvGame.field,
+              appField: appGame.field,
+              csvDiv: csvGame.division,
+              appDiv: appGame.division,
+            })
+          }
+          matched++
+        }
+      }
+
+      // Remaining unmatched app games
+      const missingInCsv: typeof appGames = []
+      for (const [, remaining] of appMap) {
+        for (const g of remaining) missingInCsv.push(g)
+      }
+
+      setCompareResult({ matched, missingInApp, missingInCsv, differences })
+      toast.success(
+        `Comparison complete: ${matched} matched, ${missingInApp.length + missingInCsv.length} differences`
+      )
+    }
+    reader.readAsText(file)
+  }
+
   // Field columns for board view
   const fieldColumns = useMemo(() => {
     return state.fields
@@ -1304,6 +1451,14 @@ export function ScheduleTab() {
         <Btn size="sm" variant="ghost" onClick={exportScheduleCSV} disabled={filtered.length === 0}>
           <Download size={11} className="inline mr-1" /> EXPORT CSV
         </Btn>
+        <Btn
+          size="sm"
+          variant="ghost"
+          onClick={() => compareFileRef.current?.click()}
+          disabled={filtered.length === 0}
+        >
+          <GitCompareArrows size={11} className="inline mr-1" /> COMPARE CSV
+        </Btn>
         <button
           onClick={downloadScheduleTemplate}
           className="font-cond text-[11px] text-blue-400 hover:text-blue-300 flex items-center gap-1"
@@ -1340,6 +1495,16 @@ export function ScheduleTab() {
           className="hidden"
           onChange={(e) => {
             if (e.target.files?.[0]) handleScheduleCSVFile(e.target.files[0])
+            e.target.value = ''
+          }}
+        />
+        <input
+          ref={compareFileRef}
+          type="file"
+          accept=".csv"
+          className="hidden"
+          onChange={(e) => {
+            if (e.target.files?.[0]) handleCompareCSV(e.target.files[0])
             e.target.value = ''
           }}
         />
@@ -2053,6 +2218,219 @@ export function ScheduleTab() {
           )}
         </div>
       </Modal>
+
+      {/* CSV Compare Results */}
+      {compareResult && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-surface-card border border-border rounded-xl w-full max-w-4xl max-h-[85vh] flex flex-col shadow-xl overflow-hidden">
+            <div className="px-5 py-3 border-b border-border flex justify-between items-center">
+              <span className="font-cond text-[13px] font-black tracking-[.12em] text-white uppercase">
+                CSV Comparison Results
+              </span>
+              <Btn size="sm" variant="ghost" onClick={() => setCompareResult(null)}>
+                ✕
+              </Btn>
+            </div>
+            <div className="p-5 overflow-auto space-y-4">
+              {/* Summary cards */}
+              <div className="grid grid-cols-4 gap-3">
+                {[
+                  { label: 'MATCHED', value: compareResult.matched, color: '#34d399' },
+                  {
+                    label: 'IN CSV ONLY',
+                    value: compareResult.missingInApp.length,
+                    color: '#f59e0b',
+                  },
+                  {
+                    label: 'IN APP ONLY',
+                    value: compareResult.missingInCsv.length,
+                    color: '#f59e0b',
+                  },
+                  {
+                    label: 'FIELD/DIV DIFF',
+                    value: compareResult.differences.length,
+                    color: '#ef4444',
+                  },
+                ].map((s) => (
+                  <div
+                    key={s.label}
+                    className="rounded-lg border border-[#1a2d50] px-3 py-2"
+                    style={{ background: '#081428' }}
+                  >
+                    <div className="font-cond text-[9px] font-black tracking-[.15em] text-muted uppercase">
+                      {s.label}
+                    </div>
+                    <div className="font-mono text-[24px] font-bold" style={{ color: s.color }}>
+                      {s.value}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Games in CSV but not in app */}
+              {compareResult.missingInApp.length > 0 && (
+                <div>
+                  <div className="font-cond text-[11px] font-black tracking-[.12em] text-yellow-400 uppercase mb-2">
+                    In Spreadsheet Only ({compareResult.missingInApp.length})
+                  </div>
+                  <div className="rounded-lg border border-[#1a2d50] overflow-hidden">
+                    <table className="w-full">
+                      <thead>
+                        <tr style={{ background: '#081428' }}>
+                          <th className="px-3 py-1.5 text-left font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase">
+                            Time
+                          </th>
+                          <th className="px-3 py-1.5 text-left font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase">
+                            Home
+                          </th>
+                          <th className="px-3 py-1.5 text-left font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase">
+                            Away
+                          </th>
+                          <th className="px-3 py-1.5 text-left font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase">
+                            Division
+                          </th>
+                          <th className="px-3 py-1.5 text-left font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase">
+                            Field
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {compareResult.missingInApp.map((g, i) => (
+                          <tr key={i} style={{ background: i % 2 === 0 ? '#050f20' : '#030c1a' }}>
+                            <td className="px-3 py-1 font-mono text-[11px] text-white">{g.time}</td>
+                            <td className="px-3 py-1 font-cond text-[11px] text-white">{g.home}</td>
+                            <td className="px-3 py-1 font-cond text-[11px] text-white">{g.away}</td>
+                            <td className="px-3 py-1 font-cond text-[11px] text-muted">
+                              {g.division}
+                            </td>
+                            <td className="px-3 py-1 font-cond text-[11px] text-muted">
+                              {g.field}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Games in app but not in CSV */}
+              {compareResult.missingInCsv.length > 0 && (
+                <div>
+                  <div className="font-cond text-[11px] font-black tracking-[.12em] text-yellow-400 uppercase mb-2">
+                    In App Only ({compareResult.missingInCsv.length})
+                  </div>
+                  <div className="rounded-lg border border-[#1a2d50] overflow-hidden">
+                    <table className="w-full">
+                      <thead>
+                        <tr style={{ background: '#081428' }}>
+                          <th className="px-3 py-1.5 text-left font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase">
+                            Time
+                          </th>
+                          <th className="px-3 py-1.5 text-left font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase">
+                            Home
+                          </th>
+                          <th className="px-3 py-1.5 text-left font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase">
+                            Away
+                          </th>
+                          <th className="px-3 py-1.5 text-left font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase">
+                            Division
+                          </th>
+                          <th className="px-3 py-1.5 text-left font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase">
+                            Field
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {compareResult.missingInCsv.map((g, i) => (
+                          <tr key={i} style={{ background: i % 2 === 0 ? '#050f20' : '#030c1a' }}>
+                            <td className="px-3 py-1 font-mono text-[11px] text-white">{g.time}</td>
+                            <td className="px-3 py-1 font-cond text-[11px] text-white">{g.home}</td>
+                            <td className="px-3 py-1 font-cond text-[11px] text-white">{g.away}</td>
+                            <td className="px-3 py-1 font-cond text-[11px] text-muted">
+                              {g.division}
+                            </td>
+                            <td className="px-3 py-1 font-cond text-[11px] text-muted">
+                              {g.field}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Field/Division differences */}
+              {compareResult.differences.length > 0 && (
+                <div>
+                  <div className="font-cond text-[11px] font-black tracking-[.12em] text-red-400 uppercase mb-2">
+                    Field / Division Differences ({compareResult.differences.length})
+                  </div>
+                  <div className="rounded-lg border border-[#1a2d50] overflow-hidden">
+                    <table className="w-full">
+                      <thead>
+                        <tr style={{ background: '#081428' }}>
+                          <th className="px-3 py-1.5 text-left font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase">
+                            Teams
+                          </th>
+                          <th className="px-3 py-1.5 text-left font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase">
+                            CSV Field
+                          </th>
+                          <th className="px-3 py-1.5 text-left font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase">
+                            App Field
+                          </th>
+                          <th className="px-3 py-1.5 text-left font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase">
+                            CSV Div
+                          </th>
+                          <th className="px-3 py-1.5 text-left font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase">
+                            App Div
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {compareResult.differences.map((d, i) => (
+                          <tr key={i} style={{ background: i % 2 === 0 ? '#050f20' : '#030c1a' }}>
+                            <td className="px-3 py-1 font-cond text-[11px] text-white">
+                              {d.home} vs {d.away}
+                            </td>
+                            <td className="px-3 py-1 font-cond text-[11px] text-yellow-400">
+                              {d.csvField || '—'}
+                            </td>
+                            <td className="px-3 py-1 font-cond text-[11px] text-blue-400">
+                              {d.appField || '—'}
+                            </td>
+                            <td className="px-3 py-1 font-cond text-[11px] text-yellow-400">
+                              {d.csvDiv || '—'}
+                            </td>
+                            <td className="px-3 py-1 font-cond text-[11px] text-blue-400">
+                              {d.appDiv || '—'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {compareResult.matched > 0 &&
+                compareResult.missingInApp.length === 0 &&
+                compareResult.missingInCsv.length === 0 &&
+                compareResult.differences.length === 0 && (
+                  <div className="text-center py-6">
+                    <div className="font-cond text-[14px] font-bold text-green-400">
+                      ✓ Schedules match perfectly
+                    </div>
+                    <div className="font-cond text-[11px] text-muted mt-1">
+                      {compareResult.matched} games verified
+                    </div>
+                  </div>
+                )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Schedule CSV Preview Modal */}
       {scheduleCsvPreview && (
