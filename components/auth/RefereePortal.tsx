@@ -4,18 +4,34 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '@/lib/auth'
 import { createClient } from '@/supabase/client'
 import { cn } from '@/lib/utils'
-import { CheckCircle, Clock, MapPin, LogOut, QrCode, Users } from 'lucide-react'
+import { CheckCircle, MapPin, LogOut, Plus, Minus } from 'lucide-react'
 import toast from 'react-hot-toast'
 
-type PortalTab = 'checkin' | 'games' | 'approvals'
+type PortalTab = 'checkin' | 'games' | 'gameday' | 'approvals'
 
 interface AssignedGame {
   id: number
   scheduled_time: string
+  sort_order?: number | null
   division: string
   status: string
   role: string
-  field: { name: string }
+  home_score: number
+  away_score: number
+  field: { id: number; name: string } | null
+  home_team: { id: number; name: string }
+  away_team: { id: number; name: string }
+}
+
+interface FieldGame {
+  id: number
+  scheduled_time: string
+  sort_order?: number | null
+  division: string
+  status: string
+  home_score: number
+  away_score: number
+  field_id: number
   home_team: { id: number; name: string }
   away_team: { id: number; name: string }
 }
@@ -29,6 +45,20 @@ interface Player {
   checked_in?: boolean
 }
 
+const STATUS_NEXT: Record<string, string | null> = {
+  Scheduled: 'Starting',
+  Starting: 'Live',
+  Live: 'Halftime',
+  Halftime: 'Live',
+  Final: null,
+}
+const STATUS_BTN: Record<string, string> = {
+  Scheduled: 'START GAME',
+  Starting: 'GO LIVE',
+  Live: 'HALFTIME',
+  Halftime: '2ND HALF',
+}
+
 export function RefereePortal() {
   const { userRole, signOut } = useAuth()
   const portalEventId = userRole?.event_id
@@ -39,11 +69,20 @@ export function RefereePortal() {
   const [loading, setLoading] = useState(true)
   const [checkingIn, setCheckingIn] = useState(false)
 
+  // Game day state
+  const [fields, setFields] = useState<{ id: number; name: string }[]>([])
+  const [fieldGames, setFieldGames] = useState<FieldGame[]>([])
+  const [selectedFieldId, setSelectedFieldId] = useState<number | null>(null)
+  const [activeGame, setActiveGame] = useState<FieldGame | null>(null)
+  const [savingScore, setSavingScore] = useState(false)
+  const [savingStatus, setSavingStatus] = useState(false)
+  const [fieldDayLoading, setFieldDayLoading] = useState(false)
+
   // Game check-in state
   const [selectedGame, setSelectedGame] = useState<AssignedGame | null>(null)
   const [homePlayers, setHomePlayers] = useState<Player[]>([])
   const [awayPlayers, setAwayPlayers] = useState<Player[]>([])
-  const [checkins, setCheckins] = useState<number[]>([]) // checked-in player IDs
+  const [checkins, setCheckins] = useState<number[]>([])
   const [rosterLoading, setRosterLoading] = useState(false)
 
   useEffect(() => {
@@ -68,7 +107,7 @@ export function RefereePortal() {
     const { data: assignments } = await sb
       .from('ref_assignments')
       .select(
-        `role, game:games(id, scheduled_time, division, status, field:fields(name), home_team:teams!games_home_team_id_fkey(id, name), away_team:teams!games_away_team_id_fkey(id, name))`
+        `role, game:games(id, scheduled_time, sort_order, division, status, home_score, away_score, field:fields(id, name), home_team:teams!games_home_team_id_fkey(id, name), away_team:teams!games_away_team_id_fkey(id, name))`
       )
       .eq('referee_id', userRole!.referee_id!)
 
@@ -78,11 +117,122 @@ export function RefereePortal() {
       .sort((a: any, b: any) => (a.sort_order ?? 9999) - (b.sort_order ?? 9999))
     setGames(gameList)
 
-    // Auto-select the current/next live game
     const liveGame = gameList.find((g: any) => ['Live', 'Halftime', 'Starting'].includes(g.status))
     if (liveGame) setSelectedGame(liveGame)
 
     setLoading(false)
+  }
+
+  async function loadFieldGames() {
+    if (!portalEventId) return
+    setFieldDayLoading(true)
+    const sb = createClient()
+
+    // Get today's event date
+    const today = new Date().toISOString().slice(0, 10)
+    const { data: dates } = await sb
+      .from('event_dates')
+      .select('id, date')
+      .eq('event_id', portalEventId)
+      .order('date')
+    const eventDate = dates?.find((d: any) => d.date <= today) ?? dates?.[dates.length - 1]
+
+    const [{ data: fieldList }, { data: gameList }] = await Promise.all([
+      sb.from('fields').select('id, name').eq('event_id', portalEventId).order('name'),
+      eventDate
+        ? sb
+            .from('games')
+            .select(
+              'id, scheduled_time, sort_order, division, status, home_score, away_score, field_id, home_team:teams!games_home_team_id_fkey(id, name), away_team:teams!games_away_team_id_fkey(id, name)'
+            )
+            .eq('event_date_id', eventDate.id)
+            .not('status', 'in', '("Cancelled","Unscheduled")')
+            .order('sort_order', { ascending: true, nullsFirst: false })
+        : Promise.resolve({ data: [] }),
+    ])
+
+    setFields((fieldList as { id: number; name: string }[]) ?? [])
+    setFieldGames((gameList as FieldGame[]) ?? [])
+    setFieldDayLoading(false)
+  }
+
+  async function selfAssign(game: FieldGame) {
+    if (!userRole?.referee_id || !portalEventId) return
+    const sb = createClient()
+    const { error } = await sb.from('ref_assignments').upsert(
+      {
+        game_id: game.id,
+        referee_id: userRole.referee_id,
+        role: 'Field',
+      },
+      { onConflict: 'game_id,referee_id' }
+    )
+    if (error) {
+      toast.error('Could not assign — ' + error.message)
+      return
+    }
+    await sb.from('ops_log').insert({
+      event_id: portalEventId,
+      message: `${ref?.name ?? 'Referee'} self-assigned to ${game.home_team.name} vs ${game.away_team.name} (${game.scheduled_time})`,
+      log_type: 'info',
+      occurred_at: new Date().toISOString(),
+    })
+    toast.success('Assigned to field!')
+    setActiveGame(game)
+  }
+
+  async function updateScore(gameId: number, home: number, away: number) {
+    setSavingScore(true)
+    const sb = createClient()
+    await sb.from('games').update({ home_score: home, away_score: away }).eq('id', gameId)
+    if (activeGame) {
+      const updated = { ...activeGame, home_score: home, away_score: away }
+      setActiveGame(updated)
+      setFieldGames((prev) => prev.map((g) => (g.id === gameId ? updated : g)))
+      await sb.from('ops_log').insert({
+        event_id: portalEventId,
+        message: `Score: ${activeGame.home_team.name} ${home}–${away} ${activeGame.away_team.name} (${ref?.name ?? 'Referee'})`,
+        log_type: 'info',
+        occurred_at: new Date().toISOString(),
+      })
+    }
+    setSavingScore(false)
+  }
+
+  async function advanceStatus(game: FieldGame) {
+    const next = STATUS_NEXT[game.status]
+    if (!next) return
+    setSavingStatus(true)
+    const sb = createClient()
+    await sb.from('games').update({ status: next }).eq('id', game.id)
+    const updated = { ...game, status: next }
+    setActiveGame(updated)
+    setFieldGames((prev) => prev.map((g) => (g.id === game.id ? updated : g)))
+    await sb.from('ops_log').insert({
+      event_id: portalEventId,
+      message: `Game status → ${next}: ${game.home_team.name} vs ${game.away_team.name} (${ref?.name ?? 'Referee'})`,
+      log_type: next === 'Final' ? 'ok' : 'info',
+      occurred_at: new Date().toISOString(),
+    })
+    toast.success(`Status → ${next}`)
+    setSavingStatus(false)
+  }
+
+  async function markFinal(game: FieldGame) {
+    setSavingStatus(true)
+    const sb = createClient()
+    await sb.from('games').update({ status: 'Final' }).eq('id', game.id)
+    const updated = { ...game, status: 'Final' }
+    setActiveGame(updated)
+    setFieldGames((prev) => prev.map((g) => (g.id === game.id ? updated : g)))
+    await sb.from('ops_log').insert({
+      event_id: portalEventId,
+      message: `FINAL: ${game.home_team.name} ${game.home_score}–${game.away_score} ${game.away_team.name} (${ref?.name ?? 'Referee'})`,
+      log_type: 'ok',
+      occurred_at: new Date().toISOString(),
+    })
+    toast.success('Game marked Final')
+    setSavingStatus(false)
   }
 
   async function loadRoster(game: AssignedGame) {
@@ -194,17 +344,21 @@ export function RefereePortal() {
             REFEREE PORTAL
           </div>
         </div>
-        <nav className="flex flex-1 ml-4">
+        <nav className="flex flex-1 ml-4 overflow-x-auto">
           {[
             { id: 'checkin', label: 'My Check-In' },
             { id: 'games', label: `Games (${games.length})` },
+            { id: 'gameday', label: 'Game Day' },
             { id: 'approvals', label: 'Approvals' },
           ].map((t) => (
             <button
               key={t.id}
-              onClick={() => setTab(t.id as PortalTab)}
+              onClick={() => {
+                setTab(t.id as PortalTab)
+                if (t.id === 'gameday' && fields.length === 0) loadFieldGames()
+              }}
               className={cn(
-                'px-4 font-cond text-[12px] font-bold tracking-widest uppercase border-b-2 transition-colors',
+                'px-4 font-cond text-[12px] font-bold tracking-widest uppercase border-b-2 transition-colors whitespace-nowrap flex-shrink-0',
                 tab === t.id
                   ? 'border-red text-white'
                   : 'border-transparent text-muted hover:text-white'
@@ -260,7 +414,6 @@ export function RefereePortal() {
               </button>
             </div>
 
-            {/* Game roster check-in */}
             <div className="font-cond text-[11px] font-black tracking-widest text-muted uppercase mb-3">
               PLAYER CHECK-IN FOR YOUR GAMES
             </div>
@@ -323,7 +476,6 @@ export function RefereePortal() {
         {/* ── GAMES + ROSTER CHECK-IN ── */}
         {tab === 'games' && (
           <div>
-            {/* Game selector */}
             <div className="flex gap-2 mb-4 flex-wrap">
               {games.map((game) => (
                 <button
@@ -422,6 +574,245 @@ export function RefereePortal() {
             )}
           </div>
         )}
+
+        {/* ── GAME DAY ── */}
+        {tab === 'gameday' && (
+          <div>
+            {fieldDayLoading ? (
+              <div className="text-center py-12 font-cond text-muted tracking-widest">
+                LOADING...
+              </div>
+            ) : activeGame ? (
+              /* ── Active game scoreboard ── */
+              <div>
+                <button
+                  onClick={() => setActiveGame(null)}
+                  className="font-cond text-[11px] text-muted hover:text-white mb-4 flex items-center gap-1"
+                >
+                  ← BACK TO FIELDS
+                </button>
+
+                <div className="bg-surface-card border border-border rounded-xl overflow-hidden mb-4">
+                  {/* Game header */}
+                  <div className="bg-navy/60 px-4 py-3 border-b border-border flex items-center justify-between">
+                    <div>
+                      <div className="font-cond text-[11px] text-muted">
+                        {activeGame.scheduled_time} · {activeGame.division}
+                      </div>
+                      <div className="font-cond font-black text-[13px] text-white">
+                        {fields.find((f) => f.id === activeGame.field_id)?.name ?? 'Field'}
+                      </div>
+                    </div>
+                    <span
+                      className={cn(
+                        'font-cond text-[11px] font-black px-3 py-1 rounded-full',
+                        activeGame.status === 'Live'
+                          ? 'badge-live'
+                          : activeGame.status === 'Final'
+                            ? 'badge-final'
+                            : activeGame.status === 'Halftime'
+                              ? 'badge-halftime'
+                              : 'badge-scheduled'
+                      )}
+                    >
+                      {activeGame.status.toUpperCase()}
+                    </span>
+                  </div>
+
+                  {/* Scoreboard */}
+                  <div className="p-6">
+                    <div className="grid grid-cols-2 gap-6">
+                      {/* Home */}
+                      <div className="text-center">
+                        <div className="font-cond font-black text-[13px] text-muted uppercase mb-3 tracking-wider">
+                          {activeGame.home_team.name}
+                        </div>
+                        <div className="font-mono font-black text-[64px] text-white leading-none mb-4">
+                          {activeGame.home_score}
+                        </div>
+                        <div className="flex gap-2 justify-center">
+                          <button
+                            onClick={() =>
+                              updateScore(
+                                activeGame.id,
+                                Math.max(0, activeGame.home_score - 1),
+                                activeGame.away_score
+                              )
+                            }
+                            disabled={savingScore || activeGame.status === 'Final'}
+                            className="w-12 h-12 rounded-full bg-surface border border-border text-white font-bold text-xl hover:bg-navy disabled:opacity-30 transition-colors flex items-center justify-center"
+                          >
+                            <Minus size={18} />
+                          </button>
+                          <button
+                            onClick={() =>
+                              updateScore(
+                                activeGame.id,
+                                activeGame.home_score + 1,
+                                activeGame.away_score
+                              )
+                            }
+                            disabled={savingScore || activeGame.status === 'Final'}
+                            className="w-12 h-12 rounded-full bg-navy border border-blue-600 text-white font-bold text-xl hover:bg-navy-light disabled:opacity-30 transition-colors flex items-center justify-center"
+                          >
+                            <Plus size={18} />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Away */}
+                      <div className="text-center">
+                        <div className="font-cond font-black text-[13px] text-muted uppercase mb-3 tracking-wider">
+                          {activeGame.away_team.name}
+                        </div>
+                        <div className="font-mono font-black text-[64px] text-white leading-none mb-4">
+                          {activeGame.away_score}
+                        </div>
+                        <div className="flex gap-2 justify-center">
+                          <button
+                            onClick={() =>
+                              updateScore(
+                                activeGame.id,
+                                activeGame.home_score,
+                                Math.max(0, activeGame.away_score - 1)
+                              )
+                            }
+                            disabled={savingScore || activeGame.status === 'Final'}
+                            className="w-12 h-12 rounded-full bg-surface border border-border text-white font-bold text-xl hover:bg-navy disabled:opacity-30 transition-colors flex items-center justify-center"
+                          >
+                            <Minus size={18} />
+                          </button>
+                          <button
+                            onClick={() =>
+                              updateScore(
+                                activeGame.id,
+                                activeGame.home_score,
+                                activeGame.away_score + 1
+                              )
+                            }
+                            disabled={savingScore || activeGame.status === 'Final'}
+                            className="w-12 h-12 rounded-full bg-navy border border-blue-600 text-white font-bold text-xl hover:bg-navy-light disabled:opacity-30 transition-colors flex items-center justify-center"
+                          >
+                            <Plus size={18} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Status buttons */}
+                  {activeGame.status !== 'Final' && (
+                    <div className="px-6 pb-6 flex gap-3">
+                      {STATUS_BTN[activeGame.status] && (
+                        <button
+                          onClick={() => advanceStatus(activeGame)}
+                          disabled={savingStatus}
+                          className="flex-1 py-3 font-cond font-black text-[13px] tracking-widest bg-navy hover:bg-navy-light text-white rounded-lg disabled:opacity-50 transition-colors"
+                        >
+                          {savingStatus ? '...' : STATUS_BTN[activeGame.status]}
+                        </button>
+                      )}
+                      <button
+                        onClick={() => markFinal(activeGame)}
+                        disabled={savingStatus}
+                        className="flex-1 py-3 font-cond font-black text-[13px] tracking-widest bg-green-800 hover:bg-green-700 text-white rounded-lg disabled:opacity-50 transition-colors"
+                      >
+                        {savingStatus ? '...' : 'MARK FINAL'}
+                      </button>
+                    </div>
+                  )}
+                  {activeGame.status === 'Final' && (
+                    <div className="px-6 pb-6 text-center font-cond text-[12px] text-green-400 font-black">
+                      ✓ GAME COMPLETE
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              /* ── Field picker ── */
+              <div>
+                <div className="font-cond text-[11px] font-black tracking-widest text-muted uppercase mb-3">
+                  SELECT A FIELD TO MANAGE
+                </div>
+                <div className="space-y-2">
+                  {fields.map((field) => {
+                    const game = fieldGames.find((g) => g.field_id === field.id)
+                    const isLive = game && ['Live', 'Halftime', 'Starting'].includes(game.status)
+                    return (
+                      <div
+                        key={field.id}
+                        className={cn(
+                          'bg-surface-card border rounded-xl p-4',
+                          isLive ? 'border-green-700/50' : 'border-border'
+                        )}
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="font-cond font-black text-[15px] text-white">
+                            {field.name}
+                          </div>
+                          {game && (
+                            <span
+                              className={cn(
+                                'font-cond text-[10px] font-black px-2 py-0.5 rounded',
+                                game.status === 'Live'
+                                  ? 'badge-live'
+                                  : game.status === 'Final'
+                                    ? 'badge-final'
+                                    : game.status === 'Halftime'
+                                      ? 'badge-halftime'
+                                      : 'badge-scheduled'
+                              )}
+                            >
+                              {game.status.toUpperCase()}
+                            </span>
+                          )}
+                        </div>
+                        {game ? (
+                          <div>
+                            <div className="font-cond text-[12px] text-white mb-1">
+                              {game.home_team.name}{' '}
+                              <span className="font-mono font-black text-green-300">
+                                {game.home_score}–{game.away_score}
+                              </span>{' '}
+                              {game.away_team.name}
+                            </div>
+                            <div className="font-cond text-[11px] text-muted mb-3">
+                              {game.scheduled_time} · {game.division}
+                            </div>
+                            <button
+                              onClick={() => {
+                                setSelectedFieldId(field.id)
+                                selfAssign(game)
+                                setActiveGame(game)
+                              }}
+                              className="w-full py-2 font-cond font-black text-[11px] tracking-widest bg-navy hover:bg-navy-light text-white rounded-lg transition-colors"
+                            >
+                              TAKE THIS FIELD
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="font-cond text-[11px] text-muted">No active game</div>
+                        )}
+                      </div>
+                    )
+                  })}
+                  {fields.length === 0 && (
+                    <div className="bg-surface-card border border-border rounded-xl p-8 text-center">
+                      <div className="font-cond text-[12px] text-muted">No fields found</div>
+                    </div>
+                  )}
+                </div>
+                <button
+                  onClick={loadFieldGames}
+                  className="mt-4 w-full py-2 font-cond text-[11px] text-muted border border-border rounded-lg hover:text-white transition-colors"
+                >
+                  REFRESH
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
         {tab === 'approvals' && (
           <ApprovalsPanel
             personName={ref?.name ?? 'Referee'}
@@ -488,7 +879,7 @@ function ApprovalsPanel({
       </div>
       <div className="font-cond text-[11px] text-muted mb-4 leading-relaxed">
         As a {personType}, you can approve or deny multi-game requests on behalf of the opposing
-        team's coach.
+        team&apos;s coach.
       </div>
 
       {approvals.length === 0 ? (
