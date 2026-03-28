@@ -99,11 +99,29 @@ export function StatusRow() {
           className="font-cond text-[13px] font-black tracking-wide bg-transparent border-none outline-none text-white cursor-pointer text-center appearance-none"
           style={{ minWidth: 155 }}
         >
-          {state.eventDates.map((d, i) => (
-            <option key={d.id} value={i} style={{ background: '#081428', color: 'white' }}>
-              {d.label}
-            </option>
-          ))}
+          {state.eventDates.map((d, i) => {
+            const [, m, day] = d.date.split('-')
+            const months = [
+              'Jan',
+              'Feb',
+              'Mar',
+              'Apr',
+              'May',
+              'Jun',
+              'Jul',
+              'Aug',
+              'Sep',
+              'Oct',
+              'Nov',
+              'Dec',
+            ]
+            const dateFmt = `${months[parseInt(m) - 1]} ${parseInt(day)}`
+            return (
+              <option key={d.id} value={i} style={{ background: '#081428', color: 'white' }}>
+                {d.label} · {dateFmt}
+              </option>
+            )
+          })}
         </select>
 
         <button

@@ -890,11 +890,29 @@ function RefScheduleView({
             className="bg-[#040e24] border border-[#1a2d50] rounded px-3 py-1.5 text-sm text-white font-cond focus:outline-none focus:ring-1 focus:ring-[#0B3D91]"
           >
             <option value="all">All Dates</option>
-            {eventDates.map((d) => (
-              <option key={d.id} value={String(d.id)}>
-                {d.label || d.date}
-              </option>
-            ))}
+            {eventDates.map((d) => {
+              const [, m, day] = d.date.split('-')
+              const months = [
+                'Jan',
+                'Feb',
+                'Mar',
+                'Apr',
+                'May',
+                'Jun',
+                'Jul',
+                'Aug',
+                'Sep',
+                'Oct',
+                'Nov',
+                'Dec',
+              ]
+              const dateFmt = `${months[parseInt(m) - 1]} ${parseInt(day)}`
+              return (
+                <option key={d.id} value={String(d.id)}>
+                  {d.label ? `${d.label} · ${dateFmt}` : dateFmt}
+                </option>
+              )
+            })}
           </select>
         </div>
       )}
