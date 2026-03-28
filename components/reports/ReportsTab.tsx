@@ -781,6 +781,16 @@ function RefScheduleView({
   }, [eventId, games])
 
   // Filter games by selected date and division
+  const toMin = (t: string) => {
+    const m = t.match(/(\d+):(\d+)\s*(AM|PM)/i)
+    if (!m) return 0
+    let h = parseInt(m[1])
+    const min = parseInt(m[2])
+    if (m[3].toUpperCase() === 'PM' && h !== 12) h += 12
+    if (m[3].toUpperCase() === 'AM' && h === 12) h = 0
+    return h * 60 + min
+  }
+
   const filteredGames = useMemo(() => {
     let filtered = games
     if (selectedDateId !== 'all') {
@@ -835,7 +845,7 @@ function RefScheduleView({
     for (const g of filteredGames) {
       if (g.scheduled_time) times.add(g.scheduled_time)
     }
-    return [...times].sort()
+    return [...times].sort((a, b) => toMin(a) - toMin(b))
   }, [filteredGames])
 
   // Fields that have at least one game
@@ -945,7 +955,7 @@ function RefScheduleView({
           }
         }
         const demandRows = [...demandMap.values()].sort(
-          (a, b) => a.time.localeCompare(b.time) || a.division.localeCompare(b.division)
+          (a, b) => toMin(a.time) - toMin(b.time) || a.division.localeCompare(b.division)
         )
         const totGames = demandRows.reduce((s, r) => s + r.games, 0)
         const totAdult = demandRows.reduce((s, r) => s + r.adultNeed, 0)
