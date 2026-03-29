@@ -39,8 +39,9 @@ const TEST_ACCOUNTS = [
   {
     email: 'trainer@test.leagueops.dev',
     role: 'trainer',
-    display_name: 'Test Trainer',
+    display_name: 'Rachel Keene',
     event_id: 11,
+    trainer_id: 1,
   },
 ]
 
