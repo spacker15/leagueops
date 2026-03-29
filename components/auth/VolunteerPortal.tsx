@@ -86,10 +86,6 @@ export function VolunteerPortal() {
 
   const [selectedFieldId, setSelectedFieldId] = useState<number | null>(null)
   const [selectedGame, setSelectedGame] = useState<GameSummary | null>(null)
-  const [bulkMode, setBulkMode] = useState(false)
-  const [bulkPosition, setBulkPosition] = useState('Line Judge')
-  const [bulkSelected, setBulkSelected] = useState<Set<number>>(new Set())
-  const [bulkAssigning, setBulkAssigning] = useState(false)
   const [gameSlots, setGameSlots] = useState<VolSlot[]>([])
   const [slotLoading, setSlotLoading] = useState(false)
 
@@ -264,26 +260,6 @@ export function VolunteerPortal() {
       })
     }
     loadGameDetail(selectedGame)
-  }
-
-  async function applyBulkAssign() {
-    if (!userRole?.volunteer_id || bulkSelected.size === 0) return
-    setBulkAssigning(true)
-    const sb = createClient()
-    let count = 0
-    for (const gameId of bulkSelected) {
-      const { error } = await sb.from('vol_assignments').insert({
-        game_id: gameId,
-        volunteer_id: userRole.volunteer_id,
-        role: bulkPosition,
-      })
-      if (!error) count++
-    }
-    setMyAssignedGameIds((prev) => new Set([...prev, ...bulkSelected]))
-    setBulkSelected(new Set())
-    setBulkMode(false)
-    setBulkAssigning(false)
-    toast.success(`Assigned as ${bulkPosition} in ${count} game${count !== 1 ? 's' : ''}`)
   }
 
   async function updateGameStatus(newStatus: string) {
@@ -669,72 +645,15 @@ export function VolunteerPortal() {
               <>
                 <div className="flex items-center gap-2 mb-3">
                   <button
-                    onClick={() => {
-                      setSelectedFieldId(null)
-                      setBulkMode(false)
-                      setBulkSelected(new Set())
-                    }}
+                    onClick={() => setSelectedFieldId(null)}
                     className="text-muted hover:text-white"
                   >
                     <ChevronLeft size={18} />
                   </button>
-                  <div className="font-cond font-black text-[14px] text-white flex-1">
+                  <div className="font-cond font-black text-[14px] text-white">
                     {fields.find((f) => f.id === selectedFieldId)?.name}
                   </div>
-                  <button
-                    onClick={() => {
-                      setBulkMode((v) => !v)
-                      setBulkSelected(new Set())
-                    }}
-                    className={cn(
-                      'font-cond text-[10px] font-black tracking-widest px-2.5 py-1 rounded border transition-colors',
-                      bulkMode
-                        ? 'bg-red border-red text-white'
-                        : 'border-border text-muted hover:text-white'
-                    )}
-                  >
-                    QUICK ASSIGN
-                  </button>
                 </div>
-
-                {/* Bulk position picker */}
-                {bulkMode && (
-                  <div className="bg-surface-card border border-border rounded-xl p-3 mb-3">
-                    <div className="font-cond text-[10px] font-black tracking-widest text-muted uppercase mb-2">
-                      SELECT POSITION
-                    </div>
-                    <div className="flex gap-1.5 flex-wrap mb-3">
-                      {VOL_POSITIONS.map((pos) => (
-                        <button
-                          key={pos}
-                          onClick={() => setBulkPosition(pos)}
-                          className={cn(
-                            'font-cond text-[10px] font-black tracking-widest px-2.5 py-1 rounded border transition-colors',
-                            bulkPosition === pos
-                              ? 'bg-blue-700 border-blue-600 text-white'
-                              : 'border-border text-muted hover:text-white'
-                          )}
-                        >
-                          {pos}
-                        </button>
-                      ))}
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="font-cond text-[11px] text-muted">
-                        {bulkSelected.size} game{bulkSelected.size !== 1 ? 's' : ''} selected
-                      </span>
-                      <button
-                        onClick={applyBulkAssign}
-                        disabled={bulkSelected.size === 0 || bulkAssigning}
-                        className="font-cond text-[11px] font-black tracking-widest px-4 py-1.5 rounded bg-green-700 hover:bg-green-600 text-white disabled:opacity-40 transition-colors"
-                      >
-                        {bulkAssigning
-                          ? 'ASSIGNING...'
-                          : `ASSIGN TO ${bulkSelected.size} GAME${bulkSelected.size !== 1 ? 'S' : ''}`}
-                      </button>
-                    </div>
-                  </div>
-                )}
 
                 <div
                   className="space-y-2 overflow-y-auto"
@@ -748,29 +667,16 @@ export function VolunteerPortal() {
                     )
                     .map((game) => {
                       const mine = myAssignedGameIds.has(game.id)
-                      const bulkChecked = bulkSelected.has(game.id)
+                      const roles = myAssignmentRoles.get(game.id) ?? []
                       return (
                         <button
                           key={game.id}
-                          onClick={() => {
-                            if (bulkMode) {
-                              setBulkSelected((prev) => {
-                                const next = new Set(prev)
-                                if (next.has(game.id)) next.delete(game.id)
-                                else next.add(game.id)
-                                return next
-                              })
-                            } else {
-                              loadGameDetail(game)
-                            }
-                          }}
+                          onClick={() => loadGameDetail(game)}
                           className={cn(
                             'w-full text-left rounded-xl p-4 border transition-all',
-                            bulkMode && bulkChecked
-                              ? 'bg-blue-900/25 border-blue-500'
-                              : mine
-                                ? 'bg-green-900/15 border-green-800/50 hover:border-green-400'
-                                : 'bg-surface-card border-border hover:border-blue-400'
+                            mine
+                              ? 'bg-green-900/15 border-green-800/50 hover:border-green-400'
+                              : 'bg-surface-card border-border hover:border-blue-400'
                           )}
                         >
                           <div className="flex justify-between items-center mb-1">
@@ -778,22 +684,17 @@ export function VolunteerPortal() {
                               {game.scheduled_time}
                             </span>
                             <div className="flex items-center gap-2">
-                              {bulkMode && (
-                                <span
-                                  className={cn(
-                                    'w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0',
-                                    bulkChecked ? 'bg-blue-500 border-blue-400' : 'border-border'
-                                  )}
-                                >
-                                  {bulkChecked && (
-                                    <span className="text-white text-[9px] font-black">✓</span>
-                                  )}
-                                </span>
-                              )}
-                              {!bulkMode && mine && (
-                                <span className="font-cond text-[9px] font-black text-green-400 bg-green-900/30 px-1.5 py-0.5 rounded">
-                                  ASSIGNED
-                                </span>
+                              {mine && roles.length > 0 && (
+                                <div className="flex gap-1">
+                                  {roles.map((r) => (
+                                    <span
+                                      key={r}
+                                      className="font-cond text-[9px] font-black text-blue-300 bg-blue-900/30 px-1.5 py-0.5 rounded"
+                                    >
+                                      {r}
+                                    </span>
+                                  ))}
+                                </div>
                               )}
                               <span
                                 className={cn(
