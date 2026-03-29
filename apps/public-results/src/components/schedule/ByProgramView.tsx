@@ -1,4 +1,5 @@
 'use client'
+import { useState } from 'react'
 import Link from 'next/link'
 import type { PublicGame, PublicTeam } from '@/lib/data'
 import { timeToMinutes } from '@/lib/utils'
@@ -177,49 +178,98 @@ export function ByProgramView({ games, teams, slug, activeDay, divFilter, teamId
   }
 
   return (
-    <div className="space-y-6">
+    <ProgramList
+      sortedPrograms={sortedPrograms}
+      slug={slug}
+      activeDay={activeDay}
+      divFilter={divFilter}
+    />
+  )
+}
+
+function ProgramList({
+  sortedPrograms,
+  slug,
+  activeDay,
+  divFilter,
+}: {
+  sortedPrograms: [string, { logo: string | null; divisions: Map<string, PublicTeam[]> }][]
+  slug: string
+  activeDay: number
+  divFilter: string
+}) {
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+
+  function toggle(name: string) {
+    setCollapsed((prev) => {
+      const next = new Set(prev)
+      if (next.has(name)) next.delete(name)
+      else next.add(name)
+      return next
+    })
+  }
+
+  return (
+    <div className="space-y-2">
       {sortedPrograms.map(([programName, { logo, divisions }]) => {
+        const isCollapsed = collapsed.has(programName)
         const sortedDivisions = [...divisions.entries()].sort(([a], [b]) => a.localeCompare(b))
+        const teamCount = [...divisions.values()].reduce((n, t) => n + t.length, 0)
+
         return (
-          <div key={programName}>
-            {/* Program header */}
-            <div className="flex items-center gap-2 mb-3 pb-2 border-b border-[#1a2d50]">
+          <div
+            key={programName}
+            className="bg-[#081428] border border-[#1a2d50] rounded-xl overflow-hidden"
+          >
+            {/* Clickable program header */}
+            <button
+              onClick={() => toggle(programName)}
+              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[#0d1f3c] transition-colors"
+            >
               {logo && (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={logo} alt="" className="w-7 h-7 rounded object-cover shrink-0" />
+                <img src={logo} alt="" className="w-8 h-8 rounded object-cover shrink-0" />
               )}
-              <span className="font-cond text-[15px] font-bold text-white">{programName}</span>
-            </div>
+              <span className="font-cond text-[15px] font-bold text-white flex-1 text-left">
+                {programName}
+              </span>
+              <span className="font-cond text-[10px] text-[#5a6e9a] mr-2">
+                {teamCount} team{teamCount !== 1 ? 's' : ''}
+              </span>
+              <span className="text-[#5a6e9a] text-[12px]">{isCollapsed ? '▶' : '▼'}</span>
+            </button>
 
-            {/* Divisions */}
-            <div className="space-y-4 pl-1">
-              {sortedDivisions.map(([divisionName, divTeams]) => (
-                <div key={divisionName}>
-                  <div className="font-cond text-[10px] font-bold tracking-[.15em] text-[#5a6e9a] uppercase mb-1">
-                    {divisionName}
+            {/* Expandable divisions + teams */}
+            {!isCollapsed && (
+              <div className="px-4 pb-3 space-y-4 border-t border-[#1a2d50]">
+                {sortedDivisions.map(([divisionName, divTeams]) => (
+                  <div key={divisionName} className="pt-3">
+                    <div className="font-cond text-[10px] font-bold tracking-[.15em] text-[#5a6e9a] uppercase mb-1">
+                      {divisionName}
+                    </div>
+                    <div className="space-y-1">
+                      {divTeams.map((team) => (
+                        <Link
+                          key={team.id}
+                          href={`/e/${slug}?tab=schedule&view=program&team=${team.id}&day=${activeDay}&div=${divFilter}`}
+                          className="border border-[#1a2d50] rounded-lg px-3 py-2.5 font-cond text-[13px] font-bold text-white hover:border-[#0B3D91] hover:bg-[#0d1f3c] transition-colors flex items-center gap-2"
+                        >
+                          {teamLogo(team) && (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={teamLogo(team)!}
+                              alt=""
+                              className="w-5 h-5 rounded object-cover shrink-0"
+                            />
+                          )}
+                          {team.name}
+                        </Link>
+                      ))}
+                    </div>
                   </div>
-                  <div className="space-y-1">
-                    {divTeams.map((team) => (
-                      <Link
-                        key={team.id}
-                        href={`/e/${slug}?tab=schedule&view=program&team=${team.id}&day=${activeDay}&div=${divFilter}`}
-                        className="bg-[#081428] border border-[#1a2d50] rounded-lg px-3 py-3 font-cond text-[14px] font-bold text-white hover:border-[#0B3D91] transition-colors flex items-center gap-2"
-                      >
-                        {teamLogo(team) && (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={teamLogo(team)!}
-                            alt=""
-                            className="w-6 h-6 rounded object-cover shrink-0"
-                          />
-                        )}
-                        {team.name}
-                      </Link>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         )
       })}
