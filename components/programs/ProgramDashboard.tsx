@@ -104,6 +104,11 @@ export function ProgramDashboard() {
   const [scrPreSelectedGameId, setScrPreSelectedGameId] = useState<number | undefined>()
   const [scrTeamId, setScrTeamId] = useState<number | undefined>()
 
+  // Weather alerts
+  const [weatherAlerts, setWeatherAlerts] = useState<
+    { id: number; alert_type: string; description: string }[]
+  >([])
+
   // Teams tab UI state
   const [collapsedDivisions, setCollapsedDivisions] = useState<Set<string>>(new Set())
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
@@ -216,14 +221,24 @@ export function ProgramDashboard() {
         }
       }
 
-      // Load program leaders + coaches for overview card
-      const { data: usersData } = await sb
-        .from('user_roles')
-        .select('display_name, role')
-        .eq('program_id', userRole.program_id)
-        .in('role', ['program_leader', 'coach'])
-        .eq('is_active', true)
+      // Load program leaders + coaches and weather alerts in parallel
+      const [{ data: usersData }, { data: alertsData }] = await Promise.all([
+        sb
+          .from('user_roles')
+          .select('display_name, role')
+          .eq('program_id', userRole.program_id)
+          .in('role', ['program_leader', 'coach'])
+          .eq('is_active', true),
+        sb
+          .from('weather_alerts')
+          .select('id, alert_type, description')
+          .eq('event_id', portalEventId!)
+          .eq('is_active', true),
+      ])
       setProgramUsers((usersData as { display_name: string; role: string }[]) ?? [])
+      setWeatherAlerts(
+        (alertsData as { id: number; alert_type: string; description: string }[]) ?? []
+      )
 
       // Load fees and payment records for this program's teams
       const [{ data: feesData }, { data: paymentsData }] = await Promise.all([
@@ -445,6 +460,32 @@ export function ProgramDashboard() {
       </div>
 
       <div className="max-w-5xl mx-auto px-4 py-6">
+        {/* Weather alerts banner */}
+        {weatherAlerts.length > 0 && (
+          <div className="mb-4 space-y-1.5">
+            {weatherAlerts
+              .filter(
+                (alert, idx, arr) => arr.findIndex((a) => a.alert_type === alert.alert_type) === idx
+              )
+              .map((alert) => (
+                <div
+                  key={alert.id}
+                  className="flex items-center gap-2 bg-yellow-900/30 border border-yellow-600/50 rounded-lg px-3 py-2"
+                >
+                  <span className="text-yellow-400 text-[14px]">⚡</span>
+                  <div>
+                    <span className="font-cond text-[10px] font-black tracking-widest text-yellow-300 uppercase mr-2">
+                      {alert.alert_type}
+                    </span>
+                    <span className="font-cond text-[11px] text-yellow-200">
+                      {alert.description}
+                    </span>
+                  </div>
+                </div>
+              ))}
+          </div>
+        )}
+
         {/* Pending approval banner */}
         {isPending && (
           <div className="bg-yellow-900/20 border border-yellow-700/50 rounded-xl p-4 mb-6 flex items-start gap-3">
