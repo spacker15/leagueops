@@ -72,6 +72,16 @@ interface BlockAssignment {
 }
 
 // ─── Draggable person chip ───────────────────────────────────
+function timeToMin(t: string): number {
+  const m = t.match(/(\d+):(\d+)\s*(AM|PM)/i)
+  if (!m) return 0
+  let h = parseInt(m[1])
+  const min = parseInt(m[2])
+  if (m[3].toUpperCase() === 'PM' && h !== 12) h += 12
+  if (m[3].toUpperCase() === 'AM' && h === 12) h = 0
+  return h * 60 + min
+}
+
 function DraggablePerson({
   id,
   name,
@@ -817,7 +827,7 @@ export function RefsTab() {
       // Block assignment — assign to N games on this field
       const fieldGames = state.games
         .filter((g) => g.field_id === targetId && g.status !== 'Final')
-        .sort((a, b) => a.scheduled_time.localeCompare(b.scheduled_time))
+        .sort((a, b) => timeToMin(a.scheduled_time) - timeToMin(b.scheduled_time))
         .slice(0, blockGames > 0 ? blockGames : undefined)
 
       let count = 0

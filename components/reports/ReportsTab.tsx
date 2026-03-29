@@ -17,6 +17,16 @@ const SUB_TABS: { id: SubTab; label: string }[] = [
   { id: 'ref-schedule', label: 'REF SCHEDULE' },
 ]
 
+function timeToMin(t: string): number {
+  const m = t.match(/(\d+):(\d+)\s*(AM|PM)/i)
+  if (!m) return 0
+  let h = parseInt(m[1])
+  const min = parseInt(m[2])
+  if (m[3].toUpperCase() === 'PM' && h !== 12) h += 12
+  if (m[3].toUpperCase() === 'AM' && h === 12) h = 0
+  return h * 60 + min
+}
+
 export function ReportsTab() {
   const { state } = useApp()
   const [sub, setSub] = useState<SubTab>('results')
@@ -835,7 +845,7 @@ function RefScheduleView({
     for (const g of filteredGames) {
       if (g.scheduled_time) times.add(g.scheduled_time)
     }
-    return [...times].sort()
+    return [...times].sort((a, b) => timeToMin(a) - timeToMin(b))
   }, [filteredGames])
 
   // Fields that have at least one game

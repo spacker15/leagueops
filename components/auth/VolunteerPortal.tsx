@@ -27,6 +27,16 @@ interface Player {
   usa_lacrosse_number: string | null
 }
 
+function timeToMin(t: string): number {
+  const m = t.match(/(\d+):(\d+)\s*(AM|PM)/i)
+  if (!m) return 0
+  let h = parseInt(m[1])
+  const min = parseInt(m[2])
+  if (m[3].toUpperCase() === 'PM' && h !== 12) h += 12
+  if (m[3].toUpperCase() === 'AM' && h === 12) h = 0
+  return h * 60 + min
+}
+
 export function VolunteerPortal() {
   const { userRole, signOut } = useAuth()
   const portalEventId = userRole?.event_id
@@ -70,7 +80,7 @@ export function VolunteerPortal() {
     const gameList = (assignments ?? [])
       .map((a: any) => a.game)
       .filter(Boolean)
-      .sort((a: any, b: any) => a.scheduled_time.localeCompare(b.scheduled_time))
+      .sort((a: any, b: any) => timeToMin(a.scheduled_time) - timeToMin(b.scheduled_time))
     setGames(gameList)
     setLoading(false)
   }
@@ -373,7 +383,11 @@ export function VolunteerPortal() {
           </div>
         )}
         {tab === 'approvals' && (
-          <ApprovalsPanel personName={vol?.name ?? 'Volunteer'} personType="volunteer" eventId={portalEventId} />
+          <ApprovalsPanel
+            personName={vol?.name ?? 'Volunteer'}
+            personType="volunteer"
+            eventId={portalEventId}
+          />
         )}
       </div>
     </div>

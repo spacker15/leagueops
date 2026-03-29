@@ -29,6 +29,16 @@ interface Player {
   checked_in?: boolean
 }
 
+function timeToMin(t: string): number {
+  const m = t.match(/(\d+):(\d+)\s*(AM|PM)/i)
+  if (!m) return 0
+  let h = parseInt(m[1])
+  const min = parseInt(m[2])
+  if (m[3].toUpperCase() === 'PM' && h !== 12) h += 12
+  if (m[3].toUpperCase() === 'AM' && h === 12) h = 0
+  return h * 60 + min
+}
+
 export function RefereePortal() {
   const { userRole, signOut } = useAuth()
   const portalEventId = userRole?.event_id
@@ -72,7 +82,7 @@ export function RefereePortal() {
     const gameList = (assignments ?? [])
       .map((a: any) => ({ ...a.game, role: a.role }))
       .filter(Boolean)
-      .sort((a: any, b: any) => a.scheduled_time.localeCompare(b.scheduled_time))
+      .sort((a: any, b: any) => timeToMin(a.scheduled_time) - timeToMin(b.scheduled_time))
     setGames(gameList)
 
     // Auto-select the current/next live game
@@ -399,7 +409,11 @@ export function RefereePortal() {
           </div>
         )}
         {tab === 'approvals' && (
-          <ApprovalsPanel personName={ref?.name ?? 'Referee'} personType="referee" eventId={portalEventId} />
+          <ApprovalsPanel
+            personName={ref?.name ?? 'Referee'}
+            personType="referee"
+            eventId={portalEventId}
+          />
         )}
       </div>
     </div>

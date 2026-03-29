@@ -13,6 +13,16 @@ import type {
 import { groupBy } from '@/lib/utils'
 import Link from 'next/link'
 
+function timeToMin(t: string): number {
+  const m = t.match(/(\d+):(\d+)\s*(AM|PM)/i)
+  if (!m) return 0
+  let h = parseInt(m[1])
+  const min = parseInt(m[2])
+  if (m[3].toUpperCase() === 'PM' && h !== 12) h += 12
+  if (m[3].toUpperCase() === 'AM' && h === 12) h = 0
+  return h * 60 + min
+}
+
 interface Props {
   activeTab: string
   divFilter: string
@@ -209,7 +219,7 @@ function LiveSectionEnhanced({
   if (games.length === 0) {
     const nextGame = allGames
       .filter((g) => g.status === 'Scheduled')
-      .sort((a, b) => (a.scheduled_time ?? '').localeCompare(b.scheduled_time ?? ''))
+      .sort((a, b) => timeToMin(a.scheduled_time ?? '') - timeToMin(b.scheduled_time ?? ''))
       .at(0)
 
     return (
