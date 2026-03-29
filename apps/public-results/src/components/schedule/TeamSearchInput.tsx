@@ -9,11 +9,15 @@ type TeamWithLogo = {
   name: string
   division: string
   logo_url?: string | null
-  programs?: { logo_url?: string | null } | null
+  programs?: unknown
 }
 
 function teamLogo(team: TeamWithLogo): string | null {
-  return team.logo_url ?? team.programs?.logo_url ?? null
+  if (team.logo_url) return team.logo_url
+  const prog = Array.isArray(team.programs)
+    ? (team.programs as { logo_url?: string | null }[])[0]
+    : (team.programs as { logo_url?: string | null } | null | undefined)
+  return prog?.logo_url ?? null
 }
 
 interface Props {

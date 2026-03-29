@@ -1,14 +1,16 @@
 'use client'
 import type { PublicGame } from '@/lib/data'
-import { groupBy } from '@/lib/utils'
+import { groupBy, timeToMinutes } from '@/lib/utils'
 
 function teamLogo(
-  team:
-    | { logo_url?: string | null; programs?: { logo_url?: string | null } | null }
-    | null
-    | undefined
+  team: { logo_url?: string | null; programs?: unknown } | null | undefined
 ): string | null {
-  return team?.logo_url ?? team?.programs?.logo_url ?? null
+  if (!team) return null
+  if (team.logo_url) return team.logo_url
+  const prog = Array.isArray(team.programs)
+    ? (team.programs as { logo_url?: string | null }[])[0]
+    : (team.programs as { logo_url?: string | null } | null | undefined)
+  return prog?.logo_url ?? null
 }
 
 interface Props {
@@ -38,8 +40,8 @@ export function ByFieldView({ games }: Props) {
   return (
     <div className="space-y-4">
       {fieldNames.map((fieldName) => {
-        const fieldGames = [...byField[fieldName]].sort((a, b) =>
-          (a.scheduled_time ?? '').localeCompare(b.scheduled_time ?? '')
+        const fieldGames = [...byField[fieldName]].sort(
+          (a, b) => timeToMinutes(a.scheduled_time) - timeToMinutes(b.scheduled_time)
         )
         const isLiveField = fieldGames.some((g) => g.status === 'Live' || g.status === 'Halftime')
 

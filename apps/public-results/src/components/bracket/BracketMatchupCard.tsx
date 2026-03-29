@@ -2,12 +2,14 @@
 import type { BracketMatchup } from '@/lib/data'
 
 function teamLogo(
-  team:
-    | { logo_url?: string | null; programs?: { logo_url?: string | null } | null }
-    | null
-    | undefined
+  team: { logo_url?: string | null; programs?: unknown } | null | undefined
 ): string | null {
-  return team?.logo_url ?? team?.programs?.logo_url ?? null
+  if (!team) return null
+  if (team.logo_url) return team.logo_url
+  const prog = Array.isArray(team.programs)
+    ? (team.programs as { logo_url?: string | null }[])[0]
+    : (team.programs as { logo_url?: string | null } | null | undefined)
+  return prog?.logo_url ?? null
 }
 
 interface Props {

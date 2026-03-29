@@ -1,14 +1,16 @@
 'use client'
 import type { PublicGame } from '@/lib/data'
-import { groupBy } from '@/lib/utils'
+import { groupBy, timeToMinutes } from '@/lib/utils'
 
 function teamLogo(
-  team:
-    | { logo_url?: string | null; programs?: { logo_url?: string | null } | null }
-    | null
-    | undefined
+  team: { logo_url?: string | null; programs?: unknown } | null | undefined
 ): string | null {
-  return team?.logo_url ?? team?.programs?.logo_url ?? null
+  if (!team) return null
+  if (team.logo_url) return team.logo_url
+  const prog = Array.isArray(team.programs)
+    ? (team.programs as { logo_url?: string | null }[])[0]
+    : (team.programs as { logo_url?: string | null } | null | undefined)
+  return prog?.logo_url ?? null
 }
 
 interface Props {
@@ -45,11 +47,7 @@ export function ByTimeView({ games }: Props) {
 
   const byTime = groupBy(games, (g) => g.scheduled_time ?? 'TBD')
   // Sort time slots chronologically
-  const timeSlots = Object.keys(byTime).sort((a, b) => {
-    if (a === 'TBD') return 1
-    if (b === 'TBD') return -1
-    return a.localeCompare(b)
-  })
+  const timeSlots = Object.keys(byTime).sort((a, b) => timeToMinutes(a) - timeToMinutes(b))
 
   return (
     <div className="space-y-6">
