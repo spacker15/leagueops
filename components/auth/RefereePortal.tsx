@@ -60,8 +60,10 @@ interface RefSlot {
 
 interface VolSlot {
   role: string
-  volunteer_id: number
+  volunteer_id: number | null
+  referee_id: number | null
   volunteer?: { name: string }
+  referee?: { name: string }
 }
 
 function timeToMin(t: string): number {
@@ -93,6 +95,10 @@ export function RefereePortal() {
 
   const [selectedFieldId, setSelectedFieldId] = useState<number | null>(null)
   const [selectedGame, setSelectedGame] = useState<GameSummary | null>(null)
+  const [bulkMode, setBulkMode] = useState(false)
+  const [bulkPosition, setBulkPosition] = useState('Lead')
+  const [bulkSelected, setBulkSelected] = useState<Set<number>>(new Set())
+  const [bulkAssigning, setBulkAssigning] = useState(false)
   const [gameSlots, setGameSlots] = useState<RefSlot[]>([])
   const [volSlots, setVolSlots] = useState<VolSlot[]>([])
   const [slotLoading, setSlotLoading] = useState(false)
@@ -189,7 +195,9 @@ export function RefereePortal() {
           .eq('game_id', game.id),
         sb
           .from('vol_assignments')
-          .select(`role, volunteer_id, volunteer:volunteers(name)`)
+          .select(
+            `role, volunteer_id, referee_id, volunteer:volunteers(name), referee:referees(name)`
+          )
           .eq('game_id', game.id),
         sb
           .from('players')
@@ -249,6 +257,38 @@ export function RefereePortal() {
       })
     }
     loadGameDetail(selectedGame)
+  }
+
+  async function applyBulkAssign() {
+    if (!userRole?.referee_id || bulkSelected.size === 0) return
+    setBulkAssigning(true)
+    const sb = createClient()
+    const isRefRole = REF_POSITIONS.includes(bulkPosition)
+    let count = 0
+    for (const gameId of bulkSelected) {
+      if (isRefRole) {
+        const { error } = await sb
+          .from('ref_assignments')
+          .upsert(
+            { game_id: gameId, referee_id: userRole.referee_id, role: bulkPosition },
+            { onConflict: 'game_id,referee_id' }
+          )
+        if (!error) count++
+      } else {
+        const { error } = await sb.from('vol_assignments').insert({
+          game_id: gameId,
+          referee_id: userRole.referee_id,
+          volunteer_id: null,
+          role: bulkPosition,
+        })
+        if (!error) count++
+      }
+    }
+    setMyAssignedGameIds((prev) => new Set([...prev, ...bulkSelected]))
+    setBulkSelected(new Set())
+    setBulkMode(false)
+    setBulkAssigning(false)
+    toast.success(`Assigned as ${bulkPosition} in ${count} game${count !== 1 ? 's' : ''}`)
   }
 
   async function takeVolPosition(role: string) {
@@ -662,17 +702,77 @@ export function RefereePortal() {
             {/* Game list for selected field */}
             {selectedFieldId && !selectedGame && (
               <>
-                <div className="flex items-center gap-2 mb-4">
+                <div className="flex items-center gap-2 mb-3">
                   <button
-                    onClick={() => setSelectedFieldId(null)}
+                    onClick={() => {
+                      setSelectedFieldId(null)
+                      setBulkMode(false)
+                      setBulkSelected(new Set())
+                    }}
                     className="text-muted hover:text-white"
                   >
                     <ChevronLeft size={18} />
                   </button>
-                  <div className="font-cond font-black text-[14px] text-white">
+                  <div className="font-cond font-black text-[14px] text-white flex-1">
                     {fields.find((f) => f.id === selectedFieldId)?.name}
                   </div>
+                  <button
+                    onClick={() => {
+                      setBulkMode((v) => !v)
+                      setBulkSelected(new Set())
+                    }}
+                    className={cn(
+                      'font-cond text-[10px] font-black tracking-widest px-2.5 py-1 rounded border transition-colors',
+                      bulkMode
+                        ? 'bg-red border-red text-white'
+                        : 'border-border text-muted hover:text-white'
+                    )}
+                  >
+                    QUICK ASSIGN
+                  </button>
                 </div>
+
+                {/* Bulk position picker */}
+                {bulkMode && (
+                  <div className="bg-surface-card border border-border rounded-xl p-3 mb-3">
+                    <div className="font-cond text-[10px] font-black tracking-widest text-muted uppercase mb-2">
+                      SELECT POSITION
+                    </div>
+                    <div className="flex gap-1.5 flex-wrap mb-3">
+                      {[...REF_POSITIONS, ...VOL_POSITIONS].map((pos) => (
+                        <button
+                          key={pos}
+                          onClick={() => setBulkPosition(pos)}
+                          className={cn(
+                            'font-cond text-[10px] font-black tracking-widest px-2.5 py-1 rounded border transition-colors',
+                            bulkPosition === pos
+                              ? REF_POSITIONS.includes(pos)
+                                ? 'bg-red border-red text-white'
+                                : 'bg-blue-700 border-blue-600 text-white'
+                              : 'border-border text-muted hover:text-white'
+                          )}
+                        >
+                          {pos}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="font-cond text-[11px] text-muted">
+                        {bulkSelected.size} game{bulkSelected.size !== 1 ? 's' : ''} selected
+                      </span>
+                      <button
+                        onClick={applyBulkAssign}
+                        disabled={bulkSelected.size === 0 || bulkAssigning}
+                        className="font-cond text-[11px] font-black tracking-widest px-4 py-1.5 rounded bg-green-700 hover:bg-green-600 text-white disabled:opacity-40 transition-colors"
+                      >
+                        {bulkAssigning
+                          ? 'ASSIGNING...'
+                          : `ASSIGN TO ${bulkSelected.size} GAME${bulkSelected.size !== 1 ? 'S' : ''}`}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 <div
                   className="space-y-2 overflow-y-auto"
                   style={{ maxHeight: 'calc(100vh - 220px)' }}
@@ -685,15 +785,29 @@ export function RefereePortal() {
                     )
                     .map((game) => {
                       const mine = myAssignedGameIds.has(game.id)
+                      const bulkChecked = bulkSelected.has(game.id)
                       return (
                         <button
                           key={game.id}
-                          onClick={() => loadGameDetail(game)}
+                          onClick={() => {
+                            if (bulkMode) {
+                              setBulkSelected((prev) => {
+                                const next = new Set(prev)
+                                if (next.has(game.id)) next.delete(game.id)
+                                else next.add(game.id)
+                                return next
+                              })
+                            } else {
+                              loadGameDetail(game)
+                            }
+                          }}
                           className={cn(
                             'w-full text-left rounded-xl p-4 border transition-all',
-                            mine
-                              ? 'bg-green-900/15 border-green-800/50 hover:border-green-400'
-                              : 'bg-surface-card border-border hover:border-blue-400'
+                            bulkMode && bulkChecked
+                              ? 'bg-blue-900/25 border-blue-500'
+                              : mine
+                                ? 'bg-green-900/15 border-green-800/50 hover:border-green-400'
+                                : 'bg-surface-card border-border hover:border-blue-400'
                           )}
                         >
                           <div className="flex justify-between items-center mb-1">
@@ -701,7 +815,19 @@ export function RefereePortal() {
                               {game.scheduled_time}
                             </span>
                             <div className="flex items-center gap-2">
-                              {mine && (
+                              {bulkMode && (
+                                <span
+                                  className={cn(
+                                    'w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0',
+                                    bulkChecked ? 'bg-blue-500 border-blue-400' : 'border-border'
+                                  )}
+                                >
+                                  {bulkChecked && (
+                                    <span className="text-white text-[9px] font-black">✓</span>
+                                  )}
+                                </span>
+                              )}
+                              {!bulkMode && mine && (
                                 <span className="font-cond text-[9px] font-black text-green-400 bg-green-900/30 px-1.5 py-0.5 rounded">
                                   ASSIGNED
                                 </span>
@@ -863,10 +989,13 @@ export function RefereePortal() {
                       <div className="space-y-2">
                         {VOL_POSITIONS.map((pos) => {
                           const slot = volSlots.find((s) => s.role === pos)
-                          const isMe =
-                            (slot as any)?.referee_id === userRole?.referee_id &&
-                            !slot?.volunteer_id
+                          const isMe = slot?.referee_id === userRole?.referee_id
                           const isEmpty = !slot
+                          const personName = slot
+                            ? slot.volunteer_id
+                              ? ((slot.volunteer as any)?.name ?? 'Volunteer')
+                              : ((slot.referee as any)?.name ?? 'Referee')
+                            : null
                           return (
                             <div
                               key={pos}
@@ -885,7 +1014,7 @@ export function RefereePortal() {
                                 </span>
                                 {slot && (
                                   <span className="font-cond text-[12px] font-bold text-white ml-2">
-                                    {isMe ? '(You)' : ((slot.volunteer as any)?.name ?? 'Assigned')}
+                                    {isMe ? '(You)' : personName}
                                   </span>
                                 )}
                                 {isEmpty && (
