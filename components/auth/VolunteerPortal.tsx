@@ -93,6 +93,11 @@ export function VolunteerPortal() {
   const [awayPlayers, setAwayPlayers] = useState<any[]>([])
   const [checkins, setCheckins] = useState<number[]>([])
 
+  const [availability, setAvailability] = useState<
+    Map<string, { from: string; to: string } | null>
+  >(new Map())
+  const [savingAvail, setSavingAvail] = useState<string | null>(null)
+
   useEffect(() => {
     if (!portalEventId) return
     if (!userRole?.volunteer_id) {
@@ -130,6 +135,7 @@ export function VolunteerPortal() {
       { data: fieldsData },
       { data: myAssignData },
       { data: eventDates },
+      { data: availData },
     ] = await Promise.all([
       sb.from('volunteers').select('*').eq('id', userRole!.volunteer_id!).single(),
       sb
@@ -152,6 +158,10 @@ export function VolunteerPortal() {
         .select('id, date, label, day_number')
         .eq('event_id', portalEventId!)
         .order('date'),
+      sb
+        .from('volunteer_availability')
+        .select('date, available_from, available_to')
+        .eq('volunteer_id', userRole!.volunteer_id!),
     ])
 
     setVol(volData)
@@ -187,6 +197,12 @@ export function VolunteerPortal() {
         `Next: ${upcomingDate.label} — ${format(new Date(upcomingDate.date + 'T12:00:00'), 'EEEE, MMMM d')}`
       )
     }
+    const availMap = new Map<string, { from: string; to: string } | null>()
+    for (const a of availData ?? []) {
+      availMap.set(a.date, { from: a.available_from.slice(0, 5), to: a.available_to.slice(0, 5) })
+    }
+    setAvailability(availMap)
+
     setLoading(false)
   }
 
@@ -322,6 +338,55 @@ export function VolunteerPortal() {
     setCheckedIn(newState)
     setCheckingIn(false)
     toast.success(newState ? '✓ You are checked in!' : 'Checked out')
+  }
+
+  async function toggleAvailability(date: string) {
+    if (!userRole?.volunteer_id) return
+    const sb = createClient()
+    const current = availability.get(date)
+    if (current !== undefined) {
+      await sb
+        .from('volunteer_availability')
+        .delete()
+        .eq('volunteer_id', userRole.volunteer_id)
+        .eq('date', date)
+      setAvailability((prev) => {
+        const next = new Map(prev)
+        next.delete(date)
+        return next
+      })
+    } else {
+      const { error } = await sb.from('volunteer_availability').insert({
+        volunteer_id: userRole.volunteer_id,
+        date,
+        available_from: '08:00',
+        available_to: '18:00',
+      })
+      if (error) {
+        toast.error(error.message)
+        return
+      }
+      setAvailability((prev) => new Map(prev).set(date, { from: '08:00', to: '18:00' }))
+    }
+  }
+
+  async function updateAvailTime(date: string, field: 'from' | 'to', value: string) {
+    if (!userRole?.volunteer_id) return
+    const current = availability.get(date)
+    if (!current) return
+    const updated = { ...current, [field]: value }
+    setAvailability((prev) => new Map(prev).set(date, updated))
+    setSavingAvail(date)
+    const sb = createClient()
+    await sb
+      .from('volunteer_availability')
+      .update({
+        available_from: updated.from,
+        available_to: updated.to,
+      })
+      .eq('volunteer_id', userRole.volunteer_id)
+      .eq('date', date)
+    setSavingAvail(null)
   }
 
   async function togglePlayerCheckin(playerId: number) {
@@ -479,6 +544,75 @@ export function VolunteerPortal() {
                     : 'TAP TO CHECK IN'}
               </button>
             </div>
+
+            {/* Availability card */}
+            {eventDates.length > 0 && (
+              <div className="bg-surface-card border border-border rounded-xl p-4 mb-4">
+                <div className="font-cond text-[10px] font-black tracking-widest text-muted uppercase mb-3">
+                  MY AVAILABILITY
+                </div>
+                <div className="space-y-2">
+                  {eventDates.map((d) => {
+                    const avail = availability.get(d.date)
+                    const isAvail = avail !== undefined
+                    return (
+                      <div
+                        key={d.id}
+                        className={cn(
+                          'rounded-lg border px-3 py-2',
+                          isAvail
+                            ? 'bg-green-900/15 border-green-700/40'
+                            : 'bg-surface border-border/50'
+                        )}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <span className="font-cond font-black text-[12px] text-white">
+                              {d.label}
+                            </span>
+                            <span className="font-cond text-[10px] text-muted ml-2">
+                              {format(new Date(d.date + 'T12:00:00'), 'EEE M/d')}
+                            </span>
+                          </div>
+                          <button
+                            onClick={() => toggleAvailability(d.date)}
+                            className={cn(
+                              'font-cond text-[10px] font-black tracking-widest px-2.5 py-1 rounded border transition-colors',
+                              isAvail
+                                ? 'bg-green-700/60 border-green-600 text-green-200 hover:bg-green-700'
+                                : 'border-border text-muted hover:text-white hover:border-white/30'
+                            )}
+                          >
+                            {isAvail ? 'AVAILABLE' : 'UNAVAILABLE'}
+                          </button>
+                        </div>
+                        {isAvail && avail && (
+                          <div className="flex items-center gap-2 mt-2">
+                            <span className="font-cond text-[9px] text-muted uppercase">From</span>
+                            <input
+                              type="time"
+                              value={avail.from}
+                              onChange={(e) => updateAvailTime(d.date, 'from', e.target.value)}
+                              className="bg-surface border border-border rounded px-2 py-0.5 font-mono text-[11px] text-white focus:outline-none focus:border-green-500"
+                            />
+                            <span className="font-cond text-[9px] text-muted uppercase">To</span>
+                            <input
+                              type="time"
+                              value={avail.to}
+                              onChange={(e) => updateAvailTime(d.date, 'to', e.target.value)}
+                              className="bg-surface border border-border rounded px-2 py-0.5 font-mono text-[11px] text-white focus:outline-none focus:border-green-500"
+                            />
+                            {savingAvail === d.date && (
+                              <span className="font-cond text-[9px] text-muted">SAVING...</span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
 
             {(() => {
               const filteredAssigned = allGames.filter(
