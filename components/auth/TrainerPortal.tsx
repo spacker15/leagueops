@@ -131,12 +131,12 @@ export function TrainerPortal() {
         return next
       })
     } else {
-      const { error } = await sb.from('trainer_availability').insert({
-        trainer_id: trainer.id,
-        date,
-        available_from: '08:00',
-        available_to: '18:00',
-      })
+      const { error } = await sb
+        .from('trainer_availability')
+        .upsert(
+          { trainer_id: trainer.id, date, available_from: '08:00', available_to: '18:00' },
+          { onConflict: 'trainer_id,date' }
+        )
       if (error) {
         toast.error(error.message)
         return
