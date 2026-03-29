@@ -661,10 +661,22 @@ function MatchupMatrix({
                       ) : (
                         <div
                           className="w-8 h-6 mx-auto rounded flex items-center justify-center"
-                          style={{
-                            background: `rgba(214,40,40,${0.15 + intensity * 0.7})`,
-                            border: `1px solid rgba(214,40,40,${0.3 + intensity * 0.5})`,
-                          }}
+                          style={
+                            (count ?? 0) >= 3
+                              ? {
+                                  background: 'rgba(214,40,40,0.55)',
+                                  border: '1px solid rgba(214,40,40,0.8)',
+                                }
+                              : (count ?? 0) === 2
+                                ? {
+                                    background: 'rgba(251,191,36,0.4)',
+                                    border: '1px solid rgba(251,191,36,0.7)',
+                                  }
+                                : {
+                                    background: 'rgba(34,197,94,0.35)',
+                                    border: '1px solid rgba(34,197,94,0.6)',
+                                  }
+                          }
                         >
                           <span className="font-mono text-[13px] font-bold text-white">
                             {count}
@@ -679,20 +691,41 @@ function MatchupMatrix({
           </tbody>
         </table>
       </div>
-      <div className="flex items-center gap-4 mt-2">
+      <div className="flex items-center gap-4 mt-2 flex-wrap">
         <span className="font-cond text-[9px] text-muted tracking-wide">
           Cell = number of times teams have faced each other (home + away combined)
         </span>
-        <div className="flex items-center gap-1.5 ml-auto">
-          <span className="font-cond text-[9px] text-muted">0</span>
-          {[0.2, 0.5, 0.8, 1.0].map((v) => (
+        <div className="flex items-center gap-3 ml-auto">
+          <div className="flex items-center gap-1.5">
             <div
-              key={v}
-              className="w-4 h-4 rounded"
-              style={{ background: `rgba(214,40,40,${0.15 + v * 0.7})` }}
+              className="w-4 h-3 rounded"
+              style={{
+                background: 'rgba(34,197,94,0.35)',
+                border: '1px solid rgba(34,197,94,0.6)',
+              }}
             />
-          ))}
-          <span className="font-cond text-[9px] text-muted">{maxCount}</span>
+            <span className="font-cond text-[9px] text-muted">1</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div
+              className="w-4 h-3 rounded"
+              style={{
+                background: 'rgba(251,191,36,0.4)',
+                border: '1px solid rgba(251,191,36,0.7)',
+              }}
+            />
+            <span className="font-cond text-[9px] text-muted">2</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div
+              className="w-4 h-3 rounded"
+              style={{
+                background: 'rgba(214,40,40,0.55)',
+                border: '1px solid rgba(214,40,40,0.8)',
+              }}
+            />
+            <span className="font-cond text-[9px] text-muted">3+</span>
+          </div>
         </div>
       </div>
     </div>

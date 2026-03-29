@@ -16,6 +16,10 @@ import {
   Clock,
   CalendarX,
   DollarSign,
+  ChevronDown,
+  ChevronRight,
+  Mail,
+  Phone,
 } from 'lucide-react'
 import { ScheduleChangeRequestModal } from '@/components/schedule/ScheduleChangeRequestModal'
 import type { Game } from '@/types'
@@ -99,6 +103,13 @@ export function ProgramDashboard() {
   const [scrModalOpen, setScrModalOpen] = useState(false)
   const [scrPreSelectedGameId, setScrPreSelectedGameId] = useState<number | undefined>()
   const [scrTeamId, setScrTeamId] = useState<number | undefined>()
+
+  // Teams tab UI state
+  const [collapsedDivisions, setCollapsedDivisions] = useState<Set<string>>(new Set())
+  const [selectedDate, setSelectedDate] = useState<string | null>(null)
+
+  // Program leaders + coaches for overview card
+  const [programUsers, setProgramUsers] = useState<{ display_name: string; role: string }[]>([])
 
   useEffect(() => {
     loadData()
@@ -204,6 +215,15 @@ export function ProgramDashboard() {
           )
         }
       }
+
+      // Load program leaders + coaches for overview card
+      const { data: usersData } = await sb
+        .from('user_roles')
+        .select('display_name, role')
+        .eq('program_id', userRole.program_id)
+        .in('role', ['program_leader', 'coach'])
+        .eq('is_active', true)
+      setProgramUsers((usersData as { display_name: string; role: string }[]) ?? [])
 
       // Load fees and payment records for this program's teams
       const [{ data: feesData }, { data: paymentsData }] = await Promise.all([
@@ -489,17 +509,115 @@ export function ProgramDashboard() {
                     {program?.status?.toUpperCase()}
                   </span>
                 </div>
-                <div className="grid grid-cols-2 gap-3 text-[12px]">
-                  <div>
-                    <div className="font-cond text-[10px] text-muted uppercase tracking-widest mb-0.5">
-                      Contact
-                    </div>
-                    <div className="text-white font-cond font-bold">{program?.contact_name}</div>
-                    <div className="text-muted">{program?.contact_email}</div>
-                    {program?.contact_phone && (
-                      <div className="text-muted">{program.contact_phone}</div>
-                    )}
-                  </div>
+                <div className="space-y-4 text-[12px]">
+                  {/* Program Leaders */}
+                  {(() => {
+                    const leaders = programUsers.filter((u) => u.role === 'program_leader')
+                    const coaches = programUsers.filter((u) => u.role === 'coach')
+                    return (
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <div className="font-cond text-[10px] text-muted uppercase tracking-widest mb-1.5">
+                            Program Leaders
+                          </div>
+                          {leaders.length > 0 ? (
+                            <div className="space-y-1">
+                              {leaders.map((u, i) => (
+                                <div key={i} className="font-cond font-bold text-white text-[12px]">
+                                  {u.display_name}
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="font-cond text-muted text-[11px]">
+                              {program?.contact_name}
+                            </div>
+                          )}
+                          <div className="mt-1 space-y-0.5">
+                            {program?.contact_email && (
+                              <div className="flex items-center gap-1 text-muted font-cond text-[11px]">
+                                <Mail size={10} className="flex-shrink-0" />
+                                {program.contact_email}
+                              </div>
+                            )}
+                            {program?.contact_phone && (
+                              <div className="flex items-center gap-1 text-muted font-cond text-[11px]">
+                                <Phone size={10} className="flex-shrink-0" />
+                                {program.contact_phone}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        {coaches.length > 0 && (
+                          <div>
+                            <div className="font-cond text-[10px] text-muted uppercase tracking-widest mb-1.5">
+                              Coaches
+                            </div>
+                            <div className="space-y-1">
+                              {coaches.map((u, i) => (
+                                <div key={i} className="font-cond font-bold text-white text-[12px]">
+                                  {u.display_name}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })()}
+                  {/* Upcoming games */}
+                  {(() => {
+                    const today = new Date().toISOString().split('T')[0]
+                    const upcoming = programGames
+                      .filter(
+                        (g) =>
+                          (g.event_date as any)?.date &&
+                          (g.event_date as any).date >= today &&
+                          g.status !== 'Cancelled' &&
+                          g.status !== 'Final'
+                      )
+                      .slice(0, 5)
+                    if (upcoming.length === 0) return null
+                    return (
+                      <div>
+                        <div className="font-cond text-[10px] text-muted uppercase tracking-widest mb-1.5">
+                          Upcoming Games
+                        </div>
+                        <div className="space-y-1">
+                          {upcoming.map((game) => {
+                            const isHome = teams.some((t: any) => t.id === game.home_team_id)
+                            const myTeam = isHome
+                              ? (game.home_team as any)?.name
+                              : (game.away_team as any)?.name
+                            const opponent = isHome
+                              ? (game.away_team as any)?.name
+                              : (game.home_team as any)?.name
+                            const dateStr = (game.event_date as any)?.date
+                              ? new Date(
+                                  (game.event_date as any).date + 'T00:00:00'
+                                ).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                              : ''
+                            return (
+                              <div
+                                key={game.id}
+                                className="flex items-center gap-2 text-[11px] bg-surface rounded px-2 py-1.5"
+                              >
+                                <span className="font-mono text-muted whitespace-nowrap">
+                                  {dateStr} {game.scheduled_time}
+                                </span>
+                                <span className="font-cond text-white font-bold truncate">
+                                  {myTeam ?? '—'} vs {opponent ?? '—'}
+                                </span>
+                                <span className="font-cond text-[9px] text-muted ml-auto whitespace-nowrap">
+                                  {(game.field as any)?.name}
+                                </span>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )
+                  })()}
                 </div>
               </div>
 
@@ -686,6 +804,52 @@ export function ProgramDashboard() {
         {/* ── TEAMS ── */}
         {tab === 'teams' && (
           <div className="overflow-y-auto" style={{ maxHeight: 'calc(100vh - 120px)' }}>
+            {/* Date filter bar */}
+            {(() => {
+              const uniqueDates = [
+                ...new Set(
+                  programGames
+                    .map((g) => (g.event_date as any)?.date as string | undefined)
+                    .filter(Boolean) as string[]
+                ),
+              ].sort()
+              if (uniqueDates.length === 0) return null
+              return (
+                <div className="flex items-center gap-2 mb-4 flex-wrap">
+                  <span className="font-cond text-[10px] font-black tracking-widest text-muted uppercase">
+                    DATE
+                  </span>
+                  <button
+                    onClick={() => setSelectedDate(null)}
+                    className={cn(
+                      'font-cond text-[11px] font-bold px-3 py-1 rounded-full border transition-colors',
+                      selectedDate === null
+                        ? 'bg-navy border-blue-400 text-white'
+                        : 'border-border text-muted hover:text-white'
+                    )}
+                  >
+                    ALL
+                  </button>
+                  {uniqueDates.map((d) => (
+                    <button
+                      key={d}
+                      onClick={() => setSelectedDate(d === selectedDate ? null : d)}
+                      className={cn(
+                        'font-cond text-[11px] font-bold px-3 py-1 rounded-full border transition-colors',
+                        selectedDate === d
+                          ? 'bg-navy border-blue-400 text-white'
+                          : 'border-border text-muted hover:text-white'
+                      )}
+                    >
+                      {new Date(d + 'T00:00:00').toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                      })}
+                    </button>
+                  ))}
+                </div>
+              )
+            })()}
             {teamRegs.length === 0 ? (
               <div className="text-center py-16 text-muted font-cond">
                 No teams registered yet. Click "+ Register Team" to add one.
@@ -693,198 +857,229 @@ export function ProgramDashboard() {
             ) : (
               (() => {
                 const divisions = [...new Set(teamRegs.map((r) => r.division))].sort()
-                return divisions.map((div) => (
-                  <div key={div} className="mb-8">
-                    <div className="flex items-center gap-2 mb-3 sticky top-0 bg-surface py-2 z-10">
-                      <div className="w-1 h-4 rounded-sm bg-navy flex-shrink-0" />
-                      <span className="font-cond text-[11px] font-black tracking-[.12em] text-blue-300 uppercase">
-                        {div}
-                      </span>
-                      <span className="font-cond text-[9px] text-muted">
-                        {teamRegs.filter((r) => r.division === div).length} team
-                        {teamRegs.filter((r) => r.division === div).length !== 1 ? 's' : ''}
-                      </span>
-                    </div>
-                    <div className="space-y-3">
-                      {teamRegs
-                        .filter((r) => r.division === div)
-                        .map((reg) => (
-                          <div
-                            key={reg.id}
-                            className={cn(
-                              'bg-surface-card border rounded-xl p-4',
-                              reg.status === 'approved'
-                                ? 'border-green-700/50'
-                                : reg.status === 'rejected'
-                                  ? 'border-red-700/50'
-                                  : 'border-border'
-                            )}
-                          >
-                            <div className="flex items-start justify-between">
-                              <div className="flex items-start gap-3">
+                return divisions.map((div) => {
+                  const isCollapsed = collapsedDivisions.has(div)
+                  return (
+                    <div key={div} className="mb-6">
+                      <button
+                        onClick={() =>
+                          setCollapsedDivisions((prev) => {
+                            const next = new Set(prev)
+                            if (next.has(div)) next.delete(div)
+                            else next.add(div)
+                            return next
+                          })
+                        }
+                        className="flex items-center gap-2 mb-3 sticky top-0 bg-surface py-2 z-10 w-full text-left hover:opacity-80 transition-opacity"
+                      >
+                        {isCollapsed ? (
+                          <ChevronRight size={14} className="text-muted flex-shrink-0" />
+                        ) : (
+                          <ChevronDown size={14} className="text-muted flex-shrink-0" />
+                        )}
+                        <div className="w-1 h-4 rounded-sm bg-navy flex-shrink-0" />
+                        <span className="font-cond text-[11px] font-black tracking-[.12em] text-blue-300 uppercase">
+                          {div}
+                        </span>
+                        <span className="font-cond text-[9px] text-muted">
+                          {teamRegs.filter((r) => r.division === div).length} team
+                          {teamRegs.filter((r) => r.division === div).length !== 1 ? 's' : ''}
+                        </span>
+                      </button>
+                      {isCollapsed ? null : (
+                        <div className="space-y-3">
+                          {teamRegs
+                            .filter((r) => r.division === div)
+                            .map((reg) => (
+                              <div
+                                key={reg.id}
+                                className={cn(
+                                  'bg-surface-card border rounded-xl p-4',
+                                  reg.status === 'approved'
+                                    ? 'border-green-700/50'
+                                    : reg.status === 'rejected'
+                                      ? 'border-red-700/50'
+                                      : 'border-border'
+                                )}
+                              >
+                                <div className="flex items-start justify-between">
+                                  <div className="flex items-start gap-3">
+                                    {(() => {
+                                      const matchedTeam = teams.find(
+                                        (t: any) =>
+                                          t.name.toLowerCase() === reg.team_name.toLowerCase()
+                                      )
+                                      const logoSrc =
+                                        matchedTeam?.logo_url || program?.logo_url || null
+                                      return logoSrc ? (
+                                        // eslint-disable-next-line @next/next/no-img-element
+                                        <img
+                                          src={logoSrc}
+                                          alt=""
+                                          className="w-9 h-9 rounded object-cover flex-shrink-0 mt-0.5"
+                                        />
+                                      ) : null
+                                    })()}
+                                    <div>
+                                      <div className="font-cond font-black text-[16px] text-white">
+                                        {reg.team_name}
+                                      </div>
+                                      <div className="font-cond text-[12px] text-blue-300 mb-2">
+                                        {reg.division}
+                                      </div>
+                                      {reg.head_coach_name && (
+                                        <div className="font-cond text-[11px] text-muted">
+                                          Coach: {reg.head_coach_name}
+                                          {reg.head_coach_email && ` · ${reg.head_coach_email}`}
+                                        </div>
+                                      )}
+                                      {reg.player_count && (
+                                        <div className="font-cond text-[11px] text-muted">
+                                          {reg.player_count} players expected
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-3">
+                                    {reg.status === 'approved' && reg.team_id && (
+                                      <button
+                                        onClick={() => {
+                                          setTab('rosters')
+                                          loadPlayers(reg.team_id!)
+                                        }}
+                                        className="font-cond text-[11px] font-bold text-blue-300 bg-navy/40 border border-border rounded px-3 py-1.5 hover:bg-navy transition-colors"
+                                      >
+                                        MANAGE ROSTER
+                                      </button>
+                                    )}
+                                    <span
+                                      className={cn(
+                                        'font-cond text-[10px] font-black px-2.5 py-1 rounded tracking-wider',
+                                        reg.status === 'approved'
+                                          ? 'bg-green-900/40 text-green-400'
+                                          : reg.status === 'rejected'
+                                            ? 'bg-red-900/40 text-red-400'
+                                            : reg.status === 'waitlist'
+                                              ? 'bg-orange-900/40 text-orange-400'
+                                              : 'bg-yellow-900/30 text-yellow-400'
+                                      )}
+                                    >
+                                      {reg.status.toUpperCase()}
+                                    </span>
+                                  </div>
+                                </div>
+                                {reg.status === 'rejected' && reg.notes && (
+                                  <div className="mt-2 text-[11px] text-red-300 font-cond bg-red-900/10 rounded px-3 py-2">
+                                    Note: {reg.notes}
+                                  </div>
+                                )}
+                                {/* Games with Request Change buttons */}
                                 {(() => {
                                   const matchedTeam = teams.find(
                                     (t: any) => t.name.toLowerCase() === reg.team_name.toLowerCase()
                                   )
-                                  const logoSrc = matchedTeam?.logo_url || program?.logo_url || null
-                                  return logoSrc ? (
-                                    // eslint-disable-next-line @next/next/no-img-element
-                                    <img
-                                      src={logoSrc}
-                                      alt=""
-                                      className="w-9 h-9 rounded object-cover flex-shrink-0 mt-0.5"
-                                    />
-                                  ) : null
-                                })()}
-                                <div>
-                                  <div className="font-cond font-black text-[16px] text-white">
-                                    {reg.team_name}
-                                  </div>
-                                  <div className="font-cond text-[12px] text-blue-300 mb-2">
-                                    {reg.division}
-                                  </div>
-                                  {reg.head_coach_name && (
-                                    <div className="font-cond text-[11px] text-muted">
-                                      Coach: {reg.head_coach_name}
-                                      {reg.head_coach_email && ` · ${reg.head_coach_email}`}
-                                    </div>
-                                  )}
-                                  {reg.player_count && (
-                                    <div className="font-cond text-[11px] text-muted">
-                                      {reg.player_count} players expected
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-3">
-                                {reg.status === 'approved' && reg.team_id && (
-                                  <button
-                                    onClick={() => {
-                                      setTab('rosters')
-                                      loadPlayers(reg.team_id!)
-                                    }}
-                                    className="font-cond text-[11px] font-bold text-blue-300 bg-navy/40 border border-border rounded px-3 py-1.5 hover:bg-navy transition-colors"
-                                  >
-                                    MANAGE ROSTER
-                                  </button>
-                                )}
-                                <span
-                                  className={cn(
-                                    'font-cond text-[10px] font-black px-2.5 py-1 rounded tracking-wider',
-                                    reg.status === 'approved'
-                                      ? 'bg-green-900/40 text-green-400'
-                                      : reg.status === 'rejected'
-                                        ? 'bg-red-900/40 text-red-400'
-                                        : reg.status === 'waitlist'
-                                          ? 'bg-orange-900/40 text-orange-400'
-                                          : 'bg-yellow-900/30 text-yellow-400'
-                                  )}
-                                >
-                                  {reg.status.toUpperCase()}
-                                </span>
-                              </div>
-                            </div>
-                            {reg.status === 'rejected' && reg.notes && (
-                              <div className="mt-2 text-[11px] text-red-300 font-cond bg-red-900/10 rounded px-3 py-2">
-                                Note: {reg.notes}
-                              </div>
-                            )}
-                            {/* Games with Request Change buttons */}
-                            {(() => {
-                              const matchedTeam = teams.find(
-                                (t: any) => t.name.toLowerCase() === reg.team_name.toLowerCase()
-                              )
-                              if (!matchedTeam) return null
-                              const teamGames = programGames.filter(
-                                (g) =>
-                                  g.home_team_id === matchedTeam.id ||
-                                  g.away_team_id === matchedTeam.id
-                              )
-                              if (teamGames.length === 0) return null
-                              return (
-                                <div className="mt-3 pt-3 border-t border-border/40">
-                                  <div className="font-cond text-[10px] font-black tracking-widest text-muted uppercase mb-2">
-                                    UPCOMING GAMES
-                                  </div>
-                                  <div className="space-y-1.5">
-                                    {teamGames.map((game) => {
-                                      const isPending = pendingGameIds.has(game.id)
-                                      const isCancelled = game.status === 'Cancelled'
-                                      const scrStatus = gameScrStatus.get(game.id)
-                                      const opponent =
-                                        game.home_team_id === matchedTeam.id
-                                          ? ((game.away_team as any)?.name ??
-                                            `Team #${game.away_team_id}`)
-                                          : ((game.home_team as any)?.name ??
-                                            `Team #${game.home_team_id}`)
-                                      return (
-                                        <div
-                                          key={game.id}
-                                          className={`flex items-center justify-between gap-2 rounded-lg px-2.5 py-2 bg-surface border border-border/40 ${isCancelled ? 'opacity-50' : ''}`}
-                                        >
-                                          <div className="flex items-center gap-2 flex-1 min-w-0">
-                                            <span
-                                              className={`font-mono text-[11px] text-muted whitespace-nowrap ${isCancelled ? 'line-through' : ''}`}
-                                            >
-                                              {(game.event_date as any)?.date
-                                                ? new Date(
-                                                    (game.event_date as any).date + 'T00:00:00'
-                                                  ).toLocaleDateString('en-US', {
-                                                    month: 'short',
-                                                    day: 'numeric',
-                                                  })
-                                                : ''}{' '}
-                                              {game.scheduled_time}
-                                            </span>
-                                            <span className="font-cond text-[12px] text-white font-black truncate">
-                                              vs {opponent}
-                                            </span>
-                                          </div>
-                                          {isPending && (
-                                            <span className="badge-request-pending font-cond text-[9px] font-black tracking-wider px-2 py-0.5 rounded">
-                                              REQUEST PENDING
-                                            </span>
-                                          )}
-                                          {!isPending && scrStatus === 'rescheduled' && (
-                                            <span className="badge-request-approved font-cond text-[9px] font-black tracking-wider px-2 py-0.5 rounded">
-                                              RESCHEDULED
-                                            </span>
-                                          )}
-                                          {!isPending && scrStatus === 'denied' && (
-                                            <span className="badge-request-denied font-cond text-[9px] font-black tracking-wider px-2 py-0.5 rounded">
-                                              DENIED
-                                            </span>
-                                          )}
-                                          {!isPending && scrStatus === 'cancelled' && (
-                                            <span className="badge-request-approved font-cond text-[9px] font-black tracking-wider px-2 py-0.5 rounded">
-                                              CANCELLED
-                                            </span>
-                                          )}
-                                          {!isCancelled && !isPending && (
-                                            <button
-                                              onClick={() => {
-                                                setScrTeamId(matchedTeam.id)
-                                                setScrPreSelectedGameId(game.id)
-                                                setScrModalOpen(true)
-                                              }}
-                                              className="flex items-center gap-1 font-cond text-[10px] font-bold tracking-wider text-muted hover:text-white border border-border rounded px-2 py-1 transition-colors"
-                                            >
-                                              <CalendarX size={11} />
-                                              REQUEST CHANGE
-                                            </button>
-                                          )}
-                                        </div>
+                                  if (!matchedTeam) return null
+                                  const allTeamGames = programGames.filter(
+                                    (g) =>
+                                      g.home_team_id === matchedTeam.id ||
+                                      g.away_team_id === matchedTeam.id
+                                  )
+                                  const teamGames = selectedDate
+                                    ? allTeamGames.filter(
+                                        (g) => (g.event_date as any)?.date === selectedDate
                                       )
-                                    })}
-                                  </div>
-                                </div>
-                              )
-                            })()}
-                          </div>
-                        ))}
+                                    : allTeamGames
+                                  if (teamGames.length === 0) return null
+                                  return (
+                                    <div className="mt-3 pt-3 border-t border-border/40">
+                                      <div className="font-cond text-[10px] font-black tracking-widest text-muted uppercase mb-2">
+                                        UPCOMING GAMES
+                                      </div>
+                                      <div className="space-y-1.5">
+                                        {teamGames.map((game) => {
+                                          const isPending = pendingGameIds.has(game.id)
+                                          const isCancelled = game.status === 'Cancelled'
+                                          const scrStatus = gameScrStatus.get(game.id)
+                                          const today = new Date().toISOString().split('T')[0]
+                                          const isPastGame =
+                                            !!(game.event_date as any)?.date &&
+                                            (game.event_date as any).date < today
+                                          const opponent =
+                                            game.home_team_id === matchedTeam.id
+                                              ? ((game.away_team as any)?.name ??
+                                                `Team #${game.away_team_id}`)
+                                              : ((game.home_team as any)?.name ??
+                                                `Team #${game.home_team_id}`)
+                                          return (
+                                            <div
+                                              key={game.id}
+                                              className={`flex items-center justify-between gap-2 rounded-lg px-2.5 py-2 bg-surface border border-border/40 ${isCancelled ? 'opacity-50' : ''}`}
+                                            >
+                                              <div className="flex items-center gap-2 flex-1 min-w-0">
+                                                <span
+                                                  className={`font-mono text-[11px] text-muted whitespace-nowrap ${isCancelled ? 'line-through' : ''}`}
+                                                >
+                                                  {(game.event_date as any)?.date
+                                                    ? new Date(
+                                                        (game.event_date as any).date + 'T00:00:00'
+                                                      ).toLocaleDateString('en-US', {
+                                                        month: 'short',
+                                                        day: 'numeric',
+                                                      })
+                                                    : ''}{' '}
+                                                  {game.scheduled_time}
+                                                </span>
+                                                <span className="font-cond text-[12px] text-white font-black truncate">
+                                                  vs {opponent}
+                                                </span>
+                                              </div>
+                                              {isPending && (
+                                                <span className="badge-request-pending font-cond text-[9px] font-black tracking-wider px-2 py-0.5 rounded">
+                                                  REQUEST PENDING
+                                                </span>
+                                              )}
+                                              {!isPending && scrStatus === 'rescheduled' && (
+                                                <span className="badge-request-approved font-cond text-[9px] font-black tracking-wider px-2 py-0.5 rounded">
+                                                  RESCHEDULED
+                                                </span>
+                                              )}
+                                              {!isPending && scrStatus === 'denied' && (
+                                                <span className="badge-request-denied font-cond text-[9px] font-black tracking-wider px-2 py-0.5 rounded">
+                                                  DENIED
+                                                </span>
+                                              )}
+                                              {!isPending && scrStatus === 'cancelled' && (
+                                                <span className="badge-request-approved font-cond text-[9px] font-black tracking-wider px-2 py-0.5 rounded">
+                                                  CANCELLED
+                                                </span>
+                                              )}
+                                              {!isCancelled && !isPending && !isPastGame && (
+                                                <button
+                                                  onClick={() => {
+                                                    setScrTeamId(matchedTeam.id)
+                                                    setScrPreSelectedGameId(game.id)
+                                                    setScrModalOpen(true)
+                                                  }}
+                                                  className="flex items-center gap-1 font-cond text-[10px] font-bold tracking-wider text-muted hover:text-white border border-border rounded px-2 py-1 transition-colors"
+                                                >
+                                                  <CalendarX size={11} />
+                                                  REQUEST CHANGE
+                                                </button>
+                                              )}
+                                            </div>
+                                          )
+                                        })}
+                                      </div>
+                                    </div>
+                                  )
+                                })()}
+                              </div>
+                            ))}
+                        </div>
+                      )}
                     </div>
-                  </div>
-                ))
+                  )
+                })
               })()
             )}
           </div>
@@ -1318,11 +1513,23 @@ function ProgramMatchupSection({
                                 </div>
                               ) : (
                                 <div
-                                  className="w-8 h-6 mx-auto rounded flex items-center justify-center font-mono text-[12px] font-bold"
-                                  style={{
-                                    background: `rgba(59, 130, 246, ${0.15 + intensity * 0.65})`,
-                                    color: intensity > 0.5 ? '#fff' : '#93c5fd',
-                                  }}
+                                  className="w-8 h-6 mx-auto rounded flex items-center justify-center font-mono text-[12px] font-bold text-white"
+                                  style={
+                                    (count ?? 0) >= 3
+                                      ? {
+                                          background: 'rgba(214,40,40,0.55)',
+                                          border: '1px solid rgba(214,40,40,0.8)',
+                                        }
+                                      : (count ?? 0) === 2
+                                        ? {
+                                            background: 'rgba(251,191,36,0.4)',
+                                            border: '1px solid rgba(251,191,36,0.7)',
+                                          }
+                                        : {
+                                            background: 'rgba(34,197,94,0.35)',
+                                            border: '1px solid rgba(34,197,94,0.6)',
+                                          }
+                                  }
                                 >
                                   {count}
                                 </div>
@@ -1337,22 +1544,43 @@ function ProgramMatchupSection({
               </table>
             </div>
             {/* Legend */}
-            <div className="flex items-center gap-4 mt-2">
+            <div className="flex items-center gap-4 mt-2 flex-wrap">
               <div className="flex items-center gap-1.5">
                 <span className="font-cond text-[9px] font-black text-red-400">★</span>
                 <span className="font-cond text-[9px] text-muted">Your team</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <div className="w-4 h-3 rounded" style={{ background: 'rgba(59,130,246,0.5)' }} />
-                <span className="font-cond text-[9px] text-muted">Games played</span>
+                <div
+                  className="w-4 h-3 rounded"
+                  style={{
+                    background: 'rgba(34,197,94,0.35)',
+                    border: '1px solid rgba(34,197,94,0.6)',
+                  }}
+                />
+                <span className="font-cond text-[9px] text-muted">1 game</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <div
-                  className="w-4 h-3 rounded font-cond text-[9px] text-[#2a3d5a] font-black flex items-center justify-center"
-                  style={{ background: '#030c1a' }}
-                >
-                  —
-                </div>
+                  className="w-4 h-3 rounded"
+                  style={{
+                    background: 'rgba(251,191,36,0.4)',
+                    border: '1px solid rgba(251,191,36,0.7)',
+                  }}
+                />
+                <span className="font-cond text-[9px] text-muted">2 games</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div
+                  className="w-4 h-3 rounded"
+                  style={{
+                    background: 'rgba(214,40,40,0.55)',
+                    border: '1px solid rgba(214,40,40,0.8)',
+                  }}
+                />
+                <span className="font-cond text-[9px] text-muted">3+ games</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="font-cond text-[9px] text-[#2a3d5a] font-black">—</span>
                 <span className="font-cond text-[9px] text-muted">Not yet played</span>
               </div>
             </div>
