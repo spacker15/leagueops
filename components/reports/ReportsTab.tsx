@@ -921,48 +921,60 @@ function RefScheduleView({
         ))}
       </div>
 
-      {/* ── Ref Demand Summary by Hour/Division ── */}
+      {/* ── Ref Demand Summary: Time (rows) × Division (columns) ── */}
       {(() => {
-        // Build rows: group by time + division, sum refs needed
-        type DemandRow = {
-          time: string
-          division: string
-          games: number
-          adultNeed: number
-          youthNeed: number
-          totalNeed: number
-        }
-        const demandMap = new Map<string, DemandRow>()
+        type DemandCell = { games: number; adultNeed: number; youthNeed: number }
+        const demandMap = new Map<string, DemandCell>()
+        const divSet = new Set<string>()
+        const timeSet = new Set<string>()
+
         for (const g of filteredGames) {
           const timeKey = g.scheduled_time ?? ''
           const key = `${timeKey}|${g.division}`
-          const existing = demandMap.get(key)
+          divSet.add(g.division)
+          timeSet.add(timeKey)
           const exp = getExpected(g.division, refRules)
+          const existing = demandMap.get(key)
           if (existing) {
             existing.games += 1
             existing.adultNeed += exp.adult
             existing.youthNeed += exp.youth
-            existing.totalNeed += exp.adult + exp.youth
           } else {
-            demandMap.set(key, {
-              time: timeKey,
-              division: g.division,
-              games: 1,
-              adultNeed: exp.adult,
-              youthNeed: exp.youth,
-              totalNeed: exp.adult + exp.youth,
-            })
+            demandMap.set(key, { games: 1, adultNeed: exp.adult, youthNeed: exp.youth })
           }
         }
-        const demandRows = [...demandMap.values()].sort(
-          (a, b) => timeToMin(a.time) - timeToMin(b.time) || a.division.localeCompare(b.division)
-        )
-        const totGames = demandRows.reduce((s, r) => s + r.games, 0)
-        const totAdult = demandRows.reduce((s, r) => s + r.adultNeed, 0)
-        const totYouth = demandRows.reduce((s, r) => s + r.youthNeed, 0)
-        const totRefs = demandRows.reduce((s, r) => s + r.totalNeed, 0)
 
-        if (demandRows.length === 0) return null
+        const demandTimes = [...timeSet].sort((a, b) => timeToMin(a) - timeToMin(b))
+        const demandDivs = [...divSet].sort()
+
+        if (demandTimes.length === 0) return null
+
+        // Column totals
+        const divTotals = Object.fromEntries(
+          demandDivs.map((d) => {
+            let adult = 0,
+              youth = 0,
+              games = 0
+            for (const t of demandTimes) {
+              const cell = demandMap.get(`${t}|${d}`)
+              if (cell) {
+                adult += cell.adultNeed
+                youth += cell.youthNeed
+                games += cell.games
+              }
+            }
+            return [d, { adult, youth, games }]
+          })
+        )
+        const grandTotal = demandDivs.reduce(
+          (acc, d) => ({
+            adult: acc.adult + divTotals[d].adult,
+            youth: acc.youth + divTotals[d].youth,
+            games: acc.games + divTotals[d].games,
+          }),
+          { adult: 0, youth: 0, games: 0 }
+        )
+
         return (
           <div>
             <div className="flex items-center gap-2 mb-2">
@@ -971,58 +983,113 @@ function RefScheduleView({
                 Referee Demand Summary
               </span>
             </div>
-            <div className="rounded-lg overflow-hidden border border-[#1a2d50]">
-              <table className="w-full">
+            <div className="rounded-lg overflow-auto border border-[#1a2d50]">
+              <table className="w-full border-collapse" style={{ minWidth: 'max-content' }}>
                 <thead>
                   <tr style={{ background: '#081428' }}>
                     <Th>Time</Th>
-                    <Th>Division</Th>
-                    <Th align="center">Games</Th>
-                    <Th align="center">
-                      <span style={{ color: '#60a5fa' }}>Adult Refs</span>
-                    </Th>
-                    <Th align="center">
-                      <span style={{ color: '#34d399' }}>Youth Refs</span>
-                    </Th>
-                    <Th align="center">Total Refs</Th>
+                    {demandDivs.map((div) => (
+                      <th key={div} className="px-3 py-2 border-b border-[#1a2d50] text-center">
+                        <span className="font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase">
+                          {div}
+                        </span>
+                      </th>
+                    ))}
+                    <th className="px-3 py-2 border-b border-[#1a2d50] text-center border-l border-[#1a2d50]">
+                      <span className="font-cond text-[10px] font-black tracking-[.12em] text-white uppercase">
+                        Total
+                      </span>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {demandRows.map((row, i) => (
-                    <tr
-                      key={`${row.time}-${row.division}`}
-                      style={{ background: i % 2 === 0 ? '#050f20' : '#030c1a' }}
-                    >
-                      <Td>
-                        <span className="font-mono text-[12px] font-bold text-white">
-                          {formatTime(row.time)}
-                        </span>
-                      </Td>
-                      <Td>
-                        <span className="font-cond text-[11px] font-bold text-white">
-                          {row.division}
-                        </span>
-                      </Td>
-                      <Td align="center">
-                        <span className="font-mono text-[12px] text-[#8a9ec0]">{row.games}</span>
-                      </Td>
-                      <Td align="center">
-                        <span className="font-mono text-[12px] text-[#60a5fa]">
-                          {row.adultNeed}
-                        </span>
-                      </Td>
-                      <Td align="center">
-                        <span className="font-mono text-[12px] text-[#34d399]">
-                          {row.youthNeed}
-                        </span>
-                      </Td>
-                      <Td align="center">
-                        <span className="font-mono text-[13px] font-bold text-white">
-                          {row.totalNeed}
-                        </span>
-                      </Td>
-                    </tr>
-                  ))}
+                  {demandTimes.map((timeStr, i) => {
+                    const rowTotal = demandDivs.reduce(
+                      (acc, d) => {
+                        const cell = demandMap.get(`${timeStr}|${d}`)
+                        return {
+                          adult: acc.adult + (cell?.adultNeed ?? 0),
+                          youth: acc.youth + (cell?.youthNeed ?? 0),
+                          games: acc.games + (cell?.games ?? 0),
+                        }
+                      },
+                      { adult: 0, youth: 0, games: 0 }
+                    )
+                    return (
+                      <tr key={timeStr} style={{ background: i % 2 === 0 ? '#050f20' : '#030c1a' }}>
+                        <Td>
+                          <span className="font-mono text-[12px] font-bold text-white">
+                            {formatTime(timeStr)}
+                          </span>
+                        </Td>
+                        {demandDivs.map((div) => {
+                          const cell = demandMap.get(`${timeStr}|${div}`)
+                          if (!cell) {
+                            return (
+                              <td
+                                key={div}
+                                className="px-2 py-2 text-center border-l border-[#0d1e3a]"
+                              >
+                                <span className="font-mono text-[10px] text-[#1a2d50]">—</span>
+                              </td>
+                            )
+                          }
+                          return (
+                            <td
+                              key={div}
+                              className="px-2 py-1.5 text-center border-l border-[#0d1e3a]"
+                            >
+                              <div className="flex items-center justify-center gap-2">
+                                <span
+                                  className="font-mono text-[12px] font-bold text-[#60a5fa]"
+                                  title={`Adult refs needed`}
+                                >
+                                  {cell.adultNeed}
+                                  <span className="font-cond text-[8px] ml-0.5 text-[#60a5fa]/50">
+                                    A
+                                  </span>
+                                </span>
+                                <span
+                                  className="font-mono text-[12px] font-bold text-[#34d399]"
+                                  title={`Youth refs needed`}
+                                >
+                                  {cell.youthNeed}
+                                  <span className="font-cond text-[8px] ml-0.5 text-[#34d399]/50">
+                                    Y
+                                  </span>
+                                </span>
+                              </div>
+                              <div className="font-cond text-[8px] text-muted mt-0.5">
+                                {cell.games}g
+                              </div>
+                            </td>
+                          )
+                        })}
+                        <td
+                          className="px-2 py-1.5 text-center border-l border-[#1a2d50]"
+                          style={{ background: 'rgba(11,61,145,0.15)' }}
+                        >
+                          <div className="flex items-center justify-center gap-2">
+                            <span className="font-mono text-[12px] font-bold text-[#60a5fa]">
+                              {rowTotal.adult}
+                              <span className="font-cond text-[8px] ml-0.5 text-[#60a5fa]/50">
+                                A
+                              </span>
+                            </span>
+                            <span className="font-mono text-[12px] font-bold text-[#34d399]">
+                              {rowTotal.youth}
+                              <span className="font-cond text-[8px] ml-0.5 text-[#34d399]/50">
+                                Y
+                              </span>
+                            </span>
+                          </div>
+                          <div className="font-cond text-[8px] text-muted mt-0.5">
+                            {rowTotal.games}g
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
                   {/* Totals row */}
                   <tr style={{ background: '#081428', borderTop: '2px solid #1a2d50' }}>
                     <Td>
@@ -1030,23 +1097,41 @@ function RefScheduleView({
                         Total
                       </span>
                     </Td>
-                    <Td />
-                    <Td align="center">
-                      <span className="font-mono text-[13px] font-bold text-white">{totGames}</span>
-                    </Td>
-                    <Td align="center">
-                      <span className="font-mono text-[13px] font-bold text-[#60a5fa]">
-                        {totAdult}
-                      </span>
-                    </Td>
-                    <Td align="center">
-                      <span className="font-mono text-[13px] font-bold text-[#34d399]">
-                        {totYouth}
-                      </span>
-                    </Td>
-                    <Td align="center">
-                      <span className="font-mono text-[14px] font-bold text-white">{totRefs}</span>
-                    </Td>
+                    {demandDivs.map((div) => (
+                      <td key={div} className="px-2 py-1.5 text-center border-l border-[#0d1e3a]">
+                        <div className="flex items-center justify-center gap-2">
+                          <span className="font-mono text-[12px] font-bold text-[#60a5fa]">
+                            {divTotals[div].adult}
+                            <span className="font-cond text-[8px] ml-0.5 text-[#60a5fa]/50">A</span>
+                          </span>
+                          <span className="font-mono text-[12px] font-bold text-[#34d399]">
+                            {divTotals[div].youth}
+                            <span className="font-cond text-[8px] ml-0.5 text-[#34d399]/50">Y</span>
+                          </span>
+                        </div>
+                        <div className="font-cond text-[8px] text-muted mt-0.5">
+                          {divTotals[div].games}g
+                        </div>
+                      </td>
+                    ))}
+                    <td
+                      className="px-2 py-1.5 text-center border-l border-[#1a2d50]"
+                      style={{ background: 'rgba(11,61,145,0.2)' }}
+                    >
+                      <div className="flex items-center justify-center gap-2">
+                        <span className="font-mono text-[13px] font-bold text-[#60a5fa]">
+                          {grandTotal.adult}
+                          <span className="font-cond text-[8px] ml-0.5 text-[#60a5fa]/50">A</span>
+                        </span>
+                        <span className="font-mono text-[13px] font-bold text-[#34d399]">
+                          {grandTotal.youth}
+                          <span className="font-cond text-[8px] ml-0.5 text-[#34d399]/50">Y</span>
+                        </span>
+                      </div>
+                      <div className="font-cond text-[8px] text-muted mt-0.5">
+                        {grandTotal.games}g
+                      </div>
+                    </td>
                   </tr>
                 </tbody>
               </table>
