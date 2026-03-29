@@ -158,7 +158,7 @@ export async function getTeams(eventId: number): Promise<Team[]> {
   const sb = createClient()
   const { data } = await sb
     .from('teams')
-    .select('*, programs(name)')
+    .select('*, programs(name, logo_url)')
     .eq('event_id', eventId)
     .order('division')
   return data ?? []

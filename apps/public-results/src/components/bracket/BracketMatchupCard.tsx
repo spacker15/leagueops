@@ -1,6 +1,15 @@
 'use client'
 import type { BracketMatchup } from '@/lib/data'
 
+function teamLogo(
+  team:
+    | { logo_url?: string | null; programs?: { logo_url?: string | null } | null }
+    | null
+    | undefined
+): string | null {
+  return team?.logo_url ?? team?.programs?.logo_url ?? null
+}
+
 interface Props {
   matchup: BracketMatchup
   liveGameIds: Set<number>
@@ -49,9 +58,13 @@ export function BracketMatchupCard({ matchup, liveGameIds, liveScores, flashingI
               #{matchup.seed_top}
             </span>
           )}
-          {teamTop?.logo_url && (
+          {teamLogo(teamTop) && (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={teamTop.logo_url} alt="" className="w-4 h-4 rounded object-cover shrink-0" />
+            <img
+              src={teamLogo(teamTop)!}
+              alt=""
+              className="w-4 h-4 rounded object-cover shrink-0"
+            />
           )}
           <span
             className={`font-cond text-[12px] font-bold truncate ${teamTop ? 'text-white' : 'text-[#5a6e9a]'}`}
@@ -80,10 +93,10 @@ export function BracketMatchupCard({ matchup, liveGameIds, liveScores, flashingI
               #{matchup.seed_bottom}
             </span>
           )}
-          {teamBottom?.logo_url && (
+          {teamLogo(teamBottom) && (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={teamBottom.logo_url}
+              src={teamLogo(teamBottom)!}
               alt=""
               className="w-4 h-4 rounded object-cover shrink-0"
             />

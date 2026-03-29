@@ -2,6 +2,15 @@
 import type { PublicGame } from '@/lib/data'
 import { groupBy } from '@/lib/utils'
 
+function teamLogo(
+  team:
+    | { logo_url?: string | null; programs?: { logo_url?: string | null } | null }
+    | null
+    | undefined
+): string | null {
+  return team?.logo_url ?? team?.programs?.logo_url ?? null
+}
+
 interface Props {
   games: PublicGame[]
 }
@@ -74,10 +83,10 @@ export function ByTimeView({ games }: Props) {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                          {game.home_team?.logo_url && (
+                          {teamLogo(game.home_team) && (
                             // eslint-disable-next-line @next/next/no-img-element
                             <img
-                              src={game.home_team.logo_url}
+                              src={teamLogo(game.home_team)!}
                               alt=""
                               className="w-5 h-5 rounded object-cover shrink-0"
                             />
@@ -94,10 +103,10 @@ export function ByTimeView({ games }: Props) {
                       </div>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                          {game.away_team?.logo_url && (
+                          {teamLogo(game.away_team) && (
                             // eslint-disable-next-line @next/next/no-img-element
                             <img
-                              src={game.away_team.logo_url}
+                              src={teamLogo(game.away_team)!}
                               alt=""
                               className="w-5 h-5 rounded object-cover shrink-0"
                             />

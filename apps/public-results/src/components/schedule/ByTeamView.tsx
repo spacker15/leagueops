@@ -3,6 +3,15 @@ import Link from 'next/link'
 import type { PublicGame, PublicTeam } from '@/lib/data'
 import { TeamSearchInput } from './TeamSearchInput'
 
+function teamLogo(
+  team:
+    | { logo_url?: string | null; programs?: { logo_url?: string | null } | null }
+    | null
+    | undefined
+): string | null {
+  return team?.logo_url ?? team?.programs?.logo_url ?? null
+}
+
 interface Props {
   games: PublicGame[]
   teams: PublicTeam[]
@@ -31,10 +40,10 @@ function GameRow({ game }: { game: PublicGame }) {
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5 min-w-0 flex-1">
-            {game.home_team?.logo_url && (
+            {teamLogo(game.home_team) && (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={game.home_team.logo_url}
+                src={teamLogo(game.home_team)!}
                 alt=""
                 className="w-5 h-5 rounded object-cover shrink-0"
               />
@@ -49,10 +58,10 @@ function GameRow({ game }: { game: PublicGame }) {
         </div>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5 min-w-0 flex-1">
-            {game.away_team?.logo_url && (
+            {teamLogo(game.away_team) && (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={game.away_team.logo_url}
+                src={teamLogo(game.away_team)!}
                 alt=""
                 className="w-5 h-5 rounded object-cover shrink-0"
               />
@@ -102,9 +111,9 @@ export function ByTeamView({ games, teams, slug, activeDay, divFilter, teamId }:
         {/* Team name header */}
         {team && (
           <div className="flex items-center gap-2 mb-3">
-            {team.logo_url && (
+            {teamLogo(team) && (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={team.logo_url} alt="" className="w-7 h-7 rounded object-cover" />
+              <img src={teamLogo(team)!} alt="" className="w-7 h-7 rounded object-cover" />
             )}
             <div className="font-cond text-[14px] font-bold text-white">{team.name}</div>
           </div>

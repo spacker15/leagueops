@@ -27,7 +27,9 @@ export function DashboardTab() {
   const [selectedGame, setSelectedGame] = useState<Game | null>(null)
 
   // Logo lookup from state.teams (always current, even after uploads)
-  const teamLogoMap = Object.fromEntries((state.teams ?? []).map((t) => [t.id, t.logo_url ?? null]))
+  const teamLogoMap = Object.fromEntries(
+    (state.teams ?? []).map((t) => [t.id, t.logo_url ?? (t as any).programs?.logo_url ?? null])
+  )
   const [homeScore, setHomeScore] = useState(0)
   const [awayScore, setAwayScore] = useState(0)
   // Use latest weather reading from auto-poll (store)

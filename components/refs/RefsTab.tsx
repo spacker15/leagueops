@@ -353,7 +353,9 @@ export function RefsTab() {
     changeDate,
     eventId,
   } = useApp()
-  const teamLogoMap = Object.fromEntries((state.teams ?? []).map((t) => [t.id, t.logo_url ?? null]))
+  const teamLogoMap = Object.fromEntries(
+    (state.teams ?? []).map((t) => [t.id, t.logo_url ?? (t as any).programs?.logo_url ?? null])
+  )
   const [subTab, setSubTab] = useState<SubTab>('board')
   const [assignments, setAssignments] = useState<Assignment[]>([])
   const [blockAssignments, setBlockAssignments] = useState<BlockAssignment[]>([])
