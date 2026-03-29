@@ -491,6 +491,14 @@ export function VolunteerPortal() {
                     )}
                   >
                     {d.label}
+                    <span
+                      className={cn(
+                        'ml-1 font-normal normal-case tracking-normal',
+                        selectedDateId === d.id ? 'text-red-200' : 'text-muted'
+                      )}
+                    >
+                      {format(new Date(d.date + 'T12:00:00'), 'M/d')}
+                    </span>
                   </button>
                 ))}
               </div>

@@ -11,6 +11,7 @@ import { format } from 'date-fns'
 type PortalTab = 'checkin' | 'games' | 'approvals'
 
 const REF_POSITIONS = ['Lead', 'Wing 1', 'Wing 2']
+const VOL_POSITIONS = ['Line Judge', 'Timekeeper', 'Ball Retriever', 'Gate', 'General']
 
 const STATUS_ACTIONS: Record<string, { label: string; next: string; color: string }[]> = {
   Scheduled: [{ label: 'START GAME', next: 'Live', color: 'bg-green-700 hover:bg-green-600' }],
@@ -57,6 +58,12 @@ interface RefSlot {
   referee?: { name: string }
 }
 
+interface VolSlot {
+  role: string
+  volunteer_id: number
+  volunteer?: { name: string }
+}
+
 function timeToMin(t: string): number {
   const m = t.match(/(\d+):(\d+)\s*(AM|PM)/i)
   if (!m) return 0
@@ -86,6 +93,7 @@ export function RefereePortal() {
   const [selectedFieldId, setSelectedFieldId] = useState<number | null>(null)
   const [selectedGame, setSelectedGame] = useState<GameSummary | null>(null)
   const [gameSlots, setGameSlots] = useState<RefSlot[]>([])
+  const [volSlots, setVolSlots] = useState<VolSlot[]>([])
   const [slotLoading, setSlotLoading] = useState(false)
 
   const [homePlayers, setHomePlayers] = useState<any[]>([])
@@ -161,28 +169,35 @@ export function RefereePortal() {
     setSelectedGame(game)
     setSlotLoading(true)
     setGameSlots([])
+    setVolSlots([])
     setHomePlayers([])
     setAwayPlayers([])
     setCheckins([])
     const sb = createClient()
-    const [{ data: slots }, { data: home }, { data: away }, { data: ci }] = await Promise.all([
-      sb
-        .from('ref_assignments')
-        .select(`role, referee_id, referee:referees(name)`)
-        .eq('game_id', game.id),
-      sb
-        .from('players')
-        .select('id, name, number, position, usa_lacrosse_number')
-        .eq('team_id', game.home_team.id)
-        .order('name'),
-      sb
-        .from('players')
-        .select('id, name, number, position, usa_lacrosse_number')
-        .eq('team_id', game.away_team.id)
-        .order('name'),
-      sb.from('player_checkins').select('player_id').eq('game_id', game.id),
-    ])
+    const [{ data: slots }, { data: vols }, { data: home }, { data: away }, { data: ci }] =
+      await Promise.all([
+        sb
+          .from('ref_assignments')
+          .select(`role, referee_id, referee:referees(name)`)
+          .eq('game_id', game.id),
+        sb
+          .from('vol_assignments')
+          .select(`role, volunteer_id, volunteer:volunteers(name)`)
+          .eq('game_id', game.id),
+        sb
+          .from('players')
+          .select('id, name, number, position, usa_lacrosse_number')
+          .eq('team_id', game.home_team.id)
+          .order('name'),
+        sb
+          .from('players')
+          .select('id, name, number, position, usa_lacrosse_number')
+          .eq('team_id', game.away_team.id)
+          .order('name'),
+        sb.from('player_checkins').select('player_id').eq('game_id', game.id),
+      ])
     setGameSlots((slots ?? []) as unknown as RefSlot[])
+    setVolSlots((vols ?? []) as unknown as VolSlot[])
     setHomePlayers(home ?? [])
     setAwayPlayers(away ?? [])
     setCheckins((ci ?? []).map((c: any) => c.player_id))
@@ -226,6 +241,36 @@ export function RefereePortal() {
         return next
       })
     }
+    loadGameDetail(selectedGame)
+  }
+
+  async function takeVolPosition(role: string) {
+    if (!selectedGame || !userRole?.referee_id) return
+    const sb = createClient()
+    const { error } = await sb.from('vol_assignments').insert({
+      game_id: selectedGame.id,
+      referee_id: userRole.referee_id,
+      volunteer_id: null,
+      role,
+    })
+    if (error) {
+      toast.error(error.message)
+      return
+    }
+    toast.success(`Assigned as ${role}`)
+    loadGameDetail(selectedGame)
+  }
+
+  async function dropVolPosition(role: string) {
+    if (!selectedGame || !userRole?.referee_id) return
+    const sb = createClient()
+    await sb
+      .from('vol_assignments')
+      .delete()
+      .eq('game_id', selectedGame.id)
+      .eq('referee_id', userRole.referee_id)
+      .eq('role', role)
+    toast('Dropped position', { icon: '↩' })
     loadGameDetail(selectedGame)
   }
 
@@ -491,6 +536,14 @@ export function RefereePortal() {
                     )}
                   >
                     {d.label}
+                    <span
+                      className={cn(
+                        'ml-1 font-normal normal-case tracking-normal',
+                        selectedDateId === d.id ? 'text-red-200' : 'text-muted'
+                      )}
+                    >
+                      {format(new Date(d.date + 'T12:00:00'), 'M/d')}
+                    </span>
                   </button>
                 ))}
               </div>
@@ -724,6 +777,66 @@ export function RefereePortal() {
                                 <button
                                   onClick={() => takePosition(pos)}
                                   className="font-cond text-[10px] font-bold text-green-400 px-2 py-1 rounded border border-green-700/50 bg-green-900/20 hover:bg-green-800/40 transition-colors"
+                                >
+                                  TAKE
+                                </button>
+                              ) : null}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Volunteer positions */}
+                    <div className="bg-surface-card border border-border rounded-xl p-4 mb-4">
+                      <div className="font-cond text-[10px] font-black tracking-widest text-muted uppercase mb-3">
+                        VOLUNTEER POSITIONS
+                      </div>
+                      <div className="space-y-2">
+                        {VOL_POSITIONS.map((pos) => {
+                          const slot = volSlots.find((s) => s.role === pos)
+                          const isMe =
+                            (slot as any)?.referee_id === userRole?.referee_id &&
+                            !slot?.volunteer_id
+                          const isEmpty = !slot
+                          return (
+                            <div
+                              key={pos}
+                              className={cn(
+                                'flex items-center justify-between rounded-lg px-3 py-2.5 border',
+                                isMe
+                                  ? 'bg-green-900/20 border-green-700/50'
+                                  : isEmpty
+                                    ? 'bg-surface border-border/50'
+                                    : 'bg-navy/20 border-border/50'
+                              )}
+                            >
+                              <div>
+                                <span className="font-cond text-[11px] font-black text-muted uppercase tracking-wide">
+                                  {pos}
+                                </span>
+                                {slot && (
+                                  <span className="font-cond text-[12px] font-bold text-white ml-2">
+                                    {isMe ? '(You)' : ((slot.volunteer as any)?.name ?? 'Assigned')}
+                                  </span>
+                                )}
+                                {isEmpty && (
+                                  <span className="font-cond text-[12px] text-muted ml-2">
+                                    — OPEN
+                                  </span>
+                                )}
+                              </div>
+                              {isMe ? (
+                                <button
+                                  onClick={() => dropVolPosition(pos)}
+                                  className="font-cond text-[10px] font-bold text-red-400 hover:text-red-300 px-2 py-1 rounded border border-red-800/50 hover:bg-red-900/20 transition-colors"
+                                >
+                                  DROP
+                                </button>
+                              ) : isEmpty ? (
+                                <button
+                                  onClick={() => takeVolPosition(pos)}
+                                  className="font-cond text-[10px] font-bold text-blue-400 px-2 py-1 rounded border border-blue-700/50 bg-blue-900/20 hover:bg-blue-800/40 transition-colors"
                                 >
                                   TAKE
                                 </button>
