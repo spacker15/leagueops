@@ -29,7 +29,6 @@ const TEST_ACCOUNTS = [
     role: 'volunteer',
     display_name: 'Test Volunteer',
     event_id: 11,
-    volunteer_id: null,
   },
   {
     email: 'program@test.leagueops.dev',
@@ -97,13 +96,42 @@ export async function POST() {
         .maybeSingle()
 
       if (!existingRole) {
+        // For volunteer role, ensure a volunteers row exists and get its id
+        let volunteerId: number | null = (account as any).volunteer_id ?? null
+        if (account.role === 'volunteer') {
+          const { data: existingVol } = await adminSb
+            .from('volunteers')
+            .select('id')
+            .eq('event_id', account.event_id)
+            .eq('name', account.display_name)
+            .maybeSingle()
+          if (existingVol) {
+            volunteerId = existingVol.id
+          } else {
+            const { data: newVol, error: volError } = await adminSb
+              .from('volunteers')
+              .insert({
+                event_id: account.event_id,
+                name: account.display_name,
+                role: 'Operations',
+              })
+              .select('id')
+              .single()
+            if (volError) {
+              results.push({ email: account.email, status: `volunteer error: ${volError.message}` })
+              continue
+            }
+            volunteerId = newVol.id
+          }
+        }
+
         const { error: roleError } = await adminSb.from('user_roles').insert({
           user_id: userId,
           role: account.role,
           display_name: account.display_name,
           event_id: account.event_id,
           referee_id: (account as any).referee_id ?? null,
-          volunteer_id: (account as any).volunteer_id ?? null,
+          volunteer_id: volunteerId,
           team_id: (account as any).team_id ?? null,
           is_active: true,
         })

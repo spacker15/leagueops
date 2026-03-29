@@ -98,9 +98,32 @@ export function VolunteerPortal() {
   const [checkins, setCheckins] = useState<number[]>([])
 
   useEffect(() => {
-    if (!portalEventId || !userRole?.volunteer_id) return
+    if (!portalEventId) return
+    if (!userRole?.volunteer_id) {
+      // Auto-create volunteer record for users who don't have one yet
+      createVolunteerRecord()
+      return
+    }
     loadData()
   }, [userRole])
+
+  async function createVolunteerRecord() {
+    if (!portalEventId || !userRole?.id) return
+    const sb = createClient()
+    const name = userRole.display_name ?? 'Volunteer'
+    const { data: newVol, error } = await sb
+      .from('volunteers')
+      .insert({ event_id: portalEventId, name, role: 'Operations' })
+      .select('id')
+      .single()
+    if (error || !newVol) {
+      toast.error('Could not create volunteer record')
+      return
+    }
+    await sb.from('user_roles').update({ volunteer_id: newVol.id }).eq('id', userRole.id)
+    // Reload the page so auth context re-reads the updated role
+    window.location.reload()
+  }
 
   async function loadData() {
     const sb = createClient()

@@ -120,6 +120,7 @@ export function RefereePortal() {
       { data: gamesData },
       { data: fieldsData },
       { data: myAssignData },
+      { data: myVolAssignData },
       { data: eventDates },
     ] = await Promise.all([
       sb.from('referees').select('*').eq('id', userRole!.referee_id!).single(),
@@ -135,6 +136,7 @@ export function RefereePortal() {
         .neq('status', 'Cancelled'),
       sb.from('fields').select('id, name').eq('event_id', portalEventId!).order('name'),
       sb.from('ref_assignments').select('game_id, role').eq('referee_id', userRole!.referee_id!),
+      sb.from('vol_assignments').select('game_id, role').eq('referee_id', userRole!.referee_id!),
       sb
         .from('event_dates')
         .select('id, date, label, day_number')
@@ -149,9 +151,10 @@ export function RefereePortal() {
     )
     setAllGames(games)
     setFields((fieldsData ?? []) as Field[])
-    setMyAssignedGameIds(new Set((myAssignData ?? []).map((a: any) => a.game_id)))
+    const allMyAssign = [...(myAssignData ?? []), ...(myVolAssignData ?? [])]
+    setMyAssignedGameIds(new Set(allMyAssign.map((a: any) => a.game_id)))
     const rolesMap = new Map<number, string[]>()
-    for (const a of myAssignData ?? []) {
+    for (const a of allMyAssign) {
       const existing = rolesMap.get(a.game_id) ?? []
       rolesMap.set(a.game_id, [...existing, a.role])
     }
@@ -285,6 +288,13 @@ export function RefereePortal() {
       }
     }
     setMyAssignedGameIds((prev) => new Set([...prev, ...bulkSelected]))
+    setMyAssignmentRoles((prev) => {
+      const next = new Map(prev)
+      for (const gameId of bulkSelected) {
+        next.set(gameId, [...(next.get(gameId) ?? []), bulkPosition])
+      }
+      return next
+    })
     setBulkSelected(new Set())
     setBulkMode(false)
     setBulkAssigning(false)
@@ -305,6 +315,12 @@ export function RefereePortal() {
       return
     }
     toast.success(`Assigned as ${role}`)
+    setMyAssignedGameIds((prev) => new Set([...prev, selectedGame.id]))
+    setMyAssignmentRoles((prev) => {
+      const next = new Map(prev)
+      next.set(selectedGame.id, [...(next.get(selectedGame.id) ?? []), role])
+      return next
+    })
     loadGameDetail(selectedGame)
   }
 
@@ -318,6 +334,21 @@ export function RefereePortal() {
       .eq('referee_id', userRole.referee_id)
       .eq('role', role)
     toast('Dropped position', { icon: '↩' })
+    setMyAssignmentRoles((prev) => {
+      const next = new Map(prev)
+      const remaining = (next.get(selectedGame.id) ?? []).filter((r) => r !== role)
+      if (remaining.length === 0) {
+        next.delete(selectedGame.id)
+        setMyAssignedGameIds((ids) => {
+          const s = new Set(ids)
+          s.delete(selectedGame.id)
+          return s
+        })
+      } else {
+        next.set(selectedGame.id, remaining)
+      }
+      return next
+    })
     loadGameDetail(selectedGame)
   }
 
