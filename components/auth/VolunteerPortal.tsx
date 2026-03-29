@@ -31,8 +31,15 @@ interface Field {
   name: string
 }
 
+interface EventDate {
+  id: number
+  date: string
+  label: string
+}
+
 interface GameSummary {
   id: number
+  event_date_id: number
   scheduled_time: string
   division: string
   status: string
@@ -73,6 +80,8 @@ export function VolunteerPortal() {
   const [allGames, setAllGames] = useState<GameSummary[]>([])
   const [fields, setFields] = useState<Field[]>([])
   const [myAssignedGameIds, setMyAssignedGameIds] = useState<Set<number>>(new Set())
+  const [eventDates, setEventDates] = useState<EventDate[]>([])
+  const [selectedDateId, setSelectedDateId] = useState<number | null>(null)
 
   const [selectedFieldId, setSelectedFieldId] = useState<number | null>(null)
   const [selectedGame, setSelectedGame] = useState<GameSummary | null>(null)
@@ -102,7 +111,7 @@ export function VolunteerPortal() {
       sb
         .from('games')
         .select(
-          `id, scheduled_time, division, status, home_score, away_score, field_id,
+          `id, event_date_id, scheduled_time, division, status, home_score, away_score, field_id,
            field:fields(id, name),
            home_team:teams!games_home_team_id_fkey(id, name),
            away_team:teams!games_away_team_id_fkey(id, name)`
@@ -127,19 +136,23 @@ export function VolunteerPortal() {
     setFields((fieldsData ?? []) as Field[])
     setMyAssignedGameIds(new Set((myAssignData ?? []).map((a: any) => a.game_id)))
 
+    const dates = (eventDates ?? []) as EventDate[]
+    setEventDates(dates)
+
     const today = new Date().toISOString().split('T')[0]
-    const todayDate = (eventDates ?? []).find((d: any) => d.date === today)
+    const todayDate = dates.find((d) => d.date === today)
+    const upcomingDate = dates.find((d) => d.date >= today)
+    const defaultDate = todayDate ?? upcomingDate ?? null
+    if (defaultDate) setSelectedDateId(defaultDate.id)
+
     if (todayDate) {
       setTodayLabel(
         `${todayDate.label} — ${format(new Date(todayDate.date + 'T12:00:00'), 'EEEE, MMMM d')}`
       )
-    } else {
-      const upcoming = (eventDates ?? []).find((d: any) => d.date >= today)
-      if (upcoming) {
-        setTodayLabel(
-          `Next: ${upcoming.label} — ${format(new Date(upcoming.date + 'T12:00:00'), 'EEEE, MMMM d')}`
-        )
-      }
+    } else if (upcomingDate) {
+      setTodayLabel(
+        `Next: ${upcomingDate.label} — ${format(new Date(upcomingDate.date + 'T12:00:00'), 'EEEE, MMMM d')}`
+      )
     }
     setLoading(false)
   }
@@ -448,6 +461,41 @@ export function VolunteerPortal() {
         {/* ── GAMES TAB ── */}
         {tab === 'games' && (
           <div>
+            {/* Date picker */}
+            {eventDates.length > 0 && (
+              <div className="flex gap-1.5 mb-4 flex-wrap">
+                <button
+                  onClick={() => setSelectedDateId(null)}
+                  className={cn(
+                    'font-cond text-[10px] font-black tracking-widest px-2.5 py-1 rounded border transition-colors',
+                    selectedDateId === null
+                      ? 'bg-navy border-blue-500 text-white'
+                      : 'border-border text-muted hover:text-white'
+                  )}
+                >
+                  ALL
+                </button>
+                {eventDates.map((d) => (
+                  <button
+                    key={d.id}
+                    onClick={() => {
+                      setSelectedDateId(d.id)
+                      setSelectedFieldId(null)
+                      setSelectedGame(null)
+                    }}
+                    className={cn(
+                      'font-cond text-[10px] font-black tracking-widest px-2.5 py-1 rounded border transition-colors',
+                      selectedDateId === d.id
+                        ? 'bg-red border-red text-white'
+                        : 'border-border text-muted hover:text-white'
+                    )}
+                  >
+                    {d.label}
+                  </button>
+                ))}
+              </div>
+            )}
+
             {/* Field selector */}
             {!selectedFieldId && (
               <>
@@ -456,7 +504,11 @@ export function VolunteerPortal() {
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                   {fields.map((field) => {
-                    const fieldGames = allGames.filter((g) => g.field_id === field.id)
+                    const fieldGames = allGames.filter(
+                      (g) =>
+                        g.field_id === field.id &&
+                        (selectedDateId === null || g.event_date_id === selectedDateId)
+                    )
                     const myCount = fieldGames.filter((g) => myAssignedGameIds.has(g.id)).length
                     if (fieldGames.length === 0) return null
                     return (
@@ -500,9 +552,16 @@ export function VolunteerPortal() {
                     {fields.find((f) => f.id === selectedFieldId)?.name}
                   </div>
                 </div>
-                <div className="space-y-2">
+                <div
+                  className="space-y-2 overflow-y-auto"
+                  style={{ maxHeight: 'calc(100vh - 220px)' }}
+                >
                   {allGames
-                    .filter((g) => g.field_id === selectedFieldId)
+                    .filter(
+                      (g) =>
+                        g.field_id === selectedFieldId &&
+                        (selectedDateId === null || g.event_date_id === selectedDateId)
+                    )
                     .map((game) => {
                       const mine = myAssignedGameIds.has(game.id)
                       return (
