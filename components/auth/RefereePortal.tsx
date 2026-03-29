@@ -274,7 +274,7 @@ export function RefereePortal() {
           .from('ref_assignments')
           .upsert(
             { game_id: gameId, referee_id: userRole.referee_id, role: bulkPosition },
-            { onConflict: 'game_id,referee_id' }
+            { onConflict: 'game_id,referee_id,role' }
           )
         if (!error) count++
       } else {
