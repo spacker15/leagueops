@@ -168,23 +168,35 @@ export async function runWeatherEngine(
 
   // ── Process each alert ──
   for (const alert of alerts) {
-    // Write alert to DB
-    await sb.from('weather_alerts').insert({
-      event_id: eventId,
-      complex_id: complexId,
-      alert_type: alert.title,
-      description: alert.description,
-      is_active: true,
-      severity: alert.severity,
-      temperature_f: reading.temperature_f,
-      heat_index_f: reading.heat_index_f,
-      humidity_pct: reading.humidity_pct,
-      wind_mph: reading.wind_mph,
-      conditions: reading.conditions,
-      lightning_detected: reading.lightning_detected,
-      lightning_miles: reading.lightning_miles,
-      source: reading.source,
-    })
+    // Skip insert if an active alert of this type already exists for this complex
+    const { data: existing } = await sb
+      .from('weather_alerts')
+      .select('id')
+      .eq('event_id', eventId)
+      .eq('complex_id', complexId)
+      .eq('alert_type', alert.title)
+      .eq('is_active', true)
+      .maybeSingle()
+
+    if (!existing) {
+      // Write alert to DB
+      await sb.from('weather_alerts').insert({
+        event_id: eventId,
+        complex_id: complexId,
+        alert_type: alert.title,
+        description: alert.description,
+        is_active: true,
+        severity: alert.severity,
+        temperature_f: reading.temperature_f,
+        heat_index_f: reading.heat_index_f,
+        humidity_pct: reading.humidity_pct,
+        wind_mph: reading.wind_mph,
+        conditions: reading.conditions,
+        lightning_detected: reading.lightning_detected,
+        lightning_miles: reading.lightning_miles,
+        source: reading.source,
+      })
+    }
 
     // Auto-actions based on alert type
     if (alert.type === 'lightning') {
