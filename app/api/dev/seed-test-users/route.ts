@@ -114,6 +114,17 @@ export async function POST() {
         }
       }
 
+      // Ensure event_admins row exists for roles that use EventPicker (admin, coach, trainer, program_leader)
+      const eventPickerRoles = ['admin', 'coach', 'trainer', 'program_leader']
+      if (eventPickerRoles.includes(account.role)) {
+        await adminSb
+          .from('event_admins')
+          .upsert(
+            { user_id: userId, event_id: account.event_id },
+            { onConflict: 'user_id,event_id', ignoreDuplicates: true }
+          )
+      }
+
       results.push({ email: account.email, status: 'ok' })
     } catch (err: any) {
       results.push({ email: account.email, status: `error: ${err.message}` })
