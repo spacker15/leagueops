@@ -46,14 +46,14 @@ const TEST_ACCOUNTS = [
   {
     email: 'pv-leader@test.leagueops.dev',
     role: 'program_leader',
-    display_name: 'PV Program Leader',
+    display_name: 'Riptide Program Leader',
     event_id: 11,
     program_id: 17,
   },
   {
     email: 'pv-coach@test.leagueops.dev',
     role: 'coach',
-    display_name: 'PV Coach',
+    display_name: 'Riptide Coach',
     event_id: 11,
     program_id: 17,
     team_id: 161,
