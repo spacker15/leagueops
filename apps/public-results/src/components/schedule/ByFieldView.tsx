@@ -63,9 +63,19 @@ export function ByFieldView({ games }: Props) {
                   {/* Teams + scores */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">
-                      <span className="font-cond font-bold text-[12px] text-white truncate min-w-0">
-                        {game.home_team?.name ?? 'TBD'}
-                      </span>
+                      <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                        {game.home_team?.logo_url && (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={game.home_team.logo_url}
+                            alt=""
+                            className="w-4 h-4 rounded object-cover shrink-0"
+                          />
+                        )}
+                        <span className="font-cond font-bold text-[12px] text-white truncate">
+                          {game.home_team?.name ?? 'TBD'}
+                        </span>
+                      </div>
                       {(game.status === 'Final' ||
                         game.status === 'Live' ||
                         game.status === 'Halftime') && (
@@ -75,9 +85,19 @@ export function ByFieldView({ games }: Props) {
                       )}
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="font-cond font-bold text-[12px] text-white truncate min-w-0">
-                        {game.away_team?.name ?? 'TBD'}
-                      </span>
+                      <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                        {game.away_team?.logo_url && (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={game.away_team.logo_url}
+                            alt=""
+                            className="w-4 h-4 rounded object-cover shrink-0"
+                          />
+                        )}
+                        <span className="font-cond font-bold text-[12px] text-white truncate">
+                          {game.away_team?.name ?? 'TBD'}
+                        </span>
+                      </div>
                       {(game.status === 'Final' ||
                         game.status === 'Live' ||
                         game.status === 'Halftime') && (

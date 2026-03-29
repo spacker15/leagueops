@@ -61,8 +61,8 @@ interface GameSummary {
   away_score: number | null
   field_id: number
   field: Field
-  home_team: { id: number; name: string }
-  away_team: { id: number; name: string }
+  home_team: { id: number; name: string; logo_url?: string | null }
+  away_team: { id: number; name: string; logo_url?: string | null }
 }
 
 interface VolSlot {
@@ -183,8 +183,8 @@ export function VolunteerPortal() {
         .select(
           `id, event_date_id, scheduled_time, division, status, quarter, home_score, away_score, field_id,
            field:fields(id, name),
-           home_team:teams!games_home_team_id_fkey(id, name),
-           away_team:teams!games_away_team_id_fkey(id, name)`
+           home_team:teams!games_home_team_id_fkey(id, name, logo_url),
+           away_team:teams!games_away_team_id_fkey(id, name, logo_url)`
         )
         .eq('event_id', portalEventId!)
         .neq('status', 'Cancelled'),
@@ -729,8 +729,30 @@ export function VolunteerPortal() {
                                 {game.status.toUpperCase()}
                               </span>
                             </div>
-                            <div className="font-cond font-black text-[13px] text-white mt-0.5">
-                              {game.home_team.name} vs {game.away_team.name}
+                            <div className="mt-0.5">
+                              <div className="flex items-center gap-1 font-cond font-black text-[13px] text-white">
+                                {game.home_team.logo_url && (
+                                  // eslint-disable-next-line @next/next/no-img-element
+                                  <img
+                                    src={game.home_team.logo_url}
+                                    alt=""
+                                    className="w-4 h-4 rounded object-cover flex-shrink-0"
+                                  />
+                                )}
+                                {game.home_team.name}
+                              </div>
+                              <div className="font-cond text-[9px] text-muted pl-5">vs</div>
+                              <div className="flex items-center gap-1 font-cond font-black text-[13px] text-white">
+                                {game.away_team.logo_url && (
+                                  // eslint-disable-next-line @next/next/no-img-element
+                                  <img
+                                    src={game.away_team.logo_url}
+                                    alt=""
+                                    className="w-4 h-4 rounded object-cover flex-shrink-0"
+                                  />
+                                )}
+                                {game.away_team.name}
+                              </div>
                             </div>
                             <div className="flex items-center justify-between mt-0.5">
                               <span className="font-cond text-[10px] text-muted">
@@ -965,8 +987,30 @@ export function VolunteerPortal() {
                                 </span>
                               </div>
                             </div>
-                            <div className="font-cond font-black text-[14px] text-white">
-                              {game.home_team.name} vs {game.away_team.name}
+                            <div className="mt-0.5">
+                              <div className="flex items-center gap-1 font-cond font-black text-[14px] text-white">
+                                {game.home_team.logo_url && (
+                                  // eslint-disable-next-line @next/next/no-img-element
+                                  <img
+                                    src={game.home_team.logo_url}
+                                    alt=""
+                                    className="w-4 h-4 rounded object-cover flex-shrink-0"
+                                  />
+                                )}
+                                {game.home_team.name}
+                              </div>
+                              <div className="font-cond text-[9px] text-muted pl-5">vs</div>
+                              <div className="flex items-center gap-1 font-cond font-black text-[14px] text-white">
+                                {game.away_team.logo_url && (
+                                  // eslint-disable-next-line @next/next/no-img-element
+                                  <img
+                                    src={game.away_team.logo_url}
+                                    alt=""
+                                    className="w-4 h-4 rounded object-cover flex-shrink-0"
+                                  />
+                                )}
+                                {game.away_team.name}
+                              </div>
                             </div>
                             <div className="font-cond text-[10px] text-muted mt-0.5">
                               {game.division}
@@ -1004,7 +1048,27 @@ export function VolunteerPortal() {
                       <ChevronLeft size={18} />
                     </button>
                     <div className="font-cond font-black text-[14px] text-white">
-                      {selectedGame.home_team.name} vs {selectedGame.away_team.name}
+                      <div className="flex items-center gap-1.5">
+                        {selectedGame.home_team.logo_url && (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={selectedGame.home_team.logo_url}
+                            alt=""
+                            className="w-4 h-4 rounded object-cover flex-shrink-0"
+                          />
+                        )}
+                        {selectedGame.home_team.name}
+                        <span className="text-muted font-normal text-[11px]">vs</span>
+                        {selectedGame.away_team.logo_url && (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={selectedGame.away_team.logo_url}
+                            alt=""
+                            className="w-4 h-4 rounded object-cover flex-shrink-0"
+                          />
+                        )}
+                        {selectedGame.away_team.name}
+                      </div>
                     </div>
                   </div>
 
@@ -1016,7 +1080,27 @@ export function VolunteerPortal() {
                           {selectedGame.scheduled_time}
                         </div>
                         <div className="font-cond font-black text-[18px] text-white">
-                          {selectedGame.home_team.name} vs {selectedGame.away_team.name}
+                          <div className="flex items-center gap-1.5">
+                            {selectedGame.home_team.logo_url && (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={selectedGame.home_team.logo_url}
+                                alt=""
+                                className="w-5 h-5 rounded object-cover flex-shrink-0"
+                              />
+                            )}
+                            {selectedGame.home_team.name}
+                            <span className="text-muted font-normal text-[13px]">vs</span>
+                            {selectedGame.away_team.logo_url && (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={selectedGame.away_team.logo_url}
+                                alt=""
+                                className="w-5 h-5 rounded object-cover flex-shrink-0"
+                              />
+                            )}
+                            {selectedGame.away_team.name}
+                          </div>
                         </div>
                         <div className="font-cond text-[11px] text-muted">
                           {selectedGame.field.name} · {selectedGame.division}

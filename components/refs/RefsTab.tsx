@@ -151,11 +151,13 @@ function DroppableGameCard({
   assignments,
   onRemove,
   isOver,
+  teamLogoMap,
 }: {
   game: Game
   assignments: Assignment[]
   onRemove: (a: Assignment) => void
   isOver: boolean
+  teamLogoMap: Record<number, string | null>
 }) {
   const { setNodeRef } = useDroppable({ id: `game-${game.id}` })
   const refs = assignments.filter((a) => a.person_type === 'ref')
@@ -216,9 +218,29 @@ function DroppableGameCard({
       {/* Matchup */}
       <div className="px-2.5 py-1.5">
         <div className="font-cond font-black text-[12px] text-white leading-tight mb-1.5">
-          {game.home_team?.name ?? '?'}{' '}
-          <span className="text-muted font-normal text-[10px]">vs</span>{' '}
-          {game.away_team?.name ?? '?'}
+          <div className="flex items-center gap-1 mb-0.5">
+            {teamLogoMap[game.home_team_id] && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={teamLogoMap[game.home_team_id]!}
+                alt=""
+                className="w-3.5 h-3.5 rounded object-cover flex-shrink-0"
+              />
+            )}
+            {game.home_team?.name ?? '?'}
+          </div>
+          <div className="font-cond text-[9px] text-muted font-normal pl-4">vs</div>
+          <div className="flex items-center gap-1">
+            {teamLogoMap[game.away_team_id] && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={teamLogoMap[game.away_team_id]!}
+                alt=""
+                className="w-3.5 h-3.5 rounded object-cover flex-shrink-0"
+              />
+            )}
+            {game.away_team?.name ?? '?'}
+          </div>
         </div>
 
         {/* Drop zone hint */}
@@ -331,6 +353,7 @@ export function RefsTab() {
     changeDate,
     eventId,
   } = useApp()
+  const teamLogoMap = Object.fromEntries((state.teams ?? []).map((t) => [t.id, t.logo_url ?? null]))
   const [subTab, setSubTab] = useState<SubTab>('board')
   const [assignments, setAssignments] = useState<Assignment[]>([])
   const [blockAssignments, setBlockAssignments] = useState<BlockAssignment[]>([])
@@ -1476,6 +1499,7 @@ export function RefsTab() {
                           assignments={assignments.filter((a) => a.game_id === game.id)}
                           onRemove={removeAssignment}
                           isOver={overIds.has(`game-${game.id}`)}
+                          teamLogoMap={teamLogoMap}
                         />
                       ))}
                     </div>

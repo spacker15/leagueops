@@ -73,9 +73,19 @@ export function ByTimeView({ games }: Props) {
                     {/* Teams + scores (two-line layout) */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
-                        <span className="font-cond font-bold text-[14px] text-white truncate min-w-0">
-                          {game.home_team?.name ?? 'TBD'}
-                        </span>
+                        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                          {game.home_team?.logo_url && (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={game.home_team.logo_url}
+                              alt=""
+                              className="w-5 h-5 rounded object-cover shrink-0"
+                            />
+                          )}
+                          <span className="font-cond font-bold text-[14px] text-white truncate">
+                            {game.home_team?.name ?? 'TBD'}
+                          </span>
+                        </div>
                         {showScore && (
                           <span className="font-mono font-bold text-[18px] text-white tabular-nums ml-2 shrink-0">
                             {game.home_score}
@@ -83,9 +93,19 @@ export function ByTimeView({ games }: Props) {
                         )}
                       </div>
                       <div className="flex items-center justify-between">
-                        <span className="font-cond font-bold text-[14px] text-white truncate min-w-0">
-                          {game.away_team?.name ?? 'TBD'}
-                        </span>
+                        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                          {game.away_team?.logo_url && (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={game.away_team.logo_url}
+                              alt=""
+                              className="w-5 h-5 rounded object-cover shrink-0"
+                            />
+                          )}
+                          <span className="font-cond font-bold text-[14px] text-white truncate">
+                            {game.away_team?.name ?? 'TBD'}
+                          </span>
+                        </div>
                         {showScore && (
                           <span className="font-mono font-bold text-[18px] text-white tabular-nums ml-2 shrink-0">
                             {game.away_score}

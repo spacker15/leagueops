@@ -55,8 +55,8 @@ interface GameSummary {
   away_score: number | null
   field_id: number
   field: Field
-  home_team: { id: number; name: string }
-  away_team: { id: number; name: string }
+  home_team: { id: number; name: string; logo_url?: string | null }
+  away_team: { id: number; name: string; logo_url?: string | null }
 }
 
 interface Incident {
@@ -183,8 +183,8 @@ export function TrainerPortal() {
         .select(
           `id, event_date_id, scheduled_time, division, status, quarter, home_score, away_score, field_id,
            field:fields(id, name),
-           home_team:teams!games_home_team_id_fkey(id, name),
-           away_team:teams!games_away_team_id_fkey(id, name)`
+           home_team:teams!games_home_team_id_fkey(id, name, logo_url),
+           away_team:teams!games_away_team_id_fkey(id, name, logo_url)`
         )
         .eq('event_id', portalEventId)
         .neq('status', 'Cancelled'),
@@ -708,8 +708,28 @@ export function TrainerPortal() {
                                 {game.scheduled_time}
                               </span>
                               <div className="flex-1 min-w-0">
-                                <div className="font-cond font-bold text-[12px] text-white truncate">
-                                  {game.home_team.name} vs {game.away_team.name}
+                                <div className="flex items-center gap-1 font-cond font-bold text-[12px] text-white">
+                                  {game.home_team.logo_url && (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img
+                                      src={game.home_team.logo_url}
+                                      alt=""
+                                      className="w-3.5 h-3.5 rounded object-cover flex-shrink-0"
+                                    />
+                                  )}
+                                  <span className="truncate">{game.home_team.name}</span>
+                                </div>
+                                <div className="font-cond text-[9px] text-muted pl-4">vs</div>
+                                <div className="flex items-center gap-1 font-cond font-bold text-[12px] text-white">
+                                  {game.away_team.logo_url && (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img
+                                      src={game.away_team.logo_url}
+                                      alt=""
+                                      className="w-3.5 h-3.5 rounded object-cover flex-shrink-0"
+                                    />
+                                  )}
+                                  <span className="truncate">{game.away_team.name}</span>
                                 </div>
                                 <div className="font-cond text-[10px] text-muted">
                                   {game.division}

@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { groupBy } from '@/lib/utils'
 
 interface Props {
-  teams: { id: number; name: string; division: string }[]
+  teams: { id: number; name: string; division: string; logo_url?: string | null }[]
   slug: string
   activeDay: number
   divFilter: string
@@ -62,8 +62,16 @@ export function TeamSearchInput({ teams, slug, activeDay, divFilter }: Props) {
                   <Link
                     key={team.id}
                     href={`/e/${slug}?tab=schedule&view=team&team=${team.id}&day=${activeDay}&div=${divFilter}`}
-                    className="bg-[#081428] border border-[#1a2d50] rounded-lg px-3 py-3 font-cond text-[14px] font-bold text-white hover:border-[#0B3D91] transition-colors block"
+                    className="bg-[#081428] border border-[#1a2d50] rounded-lg px-3 py-3 font-cond text-[14px] font-bold text-white hover:border-[#0B3D91] transition-colors flex items-center gap-2"
                   >
+                    {team.logo_url && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={team.logo_url}
+                        alt=""
+                        className="w-6 h-6 rounded object-cover shrink-0"
+                      />
+                    )}
                     {team.name}
                   </Link>
                 ))}

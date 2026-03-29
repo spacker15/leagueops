@@ -1247,6 +1247,14 @@ export function ScheduleTab() {
                   className="inline-flex items-center gap-1 font-cond text-[10px] font-bold bg-blue-900/40 text-blue-300 border border-blue-700/40 px-2 py-0.5 rounded-full"
                 >
                   <Star size={8} className="text-yellow-400 fill-yellow-400" />
+                  {team.logo_url && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={team.logo_url}
+                      alt=""
+                      className="w-3.5 h-3.5 rounded object-cover flex-shrink-0"
+                    />
+                  )}
                   {team.name}
                   <button
                     onClick={() => toggleFollowTeam(id)}
@@ -1308,6 +1316,14 @@ export function ScheduleTab() {
                           isFollowed ? 'text-yellow-400 fill-yellow-400' : 'text-muted'
                         )}
                       />
+                      {team.logo_url && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={team.logo_url}
+                          alt=""
+                          className="w-4 h-4 rounded object-cover flex-shrink-0"
+                        />
+                      )}
                       <span className="truncate">{team.name}</span>
                     </button>
                   )

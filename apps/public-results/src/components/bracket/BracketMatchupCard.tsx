@@ -43,11 +43,15 @@ export function BracketMatchupCard({ matchup, liveGameIds, liveScores, flashingI
           isTopWinner ? 'bg-[#0B3D91]/20' : ''
         }`}
       >
-        <div className="flex items-center min-w-0 flex-1">
+        <div className="flex items-center min-w-0 flex-1 gap-1">
           {matchup.seed_top !== null && (
-            <span className="font-cond text-[10px] text-[#5a6e9a] mr-1 shrink-0">
+            <span className="font-cond text-[10px] text-[#5a6e9a] shrink-0">
               #{matchup.seed_top}
             </span>
+          )}
+          {teamTop?.logo_url && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={teamTop.logo_url} alt="" className="w-4 h-4 rounded object-cover shrink-0" />
           )}
           <span
             className={`font-cond text-[12px] font-bold truncate ${teamTop ? 'text-white' : 'text-[#5a6e9a]'}`}
@@ -70,11 +74,19 @@ export function BracketMatchupCard({ matchup, liveGameIds, liveScores, flashingI
           isBottomWinner ? 'bg-[#0B3D91]/20' : ''
         }`}
       >
-        <div className="flex items-center min-w-0 flex-1">
+        <div className="flex items-center min-w-0 flex-1 gap-1">
           {matchup.seed_bottom !== null && (
-            <span className="font-cond text-[10px] text-[#5a6e9a] mr-1 shrink-0">
+            <span className="font-cond text-[10px] text-[#5a6e9a] shrink-0">
               #{matchup.seed_bottom}
             </span>
+          )}
+          {teamBottom?.logo_url && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={teamBottom.logo_url}
+              alt=""
+              className="w-4 h-4 rounded object-cover shrink-0"
+            />
           )}
           <span
             className={`font-cond text-[12px] font-bold truncate ${teamBottom ? 'text-white' : 'text-[#5a6e9a]'}`}
