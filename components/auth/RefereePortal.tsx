@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '@/lib/auth'
 import { createClient } from '@/supabase/client'
 import { cn } from '@/lib/utils'
-import { CheckCircle, LogOut, ChevronLeft } from 'lucide-react'
+import { CheckCircle, LogOut, ChevronLeft, AlertTriangle } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { format } from 'date-fns'
 
@@ -12,20 +12,16 @@ type PortalTab = 'checkin' | 'games' | 'approvals'
 
 const REF_POSITIONS = ['Lead', 'Wing 1', 'Wing 2']
 const VOL_POSITIONS = ['Line Judge', 'Timekeeper', 'Ball Retriever', 'Gate', 'General']
-
-const STATUS_ACTIONS: Record<string, { label: string; next: string; color: string }[]> = {
-  Scheduled: [{ label: 'START GAME', next: 'Live', color: 'bg-green-700 hover:bg-green-600' }],
-  Starting: [{ label: 'START GAME', next: 'Live', color: 'bg-green-700 hover:bg-green-600' }],
-  Live: [
-    { label: 'HALFTIME', next: 'Halftime', color: 'bg-yellow-700 hover:bg-yellow-600' },
-    { label: 'END GAME', next: 'Final', color: 'bg-red hover:opacity-90' },
-  ],
-  Halftime: [
-    { label: '2ND HALF', next: 'Live', color: 'bg-green-700 hover:bg-green-600' },
-    { label: 'END GAME', next: 'Final', color: 'bg-red hover:opacity-90' },
-  ],
-  Delayed: [{ label: 'RESUME', next: 'Live', color: 'bg-green-700 hover:bg-green-600' }],
-}
+const INJURY_TYPES = [
+  'General / Unknown',
+  'Head / Concussion',
+  'Neck / Spine',
+  'Upper Body',
+  'Lower Body',
+  'Laceration',
+  'Heat Illness',
+  'Cardiac',
+]
 
 interface Field {
   id: number
@@ -38,12 +34,29 @@ interface EventDate {
   label: string
 }
 
+interface Trainer {
+  id: number
+  name: string
+  checked_in: boolean
+}
+
+interface TrainerDispatch {
+  id: number
+  player_name: string
+  injury_type: string
+  trainer_name: string
+  status: string
+  dispatched_at: string
+  notes: string | null
+}
+
 interface GameSummary {
   id: number
   event_date_id: number
   scheduled_time: string
   division: string
   status: string
+  quarter: number | null
   home_score: number | null
   away_score: number | null
   field_id: number
@@ -64,6 +77,85 @@ interface VolSlot {
   referee_id: number | null
   volunteer?: { name: string }
   referee?: { name: string }
+}
+
+function getQuarterLabel(game: GameSummary): string {
+  if (game.status === 'Halftime') return 'HT'
+  if (game.status === 'Final') return 'FINAL'
+  if (game.quarter) return `Q${game.quarter}`
+  return ''
+}
+
+function getGameActions(
+  game: GameSummary
+): { label: string; color: string; onClick: () => { status: string; quarter?: number } }[] {
+  const q = game.quarter ?? 1
+  if (game.status === 'Scheduled' || game.status === 'Starting') {
+    return [
+      {
+        label: 'START GAME',
+        color: 'bg-green-700 hover:bg-green-600',
+        onClick: () => ({ status: 'Live', quarter: 1 }),
+      },
+    ]
+  }
+  if (game.status === 'Live') {
+    if (q === 1)
+      return [
+        {
+          label: 'END Q1',
+          color: 'bg-blue-700 hover:bg-blue-600',
+          onClick: () => ({ status: 'Live', quarter: 2 }),
+        },
+      ]
+    if (q === 2)
+      return [
+        {
+          label: 'HALFTIME',
+          color: 'bg-yellow-700 hover:bg-yellow-600',
+          onClick: () => ({ status: 'Halftime', quarter: 2 }),
+        },
+        {
+          label: 'END GAME',
+          color: 'bg-red hover:opacity-90',
+          onClick: () => ({ status: 'Final' }),
+        },
+      ]
+    if (q === 3)
+      return [
+        {
+          label: 'END Q3',
+          color: 'bg-blue-700 hover:bg-blue-600',
+          onClick: () => ({ status: 'Live', quarter: 4 }),
+        },
+      ]
+    if (q === 4)
+      return [
+        {
+          label: 'END GAME',
+          color: 'bg-red hover:opacity-90',
+          onClick: () => ({ status: 'Final' }),
+        },
+      ]
+  }
+  if (game.status === 'Halftime')
+    return [
+      {
+        label: 'START Q3',
+        color: 'bg-green-700 hover:bg-green-600',
+        onClick: () => ({ status: 'Live', quarter: 3 }),
+      },
+      { label: 'END GAME', color: 'bg-red hover:opacity-90', onClick: () => ({ status: 'Final' }) },
+    ]
+  if (game.status === 'Delayed')
+    return [
+      {
+        label: 'RESUME',
+        color: 'bg-green-700 hover:bg-green-600',
+        onClick: () => ({ status: 'Live' }),
+      },
+    ]
+  return []
 }
 
 function timeToMin(t: string): number {
@@ -99,6 +191,20 @@ export function RefereePortal() {
   const [volSlots, setVolSlots] = useState<VolSlot[]>([])
   const [slotLoading, setSlotLoading] = useState(false)
 
+  // Quick assign
+  const [quickAssignMode, setQuickAssignMode] = useState(false)
+  const [quickAssignPos, setQuickAssignPos] = useState('Lead')
+  const [quickAssigning, setQuickAssigning] = useState<number | null>(null)
+
+  // Trainers + dispatch
+  const [trainers, setTrainers] = useState<Trainer[]>([])
+  const [trainerDispatch, setTrainerDispatch] = useState<TrainerDispatch | null>(null)
+  const [showDispatchForm, setShowDispatchForm] = useState(false)
+  const [dispatchPlayerName, setDispatchPlayerName] = useState('')
+  const [dispatchInjuryType, setDispatchInjuryType] = useState('General / Unknown')
+  const [dispatchTrainerId, setDispatchTrainerId] = useState<string>('')
+  const [dispatching, setDispatching] = useState(false)
+
   const [homePlayers, setHomePlayers] = useState<any[]>([])
   const [awayPlayers, setAwayPlayers] = useState<any[]>([])
   const [checkins, setCheckins] = useState<number[]>([])
@@ -118,12 +224,13 @@ export function RefereePortal() {
       { data: myAssignData },
       { data: myVolAssignData },
       { data: eventDates },
+      { data: trainersData },
     ] = await Promise.all([
       sb.from('referees').select('*').eq('id', userRole!.referee_id!).single(),
       sb
         .from('games')
         .select(
-          `id, event_date_id, scheduled_time, division, status, home_score, away_score, field_id,
+          `id, event_date_id, scheduled_time, division, status, quarter, home_score, away_score, field_id,
            field:fields(id, name),
            home_team:teams!games_home_team_id_fkey(id, name),
            away_team:teams!games_away_team_id_fkey(id, name)`
@@ -138,6 +245,11 @@ export function RefereePortal() {
         .select('id, date, label, day_number')
         .eq('event_id', portalEventId!)
         .order('date'),
+      sb
+        .from('trainers')
+        .select('id, name, checked_in')
+        .eq('event_id', portalEventId!)
+        .order('name'),
     ])
 
     setRef(refData)
@@ -155,6 +267,7 @@ export function RefereePortal() {
       rolesMap.set(a.game_id, [...existing, a.role])
     }
     setMyAssignmentRoles(rolesMap)
+    setTrainers((trainersData ?? []) as Trainer[])
 
     const dates = (eventDates ?? []) as EventDate[]
     setEventDates(dates)
@@ -185,36 +298,52 @@ export function RefereePortal() {
     setHomePlayers([])
     setAwayPlayers([])
     setCheckins([])
+    setTrainerDispatch(null)
+    setShowDispatchForm(false)
     const sb = createClient()
-    const [{ data: slots }, { data: vols }, { data: home }, { data: away }, { data: ci }] =
-      await Promise.all([
-        sb
-          .from('ref_assignments')
-          .select(`role, referee_id, referee:referees(name)`)
-          .eq('game_id', game.id),
-        sb
-          .from('vol_assignments')
-          .select(
-            `role, volunteer_id, referee_id, volunteer:volunteers(name), referee:referees(name)`
-          )
-          .eq('game_id', game.id),
-        sb
-          .from('players')
-          .select('id, name, number, position, usa_lacrosse_number')
-          .eq('team_id', game.home_team.id)
-          .order('name'),
-        sb
-          .from('players')
-          .select('id, name, number, position, usa_lacrosse_number')
-          .eq('team_id', game.away_team.id)
-          .order('name'),
-        sb.from('player_checkins').select('player_id').eq('game_id', game.id),
-      ])
+    const [
+      { data: slots },
+      { data: vols },
+      { data: home },
+      { data: away },
+      { data: ci },
+      { data: dispatch },
+    ] = await Promise.all([
+      sb
+        .from('ref_assignments')
+        .select(`role, referee_id, referee:referees(name)`)
+        .eq('game_id', game.id),
+      sb
+        .from('vol_assignments')
+        .select(
+          `role, volunteer_id, referee_id, volunteer:volunteers(name), referee:referees(name)`
+        )
+        .eq('game_id', game.id),
+      sb
+        .from('players')
+        .select('id, name, number, position, usa_lacrosse_number')
+        .eq('team_id', game.home_team.id)
+        .order('name'),
+      sb
+        .from('players')
+        .select('id, name, number, position, usa_lacrosse_number')
+        .eq('team_id', game.away_team.id)
+        .order('name'),
+      sb.from('player_checkins').select('player_id').eq('game_id', game.id),
+      sb
+        .from('medical_incidents')
+        .select('*')
+        .eq('game_id', game.id)
+        .order('dispatched_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ])
     setGameSlots((slots ?? []) as unknown as RefSlot[])
     setVolSlots((vols ?? []) as unknown as VolSlot[])
     setHomePlayers(home ?? [])
     setAwayPlayers(away ?? [])
     setCheckins((ci ?? []).map((c: any) => c.player_id))
+    if (dispatch) setTrainerDispatch(dispatch as TrainerDispatch)
     setSlotLoading(false)
   }
 
@@ -307,6 +436,103 @@ export function RefereePortal() {
       return next
     })
     loadGameDetail(selectedGame)
+  }
+
+  async function quickAssignToGame(game: GameSummary) {
+    if (!userRole?.referee_id || quickAssigning !== null) return
+    setQuickAssigning(game.id)
+    const sb = createClient()
+    const isRef = REF_POSITIONS.includes(quickAssignPos)
+    if (isRef) {
+      await sb
+        .from('ref_assignments')
+        .upsert(
+          { game_id: game.id, referee_id: userRole.referee_id, role: quickAssignPos },
+          { onConflict: 'game_id,referee_id,role' }
+        )
+    } else {
+      await sb.from('vol_assignments').insert({
+        game_id: game.id,
+        referee_id: userRole.referee_id,
+        volunteer_id: null,
+        role: quickAssignPos,
+      })
+    }
+    setMyAssignedGameIds((prev) => new Set([...prev, game.id]))
+    setMyAssignmentRoles((prev) => {
+      const next = new Map(prev)
+      next.set(game.id, [...(next.get(game.id) ?? []), quickAssignPos])
+      return next
+    })
+    setQuickAssigning(null)
+    toast.success(`Assigned as ${quickAssignPos}`)
+  }
+
+  async function handleGameAction(action: { status: string; quarter?: number }) {
+    if (!selectedGame) return
+    const sb = createClient()
+    const update: Record<string, unknown> = { status: action.status }
+    if (action.quarter !== undefined) update.quarter = action.quarter
+    const { error } = await sb.from('games').update(update).eq('id', selectedGame.id)
+    if (error) {
+      toast.error(error.message)
+      return
+    }
+    const updated = {
+      ...selectedGame,
+      status: action.status,
+      quarter: action.quarter ?? selectedGame.quarter,
+    }
+    setSelectedGame(updated)
+    setAllGames((prev) => prev.map((g) => (g.id === selectedGame.id ? updated : g)))
+    toast.success(`Game: ${action.status}${action.quarter ? ` Q${action.quarter}` : ''}`)
+    await sb.from('ops_log').insert({
+      event_id: portalEventId,
+      message: `${ref?.name} updated ${selectedGame.home_team.name} vs ${selectedGame.away_team.name} → ${action.status}${action.quarter ? ` Q${action.quarter}` : ''}`,
+      log_type: 'info',
+      occurred_at: new Date().toISOString(),
+    })
+  }
+
+  async function handleDispatchTrainer() {
+    if (!selectedGame || !dispatchTrainerId) return
+    setDispatching(true)
+    const sb = createClient()
+    const trainer = trainers.find((t) => t.id === Number(dispatchTrainerId))
+    const now = new Date().toISOString()
+    const { data: incident, error } = await sb
+      .from('medical_incidents')
+      .insert({
+        event_id: portalEventId,
+        game_id: selectedGame.id,
+        field_id: selectedGame.field_id,
+        player_name: dispatchPlayerName || 'Unknown',
+        team_name: '',
+        injury_type: dispatchInjuryType,
+        trainer_name: trainer?.name ?? 'Trainer',
+        status: 'Dispatched',
+        dispatched_at: now,
+      })
+      .select('*')
+      .single()
+    if (error) {
+      toast.error(error.message)
+      setDispatching(false)
+      return
+    }
+    await sb.from('ops_log').insert({
+      event_id: portalEventId,
+      message: `🚨 TRAINER DISPATCHED — ${trainer?.name} to ${selectedGame.home_team.name} vs ${selectedGame.away_team.name} (${selectedGame.field.name}) — Patient: ${dispatchPlayerName || 'Unknown'} — ${dispatchInjuryType}`,
+      log_type: 'warning',
+      occurred_at: now,
+    })
+    setTrainerDispatch(incident as TrainerDispatch)
+    setShowDispatchForm(false)
+    setDispatchPlayerName('')
+    setDispatchInjuryType('General / Unknown')
+    setDispatchTrainerId('')
+    setDispatching(false)
+    toast.success('Trainer dispatched — admin notified')
   }
 
   async function updateGameStatus(newStatus: string) {
@@ -692,15 +918,58 @@ export function RefereePortal() {
               <>
                 <div className="flex items-center gap-2 mb-3">
                   <button
-                    onClick={() => setSelectedFieldId(null)}
+                    onClick={() => {
+                      setSelectedFieldId(null)
+                      setQuickAssignMode(false)
+                    }}
                     className="text-muted hover:text-white"
                   >
                     <ChevronLeft size={18} />
                   </button>
-                  <div className="font-cond font-black text-[14px] text-white">
+                  <div className="font-cond font-black text-[14px] text-white flex-1">
                     {fields.find((f) => f.id === selectedFieldId)?.name}
                   </div>
+                  <button
+                    onClick={() => {
+                      setQuickAssignMode((v) => !v)
+                    }}
+                    className={cn(
+                      'font-cond text-[10px] font-black tracking-widest px-2.5 py-1 rounded border transition-colors',
+                      quickAssignMode
+                        ? 'bg-red border-red text-white'
+                        : 'border-border text-muted hover:text-white'
+                    )}
+                  >
+                    QUICK ASSIGN
+                  </button>
                 </div>
+
+                {/* Quick assign position picker */}
+                {quickAssignMode && (
+                  <div className="bg-surface-card border border-border rounded-xl p-3 mb-3">
+                    <div className="font-cond text-[10px] font-black tracking-widest text-muted uppercase mb-2">
+                      SELECT POSITION — TAP GAME TO ASSIGN
+                    </div>
+                    <div className="flex gap-1.5 flex-wrap">
+                      {[...REF_POSITIONS, ...VOL_POSITIONS].map((pos) => (
+                        <button
+                          key={pos}
+                          onClick={() => setQuickAssignPos(pos)}
+                          className={cn(
+                            'font-cond text-[10px] font-black tracking-widest px-2.5 py-1 rounded border transition-colors',
+                            quickAssignPos === pos
+                              ? REF_POSITIONS.includes(pos)
+                                ? 'bg-red border-red text-white'
+                                : 'bg-blue-700 border-blue-600 text-white'
+                              : 'border-border text-muted hover:text-white'
+                          )}
+                        >
+                          {pos}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 <div
                   className="space-y-2 overflow-y-auto"
@@ -715,15 +984,21 @@ export function RefereePortal() {
                     .map((game) => {
                       const mine = myAssignedGameIds.has(game.id)
                       const roles = myAssignmentRoles.get(game.id) ?? []
+                      const isAssigning = quickAssigning === game.id
                       return (
                         <button
                           key={game.id}
-                          onClick={() => loadGameDetail(game)}
+                          onClick={() =>
+                            quickAssignMode ? quickAssignToGame(game) : loadGameDetail(game)
+                          }
+                          disabled={isAssigning}
                           className={cn(
                             'w-full text-left rounded-xl p-4 border transition-all',
-                            mine
-                              ? 'bg-green-900/15 border-green-800/50 hover:border-green-400'
-                              : 'bg-surface-card border-border hover:border-blue-400'
+                            quickAssignMode
+                              ? 'bg-surface-card border-blue-800/60 hover:border-blue-400 hover:bg-blue-900/10'
+                              : mine
+                                ? 'bg-green-900/15 border-green-800/50 hover:border-green-400'
+                                : 'bg-surface-card border-border hover:border-blue-400'
                           )}
                         >
                           <div className="flex justify-between items-center mb-1">
@@ -731,7 +1006,12 @@ export function RefereePortal() {
                               {game.scheduled_time}
                             </span>
                             <div className="flex items-center gap-2">
-                              {mine && roles.length > 0 && (
+                              {isAssigning && (
+                                <span className="font-cond text-[9px] text-muted">
+                                  ASSIGNING...
+                                </span>
+                              )}
+                              {!quickAssignMode && mine && roles.length > 0 && (
                                 <div className="flex gap-1">
                                   {roles.map((r) => (
                                     <span
@@ -753,7 +1033,7 @@ export function RefereePortal() {
                                       : 'badge-scheduled'
                                 )}
                               >
-                                {game.status.toUpperCase()}
+                                {getQuarterLabel(game) || game.status.toUpperCase()}
                               </span>
                             </div>
                           </div>
@@ -834,7 +1114,237 @@ export function RefereePortal() {
                   <div className="text-center py-6 text-muted font-cond">LOADING...</div>
                 ) : (
                   <>
-                    {/* Position slots */}
+                    {/* ── GAME CONTROL (assigned refs only) ── */}
+                    {isAssigned && selectedGame.status !== 'Cancelled' && (
+                      <div className="bg-surface-card border border-border rounded-xl p-4 mb-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="font-cond text-[10px] font-black tracking-widest text-muted uppercase">
+                            GAME CONTROL
+                          </div>
+                          {selectedGame.quarter && selectedGame.status !== 'Final' && (
+                            <div className="flex gap-1">
+                              {[1, 2, 3, 4].map((q) => (
+                                <span
+                                  key={q}
+                                  className={cn(
+                                    'font-cond text-[10px] font-black px-2 py-0.5 rounded',
+                                    q === selectedGame.quarter
+                                      ? selectedGame.status === 'Halftime'
+                                        ? 'bg-yellow-700/60 text-yellow-200'
+                                        : 'bg-green-700/60 text-green-200'
+                                      : (selectedGame.quarter ?? 0) > q
+                                        ? 'bg-border/40 text-muted'
+                                        : 'border border-border/40 text-border'
+                                  )}
+                                >
+                                  Q{q}
+                                </span>
+                              ))}
+                              {selectedGame.status === 'Halftime' && (
+                                <span className="font-cond text-[10px] font-black px-2 py-0.5 rounded bg-yellow-700/60 text-yellow-200">
+                                  HT
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Score controls */}
+                        {(selectedGame.status === 'Live' || selectedGame.status === 'Halftime') && (
+                          <div className="grid grid-cols-2 gap-3 mb-4">
+                            {(
+                              [
+                                {
+                                  label: selectedGame.home_team.name,
+                                  team: 'home' as const,
+                                  score: selectedGame.home_score ?? 0,
+                                },
+                                {
+                                  label: selectedGame.away_team.name,
+                                  team: 'away' as const,
+                                  score: selectedGame.away_score ?? 0,
+                                },
+                              ] as const
+                            ).map(({ label, team, score }) => (
+                              <div
+                                key={team}
+                                className="bg-surface rounded-lg p-3 text-center border border-border/50"
+                              >
+                                <div className="font-cond text-[10px] text-muted uppercase tracking-wide mb-1 truncate">
+                                  {label}
+                                </div>
+                                <div className="font-mono text-[36px] font-bold text-white leading-none mb-2">
+                                  {score}
+                                </div>
+                                <div className="flex gap-2">
+                                  <button
+                                    onClick={() => updateScore(team, -1)}
+                                    className="flex-1 font-mono text-[18px] font-bold bg-red-900/30 hover:bg-red-900/50 text-red-300 rounded-lg py-1.5 transition-colors"
+                                  >
+                                    −
+                                  </button>
+                                  <button
+                                    onClick={() => updateScore(team, 1)}
+                                    className="flex-1 font-mono text-[18px] font-bold bg-green-900/30 hover:bg-green-900/50 text-green-300 rounded-lg py-1.5 transition-colors"
+                                  >
+                                    +
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Quarter / status action buttons */}
+                        {selectedGame.status !== 'Final' && (
+                          <div className="flex gap-2 flex-wrap">
+                            {getGameActions(selectedGame).map((action) => (
+                              <button
+                                key={action.label}
+                                onClick={() => handleGameAction(action.onClick())}
+                                className={cn(
+                                  'flex-1 font-cond font-black text-[13px] tracking-widest py-3 rounded-lg text-white transition-colors',
+                                  action.color
+                                )}
+                              >
+                                {action.label}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* ── TRAINER STATUS (always shown) ── */}
+                    <div className="bg-surface-card border border-border rounded-xl p-4 mb-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="font-cond text-[10px] font-black tracking-widest text-muted uppercase">
+                          TRAINER
+                        </div>
+                        {!trainerDispatch && !showDispatchForm && (
+                          <button
+                            onClick={() => setShowDispatchForm(true)}
+                            className="flex items-center gap-1.5 font-cond text-[10px] font-black tracking-widest px-2.5 py-1 rounded bg-red-900/40 border border-red-700/60 text-red-300 hover:bg-red-800/50 transition-colors"
+                          >
+                            <AlertTriangle size={11} />
+                            DISPATCH TRAINER
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Dispatch form */}
+                      {showDispatchForm && !trainerDispatch && (
+                        <div className="space-y-3 mt-2">
+                          <div>
+                            <div className="font-cond text-[10px] text-muted uppercase mb-1">
+                              Player / Person
+                            </div>
+                            <input
+                              type="text"
+                              value={dispatchPlayerName}
+                              onChange={(e) => setDispatchPlayerName(e.target.value)}
+                              placeholder="Player name (optional)"
+                              className="w-full bg-surface border border-border rounded-lg px-3 py-2 font-cond text-[12px] text-white placeholder:text-muted focus:outline-none focus:border-red-500"
+                            />
+                          </div>
+                          <div>
+                            <div className="font-cond text-[10px] text-muted uppercase mb-1">
+                              Injury Type
+                            </div>
+                            <select
+                              value={dispatchInjuryType}
+                              onChange={(e) => setDispatchInjuryType(e.target.value)}
+                              className="w-full bg-[#040e24] border border-border rounded-lg px-3 py-2 font-cond text-[12px] text-white focus:outline-none focus:border-red-500"
+                            >
+                              {INJURY_TYPES.map((t) => (
+                                <option key={t} value={t}>
+                                  {t}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <div className="font-cond text-[10px] text-muted uppercase mb-1">
+                              Trainer
+                            </div>
+                            <select
+                              value={dispatchTrainerId}
+                              onChange={(e) => setDispatchTrainerId(e.target.value)}
+                              className="w-full bg-[#040e24] border border-border rounded-lg px-3 py-2 font-cond text-[12px] text-white focus:outline-none focus:border-red-500"
+                            >
+                              <option value="">Select trainer...</option>
+                              {trainers.map((t) => (
+                                <option key={t.id} value={t.id}>
+                                  {t.name}
+                                  {t.checked_in ? ' ✓' : ''}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={handleDispatchTrainer}
+                              disabled={!dispatchTrainerId || dispatching}
+                              className="flex-1 font-cond font-black text-[12px] tracking-widest py-2.5 rounded-lg bg-red-700 hover:bg-red-600 text-white disabled:opacity-40 transition-colors"
+                            >
+                              {dispatching ? 'DISPATCHING...' : 'DISPATCH'}
+                            </button>
+                            <button
+                              onClick={() => setShowDispatchForm(false)}
+                              className="font-cond text-[12px] text-muted hover:text-white px-4 py-2.5 rounded-lg border border-border transition-colors"
+                            >
+                              CANCEL
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Dispatch status */}
+                      {trainerDispatch ? (
+                        <div className="mt-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="w-2 h-2 rounded-full bg-red-400 animate-pulse" />
+                            <span className="font-cond text-[12px] font-black text-red-300 tracking-wide uppercase">
+                              {trainerDispatch.status}
+                            </span>
+                          </div>
+                          <div className="space-y-1 text-[11px] font-cond">
+                            <div>
+                              <span className="text-muted">Trainer: </span>
+                              <span className="text-white font-bold">
+                                {trainerDispatch.trainer_name}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-muted">Patient: </span>
+                              <span className="text-white">{trainerDispatch.player_name}</span>
+                            </div>
+                            <div>
+                              <span className="text-muted">Injury: </span>
+                              <span className="text-white">{trainerDispatch.injury_type}</span>
+                            </div>
+                            <div>
+                              <span className="text-muted">Dispatched: </span>
+                              <span className="text-white">
+                                {format(new Date(trainerDispatch.dispatched_at), 'h:mm a')}
+                              </span>
+                            </div>
+                            {trainerDispatch.notes && (
+                              <div>
+                                <span className="text-muted">Notes: </span>
+                                <span className="text-white">{trainerDispatch.notes}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ) : !showDispatchForm ? (
+                        <div className="font-cond text-[11px] text-muted mt-1">
+                          No trainer dispatched
+                        </div>
+                      ) : null}
+                    </div>
+
+                    {/* ── REFEREE POSITIONS ── */}
                     <div className="bg-surface-card border border-border rounded-xl p-4 mb-4">
                       <div className="font-cond text-[10px] font-black tracking-widest text-muted uppercase mb-3">
                         REFEREE POSITIONS
@@ -892,7 +1402,7 @@ export function RefereePortal() {
                       </div>
                     </div>
 
-                    {/* Volunteer positions */}
+                    {/* ── VOLUNTEER POSITIONS ── */}
                     <div className="bg-surface-card border border-border rounded-xl p-4 mb-4">
                       <div className="font-cond text-[10px] font-black tracking-widest text-muted uppercase mb-3">
                         VOLUNTEER POSITIONS
@@ -954,78 +1464,6 @@ export function RefereePortal() {
                         })}
                       </div>
                     </div>
-
-                    {/* Game control (assigned refs only) */}
-                    {isAssigned &&
-                      selectedGame.status !== 'Final' &&
-                      selectedGame.status !== 'Cancelled' && (
-                        <div className="bg-surface-card border border-border rounded-xl p-4 mb-4">
-                          <div className="font-cond text-[10px] font-black tracking-widest text-muted uppercase mb-3">
-                            GAME CONTROL
-                          </div>
-
-                          {(selectedGame.status === 'Live' ||
-                            selectedGame.status === 'Halftime') && (
-                            <div className="grid grid-cols-2 gap-3 mb-4">
-                              {(
-                                [
-                                  {
-                                    label: selectedGame.home_team.name,
-                                    team: 'home' as const,
-                                    score: selectedGame.home_score ?? 0,
-                                  },
-                                  {
-                                    label: selectedGame.away_team.name,
-                                    team: 'away' as const,
-                                    score: selectedGame.away_score ?? 0,
-                                  },
-                                ] as const
-                              ).map(({ label, team, score }) => (
-                                <div
-                                  key={team}
-                                  className="bg-surface rounded-lg p-3 text-center border border-border/50"
-                                >
-                                  <div className="font-cond text-[10px] text-muted uppercase tracking-wide mb-1 truncate">
-                                    {label}
-                                  </div>
-                                  <div className="font-mono text-[36px] font-bold text-white leading-none mb-2">
-                                    {score}
-                                  </div>
-                                  <div className="flex gap-2">
-                                    <button
-                                      onClick={() => updateScore(team, -1)}
-                                      className="flex-1 font-mono text-[18px] font-bold bg-red-900/30 hover:bg-red-900/50 text-red-300 rounded-lg py-1.5 transition-colors"
-                                    >
-                                      −
-                                    </button>
-                                    <button
-                                      onClick={() => updateScore(team, 1)}
-                                      className="flex-1 font-mono text-[18px] font-bold bg-green-900/30 hover:bg-green-900/50 text-green-300 rounded-lg py-1.5 transition-colors"
-                                    >
-                                      +
-                                    </button>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-
-                          <div className="flex gap-2 flex-wrap">
-                            {(STATUS_ACTIONS[selectedGame.status] ?? []).map((action) => (
-                              <button
-                                key={action.next}
-                                onClick={() => updateGameStatus(action.next)}
-                                className={cn(
-                                  'flex-1 font-cond font-black text-[13px] tracking-widest py-3 rounded-lg text-white transition-colors',
-                                  action.color
-                                )}
-                              >
-                                {action.label}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
 
                     {/* Player roster check-in (assigned only) */}
                     {isAssigned && (homePlayers.length > 0 || awayPlayers.length > 0) && (
