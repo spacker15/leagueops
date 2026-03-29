@@ -395,7 +395,7 @@ function CompletedGamesSection({
       {expanded && (
         <div className="grid grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-2">
           {games
-            .sort((a, b) => timeToMin(b.scheduled_time) - timeToMin(a.scheduled_time))
+            .sort((a, b) => timeToMin(a.scheduled_time) - timeToMin(b.scheduled_time))
             .map((game) => (
               <button
                 key={game.id}
