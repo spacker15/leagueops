@@ -467,7 +467,7 @@ export async function getWeatherAlerts(eventId: number): Promise<WeatherAlert[]>
   const sb = createClient()
   const { data } = await sb
     .from('weather_alerts')
-    .select('*')
+    .select('*, complex:complexes(name)')
     .eq('event_id', eventId)
     .eq('is_active', true)
     .order('created_at', { ascending: false })

@@ -233,12 +233,14 @@ export interface MedicalIncident {
 export interface WeatherAlert {
   id: number
   event_id: number
+  complex_id?: number | null
   alert_type: string
   description: string
   is_active: boolean
   lightning_delay_start: string | null
   lightning_delay_end: string | null
   created_at: string
+  complex?: { name: string } | null
 }
 
 export interface OpsLogEntry {

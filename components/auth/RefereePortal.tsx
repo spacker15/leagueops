@@ -218,7 +218,7 @@ export function RefereePortal() {
 
   // Weather
   const [weatherAlerts, setWeatherAlerts] = useState<
-    { id: number; alert_type: string; description: string }[]
+    { id: number; alert_type: string; description: string; complex?: { name: string } | null }[]
   >([])
 
   // Trainers + dispatch
@@ -284,7 +284,7 @@ export function RefereePortal() {
         .order('name'),
       sb
         .from('weather_alerts')
-        .select('id, alert_type, description')
+        .select('id, alert_type, description, complex:complexes(name)')
         .eq('event_id', portalEventId!)
         .eq('is_active', true),
     ])
@@ -794,6 +794,11 @@ export function RefereePortal() {
                       <span className="font-cond text-[11px] text-yellow-200">
                         {alert.description}
                       </span>
+                      {alert.complex?.name && (
+                        <span className="font-cond text-[10px] text-yellow-400/70 ml-2">
+                          — {alert.complex.name}
+                        </span>
+                      )}
                     </div>
                   </div>
                 ))}

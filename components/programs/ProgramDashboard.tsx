@@ -113,7 +113,7 @@ export function ProgramDashboard({ onSwitchToAdmin }: { onSwitchToAdmin?: () => 
 
   // Weather alerts
   const [weatherAlerts, setWeatherAlerts] = useState<
-    { id: number; alert_type: string; description: string }[]
+    { id: number; alert_type: string; description: string; complex?: { name: string } | null }[]
   >([])
 
   // Teams tab UI state
@@ -245,14 +245,12 @@ export function ProgramDashboard({ onSwitchToAdmin }: { onSwitchToAdmin?: () => 
           .eq('is_active', true),
         sb
           .from('weather_alerts')
-          .select('id, alert_type, description')
+          .select('id, alert_type, description, complex:complexes(name)')
           .eq('event_id', portalEventId!)
           .eq('is_active', true),
       ])
       setProgramUsers((usersData as { display_name: string; role: string }[]) ?? [])
-      setWeatherAlerts(
-        (alertsData as { id: number; alert_type: string; description: string }[]) ?? []
-      )
+      setWeatherAlerts((alertsData as any[]) ?? [])
 
       // Load fees and payment records for this program's teams
       const [{ data: feesData }, { data: paymentsData }] = await Promise.all([
@@ -542,6 +540,11 @@ export function ProgramDashboard({ onSwitchToAdmin }: { onSwitchToAdmin?: () => 
                     <span className="font-cond text-[11px] text-yellow-200">
                       {alert.description}
                     </span>
+                    {alert.complex?.name && (
+                      <span className="font-cond text-[10px] text-yellow-400/70 ml-2">
+                        — {alert.complex.name}
+                      </span>
+                    )}
                   </div>
                 </div>
               ))}

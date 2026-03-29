@@ -125,7 +125,7 @@ export function TrainerPortal() {
 
   // Weather
   const [weatherAlerts, setWeatherAlerts] = useState<
-    { id: number; alert_type: string; description: string }[]
+    { id: number; alert_type: string; description: string; complex?: { name: string } | null }[]
   >([])
 
   // Schedule
@@ -194,7 +194,7 @@ export function TrainerPortal() {
         : Promise.resolve({ data: [] }),
       sb
         .from('weather_alerts')
-        .select('id, alert_type, description')
+        .select('id, alert_type, description, complex:complexes(name)')
         .eq('event_id', portalEventId)
         .eq('is_active', true),
       sb
@@ -547,6 +547,11 @@ export function TrainerPortal() {
                       <span className="font-cond text-[11px] text-yellow-200">
                         {alert.description}
                       </span>
+                      {alert.complex?.name && (
+                        <span className="font-cond text-[10px] text-yellow-400/70 ml-2">
+                          — {alert.complex.name}
+                        </span>
+                      )}
                     </div>
                   </div>
                 ))}

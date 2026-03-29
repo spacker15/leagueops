@@ -980,7 +980,10 @@ function AlertCard({ alert, onResolve }: { alert: any; onResolve: () => void }) 
           })}
         </span>
       </div>
-      <div className="text-[11px] text-gray-200 mb-2 leading-snug">{alert.description}</div>
+      <div className="text-[11px] text-gray-200 mb-1 leading-snug">{alert.description}</div>
+      {alert.complex?.name && (
+        <div className="font-cond text-[10px] text-muted mb-2">📍 {alert.complex.name}</div>
+      )}
       {alert.temperature_f && (
         <div className="flex gap-3 text-[10px] text-muted font-cond mb-2">
           {alert.temperature_f && <span>🌡 {alert.temperature_f}°F</span>}
