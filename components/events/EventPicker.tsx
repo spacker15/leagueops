@@ -42,6 +42,8 @@ interface EventSummary {
 
 interface Props {
   onSelectEvent: (eventId: number, isNew?: boolean) => void
+  onSwitchToProgram?: () => void
+  programLeaderRole?: unknown
 }
 
 const SPORTS_EMOJI: Record<string, string> = {
@@ -60,7 +62,7 @@ const SPORTS_EMOJI: Record<string, string> = {
   Other: '🏆',
 }
 
-export function EventPicker({ onSelectEvent }: Props) {
+export function EventPicker({ onSelectEvent, onSwitchToProgram }: Props) {
   const { userRole, signOut } = useAuth()
   const [events, setEvents] = useState<EventSummary[]>([])
   const [loading, setLoading] = useState(true)
@@ -447,6 +449,14 @@ export function EventPicker({ onSelectEvent }: Props) {
           </span>
         </div>
         <div className="flex items-center gap-3">
+          {onSwitchToProgram && (
+            <button
+              onClick={onSwitchToProgram}
+              className="font-cond text-[11px] font-bold text-blue-300 hover:text-white border border-[#1a2d50] rounded px-3 py-1.5 transition-colors"
+            >
+              PROGRAM VIEW
+            </button>
+          )}
           <span className="font-cond text-[12px] text-[#5a6e9a]">{userRole?.display_name}</span>
           <button
             onClick={signOut}

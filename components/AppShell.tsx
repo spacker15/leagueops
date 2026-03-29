@@ -54,9 +54,12 @@ export type TabName =
 export function AppShell({
   onChangeEvent,
   initialTab,
+  onSwitchToProgram,
 }: {
   onChangeEvent?: () => void
   initialTab?: TabName
+  onSwitchToProgram?: () => void
+  programLeaderRole?: unknown
 }) {
   const [activeTab, setActiveTab] = useState<TabName>(initialTab ?? 'dashboard')
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -149,6 +152,7 @@ export function AppShell({
         onSignOut={signOut}
         isAdmin={isAdmin}
         onChangeEvent={onChangeEvent}
+        onSwitchToProgram={onSwitchToProgram}
         pendingRequestCount={pendingRequestCount}
       />
       <StatusRow />

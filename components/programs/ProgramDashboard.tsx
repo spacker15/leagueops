@@ -62,8 +62,14 @@ interface Player {
 
 type Tab = 'overview' | 'teams' | 'rosters' | 'register' | 'matchups'
 
-export function ProgramDashboard() {
+export function ProgramDashboard({ onSwitchToAdmin }: { onSwitchToAdmin?: () => void } = {}) {
   const { userRole, signOut } = useAuth()
+  const isCoach = userRole?.role === 'coach'
+  const isAssistantCoach = userRole?.role === 'assistant_coach'
+  const isProgramLeader = userRole?.role === 'program_leader'
+  const canInviteCoach = isProgramLeader
+  const canInviteAssistant = isProgramLeader || isCoach
+  const isReadOnly = isAssistantCoach
   const portalEventId = userRole?.event_id
   const [program, setProgram] = useState<Program | null>(null)
   const [teamRegs, setTeamRegs] = useState<TeamReg[]>([])
@@ -115,6 +121,13 @@ export function ProgramDashboard() {
 
   // Program leaders + coaches for overview card
   const [programUsers, setProgramUsers] = useState<{ display_name: string; role: string }[]>([])
+
+  // Invite state
+  const [inviteEmail, setInviteEmail] = useState('')
+  const [inviteRole, setInviteRole] = useState<'coach' | 'assistant_coach'>('coach')
+  const [inviting, setInviting] = useState(false)
+  const [inviteLink, setInviteLink] = useState<string | null>(null)
+  const [inviteCopied, setInviteCopied] = useState(false)
 
   useEffect(() => {
     loadData()
@@ -391,6 +404,39 @@ export function ProgramDashboard() {
     toast.success('Roster exported')
   }
 
+  async function sendInvite() {
+    if (!inviteEmail.trim() || !userRole?.program_id) return
+    setInviting(true)
+    const sb = createClient()
+    const { data, error } = await sb
+      .from('program_invites')
+      .insert({
+        program_id: userRole.program_id,
+        event_id: portalEventId,
+        invited_email: inviteEmail.trim().toLowerCase(),
+        invited_role: inviteRole,
+        invited_by: null, // client-side insert; service role not needed
+      })
+      .select('token')
+      .single()
+    setInviting(false)
+    if (error || !data) {
+      toast.error(error?.message ?? 'Failed to create invite')
+      return
+    }
+    const link = `${window.location.origin}/join/coach/${data.token}`
+    setInviteLink(link)
+    setInviteEmail('')
+    toast.success('Invite link generated!')
+  }
+
+  function copyInviteLink() {
+    if (!inviteLink) return
+    navigator.clipboard.writeText(inviteLink)
+    setInviteCopied(true)
+    setTimeout(() => setInviteCopied(false), 2000)
+  }
+
   if (loading)
     return (
       <div className="min-h-screen bg-surface flex items-center justify-center">
@@ -430,7 +476,9 @@ export function ProgramDashboard() {
               { id: 'teams', label: `Teams (${teamRegs.length})` },
               { id: 'rosters', label: 'Rosters' },
               { id: 'matchups', label: 'Matchups' },
-              { id: 'register', label: '+ Register Team' },
+              ...(!isCoach && !isAssistantCoach
+                ? [{ id: 'register', label: '+ Register Team' }]
+                : []),
             ] as { id: Tab; label: string }[]
           ).map((t) => (
             <button
@@ -449,6 +497,19 @@ export function ProgramDashboard() {
         </nav>
 
         <div className="flex items-center gap-3 px-4">
+          {isAssistantCoach && (
+            <span className="font-cond text-[9px] font-black tracking-widest text-muted border border-border rounded px-2 py-0.5 uppercase">
+              View Only
+            </span>
+          )}
+          {onSwitchToAdmin && (
+            <button
+              onClick={onSwitchToAdmin}
+              className="font-cond text-[11px] font-bold text-blue-300 hover:text-white border border-border rounded px-3 py-1.5 transition-colors"
+            >
+              ADMIN VIEW
+            </button>
+          )}
           <span className="font-cond text-[11px] text-white">{userRole?.display_name}</span>
           <button
             onClick={signOut}
@@ -606,6 +667,59 @@ export function ProgramDashboard() {
                       </div>
                     )
                   })()}
+                  {/* Invite section — visible to program leaders and coaches */}
+                  {(canInviteCoach || canInviteAssistant) && (
+                    <div className="border-t border-border/40 pt-3">
+                      <div className="font-cond text-[10px] text-muted uppercase tracking-widest mb-2">
+                        Invite Staff
+                      </div>
+                      <div className="flex gap-2">
+                        <input
+                          type="email"
+                          className="flex-1 bg-surface border border-border text-white px-3 py-1.5 rounded-lg text-[12px] outline-none focus:border-blue-400 placeholder-muted"
+                          placeholder="coach@email.com"
+                          value={inviteEmail}
+                          onChange={(e) => setInviteEmail(e.target.value)}
+                        />
+                        {canInviteCoach && (
+                          <select
+                            className="bg-[#040e24] border border-border text-white px-2 py-1.5 rounded-lg text-[11px] outline-none"
+                            value={inviteRole}
+                            onChange={(e) =>
+                              setInviteRole(e.target.value as 'coach' | 'assistant_coach')
+                            }
+                          >
+                            <option value="coach">Coach</option>
+                            <option value="assistant_coach">Asst. Coach</option>
+                          </select>
+                        )}
+                        <button
+                          onClick={sendInvite}
+                          disabled={inviting || !inviteEmail.trim()}
+                          className="font-cond text-[11px] font-bold bg-navy border border-border text-white px-3 py-1.5 rounded-lg hover:bg-navy-light transition-colors disabled:opacity-50 whitespace-nowrap"
+                        >
+                          {inviting ? '...' : 'INVITE'}
+                        </button>
+                      </div>
+                      {inviteLink && (
+                        <div className="mt-2 flex items-center gap-2 bg-surface border border-border rounded-lg px-3 py-2">
+                          <span className="font-mono text-[10px] text-blue-300 truncate flex-1">
+                            {inviteLink}
+                          </span>
+                          <button
+                            onClick={copyInviteLink}
+                            className="font-cond text-[10px] font-bold text-muted hover:text-white transition-colors whitespace-nowrap"
+                          >
+                            {inviteCopied ? '✓ COPIED' : 'COPY'}
+                          </button>
+                        </div>
+                      )}
+                      <div className="font-cond text-[9px] text-muted mt-1">
+                        Share the link with the invitee — they&apos;ll create their account from it.
+                      </div>
+                    </div>
+                  )}
+
                   {/* Upcoming games */}
                   {(() => {
                     const today = new Date().toISOString().split('T')[0]

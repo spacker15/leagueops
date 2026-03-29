@@ -21,8 +21,8 @@ affects:
 tech-stack:
   added: []
   patterns:
-    - "Standalone rollback SQL: separate rls_rollback.sql covers DROP all auth_* and anon_* policies, DROP FUNCTION user_event_ids(), then recreates exact original permissive policy names"
-    - "Anon access limited to 6 public tables via RLS default-deny: no anon policy = zero rows for sensitive tables"
+    - 'Standalone rollback SQL: separate rls_rollback.sql covers DROP all auth_* and anon_* policies, DROP FUNCTION user_event_ids(), then recreates exact original permissive policy names'
+    - 'Anon access limited to 6 public tables via RLS default-deny: no anon policy = zero rows for sensitive tables'
 
 key-files:
   created:
@@ -30,13 +30,13 @@ key-files:
   modified: []
 
 key-decisions:
-  - "Layer 4 anon policies were already present in rls_migration.sql from 04-01 — no append needed, verified 6 correct CREATE POLICY anon_select_* statements"
-  - "Rollback script created as standalone file (not comment block) — more accessible for emergency use"
-  - "Migration deployment deferred to manual step — no Supabase credentials available in execution environment; user must apply via Supabase SQL Editor or MCP tools"
-  - "Rollback restores exact original policy names including non-standard ones: schedule_rules_all, weekly_overrides_all, Allow all on registration_invites, Allow all on division_timing, etc."
+  - 'Layer 4 anon policies were already present in rls_migration.sql from 04-01 — no append needed, verified 6 correct CREATE POLICY anon_select_* statements'
+  - 'Rollback script created as standalone file (not comment block) — more accessible for emergency use'
+  - 'Migration deployment deferred to manual step — no Supabase credentials available in execution environment; user must apply via Supabase SQL Editor or MCP tools'
+  - 'Rollback restores exact original policy names including non-standard ones: schedule_rules_all, weekly_overrides_all, Allow all on registration_invites, Allow all on division_timing, etc.'
 
 patterns-established:
-  - "Rollback pattern: DROP all new policies by exact name, DROP FUNCTION, then CREATE original permissive policies with exact original names from source SQL files"
+  - 'Rollback pattern: DROP all new policies by exact name, DROP FUNCTION, then CREATE original permissive policies with exact original names from source SQL files'
 
 requirements-completed: [SEC-01]
 
@@ -75,11 +75,11 @@ completed: 2026-03-23
 
 ## Files Created/Modified
 
-- `supabase/rls_rollback.sql` - Standalone emergency rollback: drops all auth_* and anon_* policies, drops user_event_ids(), restores original permissive "Allow all" policies with exact original names per source SQL files
+- `supabase/rls_rollback.sql` - Standalone emergency rollback: drops all auth*\* and anon*\* policies, drops user_event_ids(), restores original permissive "Allow all" policies with exact original names per source SQL files
 
 ## Decisions Made
 
-- Layer 4 anon SELECT policies were already complete in rls_migration.sql from plan 04-01 — confirmed via grep (6 CREATE POLICY anon_select_* statements, 0 anon policies on sensitive tables)
+- Layer 4 anon SELECT policies were already complete in rls*migration.sql from plan 04-01 — confirmed via grep (6 CREATE POLICY anon_select*\* statements, 0 anon policies on sensitive tables)
 - Rollback script implemented as standalone file rather than extracting the inline comment block from rls_migration.sql — standalone file is more accessible during an emergency
 - Deployment via MCP tools / Supabase CLI deferred — no Supabase credentials (access token, service role key) were available in the execution environment
 - All "Allow all" rollback creates use exact original policy names: "schedule_rules_all", "weekly_overrides_all", "schedule_audit_log_all", "Allow all on registration_invites", "Allow all on season_game_days", "Allow all on field_divisions", "Allow all on division_timing"
@@ -110,6 +110,7 @@ None — plan executed correctly for the parts that could be completed.
 **Status:** Rollback script is staged. Migration is ready to apply.
 
 **User action required:** Apply `supabase/rls_migration.sql` to Supabase via one of:
+
 1. Supabase Dashboard SQL Editor: paste the full file content at https://supabase.com/dashboard/project/rzzzwrqbubptnlwfesjv/sql
 2. Supabase CLI: `npx supabase db push` (requires `supabase login` first)
 3. Supabase MCP tool `apply_migration` (requires connected MCP server session)
@@ -171,6 +172,14 @@ ORDER BY tablename;
 
 None — no frontend stubs. This is a pure database migration phase.
 
+## Self-Check: PASSED
+
+- `supabase/rls_rollback.sql` — FOUND
+- `.planning/phases/04-rls-database-security/04-02-SUMMARY.md` — FOUND
+- Commit `01cb07b` (feat: create rls_rollback.sql) — FOUND
+- Commit `3456aa9` (docs: complete plan) — FOUND
+
 ---
-*Phase: 04-rls-database-security*
-*Completed: 2026-03-23*
+
+_Phase: 04-rls-database-security_
+_Completed: 2026-03-23_

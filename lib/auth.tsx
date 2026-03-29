@@ -12,6 +12,7 @@ export type AppRole =
   | 'player'
   | 'program_leader'
   | 'coach'
+  | 'assistant_coach'
   | 'trainer'
 
 export interface UserRole {

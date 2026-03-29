@@ -75,6 +75,7 @@ interface Props {
   onSignOut?: () => void
   isAdmin?: boolean
   onChangeEvent?: () => void // ← ADD THIS LINE
+  onSwitchToProgram?: () => void
   pendingRequestCount?: number
 }
 
@@ -82,6 +83,7 @@ export function TopBar({
   tabs,
   activeTab,
   onTabChange,
+  onSwitchToProgram,
   userRole,
   onSignOut,
   isAdmin,
@@ -317,6 +319,14 @@ export function TopBar({
             <span className="font-cond text-[13px] font-bold text-white truncate max-w-[110px]">
               {userRole.display_name}
             </span>
+            {onSwitchToProgram && (
+              <button
+                onClick={onSwitchToProgram}
+                className="font-cond text-[9px] font-black tracking-[.1em] px-2 py-1 rounded border border-[#1a2d50] text-blue-300 hover:text-white hover:border-blue-400 transition-colors"
+              >
+                PROGRAM VIEW
+              </button>
+            )}
             {onChangeEvent && (
               <button
                 onClick={onChangeEvent}
