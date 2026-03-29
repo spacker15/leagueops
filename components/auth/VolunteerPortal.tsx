@@ -4,27 +4,23 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '@/lib/auth'
 import { createClient } from '@/supabase/client'
 import { cn } from '@/lib/utils'
-import { CheckCircle, LogOut, ChevronLeft } from 'lucide-react'
+import { CheckCircle, LogOut, ChevronLeft, AlertTriangle } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { format } from 'date-fns'
 
 type PortalTab = 'checkin' | 'games' | 'approvals' | 'availability'
 
 const VOL_POSITIONS = ['Line Judge', 'Timekeeper', 'Ball Retriever', 'Gate', 'General']
-
-const STATUS_ACTIONS: Record<string, { label: string; next: string; color: string }[]> = {
-  Scheduled: [{ label: 'START GAME', next: 'Live', color: 'bg-green-700 hover:bg-green-600' }],
-  Starting: [{ label: 'START GAME', next: 'Live', color: 'bg-green-700 hover:bg-green-600' }],
-  Live: [
-    { label: 'HALFTIME', next: 'Halftime', color: 'bg-yellow-700 hover:bg-yellow-600' },
-    { label: 'END GAME', next: 'Final', color: 'bg-red hover:opacity-90' },
-  ],
-  Halftime: [
-    { label: '2ND HALF', next: 'Live', color: 'bg-green-700 hover:bg-green-600' },
-    { label: 'END GAME', next: 'Final', color: 'bg-red hover:opacity-90' },
-  ],
-  Delayed: [{ label: 'RESUME', next: 'Live', color: 'bg-green-700 hover:bg-green-600' }],
-}
+const INJURY_TYPES = [
+  'General / Unknown',
+  'Head / Concussion',
+  'Neck / Spine',
+  'Upper Body',
+  'Lower Body',
+  'Laceration',
+  'Heat Illness',
+  'Cardiac',
+]
 
 interface Field {
   id: number
@@ -37,12 +33,29 @@ interface EventDate {
   label: string
 }
 
+interface Trainer {
+  id: number
+  name: string
+  checked_in: boolean
+}
+
+interface TrainerDispatch {
+  id: number
+  player_name: string
+  injury_type: string
+  trainer_name: string
+  status: string
+  dispatched_at: string
+  notes: string | null
+}
+
 interface GameSummary {
   id: number
   event_date_id: number
   scheduled_time: string
   division: string
   status: string
+  quarter: number | null
   home_score: number | null
   away_score: number | null
   field_id: number
@@ -53,8 +66,17 @@ interface GameSummary {
 
 interface VolSlot {
   role: string
-  volunteer_id: number
+  volunteer_id: number | null
+  referee_id: number | null
   volunteer?: { name: string }
+  referee?: { name: string }
+}
+
+function getQuarterLabel(game: GameSummary): string {
+  if (game.status === 'Halftime') return 'HT'
+  if (game.status === 'Final') return 'FINAL'
+  if (game.quarter) return `Q${game.quarter}`
+  return ''
 }
 
 function timeToMin(t: string): number {
@@ -89,6 +111,19 @@ export function VolunteerPortal() {
   const [gameSlots, setGameSlots] = useState<VolSlot[]>([])
   const [slotLoading, setSlotLoading] = useState(false)
 
+  // Quick assign
+  const [quickAssignMode, setQuickAssignMode] = useState(false)
+  const [quickAssignPos, setQuickAssignPos] = useState('Line Judge')
+  const [quickAssigning, setQuickAssigning] = useState<number | null>(null)
+
+  // Trainers + dispatch
+  const [trainers, setTrainers] = useState<Trainer[]>([])
+  const [trainerDispatch, setTrainerDispatch] = useState<TrainerDispatch | null>(null)
+  const [showDispatchForm, setShowDispatchForm] = useState(false)
+  const [dispatchPlayerName, setDispatchPlayerName] = useState('')
+  const [dispatchInjuryType, setDispatchInjuryType] = useState('General / Unknown')
+  const [dispatching, setDispatching] = useState(false)
+
   const [homePlayers, setHomePlayers] = useState<any[]>([])
   const [awayPlayers, setAwayPlayers] = useState<any[]>([])
   const [checkins, setCheckins] = useState<number[]>([])
@@ -105,7 +140,6 @@ export function VolunteerPortal() {
   useEffect(() => {
     if (!portalEventId) return
     if (!userRole?.volunteer_id) {
-      // Auto-create volunteer record for users who don't have one yet
       createVolunteerRecord()
       return
     }
@@ -126,7 +160,6 @@ export function VolunteerPortal() {
       return
     }
     await sb.from('user_roles').update({ volunteer_id: newVol.id }).eq('id', userRole.id)
-    // Reload the page so auth context re-reads the updated role
     window.location.reload()
   }
 
@@ -140,13 +173,14 @@ export function VolunteerPortal() {
       { data: myAssignData },
       { data: eventDates },
       { data: availData },
+      { data: trainersData },
       { data: weatherData },
     ] = await Promise.all([
       sb.from('volunteers').select('*').eq('id', userRole!.volunteer_id!).single(),
       sb
         .from('games')
         .select(
-          `id, event_date_id, scheduled_time, division, status, home_score, away_score, field_id,
+          `id, event_date_id, scheduled_time, division, status, quarter, home_score, away_score, field_id,
            field:fields(id, name),
            home_team:teams!games_home_team_id_fkey(id, name),
            away_team:teams!games_away_team_id_fkey(id, name)`
@@ -168,6 +202,11 @@ export function VolunteerPortal() {
         .select('date, available_from, available_to')
         .eq('volunteer_id', userRole!.volunteer_id!),
       sb
+        .from('trainers')
+        .select('id, name, checked_in')
+        .eq('event_id', portalEventId!)
+        .order('name'),
+      sb
         .from('weather_alerts')
         .select('id, alert_type, description')
         .eq('event_id', portalEventId!)
@@ -188,6 +227,10 @@ export function VolunteerPortal() {
       rolesMap.set(a.game_id, [...existing, a.role])
     }
     setMyAssignmentRoles(rolesMap)
+    setTrainers((trainersData ?? []) as Trainer[])
+    setWeatherAlerts(
+      (weatherData ?? []) as { id: number; alert_type: string; description: string }[]
+    )
 
     const dates = (eventDates ?? []) as EventDate[]
     setEventDates(dates)
@@ -207,14 +250,12 @@ export function VolunteerPortal() {
         `Next: ${upcomingDate.label} — ${format(new Date(upcomingDate.date + 'T12:00:00'), 'EEEE, MMMM d')}`
       )
     }
+
     const availMap = new Map<string, { from: string; to: string } | null>()
     for (const a of availData ?? []) {
       availMap.set(a.date, { from: a.available_from.slice(0, 5), to: a.available_to.slice(0, 5) })
     }
     setAvailability(availMap)
-    setWeatherAlerts(
-      (weatherData ?? []) as { id: number; alert_type: string; description: string }[]
-    )
 
     setLoading(false)
   }
@@ -226,28 +267,41 @@ export function VolunteerPortal() {
     setHomePlayers([])
     setAwayPlayers([])
     setCheckins([])
+    setTrainerDispatch(null)
+    setShowDispatchForm(false)
     const sb = createClient()
-    const [{ data: slots }, { data: home }, { data: away }, { data: ci }] = await Promise.all([
-      sb
-        .from('vol_assignments')
-        .select(`role, volunteer_id, volunteer:volunteers(name)`)
-        .eq('game_id', game.id),
-      sb
-        .from('players')
-        .select('id, name, number, position, usa_lacrosse_number')
-        .eq('team_id', game.home_team.id)
-        .order('name'),
-      sb
-        .from('players')
-        .select('id, name, number, position, usa_lacrosse_number')
-        .eq('team_id', game.away_team.id)
-        .order('name'),
-      sb.from('player_checkins').select('player_id').eq('game_id', game.id),
-    ])
+    const [{ data: slots }, { data: home }, { data: away }, { data: ci }, { data: dispatch }] =
+      await Promise.all([
+        sb
+          .from('vol_assignments')
+          .select(
+            `role, volunteer_id, referee_id, volunteer:volunteers(name), referee:referees(name)`
+          )
+          .eq('game_id', game.id),
+        sb
+          .from('players')
+          .select('id, name, number, position, usa_lacrosse_number')
+          .eq('team_id', game.home_team.id)
+          .order('name'),
+        sb
+          .from('players')
+          .select('id, name, number, position, usa_lacrosse_number')
+          .eq('team_id', game.away_team.id)
+          .order('name'),
+        sb.from('player_checkins').select('player_id').eq('game_id', game.id),
+        sb
+          .from('medical_incidents')
+          .select('*')
+          .eq('game_id', game.id)
+          .order('dispatched_at', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ])
     setGameSlots((slots ?? []) as unknown as VolSlot[])
     setHomePlayers(home ?? [])
     setAwayPlayers(away ?? [])
     setCheckins((ci ?? []).map((c: any) => c.player_id))
+    if (dispatch) setTrainerDispatch(dispatch as TrainerDispatch)
     setSlotLoading(false)
   }
 
@@ -265,6 +319,11 @@ export function VolunteerPortal() {
     }
     toast.success(`Assigned as ${role}`)
     setMyAssignedGameIds((prev) => new Set([...prev, selectedGame.id]))
+    setMyAssignmentRoles((prev) => {
+      const next = new Map(prev)
+      next.set(selectedGame.id, [...(next.get(selectedGame.id) ?? []), role])
+      return next
+    })
     loadGameDetail(selectedGame)
   }
 
@@ -278,34 +337,69 @@ export function VolunteerPortal() {
       .eq('volunteer_id', userRole.volunteer_id)
       .eq('role', role)
     toast('Dropped position', { icon: '↩' })
-    const remaining = gameSlots.filter(
-      (s) => s.volunteer_id === userRole.volunteer_id && s.role !== role
-    )
-    if (remaining.length === 0) {
-      setMyAssignedGameIds((prev) => {
-        const next = new Set(prev)
+    setMyAssignmentRoles((prev) => {
+      const next = new Map(prev)
+      const remaining = (next.get(selectedGame.id) ?? []).filter((r) => r !== role)
+      if (remaining.length === 0) {
         next.delete(selectedGame.id)
-        return next
-      })
-    }
+        setMyAssignedGameIds((ids) => {
+          const s = new Set(ids)
+          s.delete(selectedGame.id)
+          return s
+        })
+      } else {
+        next.set(selectedGame.id, remaining)
+      }
+      return next
+    })
     loadGameDetail(selectedGame)
   }
 
-  async function updateGameStatus(newStatus: string) {
+  async function quickAssignToGame(game: GameSummary) {
+    if (!userRole?.volunteer_id || quickAssigning !== null) return
+    setQuickAssigning(game.id)
+    const sb = createClient()
+    const { error } = await sb.from('vol_assignments').insert({
+      game_id: game.id,
+      volunteer_id: userRole.volunteer_id,
+      role: quickAssignPos,
+    })
+    if (error) {
+      toast.error(error.message)
+      setQuickAssigning(null)
+      return
+    }
+    setMyAssignedGameIds((prev) => new Set([...prev, game.id]))
+    setMyAssignmentRoles((prev) => {
+      const next = new Map(prev)
+      next.set(game.id, [...(next.get(game.id) ?? []), quickAssignPos])
+      return next
+    })
+    setQuickAssigning(null)
+    toast.success(`Assigned as ${quickAssignPos}`)
+  }
+
+  async function handleGameAction(action: { status: string; quarter?: number }) {
     if (!selectedGame) return
     const sb = createClient()
-    const { error } = await sb.from('games').update({ status: newStatus }).eq('id', selectedGame.id)
+    const update: Record<string, unknown> = { status: action.status }
+    if (action.quarter !== undefined) update.quarter = action.quarter
+    const { error } = await sb.from('games').update(update).eq('id', selectedGame.id)
     if (error) {
       toast.error(error.message)
       return
     }
-    const updated = { ...selectedGame, status: newStatus }
+    const updated = {
+      ...selectedGame,
+      status: action.status,
+      quarter: action.quarter ?? selectedGame.quarter,
+    }
     setSelectedGame(updated)
     setAllGames((prev) => prev.map((g) => (g.id === selectedGame.id ? updated : g)))
-    toast.success(`Game: ${newStatus}`)
+    toast.success(`Game: ${action.status}${action.quarter ? ` Q${action.quarter}` : ''}`)
     await sb.from('ops_log').insert({
       event_id: portalEventId,
-      message: `${vol?.name} updated ${selectedGame.home_team.name} vs ${selectedGame.away_team.name} → ${newStatus}`,
+      message: `${vol?.name} updated ${selectedGame.home_team.name} vs ${selectedGame.away_team.name} → ${action.status}${action.quarter ? ` Q${action.quarter}` : ''}`,
       log_type: 'info',
       occurred_at: new Date().toISOString(),
     })
@@ -328,6 +422,45 @@ export function VolunteerPortal() {
     const updated = { ...selectedGame, [field]: newVal }
     setSelectedGame(updated)
     setAllGames((prev) => prev.map((g) => (g.id === selectedGame.id ? updated : g)))
+  }
+
+  async function handleDispatchTrainer() {
+    if (!selectedGame) return
+    setDispatching(true)
+    const sb = createClient()
+    const now = new Date().toISOString()
+    const { data: incident, error } = await sb
+      .from('medical_incidents')
+      .insert({
+        event_id: portalEventId,
+        game_id: selectedGame.id,
+        field_id: selectedGame.field_id,
+        player_name: dispatchPlayerName || 'Unknown',
+        team_name: '',
+        injury_type: dispatchInjuryType,
+        trainer_name: 'Awaiting Acceptance',
+        status: 'Dispatched',
+        dispatched_at: now,
+      })
+      .select('*')
+      .single()
+    if (error) {
+      toast.error(error.message)
+      setDispatching(false)
+      return
+    }
+    await sb.from('ops_log').insert({
+      event_id: portalEventId,
+      message: `🚨 TRAINER DISPATCHED — ${selectedGame.home_team.name} vs ${selectedGame.away_team.name} (${selectedGame.field.name}) — Patient: ${dispatchPlayerName || 'Unknown'} — ${dispatchInjuryType}`,
+      log_type: 'warning',
+      occurred_at: now,
+    })
+    setTrainerDispatch(incident as TrainerDispatch)
+    setShowDispatchForm(false)
+    setDispatchPlayerName('')
+    setDispatchInjuryType('General / Unknown')
+    setDispatching(false)
+    toast.success('Trainer dispatched — admin notified')
   }
 
   async function handleSelfCheckIn() {
@@ -393,10 +526,7 @@ export function VolunteerPortal() {
     const sb = createClient()
     await sb
       .from('volunteer_availability')
-      .update({
-        available_from: updated.from,
-        available_to: updated.to,
-      })
+      .update({ available_from: updated.from, available_to: updated.to })
       .eq('volunteer_id', userRole.volunteer_id)
       .eq('date', date)
     setSavingAvail(null)
@@ -440,7 +570,7 @@ export function VolunteerPortal() {
   return (
     <div className="h-screen bg-surface flex flex-col">
       {/* Header */}
-      <div className="flex-shrink-0 bg-navy-dark border-b-2 border-red px-4 py-0 flex items-stretch">
+      <div className="bg-navy-dark border-b-2 border-red px-4 py-0 flex items-stretch flex-shrink-0">
         <div className="flex items-center gap-3 py-3 px-2">
           <div className="font-cond text-lg font-black tracking-widest text-white">LEAGUEOPS</div>
           <div className="font-cond text-[11px] text-muted tracking-widest border-l border-border pl-3">
@@ -451,8 +581,8 @@ export function VolunteerPortal() {
           {[
             { id: 'checkin', label: 'My Check-In' },
             { id: 'games', label: `Games (${allGames.length})` },
-            { id: 'availability', label: 'Availability' },
             { id: 'approvals', label: 'Approvals' },
+            { id: 'availability', label: 'Availability' },
           ].map((t) => (
             <button
               key={t.id}
@@ -507,10 +637,10 @@ export function VolunteerPortal() {
                 ))}
             </div>
           )}
+
           {/* ── MY CHECK-IN ── */}
           {tab === 'checkin' && (
             <div>
-              {/* Date picker */}
               {eventDates.length > 0 && (
                 <div className="flex gap-1.5 mb-4 flex-wrap">
                   <button
@@ -662,7 +792,6 @@ export function VolunteerPortal() {
           {/* ── GAMES TAB ── */}
           {tab === 'games' && (
             <div>
-              {/* Date picker */}
               {eventDates.length > 0 && (
                 <div className="flex gap-1.5 mb-4 flex-wrap">
                   <button
@@ -752,15 +881,53 @@ export function VolunteerPortal() {
                 <>
                   <div className="flex items-center gap-2 mb-3">
                     <button
-                      onClick={() => setSelectedFieldId(null)}
+                      onClick={() => {
+                        setSelectedFieldId(null)
+                        setQuickAssignMode(false)
+                      }}
                       className="text-muted hover:text-white"
                     >
                       <ChevronLeft size={18} />
                     </button>
-                    <div className="font-cond font-black text-[14px] text-white">
+                    <div className="font-cond font-black text-[14px] text-white flex-1">
                       {fields.find((f) => f.id === selectedFieldId)?.name}
                     </div>
+                    <button
+                      onClick={() => setQuickAssignMode((v) => !v)}
+                      className={cn(
+                        'font-cond text-[10px] font-black tracking-widest px-2.5 py-1 rounded border transition-colors',
+                        quickAssignMode
+                          ? 'bg-red border-red text-white'
+                          : 'border-border text-muted hover:text-white'
+                      )}
+                    >
+                      QUICK ASSIGN
+                    </button>
                   </div>
+
+                  {quickAssignMode && (
+                    <div className="bg-surface-card border border-border rounded-xl p-3 mb-3">
+                      <div className="font-cond text-[10px] font-black tracking-widest text-muted uppercase mb-2">
+                        SELECT POSITION — TAP GAME TO ASSIGN
+                      </div>
+                      <div className="flex gap-1.5 flex-wrap">
+                        {VOL_POSITIONS.map((pos) => (
+                          <button
+                            key={pos}
+                            onClick={() => setQuickAssignPos(pos)}
+                            className={cn(
+                              'font-cond text-[10px] font-black tracking-widest px-2.5 py-1 rounded border transition-colors',
+                              quickAssignPos === pos
+                                ? 'bg-blue-700 border-blue-600 text-white'
+                                : 'border-border text-muted hover:text-white'
+                            )}
+                          >
+                            {pos}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   <div
                     className="space-y-2 overflow-y-auto"
@@ -775,15 +942,21 @@ export function VolunteerPortal() {
                       .map((game) => {
                         const mine = myAssignedGameIds.has(game.id)
                         const roles = myAssignmentRoles.get(game.id) ?? []
+                        const isAssigning = quickAssigning === game.id
                         return (
                           <button
                             key={game.id}
-                            onClick={() => loadGameDetail(game)}
+                            onClick={() =>
+                              quickAssignMode ? quickAssignToGame(game) : loadGameDetail(game)
+                            }
+                            disabled={isAssigning}
                             className={cn(
                               'w-full text-left rounded-xl p-4 border transition-all',
-                              mine
-                                ? 'bg-green-900/15 border-green-800/50 hover:border-green-400'
-                                : 'bg-surface-card border-border hover:border-blue-400'
+                              quickAssignMode
+                                ? 'bg-surface-card border-blue-800/60 hover:border-blue-400 hover:bg-blue-900/10'
+                                : mine
+                                  ? 'bg-green-900/15 border-green-800/50 hover:border-green-400'
+                                  : 'bg-surface-card border-border hover:border-blue-400'
                             )}
                           >
                             <div className="flex justify-between items-center mb-1">
@@ -791,12 +964,17 @@ export function VolunteerPortal() {
                                 {game.scheduled_time}
                               </span>
                               <div className="flex items-center gap-2">
-                                {mine && roles.length > 0 && (
+                                {isAssigning && (
+                                  <span className="font-cond text-[9px] text-muted">
+                                    ASSIGNING...
+                                  </span>
+                                )}
+                                {!quickAssignMode && mine && roles.length > 0 && (
                                   <div className="flex gap-1">
                                     {roles.map((r) => (
                                       <span
                                         key={r}
-                                        className="font-cond text-[9px] font-black text-blue-300 bg-blue-900/30 px-1.5 py-0.5 rounded"
+                                        className="font-cond text-[9px] font-black text-green-400 bg-green-900/30 px-1.5 py-0.5 rounded"
                                       >
                                         {r}
                                       </span>
@@ -813,7 +991,7 @@ export function VolunteerPortal() {
                                         : 'badge-scheduled'
                                   )}
                                 >
-                                  {game.status.toUpperCase()}
+                                  {getQuarterLabel(game) || game.status.toUpperCase()}
                                 </span>
                               </div>
                             </div>
@@ -902,7 +1080,277 @@ export function VolunteerPortal() {
                     <div className="text-center py-6 text-muted font-cond">LOADING...</div>
                   ) : (
                     <>
-                      {/* Position slots */}
+                      {/* ── GAME CONTROL (assigned vols only) ── */}
+                      {isAssigned && selectedGame.status !== 'Cancelled' && (
+                        <div className="bg-surface-card border border-border rounded-xl p-4 mb-4">
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="font-cond text-[10px] font-black tracking-widest text-muted uppercase">
+                              GAME CONTROL
+                            </div>
+                            {selectedGame.quarter && selectedGame.status !== 'Final' && (
+                              <div className="flex gap-1">
+                                {[1, 2, 3, 4].map((q) => (
+                                  <span
+                                    key={q}
+                                    className={cn(
+                                      'font-cond text-[10px] font-black px-2 py-0.5 rounded',
+                                      q === selectedGame.quarter
+                                        ? selectedGame.status === 'Halftime'
+                                          ? 'bg-yellow-700/60 text-yellow-200'
+                                          : 'bg-green-700/60 text-green-200'
+                                        : (selectedGame.quarter ?? 0) > q
+                                          ? 'bg-border/40 text-muted'
+                                          : 'border border-border/40 text-border'
+                                    )}
+                                  >
+                                    Q{q}
+                                  </span>
+                                ))}
+                                {selectedGame.status === 'Halftime' && (
+                                  <span className="font-cond text-[10px] font-black px-2 py-0.5 rounded bg-yellow-700/60 text-yellow-200">
+                                    HT
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Score controls */}
+                          {(selectedGame.status === 'Live' ||
+                            selectedGame.status === 'Halftime') && (
+                            <div className="grid grid-cols-2 gap-3 mb-4">
+                              {(
+                                [
+                                  {
+                                    label: selectedGame.home_team.name,
+                                    team: 'home' as const,
+                                    score: selectedGame.home_score ?? 0,
+                                  },
+                                  {
+                                    label: selectedGame.away_team.name,
+                                    team: 'away' as const,
+                                    score: selectedGame.away_score ?? 0,
+                                  },
+                                ] as const
+                              ).map(({ label, team, score }) => (
+                                <div
+                                  key={team}
+                                  className="bg-surface rounded-lg p-3 text-center border border-border/50"
+                                >
+                                  <div className="font-cond text-[10px] text-muted uppercase tracking-wide mb-1 truncate">
+                                    {label}
+                                  </div>
+                                  <div className="font-mono text-[36px] font-bold text-white leading-none mb-2">
+                                    {score}
+                                  </div>
+                                  <div className="flex gap-2">
+                                    <button
+                                      onClick={() => updateScore(team, -1)}
+                                      className="flex-1 font-mono text-[18px] font-bold bg-red-900/30 hover:bg-red-900/50 text-red-300 rounded-lg py-1.5 transition-colors"
+                                    >
+                                      −
+                                    </button>
+                                    <button
+                                      onClick={() => updateScore(team, 1)}
+                                      className="flex-1 font-mono text-[18px] font-bold bg-green-900/30 hover:bg-green-900/50 text-green-300 rounded-lg py-1.5 transition-colors"
+                                    >
+                                      +
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Trainers on duty */}
+                          <div className="mb-3">
+                            <div className="font-cond text-[9px] font-black tracking-widest text-muted uppercase mb-1.5">
+                              TRAINERS ON DUTY
+                            </div>
+                            {trainers.filter((t) => t.checked_in).length > 0 ? (
+                              <div className="flex flex-wrap gap-1.5">
+                                {trainers
+                                  .filter((t) => t.checked_in)
+                                  .map((t) => (
+                                    <span
+                                      key={t.id}
+                                      className="font-cond text-[11px] font-black text-green-300 bg-green-900/30 px-2.5 py-1 rounded-lg border border-green-700/40"
+                                    >
+                                      {t.name}
+                                    </span>
+                                  ))}
+                              </div>
+                            ) : (
+                              <div className="font-cond text-[11px] text-muted">
+                                No trainers checked in
+                              </div>
+                            )}
+                          </div>
+
+                          {/* SET GAME STATE grid */}
+                          <div>
+                            <div className="font-cond text-[9px] font-black tracking-widest text-muted uppercase mb-2">
+                              SET GAME STATE
+                            </div>
+                            <div className="grid grid-cols-4 gap-1.5">
+                              {(
+                                [
+                                  { label: 'PRE-GAME', status: 'Scheduled', quarter: undefined },
+                                  { label: 'Q1', status: 'Live', quarter: 1 },
+                                  { label: 'Q2', status: 'Live', quarter: 2 },
+                                  { label: 'HALF', status: 'Halftime', quarter: undefined },
+                                  { label: 'Q3', status: 'Live', quarter: 3 },
+                                  { label: 'Q4', status: 'Live', quarter: 4 },
+                                  { label: 'FINAL', status: 'Final', quarter: undefined },
+                                  { label: 'DELAY', status: 'Delayed', quarter: undefined },
+                                ] as {
+                                  label: string
+                                  status: string
+                                  quarter: number | undefined
+                                }[]
+                              ).map((btn) => {
+                                const isActive =
+                                  btn.status === selectedGame.status &&
+                                  (btn.quarter === undefined
+                                    ? btn.status !== 'Live'
+                                      ? true
+                                      : false
+                                    : btn.quarter === (selectedGame.quarter ?? 1))
+                                const activeBg =
+                                  btn.status === 'Live'
+                                    ? 'bg-green-700 text-white'
+                                    : btn.status === 'Halftime'
+                                      ? 'bg-yellow-700 text-white'
+                                      : btn.status === 'Final'
+                                        ? 'bg-slate-600 text-white'
+                                        : btn.status === 'Delayed'
+                                          ? 'bg-red-700 text-white'
+                                          : 'bg-blue-700 text-white'
+                                return (
+                                  <button
+                                    key={btn.label}
+                                    onClick={() =>
+                                      handleGameAction({ status: btn.status, quarter: btn.quarter })
+                                    }
+                                    className={cn(
+                                      'font-cond font-black text-[11px] tracking-widest py-2.5 rounded-lg transition-colors',
+                                      isActive
+                                        ? activeBg
+                                        : 'bg-surface border border-border text-muted hover:text-white hover:border-white/30'
+                                    )}
+                                  >
+                                    {btn.label}
+                                  </button>
+                                )
+                              })}
+                            </div>
+                          </div>
+
+                          {/* Divider */}
+                          <div className="border-t border-border/40 mt-4 mb-4" />
+
+                          {/* Dispatch trainer */}
+                          <div className="flex items-center gap-2 mb-3">
+                            <AlertTriangle size={13} className="text-red-400 flex-shrink-0" />
+                            <div className="font-cond text-[10px] font-black tracking-widest text-red-300 uppercase">
+                              DISPATCH TRAINER
+                            </div>
+                          </div>
+
+                          {trainerDispatch ? (
+                            <div className="bg-red-900/20 border border-red-700/50 rounded-lg p-3">
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="w-2 h-2 rounded-full bg-red-400 animate-pulse flex-shrink-0" />
+                                <span className="font-cond text-[10px] font-black tracking-widest text-red-300 uppercase">
+                                  TRAINER DISPATCHED
+                                </span>
+                              </div>
+                              <div className="font-cond font-black text-[16px] text-white mb-2">
+                                {trainerDispatch.trainer_name}
+                              </div>
+                              <div className="space-y-1 text-[11px] font-cond">
+                                <div className="flex justify-between">
+                                  <span className="text-muted">Patient</span>
+                                  <span className="text-white font-bold">
+                                    {trainerDispatch.player_name}
+                                  </span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-muted">Injury</span>
+                                  <span className="text-white">{trainerDispatch.injury_type}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-muted">Dispatched</span>
+                                  <span className="text-white">
+                                    {format(new Date(trainerDispatch.dispatched_at), 'h:mm a')}
+                                  </span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-muted">Status</span>
+                                  <span className="font-bold text-red-300">
+                                    {trainerDispatch.status}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          ) : !showDispatchForm ? (
+                            <button
+                              onClick={() => setShowDispatchForm(true)}
+                              className="w-full font-cond font-black text-[13px] tracking-widest py-3 rounded-lg bg-red-800/50 hover:bg-red-700 border border-red-700/60 text-red-200 transition-colors"
+                            >
+                              DISPATCH TRAINER TO FIELD
+                            </button>
+                          ) : (
+                            <div className="space-y-3">
+                              <div>
+                                <div className="font-cond text-[10px] text-muted uppercase mb-1">
+                                  Player / Person
+                                </div>
+                                <input
+                                  type="text"
+                                  value={dispatchPlayerName}
+                                  onChange={(e) => setDispatchPlayerName(e.target.value)}
+                                  placeholder="Player name (optional)"
+                                  className="w-full bg-surface border border-border rounded-lg px-3 py-2 font-cond text-[12px] text-white placeholder:text-muted focus:outline-none focus:border-red-500"
+                                />
+                              </div>
+                              <div>
+                                <div className="font-cond text-[10px] text-muted uppercase mb-1">
+                                  Injury Type
+                                </div>
+                                <select
+                                  value={dispatchInjuryType}
+                                  onChange={(e) => setDispatchInjuryType(e.target.value)}
+                                  className="w-full bg-[#040e24] border border-border rounded-lg px-3 py-2 font-cond text-[12px] text-white focus:outline-none focus:border-red-500"
+                                >
+                                  {INJURY_TYPES.map((t) => (
+                                    <option key={t} value={t}>
+                                      {t}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={handleDispatchTrainer}
+                                  disabled={dispatching}
+                                  className="flex-1 font-cond font-black text-[12px] tracking-widest py-2.5 rounded-lg bg-red-700 hover:bg-red-600 text-white disabled:opacity-40 transition-colors"
+                                >
+                                  {dispatching ? 'DISPATCHING...' : 'DISPATCH'}
+                                </button>
+                                <button
+                                  onClick={() => setShowDispatchForm(false)}
+                                  className="font-cond text-[12px] text-muted hover:text-white px-4 py-2.5 rounded-lg border border-border transition-colors"
+                                >
+                                  CANCEL
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* ── VOLUNTEER POSITIONS ── */}
                       <div className="bg-surface-card border border-border rounded-xl p-4 mb-4">
                         <div className="font-cond text-[10px] font-black tracking-widest text-muted uppercase mb-3">
                           VOLUNTEER POSITIONS
@@ -912,6 +1360,11 @@ export function VolunteerPortal() {
                             const slot = gameSlots.find((s) => s.role === pos)
                             const isMe = slot?.volunteer_id === userRole?.volunteer_id
                             const isEmpty = !slot
+                            const personName = slot
+                              ? slot.volunteer_id
+                                ? ((slot.volunteer as any)?.name ?? 'Volunteer')
+                                : ((slot.referee as any)?.name ?? 'Official')
+                              : null
                             return (
                               <div
                                 key={pos}
@@ -930,9 +1383,7 @@ export function VolunteerPortal() {
                                   </span>
                                   {slot && (
                                     <span className="font-cond text-[12px] font-bold text-white ml-2">
-                                      {isMe
-                                        ? '(You)'
-                                        : ((slot.volunteer as any)?.name ?? 'Assigned')}
+                                      {isMe ? '(You)' : personName}
                                     </span>
                                   )}
                                   {isEmpty && (
@@ -962,85 +1413,13 @@ export function VolunteerPortal() {
                         </div>
                       </div>
 
-                      {/* Game control (assigned volunteers only) */}
-                      {isAssigned &&
-                        selectedGame.status !== 'Final' &&
-                        selectedGame.status !== 'Cancelled' && (
-                          <div className="bg-surface-card border border-border rounded-xl p-4 mb-4">
-                            <div className="font-cond text-[10px] font-black tracking-widest text-muted uppercase mb-3">
-                              GAME CONTROL
-                            </div>
-
-                            {(selectedGame.status === 'Live' ||
-                              selectedGame.status === 'Halftime') && (
-                              <div className="grid grid-cols-2 gap-3 mb-4">
-                                {(
-                                  [
-                                    {
-                                      label: selectedGame.home_team.name,
-                                      team: 'home' as const,
-                                      score: selectedGame.home_score ?? 0,
-                                    },
-                                    {
-                                      label: selectedGame.away_team.name,
-                                      team: 'away' as const,
-                                      score: selectedGame.away_score ?? 0,
-                                    },
-                                  ] as const
-                                ).map(({ label, team, score }) => (
-                                  <div
-                                    key={team}
-                                    className="bg-surface border border-border rounded-lg p-3 text-center"
-                                  >
-                                    <div className="font-cond text-[11px] text-muted mb-2 truncate">
-                                      {label}
-                                    </div>
-                                    <div className="font-mono text-[28px] font-bold text-white mb-2">
-                                      {score}
-                                    </div>
-                                    <div className="flex gap-2 justify-center">
-                                      <button
-                                        onClick={() => updateScore(team, -1)}
-                                        className="w-9 h-9 rounded-lg bg-navy border border-border font-cond font-black text-[16px] text-muted hover:text-white transition-colors"
-                                      >
-                                        −
-                                      </button>
-                                      <button
-                                        onClick={() => updateScore(team, 1)}
-                                        className="w-9 h-9 rounded-lg bg-green-800 border border-green-700/50 font-cond font-black text-[16px] text-white hover:bg-green-700 transition-colors"
-                                      >
-                                        +
-                                      </button>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-
-                            <div className="flex gap-2 flex-wrap">
-                              {(STATUS_ACTIONS[selectedGame.status] ?? []).map((action) => (
-                                <button
-                                  key={action.next}
-                                  onClick={() => updateGameStatus(action.next)}
-                                  className={cn(
-                                    'flex-1 py-3 rounded-xl font-cond font-black text-[13px] tracking-widest text-white transition-colors',
-                                    action.color
-                                  )}
-                                >
-                                  {action.label}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                      {/* Player check-in (assigned volunteers only) */}
-                      {isAssigned && (
+                      {/* Player check-in (assigned vols only) */}
+                      {isAssigned && (homePlayers.length > 0 || awayPlayers.length > 0) && (
                         <div>
-                          <div className="font-cond text-[11px] font-black tracking-widest text-muted uppercase mb-3">
+                          <div className="font-cond text-[10px] font-black tracking-widest text-muted uppercase mb-3">
                             PLAYER CHECK-IN
                           </div>
-                          <div className="grid grid-cols-2 gap-4">
+                          <div className="grid grid-cols-2 gap-3">
                             {[
                               { label: selectedGame.home_team.name, players: homePlayers },
                               { label: selectedGame.away_team.name, players: awayPlayers },
@@ -1049,67 +1428,61 @@ export function VolunteerPortal() {
                                 key={label}
                                 className="bg-surface-card border border-border rounded-xl overflow-hidden"
                               >
-                                <div className="bg-navy/60 px-3 py-2.5 border-b border-border flex justify-between items-center">
-                                  <div className="font-cond font-black text-[13px] text-white">
+                                <div className="bg-navy/60 px-3 py-2 border-b border-border flex justify-between items-center">
+                                  <div className="font-cond font-black text-[12px] text-white truncate">
                                     {label}
                                   </div>
-                                  <div className="font-cond text-[11px] text-green-400 font-bold">
+                                  <div className="font-cond text-[11px] text-green-400 font-bold flex-shrink-0 ml-1">
                                     {players.filter((p) => checkins.includes(p.id)).length}/
                                     {players.length}
                                   </div>
                                 </div>
-                                {players.length === 0 ? (
-                                  <div className="p-4 text-center text-muted font-cond text-[12px]">
-                                    No roster
-                                  </div>
-                                ) : (
-                                  <div className="divide-y divide-border/30">
-                                    {players.map((p) => {
-                                      const checked = checkins.includes(p.id)
-                                      return (
-                                        <button
-                                          key={p.id}
-                                          onClick={() => togglePlayerCheckin(p.id)}
+                                <div className="divide-y divide-border/30">
+                                  {players.map((p) => {
+                                    const checked = checkins.includes(p.id)
+                                    return (
+                                      <button
+                                        key={p.id}
+                                        onClick={() => togglePlayerCheckin(p.id)}
+                                        className={cn(
+                                          'w-full flex items-center gap-2 px-3 py-2 transition-colors text-left',
+                                          checked ? 'bg-green-900/15' : 'hover:bg-white/5'
+                                        )}
+                                      >
+                                        <div
                                           className={cn(
-                                            'w-full flex items-center gap-3 px-3 py-2.5 transition-colors',
-                                            checked ? 'bg-green-900/15' : 'hover:bg-white/5'
+                                            'w-8 h-8 rounded-full flex items-center justify-center font-cond font-black text-[12px] flex-shrink-0',
+                                            checked
+                                              ? 'bg-green-700 text-white'
+                                              : 'bg-navy text-muted'
                                           )}
                                         >
+                                          {p.number ?? '—'}
+                                        </div>
+                                        <div className="flex-1 text-left min-w-0">
                                           <div
                                             className={cn(
-                                              'w-8 h-8 rounded-full flex items-center justify-center font-cond font-black text-[12px] flex-shrink-0',
-                                              checked
-                                                ? 'bg-green-700 text-white'
-                                                : 'bg-navy text-muted'
+                                              'font-cond font-bold text-[12px]',
+                                              checked ? 'text-green-300' : 'text-white'
                                             )}
                                           >
-                                            {p.number ?? '—'}
+                                            {p.name}
                                           </div>
-                                          <div className="flex-1 text-left min-w-0">
-                                            <div
-                                              className={cn(
-                                                'font-cond font-bold text-[12px]',
-                                                checked ? 'text-green-300' : 'text-white'
-                                              )}
-                                            >
-                                              {p.name}
+                                          {p.usa_lacrosse_number && (
+                                            <div className="font-mono text-[9px] text-muted">
+                                              USA #{p.usa_lacrosse_number}
                                             </div>
-                                            {p.usa_lacrosse_number && (
-                                              <div className="font-mono text-[9px] text-muted">
-                                                USA #{p.usa_lacrosse_number}
-                                              </div>
-                                            )}
-                                          </div>
-                                          {checked ? (
-                                            <CheckCircle size={14} className="text-green-400" />
-                                          ) : (
-                                            <div className="w-4 h-4 rounded-full border-2 border-border" />
                                           )}
-                                        </button>
-                                      )
-                                    })}
-                                  </div>
-                                )}
+                                        </div>
+                                        {checked ? (
+                                          <CheckCircle size={14} className="text-green-400" />
+                                        ) : (
+                                          <div className="w-4 h-4 rounded-full border-2 border-border" />
+                                        )}
+                                      </button>
+                                    )
+                                  })}
+                                </div>
                               </div>
                             ))}
                           </div>
