@@ -685,182 +685,207 @@ export function ProgramDashboard() {
 
         {/* ── TEAMS ── */}
         {tab === 'teams' && (
-          <div className="space-y-3">
+          <div className="overflow-y-auto" style={{ maxHeight: 'calc(100vh - 120px)' }}>
             {teamRegs.length === 0 ? (
               <div className="text-center py-16 text-muted font-cond">
                 No teams registered yet. Click "+ Register Team" to add one.
               </div>
             ) : (
-              teamRegs.map((reg) => (
-                <div
-                  key={reg.id}
-                  className={cn(
-                    'bg-surface-card border rounded-xl p-4',
-                    reg.status === 'approved'
-                      ? 'border-green-700/50'
-                      : reg.status === 'rejected'
-                        ? 'border-red-700/50'
-                        : 'border-border'
-                  )}
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-start gap-3">
-                      {(() => {
-                        const matchedTeam = teams.find(
-                          (t: any) => t.name.toLowerCase() === reg.team_name.toLowerCase()
-                        )
-                        const logoSrc = matchedTeam?.logo_url || program?.logo_url || null
-                        return logoSrc ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={logoSrc}
-                            alt=""
-                            className="w-9 h-9 rounded object-cover flex-shrink-0 mt-0.5"
-                          />
-                        ) : null
-                      })()}
-                      <div>
-                        <div className="font-cond font-black text-[16px] text-white">
-                          {reg.team_name}
-                        </div>
-                        <div className="font-cond text-[12px] text-blue-300 mb-2">
-                          {reg.division}
-                        </div>
-                        {reg.head_coach_name && (
-                          <div className="font-cond text-[11px] text-muted">
-                            Coach: {reg.head_coach_name}
-                            {reg.head_coach_email && ` · ${reg.head_coach_email}`}
-                          </div>
-                        )}
-                        {reg.player_count && (
-                          <div className="font-cond text-[11px] text-muted">
-                            {reg.player_count} players expected
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      {reg.status === 'approved' && reg.team_id && (
-                        <button
-                          onClick={() => {
-                            setTab('rosters')
-                            loadPlayers(reg.team_id!)
-                          }}
-                          className="font-cond text-[11px] font-bold text-blue-300 bg-navy/40 border border-border rounded px-3 py-1.5 hover:bg-navy transition-colors"
-                        >
-                          MANAGE ROSTER
-                        </button>
-                      )}
-                      <span
-                        className={cn(
-                          'font-cond text-[10px] font-black px-2.5 py-1 rounded tracking-wider',
-                          reg.status === 'approved'
-                            ? 'bg-green-900/40 text-green-400'
-                            : reg.status === 'rejected'
-                              ? 'bg-red-900/40 text-red-400'
-                              : reg.status === 'waitlist'
-                                ? 'bg-orange-900/40 text-orange-400'
-                                : 'bg-yellow-900/30 text-yellow-400'
-                        )}
-                      >
-                        {reg.status.toUpperCase()}
+              (() => {
+                const divisions = [...new Set(teamRegs.map((r) => r.division))].sort()
+                return divisions.map((div) => (
+                  <div key={div} className="mb-8">
+                    <div className="flex items-center gap-2 mb-3 sticky top-0 bg-surface py-2 z-10">
+                      <div className="w-1 h-4 rounded-sm bg-navy flex-shrink-0" />
+                      <span className="font-cond text-[11px] font-black tracking-[.12em] text-blue-300 uppercase">
+                        {div}
+                      </span>
+                      <span className="font-cond text-[9px] text-muted">
+                        {teamRegs.filter((r) => r.division === div).length} team
+                        {teamRegs.filter((r) => r.division === div).length !== 1 ? 's' : ''}
                       </span>
                     </div>
-                  </div>
-                  {reg.status === 'rejected' && reg.notes && (
-                    <div className="mt-2 text-[11px] text-red-300 font-cond bg-red-900/10 rounded px-3 py-2">
-                      Note: {reg.notes}
-                    </div>
-                  )}
-                  {/* Games with Request Change buttons */}
-                  {(() => {
-                    const matchedTeam = teams.find(
-                      (t: any) => t.name.toLowerCase() === reg.team_name.toLowerCase()
-                    )
-                    if (!matchedTeam) return null
-                    const teamGames = programGames.filter(
-                      (g) => g.home_team_id === matchedTeam.id || g.away_team_id === matchedTeam.id
-                    )
-                    if (teamGames.length === 0) return null
-                    return (
-                      <div className="mt-3 pt-3 border-t border-border/40">
-                        <div className="font-cond text-[10px] font-black tracking-widest text-muted uppercase mb-2">
-                          UPCOMING GAMES
-                        </div>
-                        <div className="space-y-1.5">
-                          {teamGames.map((game) => {
-                            const isPending = pendingGameIds.has(game.id)
-                            const isCancelled = game.status === 'Cancelled'
-                            const scrStatus = gameScrStatus.get(game.id)
-                            const opponent =
-                              game.home_team_id === matchedTeam.id
-                                ? ((game.away_team as any)?.name ?? `Team #${game.away_team_id}`)
-                                : ((game.home_team as any)?.name ?? `Team #${game.home_team_id}`)
-                            return (
-                              <div
-                                key={game.id}
-                                className={`flex items-center justify-between gap-2 rounded-lg px-2.5 py-2 bg-surface border border-border/40 ${isCancelled ? 'opacity-50' : ''}`}
-                              >
-                                <div className="flex items-center gap-2 flex-1 min-w-0">
-                                  <span
-                                    className={`font-mono text-[11px] text-muted whitespace-nowrap ${isCancelled ? 'line-through' : ''}`}
-                                  >
-                                    {(game.event_date as any)?.date
-                                      ? new Date(
-                                          (game.event_date as any).date + 'T00:00:00'
-                                        ).toLocaleDateString('en-US', {
-                                          month: 'short',
-                                          day: 'numeric',
-                                        })
-                                      : ''}{' '}
-                                    {game.scheduled_time}
-                                  </span>
-                                  <span className="font-cond text-[12px] text-white font-black truncate">
-                                    vs {opponent}
-                                  </span>
+                    <div className="space-y-3">
+                      {teamRegs
+                        .filter((r) => r.division === div)
+                        .map((reg) => (
+                          <div
+                            key={reg.id}
+                            className={cn(
+                              'bg-surface-card border rounded-xl p-4',
+                              reg.status === 'approved'
+                                ? 'border-green-700/50'
+                                : reg.status === 'rejected'
+                                  ? 'border-red-700/50'
+                                  : 'border-border'
+                            )}
+                          >
+                            <div className="flex items-start justify-between">
+                              <div className="flex items-start gap-3">
+                                {(() => {
+                                  const matchedTeam = teams.find(
+                                    (t: any) => t.name.toLowerCase() === reg.team_name.toLowerCase()
+                                  )
+                                  const logoSrc = matchedTeam?.logo_url || program?.logo_url || null
+                                  return logoSrc ? (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img
+                                      src={logoSrc}
+                                      alt=""
+                                      className="w-9 h-9 rounded object-cover flex-shrink-0 mt-0.5"
+                                    />
+                                  ) : null
+                                })()}
+                                <div>
+                                  <div className="font-cond font-black text-[16px] text-white">
+                                    {reg.team_name}
+                                  </div>
+                                  <div className="font-cond text-[12px] text-blue-300 mb-2">
+                                    {reg.division}
+                                  </div>
+                                  {reg.head_coach_name && (
+                                    <div className="font-cond text-[11px] text-muted">
+                                      Coach: {reg.head_coach_name}
+                                      {reg.head_coach_email && ` · ${reg.head_coach_email}`}
+                                    </div>
+                                  )}
+                                  {reg.player_count && (
+                                    <div className="font-cond text-[11px] text-muted">
+                                      {reg.player_count} players expected
+                                    </div>
+                                  )}
                                 </div>
-                                {isPending && (
-                                  <span className="badge-request-pending font-cond text-[9px] font-black tracking-wider px-2 py-0.5 rounded">
-                                    REQUEST PENDING
-                                  </span>
-                                )}
-                                {!isPending && scrStatus === 'rescheduled' && (
-                                  <span className="badge-request-approved font-cond text-[9px] font-black tracking-wider px-2 py-0.5 rounded">
-                                    RESCHEDULED
-                                  </span>
-                                )}
-                                {!isPending && scrStatus === 'denied' && (
-                                  <span className="badge-request-denied font-cond text-[9px] font-black tracking-wider px-2 py-0.5 rounded">
-                                    DENIED
-                                  </span>
-                                )}
-                                {!isPending && scrStatus === 'cancelled' && (
-                                  <span className="badge-request-approved font-cond text-[9px] font-black tracking-wider px-2 py-0.5 rounded">
-                                    CANCELLED
-                                  </span>
-                                )}
-                                {!isCancelled && !isPending && (
+                              </div>
+                              <div className="flex items-center gap-3">
+                                {reg.status === 'approved' && reg.team_id && (
                                   <button
                                     onClick={() => {
-                                      setScrTeamId(matchedTeam.id)
-                                      setScrPreSelectedGameId(game.id)
-                                      setScrModalOpen(true)
+                                      setTab('rosters')
+                                      loadPlayers(reg.team_id!)
                                     }}
-                                    className="flex items-center gap-1 font-cond text-[10px] font-bold tracking-wider text-muted hover:text-white border border-border rounded px-2 py-1 transition-colors"
+                                    className="font-cond text-[11px] font-bold text-blue-300 bg-navy/40 border border-border rounded px-3 py-1.5 hover:bg-navy transition-colors"
                                   >
-                                    <CalendarX size={11} />
-                                    REQUEST CHANGE
+                                    MANAGE ROSTER
                                   </button>
                                 )}
+                                <span
+                                  className={cn(
+                                    'font-cond text-[10px] font-black px-2.5 py-1 rounded tracking-wider',
+                                    reg.status === 'approved'
+                                      ? 'bg-green-900/40 text-green-400'
+                                      : reg.status === 'rejected'
+                                        ? 'bg-red-900/40 text-red-400'
+                                        : reg.status === 'waitlist'
+                                          ? 'bg-orange-900/40 text-orange-400'
+                                          : 'bg-yellow-900/30 text-yellow-400'
+                                  )}
+                                >
+                                  {reg.status.toUpperCase()}
+                                </span>
                               </div>
-                            )
-                          })}
-                        </div>
-                      </div>
-                    )
-                  })()}
-                </div>
-              ))
+                            </div>
+                            {reg.status === 'rejected' && reg.notes && (
+                              <div className="mt-2 text-[11px] text-red-300 font-cond bg-red-900/10 rounded px-3 py-2">
+                                Note: {reg.notes}
+                              </div>
+                            )}
+                            {/* Games with Request Change buttons */}
+                            {(() => {
+                              const matchedTeam = teams.find(
+                                (t: any) => t.name.toLowerCase() === reg.team_name.toLowerCase()
+                              )
+                              if (!matchedTeam) return null
+                              const teamGames = programGames.filter(
+                                (g) =>
+                                  g.home_team_id === matchedTeam.id ||
+                                  g.away_team_id === matchedTeam.id
+                              )
+                              if (teamGames.length === 0) return null
+                              return (
+                                <div className="mt-3 pt-3 border-t border-border/40">
+                                  <div className="font-cond text-[10px] font-black tracking-widest text-muted uppercase mb-2">
+                                    UPCOMING GAMES
+                                  </div>
+                                  <div className="space-y-1.5">
+                                    {teamGames.map((game) => {
+                                      const isPending = pendingGameIds.has(game.id)
+                                      const isCancelled = game.status === 'Cancelled'
+                                      const scrStatus = gameScrStatus.get(game.id)
+                                      const opponent =
+                                        game.home_team_id === matchedTeam.id
+                                          ? ((game.away_team as any)?.name ??
+                                            `Team #${game.away_team_id}`)
+                                          : ((game.home_team as any)?.name ??
+                                            `Team #${game.home_team_id}`)
+                                      return (
+                                        <div
+                                          key={game.id}
+                                          className={`flex items-center justify-between gap-2 rounded-lg px-2.5 py-2 bg-surface border border-border/40 ${isCancelled ? 'opacity-50' : ''}`}
+                                        >
+                                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                                            <span
+                                              className={`font-mono text-[11px] text-muted whitespace-nowrap ${isCancelled ? 'line-through' : ''}`}
+                                            >
+                                              {(game.event_date as any)?.date
+                                                ? new Date(
+                                                    (game.event_date as any).date + 'T00:00:00'
+                                                  ).toLocaleDateString('en-US', {
+                                                    month: 'short',
+                                                    day: 'numeric',
+                                                  })
+                                                : ''}{' '}
+                                              {game.scheduled_time}
+                                            </span>
+                                            <span className="font-cond text-[12px] text-white font-black truncate">
+                                              vs {opponent}
+                                            </span>
+                                          </div>
+                                          {isPending && (
+                                            <span className="badge-request-pending font-cond text-[9px] font-black tracking-wider px-2 py-0.5 rounded">
+                                              REQUEST PENDING
+                                            </span>
+                                          )}
+                                          {!isPending && scrStatus === 'rescheduled' && (
+                                            <span className="badge-request-approved font-cond text-[9px] font-black tracking-wider px-2 py-0.5 rounded">
+                                              RESCHEDULED
+                                            </span>
+                                          )}
+                                          {!isPending && scrStatus === 'denied' && (
+                                            <span className="badge-request-denied font-cond text-[9px] font-black tracking-wider px-2 py-0.5 rounded">
+                                              DENIED
+                                            </span>
+                                          )}
+                                          {!isPending && scrStatus === 'cancelled' && (
+                                            <span className="badge-request-approved font-cond text-[9px] font-black tracking-wider px-2 py-0.5 rounded">
+                                              CANCELLED
+                                            </span>
+                                          )}
+                                          {!isCancelled && !isPending && (
+                                            <button
+                                              onClick={() => {
+                                                setScrTeamId(matchedTeam.id)
+                                                setScrPreSelectedGameId(game.id)
+                                                setScrModalOpen(true)
+                                              }}
+                                              className="flex items-center gap-1 font-cond text-[10px] font-bold tracking-wider text-muted hover:text-white border border-border rounded px-2 py-1 transition-colors"
+                                            >
+                                              <CalendarX size={11} />
+                                              REQUEST CHANGE
+                                            </button>
+                                          )}
+                                        </div>
+                                      )
+                                    })}
+                                  </div>
+                                </div>
+                              )
+                            })()}
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                ))
+              })()
             )}
           </div>
         )}
