@@ -955,7 +955,7 @@ function RefScheduleView({
           }
         }
         const demandRows = [...demandMap.values()].sort(
-          (a, b) => a.time.localeCompare(b.time) || a.division.localeCompare(b.division)
+          (a, b) => timeToMin(a.time) - timeToMin(b.time) || a.division.localeCompare(b.division)
         )
         const totGames = demandRows.reduce((s, r) => s + r.games, 0)
         const totAdult = demandRows.reduce((s, r) => s + r.adultNeed, 0)
