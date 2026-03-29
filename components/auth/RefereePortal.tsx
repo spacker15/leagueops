@@ -4,29 +4,50 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '@/lib/auth'
 import { createClient } from '@/supabase/client'
 import { cn } from '@/lib/utils'
-import { CheckCircle, Clock, MapPin, LogOut, QrCode, Users } from 'lucide-react'
+import { CheckCircle, LogOut, ChevronLeft } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { format } from 'date-fns'
 
 type PortalTab = 'checkin' | 'games' | 'approvals'
 
-interface AssignedGame {
+const REF_POSITIONS = ['Lead', 'Wing 1', 'Wing 2']
+
+const STATUS_ACTIONS: Record<string, { label: string; next: string; color: string }[]> = {
+  Scheduled: [{ label: 'START GAME', next: 'Live', color: 'bg-green-700 hover:bg-green-600' }],
+  Starting: [{ label: 'START GAME', next: 'Live', color: 'bg-green-700 hover:bg-green-600' }],
+  Live: [
+    { label: 'HALFTIME', next: 'Halftime', color: 'bg-yellow-700 hover:bg-yellow-600' },
+    { label: 'END GAME', next: 'Final', color: 'bg-red hover:opacity-90' },
+  ],
+  Halftime: [
+    { label: '2ND HALF', next: 'Live', color: 'bg-green-700 hover:bg-green-600' },
+    { label: 'END GAME', next: 'Final', color: 'bg-red hover:opacity-90' },
+  ],
+  Delayed: [{ label: 'RESUME', next: 'Live', color: 'bg-green-700 hover:bg-green-600' }],
+}
+
+interface Field {
+  id: number
+  name: string
+}
+
+interface GameSummary {
   id: number
   scheduled_time: string
   division: string
   status: string
-  role: string
-  field: { name: string }
+  home_score: number | null
+  away_score: number | null
+  field_id: number
+  field: Field
   home_team: { id: number; name: string }
   away_team: { id: number; name: string }
 }
 
-interface Player {
-  id: number
-  name: string
-  number: number | null
-  position: string | null
-  usa_lacrosse_number: string | null
-  checked_in?: boolean
+interface RefSlot {
+  role: string
+  referee_id: number
+  referee?: { name: string }
 }
 
 function timeToMin(t: string): number {
@@ -44,17 +65,23 @@ export function RefereePortal() {
   const portalEventId = userRole?.event_id
   const [tab, setTab] = useState<PortalTab>('checkin')
   const [ref, setRef] = useState<any>(null)
-  const [games, setGames] = useState<AssignedGame[]>([])
   const [checkedIn, setCheckedIn] = useState(false)
   const [loading, setLoading] = useState(true)
   const [checkingIn, setCheckingIn] = useState(false)
+  const [todayLabel, setTodayLabel] = useState('')
 
-  // Game check-in state
-  const [selectedGame, setSelectedGame] = useState<AssignedGame | null>(null)
-  const [homePlayers, setHomePlayers] = useState<Player[]>([])
-  const [awayPlayers, setAwayPlayers] = useState<Player[]>([])
-  const [checkins, setCheckins] = useState<number[]>([]) // checked-in player IDs
-  const [rosterLoading, setRosterLoading] = useState(false)
+  const [allGames, setAllGames] = useState<GameSummary[]>([])
+  const [fields, setFields] = useState<Field[]>([])
+  const [myAssignedGameIds, setMyAssignedGameIds] = useState<Set<number>>(new Set())
+
+  const [selectedFieldId, setSelectedFieldId] = useState<number | null>(null)
+  const [selectedGame, setSelectedGame] = useState<GameSummary | null>(null)
+  const [gameSlots, setGameSlots] = useState<RefSlot[]>([])
+  const [slotLoading, setSlotLoading] = useState(false)
+
+  const [homePlayers, setHomePlayers] = useState<any[]>([])
+  const [awayPlayers, setAwayPlayers] = useState<any[]>([])
+  const [checkins, setCheckins] = useState<number[]>([])
 
   useEffect(() => {
     if (!portalEventId || !userRole?.referee_id) return
@@ -64,39 +91,72 @@ export function RefereePortal() {
   async function loadData() {
     const sb = createClient()
     setLoading(true)
-    const { data: refData } = await sb
-      .from('referees')
-      .select('*')
-      .eq('id', userRole!.referee_id!)
-      .single()
+    const [
+      { data: refData },
+      { data: gamesData },
+      { data: fieldsData },
+      { data: myAssignData },
+      { data: eventDates },
+    ] = await Promise.all([
+      sb.from('referees').select('*').eq('id', userRole!.referee_id!).single(),
+      sb
+        .from('games')
+        .select(
+          `id, scheduled_time, division, status, home_score, away_score, field_id,
+           field:fields(id, name),
+           home_team:teams!games_home_team_id_fkey(id, name),
+           away_team:teams!games_away_team_id_fkey(id, name)`
+        )
+        .eq('event_id', portalEventId!)
+        .neq('status', 'Cancelled'),
+      sb.from('fields').select('id, name').eq('event_id', portalEventId!).order('name'),
+      sb.from('ref_assignments').select('game_id').eq('referee_id', userRole!.referee_id!),
+      sb
+        .from('event_dates')
+        .select('id, date, label, day_number')
+        .eq('event_id', portalEventId!)
+        .order('date'),
+    ])
+
     setRef(refData)
     setCheckedIn(refData?.checked_in ?? false)
+    const games = ((gamesData ?? []) as unknown as GameSummary[]).sort(
+      (a, b) => timeToMin(a.scheduled_time) - timeToMin(b.scheduled_time)
+    )
+    setAllGames(games)
+    setFields((fieldsData ?? []) as Field[])
+    setMyAssignedGameIds(new Set((myAssignData ?? []).map((a: any) => a.game_id)))
 
-    const { data: assignments } = await sb
-      .from('ref_assignments')
-      .select(
-        `role, game:games(id, scheduled_time, division, status, field:fields(name), home_team:teams!games_home_team_id_fkey(id, name), away_team:teams!games_away_team_id_fkey(id, name))`
+    const today = new Date().toISOString().split('T')[0]
+    const todayDate = (eventDates ?? []).find((d: any) => d.date === today)
+    if (todayDate) {
+      setTodayLabel(
+        `${todayDate.label} — ${format(new Date(todayDate.date + 'T12:00:00'), 'EEEE, MMMM d')}`
       )
-      .eq('referee_id', userRole!.referee_id!)
-
-    const gameList = (assignments ?? [])
-      .map((a: any) => ({ ...a.game, role: a.role }))
-      .filter(Boolean)
-      .sort((a: any, b: any) => timeToMin(a.scheduled_time) - timeToMin(b.scheduled_time))
-    setGames(gameList)
-
-    // Auto-select the current/next live game
-    const liveGame = gameList.find((g: any) => ['Live', 'Halftime', 'Starting'].includes(g.status))
-    if (liveGame) setSelectedGame(liveGame)
-
+    } else {
+      const upcoming = (eventDates ?? []).find((d: any) => d.date >= today)
+      if (upcoming) {
+        setTodayLabel(
+          `Next: ${upcoming.label} — ${format(new Date(upcoming.date + 'T12:00:00'), 'EEEE, MMMM d')}`
+        )
+      }
+    }
     setLoading(false)
   }
 
-  async function loadRoster(game: AssignedGame) {
+  async function loadGameDetail(game: GameSummary) {
     setSelectedGame(game)
-    setRosterLoading(true)
+    setSlotLoading(true)
+    setGameSlots([])
+    setHomePlayers([])
+    setAwayPlayers([])
+    setCheckins([])
     const sb = createClient()
-    const [{ data: home }, { data: away }, { data: ci }] = await Promise.all([
+    const [{ data: slots }, { data: home }, { data: away }, { data: ci }] = await Promise.all([
+      sb
+        .from('ref_assignments')
+        .select(`role, referee_id, referee:referees(name)`)
+        .eq('game_id', game.id),
       sb
         .from('players')
         .select('id, name, number, position, usa_lacrosse_number')
@@ -109,33 +169,90 @@ export function RefereePortal() {
         .order('name'),
       sb.from('player_checkins').select('player_id').eq('game_id', game.id),
     ])
-    setHomePlayers((home as Player[]) ?? [])
-    setAwayPlayers((away as Player[]) ?? [])
+    setGameSlots((slots ?? []) as unknown as RefSlot[])
+    setHomePlayers(home ?? [])
+    setAwayPlayers(away ?? [])
     setCheckins((ci ?? []).map((c: any) => c.player_id))
-    setRosterLoading(false)
+    setSlotLoading(false)
   }
 
-  async function toggleCheckin(playerId: number) {
+  async function takePosition(role: string) {
+    if (!selectedGame || !userRole?.referee_id) return
+    const sb = createClient()
+    const { error } = await sb.from('ref_assignments').insert({
+      game_id: selectedGame.id,
+      referee_id: userRole.referee_id,
+      role,
+    })
+    if (error) {
+      toast.error(error.message)
+      return
+    }
+    toast.success(`Assigned as ${role}`)
+    setMyAssignedGameIds((prev) => new Set([...prev, selectedGame.id]))
+    loadGameDetail(selectedGame)
+  }
+
+  async function dropPosition(role: string) {
+    if (!selectedGame || !userRole?.referee_id) return
+    const sb = createClient()
+    await sb
+      .from('ref_assignments')
+      .delete()
+      .eq('game_id', selectedGame.id)
+      .eq('referee_id', userRole.referee_id)
+      .eq('role', role)
+    toast('Dropped position', { icon: '↩' })
+    const remaining = gameSlots.filter(
+      (s) => s.referee_id === userRole.referee_id && s.role !== role
+    )
+    if (remaining.length === 0) {
+      setMyAssignedGameIds((prev) => {
+        const next = new Set(prev)
+        next.delete(selectedGame.id)
+        return next
+      })
+    }
+    loadGameDetail(selectedGame)
+  }
+
+  async function updateGameStatus(newStatus: string) {
     if (!selectedGame) return
     const sb = createClient()
-    const isIn = checkins.includes(playerId)
-    if (isIn) {
-      await sb
-        .from('player_checkins')
-        .delete()
-        .eq('game_id', selectedGame.id)
-        .eq('player_id', playerId)
-      setCheckins((prev) => prev.filter((id) => id !== playerId))
-      toast('Player checked out', { icon: '↩' })
-    } else {
-      await sb.from('player_checkins').upsert({
-        game_id: selectedGame.id,
-        player_id: playerId,
-        checked_in_at: new Date().toISOString(),
-      })
-      setCheckins((prev) => [...prev, playerId])
-      toast.success('Player checked in')
+    const { error } = await sb.from('games').update({ status: newStatus }).eq('id', selectedGame.id)
+    if (error) {
+      toast.error(error.message)
+      return
     }
+    const updated = { ...selectedGame, status: newStatus }
+    setSelectedGame(updated)
+    setAllGames((prev) => prev.map((g) => (g.id === selectedGame.id ? updated : g)))
+    toast.success(`Game: ${newStatus}`)
+    await sb.from('ops_log').insert({
+      event_id: portalEventId,
+      message: `${ref?.name} updated ${selectedGame.home_team.name} vs ${selectedGame.away_team.name} → ${newStatus}`,
+      log_type: 'info',
+      occurred_at: new Date().toISOString(),
+    })
+  }
+
+  async function updateScore(team: 'home' | 'away', delta: number) {
+    if (!selectedGame) return
+    const sb = createClient()
+    const field = team === 'home' ? 'home_score' : 'away_score'
+    const current = (team === 'home' ? selectedGame.home_score : selectedGame.away_score) ?? 0
+    const newVal = Math.max(0, current + delta)
+    const { error } = await sb
+      .from('games')
+      .update({ [field]: newVal })
+      .eq('id', selectedGame.id)
+    if (error) {
+      toast.error(error.message)
+      return
+    }
+    const updated = { ...selectedGame, [field]: newVal }
+    setSelectedGame(updated)
+    setAllGames((prev) => prev.map((g) => (g.id === selectedGame.id ? updated : g)))
   }
 
   async function handleSelfCheckIn() {
@@ -161,14 +278,40 @@ export function RefereePortal() {
     toast.success(newState ? '✓ You are checked in!' : 'Checked out')
   }
 
-  if (!portalEventId) return null
+  async function togglePlayerCheckin(playerId: number) {
+    if (!selectedGame) return
+    const sb = createClient()
+    const isIn = checkins.includes(playerId)
+    if (isIn) {
+      await sb
+        .from('player_checkins')
+        .delete()
+        .eq('game_id', selectedGame.id)
+        .eq('player_id', playerId)
+      setCheckins((prev) => prev.filter((id) => id !== playerId))
+      toast('Player checked out', { icon: '↩' })
+    } else {
+      await sb.from('player_checkins').upsert({
+        game_id: selectedGame.id,
+        player_id: playerId,
+        checked_in_at: new Date().toISOString(),
+      })
+      setCheckins((prev) => [...prev, playerId])
+      toast.success('Player checked in')
+    }
+  }
 
+  if (!portalEventId) return null
   if (loading)
     return (
       <div className="min-h-screen bg-surface flex items-center justify-center">
         <div className="font-cond text-muted tracking-widest">LOADING...</div>
       </div>
     )
+
+  const isAssigned = selectedGame
+    ? gameSlots.some((s) => s.referee_id === userRole?.referee_id)
+    : false
 
   return (
     <div className="min-h-screen bg-surface">
@@ -183,7 +326,7 @@ export function RefereePortal() {
         <nav className="flex flex-1 ml-4">
           {[
             { id: 'checkin', label: 'My Check-In' },
-            { id: 'games', label: `Games (${games.length})` },
+            { id: 'games', label: `Games (${allGames.length})` },
             { id: 'approvals', label: 'Approvals' },
           ].map((t) => (
             <button
@@ -212,10 +355,17 @@ export function RefereePortal() {
         </div>
       </div>
 
-      <div className="max-w-2xl mx-auto px-4 py-6">
+      <div className="max-w-3xl mx-auto px-4 py-6">
         {/* ── MY CHECK-IN ── */}
         {tab === 'checkin' && (
           <div>
+            {todayLabel && (
+              <div className="bg-navy/40 border border-border rounded-lg px-4 py-2.5 mb-4 text-center">
+                <span className="font-cond text-[11px] font-black tracking-widest text-blue-300 uppercase">
+                  {todayLabel}
+                </span>
+              </div>
+            )}
             <div className="bg-surface-card border border-border rounded-xl p-6 text-center mb-4">
               <div className="w-16 h-16 rounded-full bg-red-900/30 border-2 border-red-700/50 flex items-center justify-center mx-auto mb-3">
                 <span className="font-cond font-black text-2xl text-red-300">
@@ -246,168 +396,434 @@ export function RefereePortal() {
               </button>
             </div>
 
-            {/* Game roster check-in */}
-            <div className="font-cond text-[11px] font-black tracking-widest text-muted uppercase mb-3">
-              PLAYER CHECK-IN FOR YOUR GAMES
-            </div>
-            {games.length === 0 ? (
-              <div className="bg-surface-card border border-border rounded-xl p-6 text-center text-muted font-cond">
-                No games assigned
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {games.map((game) => (
-                  <button
-                    key={game.id}
-                    onClick={() => {
-                      loadRoster(game)
-                      setTab('games')
-                    }}
-                    className={cn(
-                      'w-full text-left bg-surface-card border rounded-xl p-4 transition-all hover:border-blue-400',
-                      selectedGame?.id === game.id ? 'border-blue-400' : 'border-border'
-                    )}
-                  >
-                    <div className="flex justify-between items-start mb-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-[13px] font-bold text-blue-300">
-                          {game.scheduled_time}
-                        </span>
-                        <span className="font-cond text-[10px] font-bold bg-blue-900/30 text-blue-300 px-1.5 py-0.5 rounded">
-                          {game.role}
-                        </span>
-                      </div>
-                      <span
-                        className={cn(
-                          'font-cond text-[10px] font-black px-2 py-0.5 rounded',
-                          game.status === 'Live'
-                            ? 'badge-live'
-                            : game.status === 'Final'
-                              ? 'badge-final'
-                              : 'badge-scheduled'
-                        )}
+            {myAssignedGameIds.size > 0 && (
+              <>
+                <div className="font-cond text-[11px] font-black tracking-widest text-muted uppercase mb-3">
+                  MY ASSIGNED GAMES
+                </div>
+                <div className="space-y-2">
+                  {allGames
+                    .filter((g) => myAssignedGameIds.has(g.id))
+                    .map((game) => (
+                      <button
+                        key={game.id}
+                        onClick={() => {
+                          setTab('games')
+                          setSelectedFieldId(game.field_id)
+                          loadGameDetail(game)
+                        }}
+                        className="w-full text-left bg-surface-card border border-green-800/40 hover:border-green-400/60 rounded-xl p-3 transition-all"
                       >
-                        {game.status.toUpperCase()}
-                      </span>
-                    </div>
-                    <div className="font-cond font-black text-[14px] text-white">
-                      {game.home_team?.name} vs {game.away_team?.name}
-                    </div>
-                    <div className="flex items-center gap-1.5 mt-1">
-                      <MapPin size={10} className="text-muted" />
-                      <span className="font-cond text-[11px] text-muted">
-                        {game.field?.name} · {game.division}
-                      </span>
-                    </div>
-                  </button>
-                ))}
-              </div>
+                        <div className="flex justify-between items-center">
+                          <span className="font-mono text-[12px] font-bold text-blue-300">
+                            {game.scheduled_time}
+                          </span>
+                          <span
+                            className={cn(
+                              'font-cond text-[10px] font-black px-2 py-0.5 rounded',
+                              game.status === 'Live'
+                                ? 'badge-live'
+                                : game.status === 'Final'
+                                  ? 'badge-final'
+                                  : 'badge-scheduled'
+                            )}
+                          >
+                            {game.status.toUpperCase()}
+                          </span>
+                        </div>
+                        <div className="font-cond font-black text-[13px] text-white mt-0.5">
+                          {game.home_team.name} vs {game.away_team.name}
+                        </div>
+                        <div className="font-cond text-[10px] text-muted mt-0.5">
+                          {game.field.name} · {game.division}
+                        </div>
+                      </button>
+                    ))}
+                </div>
+              </>
             )}
           </div>
         )}
 
-        {/* ── GAMES + ROSTER CHECK-IN ── */}
+        {/* ── GAMES TAB ── */}
         {tab === 'games' && (
           <div>
-            {/* Game selector */}
-            <div className="flex gap-2 mb-4 flex-wrap">
-              {games.map((game) => (
-                <button
-                  key={game.id}
-                  onClick={() => loadRoster(game)}
-                  className={cn(
-                    'font-cond text-[11px] font-bold px-3 py-2 rounded-lg border transition-colors',
-                    selectedGame?.id === game.id
-                      ? 'bg-navy border-blue-400 text-white'
-                      : 'bg-surface-card border-border text-muted hover:text-white'
-                  )}
-                >
-                  {game.scheduled_time} · {game.home_team?.name} vs {game.away_team?.name}
-                  {['Live', 'Halftime'].includes(game.status) && (
-                    <span className="ml-1 text-green-400">●</span>
-                  )}
-                </button>
-              ))}
-            </div>
-
-            {rosterLoading && (
-              <div className="text-center py-8 text-muted font-cond">LOADING ROSTERS...</div>
+            {/* Field selector */}
+            {!selectedFieldId && (
+              <>
+                <div className="font-cond text-[11px] font-black tracking-widest text-muted uppercase mb-3">
+                  SELECT A FIELD
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {fields.map((field) => {
+                    const fieldGames = allGames.filter((g) => g.field_id === field.id)
+                    const myCount = fieldGames.filter((g) => myAssignedGameIds.has(g.id)).length
+                    if (fieldGames.length === 0) return null
+                    return (
+                      <button
+                        key={field.id}
+                        onClick={() => {
+                          setSelectedFieldId(field.id)
+                          setSelectedGame(null)
+                        }}
+                        className="bg-surface-card border border-border hover:border-blue-400 rounded-xl p-4 text-left transition-all"
+                      >
+                        <div className="font-cond font-black text-[15px] text-white mb-1">
+                          {field.name}
+                        </div>
+                        <div className="font-cond text-[11px] text-muted">
+                          {fieldGames.length} game{fieldGames.length !== 1 ? 's' : ''}
+                        </div>
+                        {myCount > 0 && (
+                          <div className="font-cond text-[10px] text-green-400 mt-1">
+                            ● {myCount} assigned to you
+                          </div>
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
+              </>
             )}
 
-            {!rosterLoading && selectedGame && (
-              <div className="grid grid-cols-2 gap-4">
-                {[
-                  { label: selectedGame.home_team?.name, players: homePlayers },
-                  { label: selectedGame.away_team?.name, players: awayPlayers },
-                ].map(({ label, players }) => (
-                  <div
-                    key={label}
-                    className="bg-surface-card border border-border rounded-xl overflow-hidden"
+            {/* Game list for selected field */}
+            {selectedFieldId && !selectedGame && (
+              <>
+                <div className="flex items-center gap-2 mb-4">
+                  <button
+                    onClick={() => setSelectedFieldId(null)}
+                    className="text-muted hover:text-white"
                   >
-                    <div className="bg-navy/60 px-3 py-2.5 border-b border-border flex justify-between items-center">
-                      <div className="font-cond font-black text-[13px] text-white">{label}</div>
-                      <div className="font-cond text-[11px] text-green-400 font-bold">
-                        {players.filter((p) => checkins.includes(p.id)).length}/{players.length}
-                      </div>
-                    </div>
-                    {players.length === 0 ? (
-                      <div className="p-4 text-center text-muted font-cond text-[12px]">
-                        No roster
-                      </div>
-                    ) : (
-                      <div className="divide-y divide-border/30">
-                        {players.map((p) => {
-                          const checked = checkins.includes(p.id)
-                          return (
-                            <button
-                              key={p.id}
-                              onClick={() => toggleCheckin(p.id)}
-                              className={cn(
-                                'w-full flex items-center gap-3 px-3 py-2.5 transition-colors text-left',
-                                checked
-                                  ? 'bg-green-900/15 hover:bg-green-900/25'
-                                  : 'hover:bg-white/5'
+                    <ChevronLeft size={18} />
+                  </button>
+                  <div className="font-cond font-black text-[14px] text-white">
+                    {fields.find((f) => f.id === selectedFieldId)?.name}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  {allGames
+                    .filter((g) => g.field_id === selectedFieldId)
+                    .map((game) => {
+                      const mine = myAssignedGameIds.has(game.id)
+                      return (
+                        <button
+                          key={game.id}
+                          onClick={() => loadGameDetail(game)}
+                          className={cn(
+                            'w-full text-left rounded-xl p-4 border transition-all',
+                            mine
+                              ? 'bg-green-900/15 border-green-800/50 hover:border-green-400'
+                              : 'bg-surface-card border-border hover:border-blue-400'
+                          )}
+                        >
+                          <div className="flex justify-between items-center mb-1">
+                            <span className="font-mono text-[13px] font-bold text-blue-300">
+                              {game.scheduled_time}
+                            </span>
+                            <div className="flex items-center gap-2">
+                              {mine && (
+                                <span className="font-cond text-[9px] font-black text-green-400 bg-green-900/30 px-1.5 py-0.5 rounded">
+                                  ASSIGNED
+                                </span>
                               )}
-                            >
-                              <div
+                              <span
                                 className={cn(
-                                  'w-8 h-8 rounded-full flex items-center justify-center font-cond font-black text-[12px] flex-shrink-0',
-                                  checked ? 'bg-green-700 text-white' : 'bg-navy text-muted'
+                                  'font-cond text-[10px] font-black px-2 py-0.5 rounded',
+                                  game.status === 'Live'
+                                    ? 'badge-live'
+                                    : game.status === 'Final'
+                                      ? 'badge-final'
+                                      : 'badge-scheduled'
                                 )}
                               >
-                                {p.number ?? '—'}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <div
-                                  className={cn(
-                                    'font-cond font-bold text-[12px] leading-tight',
-                                    checked ? 'text-green-300' : 'text-white'
-                                  )}
-                                >
-                                  {p.name}
-                                </div>
-                                {p.usa_lacrosse_number && (
-                                  <div className="font-mono text-[9px] text-muted">
-                                    USA #{p.usa_lacrosse_number}
-                                  </div>
+                                {game.status.toUpperCase()}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="font-cond font-black text-[14px] text-white">
+                            {game.home_team.name} vs {game.away_team.name}
+                          </div>
+                          <div className="font-cond text-[10px] text-muted mt-0.5">
+                            {game.division}
+                          </div>
+                          {(game.status === 'Live' ||
+                            game.status === 'Halftime' ||
+                            game.status === 'Final') && (
+                            <div className="font-mono text-[13px] font-bold text-white mt-1">
+                              {game.home_score ?? 0} — {game.away_score ?? 0}
+                            </div>
+                          )}
+                        </button>
+                      )
+                    })}
+                </div>
+              </>
+            )}
+
+            {/* Game detail */}
+            {selectedGame && (
+              <>
+                <div className="flex items-center gap-2 mb-4">
+                  <button
+                    onClick={() => setSelectedGame(null)}
+                    className="text-muted hover:text-white"
+                  >
+                    <ChevronLeft size={18} />
+                  </button>
+                  <div className="font-cond font-black text-[14px] text-white">
+                    {selectedGame.home_team.name} vs {selectedGame.away_team.name}
+                  </div>
+                </div>
+
+                {/* Game header */}
+                <div className="bg-surface-card border border-border rounded-xl p-4 mb-4">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <div className="font-mono text-[12px] font-bold text-blue-300">
+                        {selectedGame.scheduled_time}
+                      </div>
+                      <div className="font-cond font-black text-[18px] text-white">
+                        {selectedGame.home_team.name} vs {selectedGame.away_team.name}
+                      </div>
+                      <div className="font-cond text-[11px] text-muted">
+                        {selectedGame.field.name} · {selectedGame.division}
+                      </div>
+                    </div>
+                    <span
+                      className={cn(
+                        'font-cond text-[11px] font-black px-2 py-1 rounded',
+                        selectedGame.status === 'Live'
+                          ? 'badge-live'
+                          : selectedGame.status === 'Final'
+                            ? 'badge-final'
+                            : selectedGame.status === 'Halftime'
+                              ? 'badge-halftime'
+                              : 'badge-scheduled'
+                      )}
+                    >
+                      {selectedGame.status.toUpperCase()}
+                    </span>
+                  </div>
+                  {(selectedGame.status === 'Live' ||
+                    selectedGame.status === 'Halftime' ||
+                    selectedGame.status === 'Final') && (
+                    <div className="text-center font-mono text-[32px] font-bold text-white mt-3">
+                      {selectedGame.home_score ?? 0} — {selectedGame.away_score ?? 0}
+                    </div>
+                  )}
+                </div>
+
+                {slotLoading ? (
+                  <div className="text-center py-6 text-muted font-cond">LOADING...</div>
+                ) : (
+                  <>
+                    {/* Position slots */}
+                    <div className="bg-surface-card border border-border rounded-xl p-4 mb-4">
+                      <div className="font-cond text-[10px] font-black tracking-widest text-muted uppercase mb-3">
+                        REFEREE POSITIONS
+                      </div>
+                      <div className="space-y-2">
+                        {REF_POSITIONS.map((pos) => {
+                          const slot = gameSlots.find((s) => s.role === pos)
+                          const isMe = slot?.referee_id === userRole?.referee_id
+                          const isEmpty = !slot
+                          return (
+                            <div
+                              key={pos}
+                              className={cn(
+                                'flex items-center justify-between rounded-lg px-3 py-2.5 border',
+                                isMe
+                                  ? 'bg-green-900/20 border-green-700/50'
+                                  : isEmpty
+                                    ? 'bg-surface border-border/50'
+                                    : 'bg-navy/20 border-border/50'
+                              )}
+                            >
+                              <div>
+                                <span className="font-cond text-[11px] font-black text-muted uppercase tracking-wide">
+                                  {pos}
+                                </span>
+                                {slot && (
+                                  <span className="font-cond text-[12px] font-bold text-white ml-2">
+                                    {isMe ? '(You)' : ((slot.referee as any)?.name ?? 'Assigned')}
+                                  </span>
+                                )}
+                                {isEmpty && (
+                                  <span className="font-cond text-[12px] text-muted ml-2">
+                                    — OPEN
+                                  </span>
                                 )}
                               </div>
-                              {checked ? (
-                                <CheckCircle size={14} className="text-green-400 flex-shrink-0" />
-                              ) : (
-                                <div className="w-4 h-4 rounded-full border-2 border-border flex-shrink-0" />
-                              )}
-                            </button>
+                              {isMe ? (
+                                <button
+                                  onClick={() => dropPosition(pos)}
+                                  className="font-cond text-[10px] font-bold text-red-400 hover:text-red-300 px-2 py-1 rounded border border-red-800/50 hover:bg-red-900/20 transition-colors"
+                                >
+                                  DROP
+                                </button>
+                              ) : isEmpty ? (
+                                <button
+                                  onClick={() => takePosition(pos)}
+                                  className="font-cond text-[10px] font-bold text-green-400 px-2 py-1 rounded border border-green-700/50 bg-green-900/20 hover:bg-green-800/40 transition-colors"
+                                >
+                                  TAKE
+                                </button>
+                              ) : null}
+                            </div>
                           )
                         })}
                       </div>
+                    </div>
+
+                    {/* Game control (assigned refs only) */}
+                    {isAssigned &&
+                      selectedGame.status !== 'Final' &&
+                      selectedGame.status !== 'Cancelled' && (
+                        <div className="bg-surface-card border border-border rounded-xl p-4 mb-4">
+                          <div className="font-cond text-[10px] font-black tracking-widest text-muted uppercase mb-3">
+                            GAME CONTROL
+                          </div>
+
+                          {(selectedGame.status === 'Live' ||
+                            selectedGame.status === 'Halftime') && (
+                            <div className="grid grid-cols-2 gap-3 mb-4">
+                              {(
+                                [
+                                  {
+                                    label: selectedGame.home_team.name,
+                                    team: 'home' as const,
+                                    score: selectedGame.home_score ?? 0,
+                                  },
+                                  {
+                                    label: selectedGame.away_team.name,
+                                    team: 'away' as const,
+                                    score: selectedGame.away_score ?? 0,
+                                  },
+                                ] as const
+                              ).map(({ label, team, score }) => (
+                                <div
+                                  key={team}
+                                  className="bg-surface rounded-lg p-3 text-center border border-border/50"
+                                >
+                                  <div className="font-cond text-[10px] text-muted uppercase tracking-wide mb-1 truncate">
+                                    {label}
+                                  </div>
+                                  <div className="font-mono text-[36px] font-bold text-white leading-none mb-2">
+                                    {score}
+                                  </div>
+                                  <div className="flex gap-2">
+                                    <button
+                                      onClick={() => updateScore(team, -1)}
+                                      className="flex-1 font-mono text-[18px] font-bold bg-red-900/30 hover:bg-red-900/50 text-red-300 rounded-lg py-1.5 transition-colors"
+                                    >
+                                      −
+                                    </button>
+                                    <button
+                                      onClick={() => updateScore(team, 1)}
+                                      className="flex-1 font-mono text-[18px] font-bold bg-green-900/30 hover:bg-green-900/50 text-green-300 rounded-lg py-1.5 transition-colors"
+                                    >
+                                      +
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          <div className="flex gap-2 flex-wrap">
+                            {(STATUS_ACTIONS[selectedGame.status] ?? []).map((action) => (
+                              <button
+                                key={action.next}
+                                onClick={() => updateGameStatus(action.next)}
+                                className={cn(
+                                  'flex-1 font-cond font-black text-[13px] tracking-widest py-3 rounded-lg text-white transition-colors',
+                                  action.color
+                                )}
+                              >
+                                {action.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                    {/* Player roster check-in (assigned only) */}
+                    {isAssigned && (homePlayers.length > 0 || awayPlayers.length > 0) && (
+                      <div>
+                        <div className="font-cond text-[10px] font-black tracking-widest text-muted uppercase mb-3">
+                          PLAYER CHECK-IN
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          {[
+                            { label: selectedGame.home_team.name, players: homePlayers },
+                            { label: selectedGame.away_team.name, players: awayPlayers },
+                          ].map(({ label, players }) => (
+                            <div
+                              key={label}
+                              className="bg-surface-card border border-border rounded-xl overflow-hidden"
+                            >
+                              <div className="bg-navy/60 px-3 py-2 border-b border-border flex justify-between items-center">
+                                <div className="font-cond font-black text-[12px] text-white truncate">
+                                  {label}
+                                </div>
+                                <div className="font-cond text-[11px] text-green-400 font-bold flex-shrink-0 ml-1">
+                                  {players.filter((p) => checkins.includes(p.id)).length}/
+                                  {players.length}
+                                </div>
+                              </div>
+                              <div className="divide-y divide-border/30">
+                                {players.map((p) => {
+                                  const checked = checkins.includes(p.id)
+                                  return (
+                                    <button
+                                      key={p.id}
+                                      onClick={() => togglePlayerCheckin(p.id)}
+                                      className={cn(
+                                        'w-full flex items-center gap-2 px-3 py-2 transition-colors text-left',
+                                        checked ? 'bg-green-900/15' : 'hover:bg-white/5'
+                                      )}
+                                    >
+                                      <div
+                                        className={cn(
+                                          'w-7 h-7 rounded-full flex items-center justify-center font-cond font-black text-[11px] flex-shrink-0',
+                                          checked ? 'bg-green-700 text-white' : 'bg-navy text-muted'
+                                        )}
+                                      >
+                                        {p.number ?? '—'}
+                                      </div>
+                                      <span
+                                        className={cn(
+                                          'font-cond font-bold text-[11px] flex-1 min-w-0 truncate',
+                                          checked ? 'text-green-300' : 'text-white'
+                                        )}
+                                      >
+                                        {p.name}
+                                      </span>
+                                      {checked ? (
+                                        <CheckCircle
+                                          size={13}
+                                          className="text-green-400 flex-shrink-0"
+                                        />
+                                      ) : (
+                                        <div className="w-3.5 h-3.5 rounded-full border-2 border-border flex-shrink-0" />
+                                      )}
+                                    </button>
+                                  )
+                                })}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     )}
-                  </div>
-                ))}
-              </div>
+                  </>
+                )}
+              </>
             )}
           </div>
         )}
+
+        {/* ── APPROVALS ── */}
         {tab === 'approvals' && (
           <ApprovalsPanel
             personName={ref?.name ?? 'Referee'}
@@ -420,7 +836,7 @@ export function RefereePortal() {
   )
 }
 
-// ─── Shared approvals panel for ref + volunteer portals ───────
+// ─── Shared approvals panel ──────────────────────────────────
 function ApprovalsPanel({
   personName,
   personType,
@@ -451,7 +867,7 @@ function ApprovalsPanel({
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        action: action,
+        action,
         approval_id: id,
         approved_by: personType,
         approved_by_name: personName,
@@ -459,9 +875,7 @@ function ApprovalsPanel({
         reason: 'Denied by official',
       }),
     })
-    if (res.ok) {
-      setApprovals((prev) => prev.filter((a) => a.id !== id))
-    }
+    if (res.ok) setApprovals((prev) => prev.filter((a) => a.id !== id))
     setApprovingId(null)
   }
 
@@ -474,9 +888,8 @@ function ApprovalsPanel({
       </div>
       <div className="font-cond text-[11px] text-muted mb-4 leading-relaxed">
         As a {personType}, you can approve or deny multi-game requests on behalf of the opposing
-        team's coach.
+        team&apos;s coach.
       </div>
-
       {approvals.length === 0 ? (
         <div className="bg-surface-card border border-border rounded-xl p-8 text-center">
           <div className="font-cond font-black text-[14px] text-green-400 mb-1">✓ ALL CLEAR</div>
