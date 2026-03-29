@@ -8,7 +8,7 @@ import { CheckCircle, LogOut, ChevronLeft, AlertTriangle } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { format } from 'date-fns'
 
-type PortalTab = 'checkin' | 'games' | 'approvals'
+type PortalTab = 'checkin' | 'games' | 'approvals' | 'availability'
 
 const REF_POSITIONS = ['Lead', 'Wing 1', 'Wing 2']
 const VOL_POSITIONS = ['Line Judge', 'Timekeeper', 'Ball Retriever', 'Gate', 'General']
@@ -196,14 +196,25 @@ export function RefereePortal() {
   const [quickAssignPos, setQuickAssignPos] = useState('Lead')
   const [quickAssigning, setQuickAssigning] = useState<number | null>(null)
 
+  // Weather
+  const [weatherAlerts, setWeatherAlerts] = useState<
+    { id: number; alert_type: string; description: string }[]
+  >([])
+
   // Trainers + dispatch
   const [trainers, setTrainers] = useState<Trainer[]>([])
   const [trainerDispatch, setTrainerDispatch] = useState<TrainerDispatch | null>(null)
   const [showDispatchForm, setShowDispatchForm] = useState(false)
   const [dispatchPlayerName, setDispatchPlayerName] = useState('')
   const [dispatchInjuryType, setDispatchInjuryType] = useState('General / Unknown')
-  const [dispatchTrainerId, setDispatchTrainerId] = useState<string>('')
+  const [dispatchTrainerId, setDispatchTrainerId] = useState<string>('') // kept for compat, unused in UI
   const [dispatching, setDispatching] = useState(false)
+
+  // Availability
+  const [availability, setAvailability] = useState<
+    Map<string, { from: string; to: string } | null>
+  >(new Map())
+  const [savingAvail, setSavingAvail] = useState<string | null>(null)
 
   const [homePlayers, setHomePlayers] = useState<any[]>([])
   const [awayPlayers, setAwayPlayers] = useState<any[]>([])
@@ -225,6 +236,7 @@ export function RefereePortal() {
       { data: myVolAssignData },
       { data: eventDates },
       { data: trainersData },
+      { data: weatherData },
     ] = await Promise.all([
       sb.from('referees').select('*').eq('id', userRole!.referee_id!).single(),
       sb
@@ -250,6 +262,11 @@ export function RefereePortal() {
         .select('id, name, checked_in')
         .eq('event_id', portalEventId!)
         .order('name'),
+      sb
+        .from('weather_alerts')
+        .select('id, alert_type, description')
+        .eq('event_id', portalEventId!)
+        .eq('is_active', true),
     ])
 
     setRef(refData)
@@ -268,6 +285,19 @@ export function RefereePortal() {
     }
     setMyAssignmentRoles(rolesMap)
     setTrainers((trainersData ?? []) as Trainer[])
+    setWeatherAlerts(
+      (weatherData ?? []) as { id: number; alert_type: string; description: string }[]
+    )
+
+    const { data: availData } = await sb
+      .from('referee_availability')
+      .select('date, available_from, available_to')
+      .eq('referee_id', userRole!.referee_id!)
+    const availMap = new Map<string, { from: string; to: string } | null>()
+    for (const a of availData ?? []) {
+      availMap.set(a.date, { from: a.available_from.slice(0, 5), to: a.available_to.slice(0, 5) })
+    }
+    setAvailability(availMap)
 
     const dates = (eventDates ?? []) as EventDate[]
     setEventDates(dates)
@@ -495,10 +525,9 @@ export function RefereePortal() {
   }
 
   async function handleDispatchTrainer() {
-    if (!selectedGame || !dispatchTrainerId) return
+    if (!selectedGame) return
     setDispatching(true)
     const sb = createClient()
-    const trainer = trainers.find((t) => t.id === Number(dispatchTrainerId))
     const now = new Date().toISOString()
     const { data: incident, error } = await sb
       .from('medical_incidents')
@@ -509,7 +538,7 @@ export function RefereePortal() {
         player_name: dispatchPlayerName || 'Unknown',
         team_name: '',
         injury_type: dispatchInjuryType,
-        trainer_name: trainer?.name ?? 'Trainer',
+        trainer_name: 'Awaiting Acceptance',
         status: 'Dispatched',
         dispatched_at: now,
       })
@@ -522,7 +551,7 @@ export function RefereePortal() {
     }
     await sb.from('ops_log').insert({
       event_id: portalEventId,
-      message: `🚨 TRAINER DISPATCHED — ${trainer?.name} to ${selectedGame.home_team.name} vs ${selectedGame.away_team.name} (${selectedGame.field.name}) — Patient: ${dispatchPlayerName || 'Unknown'} — ${dispatchInjuryType}`,
+      message: `🚨 TRAINER DISPATCHED — ${selectedGame.home_team.name} vs ${selectedGame.away_team.name} (${selectedGame.field.name}) — Patient: ${dispatchPlayerName || 'Unknown'} — ${dispatchInjuryType}`,
       log_type: 'warning',
       occurred_at: now,
     })
@@ -530,7 +559,6 @@ export function RefereePortal() {
     setShowDispatchForm(false)
     setDispatchPlayerName('')
     setDispatchInjuryType('General / Unknown')
-    setDispatchTrainerId('')
     setDispatching(false)
     toast.success('Trainer dispatched — admin notified')
   }
@@ -597,6 +625,55 @@ export function RefereePortal() {
     toast.success(newState ? '✓ You are checked in!' : 'Checked out')
   }
 
+  async function toggleAvailability(date: string) {
+    if (!userRole?.referee_id) return
+    const sb = createClient()
+    const current = availability.get(date)
+    if (current) {
+      await sb
+        .from('referee_availability')
+        .delete()
+        .eq('referee_id', userRole.referee_id)
+        .eq('date', date)
+      setAvailability((prev) => {
+        const next = new Map(prev)
+        next.delete(date)
+        return next
+      })
+    } else {
+      const { error } = await sb.from('referee_availability').insert({
+        referee_id: userRole.referee_id,
+        date,
+        available_from: '08:00',
+        available_to: '18:00',
+      })
+      if (error) {
+        toast.error(error.message)
+        return
+      }
+      setAvailability((prev) => new Map(prev).set(date, { from: '08:00', to: '18:00' }))
+    }
+  }
+
+  async function updateAvailTime(date: string, field: 'from' | 'to', value: string) {
+    if (!userRole?.referee_id) return
+    const current = availability.get(date)
+    if (!current) return
+    const updated = { ...current, [field]: value }
+    setAvailability((prev) => new Map(prev).set(date, updated))
+    setSavingAvail(date)
+    const sb = createClient()
+    await sb
+      .from('referee_availability')
+      .update({
+        available_from: updated.from,
+        available_to: updated.to,
+      })
+      .eq('referee_id', userRole.referee_id)
+      .eq('date', date)
+    setSavingAvail(null)
+  }
+
   async function togglePlayerCheckin(playerId: number) {
     if (!selectedGame) return
     const sb = createClient()
@@ -633,9 +710,9 @@ export function RefereePortal() {
     : false
 
   return (
-    <div className="min-h-screen bg-surface">
+    <div className="h-screen bg-surface flex flex-col">
       {/* Header */}
-      <div className="bg-navy-dark border-b-2 border-red px-4 py-0 flex items-stretch">
+      <div className="bg-navy-dark border-b-2 border-red px-4 py-0 flex items-stretch flex-shrink-0">
         <div className="flex items-center gap-3 py-3 px-2">
           <div className="font-cond text-lg font-black tracking-widest text-white">LEAGUEOPS</div>
           <div className="font-cond text-[11px] text-muted tracking-widest border-l border-border pl-3">
@@ -647,6 +724,7 @@ export function RefereePortal() {
             { id: 'checkin', label: 'My Check-In' },
             { id: 'games', label: `Games (${allGames.length})` },
             { id: 'approvals', label: 'Approvals' },
+            { id: 'availability', label: 'Availability' },
           ].map((t) => (
             <button
               key={t.id}
@@ -674,355 +752,137 @@ export function RefereePortal() {
         </div>
       </div>
 
-      <div className="max-w-3xl mx-auto px-4 py-6">
-        {/* ── MY CHECK-IN ── */}
-        {tab === 'checkin' && (
-          <div>
-            {/* Date picker */}
-            {eventDates.length > 0 && (
-              <div className="flex gap-1.5 mb-4 flex-wrap">
-                <button
-                  onClick={() => setSelectedDateId(null)}
-                  className={cn(
-                    'font-cond text-[10px] font-black tracking-widest px-2.5 py-1 rounded border transition-colors',
-                    selectedDateId === null
-                      ? 'bg-navy border-blue-500 text-white'
-                      : 'border-border text-muted hover:text-white'
-                  )}
-                >
-                  ALL
-                </button>
-                {eventDates.map((d) => (
-                  <button
-                    key={d.id}
-                    onClick={() => setSelectedDateId(d.id)}
-                    className={cn(
-                      'font-cond text-[10px] font-black tracking-widest px-2.5 py-1 rounded border transition-colors',
-                      selectedDateId === d.id
-                        ? 'bg-red border-red text-white'
-                        : 'border-border text-muted hover:text-white'
-                    )}
-                  >
-                    {d.label}
-                    <span
-                      className={cn(
-                        'ml-1 font-normal normal-case tracking-normal',
-                        selectedDateId === d.id ? 'text-red-200' : 'text-muted'
-                      )}
-                    >
-                      {format(new Date(d.date + 'T12:00:00'), 'M/d')}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            )}
-            {todayLabel && (
-              <div className="bg-navy/40 border border-border rounded-lg px-4 py-2.5 mb-4 text-center">
-                <span className="font-cond text-[11px] font-black tracking-widest text-blue-300 uppercase">
-                  {todayLabel}
-                </span>
-              </div>
-            )}
-            <div className="bg-surface-card border border-border rounded-xl p-6 text-center mb-4">
-              <div className="w-16 h-16 rounded-full bg-red-900/30 border-2 border-red-700/50 flex items-center justify-center mx-auto mb-3">
-                <span className="font-cond font-black text-2xl text-red-300">
-                  {ref?.name
-                    ?.split(' ')
-                    .map((n: string) => n[0])
-                    .join('')
-                    .slice(0, 2)}
-                </span>
-              </div>
-              <div className="font-cond font-black text-[20px] text-white mb-0.5">{ref?.name}</div>
-              <div className="font-cond text-[12px] text-muted mb-4">{ref?.grade_level}</div>
-              <button
-                onClick={handleSelfCheckIn}
-                disabled={checkingIn}
-                className={cn(
-                  'w-full py-4 rounded-xl font-cond font-black text-[16px] tracking-widest transition-all',
-                  checkedIn
-                    ? 'bg-green-700 hover:bg-green-600 text-white'
-                    : 'bg-navy hover:bg-navy-light text-white border-2 border-border'
-                )}
-              >
-                {checkingIn
-                  ? 'UPDATING...'
-                  : checkedIn
-                    ? '✓ CHECKED IN — TAP TO CHECK OUT'
-                    : 'TAP TO CHECK IN'}
-              </button>
-            </div>
-
-            {(() => {
-              const filteredAssigned = allGames.filter(
-                (g) =>
-                  myAssignedGameIds.has(g.id) &&
-                  (selectedDateId === null || g.event_date_id === selectedDateId)
-              )
-              if (filteredAssigned.length === 0) return null
-              return (
-                <>
-                  <div className="font-cond text-[11px] font-black tracking-widest text-muted uppercase mb-3">
-                    MY ASSIGNED GAMES ({filteredAssigned.length})
-                  </div>
-                  <div className="space-y-2">
-                    {filteredAssigned.map((game) => {
-                      const roles = myAssignmentRoles.get(game.id) ?? []
-                      return (
-                        <button
-                          key={game.id}
-                          onClick={() => {
-                            setTab('games')
-                            setSelectedFieldId(game.field_id)
-                            loadGameDetail(game)
-                          }}
-                          className="w-full text-left bg-surface-card border border-green-800/40 hover:border-green-400/60 rounded-xl p-3 transition-all"
-                        >
-                          <div className="flex justify-between items-center">
-                            <span className="font-mono text-[12px] font-bold text-blue-300">
-                              {game.scheduled_time}
-                            </span>
-                            <span
-                              className={cn(
-                                'font-cond text-[10px] font-black px-2 py-0.5 rounded',
-                                game.status === 'Live'
-                                  ? 'badge-live'
-                                  : game.status === 'Final'
-                                    ? 'badge-final'
-                                    : 'badge-scheduled'
-                              )}
-                            >
-                              {game.status.toUpperCase()}
-                            </span>
-                          </div>
-                          <div className="font-cond font-black text-[13px] text-white mt-0.5">
-                            {game.home_team.name} vs {game.away_team.name}
-                          </div>
-                          <div className="flex items-center justify-between mt-0.5">
-                            <span className="font-cond text-[10px] text-muted">
-                              {game.field.name} · {game.division}
-                            </span>
-                            {roles.length > 0 && (
-                              <div className="flex gap-1">
-                                {roles.map((r) => (
-                                  <span
-                                    key={r}
-                                    className="font-cond text-[9px] font-black text-red-300 bg-red-900/30 px-1.5 py-0.5 rounded"
-                                  >
-                                    {r}
-                                  </span>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        </button>
-                      )
-                    })}
-                  </div>
-                </>
-              )
-            })()}
-          </div>
-        )}
-
-        {/* ── GAMES TAB ── */}
-        {tab === 'games' && (
-          <div>
-            {/* Date picker */}
-            {eventDates.length > 0 && (
-              <div className="flex gap-1.5 mb-4 flex-wrap">
-                <button
-                  onClick={() => setSelectedDateId(null)}
-                  className={cn(
-                    'font-cond text-[10px] font-black tracking-widest px-2.5 py-1 rounded border transition-colors',
-                    selectedDateId === null
-                      ? 'bg-navy border-blue-500 text-white'
-                      : 'border-border text-muted hover:text-white'
-                  )}
-                >
-                  ALL
-                </button>
-                {eventDates.map((d) => (
-                  <button
-                    key={d.id}
-                    onClick={() => {
-                      setSelectedDateId(d.id)
-                      setSelectedFieldId(null)
-                      setSelectedGame(null)
-                    }}
-                    className={cn(
-                      'font-cond text-[10px] font-black tracking-widest px-2.5 py-1 rounded border transition-colors',
-                      selectedDateId === d.id
-                        ? 'bg-red border-red text-white'
-                        : 'border-border text-muted hover:text-white'
-                    )}
-                  >
-                    {d.label}
-                    <span
-                      className={cn(
-                        'ml-1 font-normal normal-case tracking-normal',
-                        selectedDateId === d.id ? 'text-red-200' : 'text-muted'
-                      )}
-                    >
-                      {format(new Date(d.date + 'T12:00:00'), 'M/d')}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {/* Field selector */}
-            {!selectedFieldId && (
-              <>
-                <div className="font-cond text-[11px] font-black tracking-widest text-muted uppercase mb-3">
-                  SELECT A FIELD
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {fields.map((field) => {
-                    const fieldGames = allGames.filter(
-                      (g) =>
-                        g.field_id === field.id &&
-                        (selectedDateId === null || g.event_date_id === selectedDateId)
-                    )
-                    const myCount = fieldGames.filter((g) => myAssignedGameIds.has(g.id)).length
-                    if (fieldGames.length === 0) return null
-                    return (
-                      <button
-                        key={field.id}
-                        onClick={() => {
-                          setSelectedFieldId(field.id)
-                          setSelectedGame(null)
-                        }}
-                        className="bg-surface-card border border-border hover:border-blue-400 rounded-xl p-4 text-left transition-all"
-                      >
-                        <div className="font-cond font-black text-[15px] text-white mb-1">
-                          {field.name}
-                        </div>
-                        <div className="font-cond text-[11px] text-muted">
-                          {fieldGames.length} game{fieldGames.length !== 1 ? 's' : ''}
-                        </div>
-                        {myCount > 0 && (
-                          <div className="font-cond text-[10px] text-green-400 mt-1">
-                            ● {myCount} assigned to you
-                          </div>
-                        )}
-                      </button>
-                    )
-                  })}
-                </div>
-              </>
-            )}
-
-            {/* Game list for selected field */}
-            {selectedFieldId && !selectedGame && (
-              <>
-                <div className="flex items-center gap-2 mb-3">
-                  <button
-                    onClick={() => {
-                      setSelectedFieldId(null)
-                      setQuickAssignMode(false)
-                    }}
-                    className="text-muted hover:text-white"
-                  >
-                    <ChevronLeft size={18} />
-                  </button>
-                  <div className="font-cond font-black text-[14px] text-white flex-1">
-                    {fields.find((f) => f.id === selectedFieldId)?.name}
-                  </div>
-                  <button
-                    onClick={() => {
-                      setQuickAssignMode((v) => !v)
-                    }}
-                    className={cn(
-                      'font-cond text-[10px] font-black tracking-widest px-2.5 py-1 rounded border transition-colors',
-                      quickAssignMode
-                        ? 'bg-red border-red text-white'
-                        : 'border-border text-muted hover:text-white'
-                    )}
-                  >
-                    QUICK ASSIGN
-                  </button>
-                </div>
-
-                {/* Quick assign position picker */}
-                {quickAssignMode && (
-                  <div className="bg-surface-card border border-border rounded-xl p-3 mb-3">
-                    <div className="font-cond text-[10px] font-black tracking-widest text-muted uppercase mb-2">
-                      SELECT POSITION — TAP GAME TO ASSIGN
-                    </div>
-                    <div className="flex gap-1.5 flex-wrap">
-                      {[...REF_POSITIONS, ...VOL_POSITIONS].map((pos) => (
-                        <button
-                          key={pos}
-                          onClick={() => setQuickAssignPos(pos)}
-                          className={cn(
-                            'font-cond text-[10px] font-black tracking-widest px-2.5 py-1 rounded border transition-colors',
-                            quickAssignPos === pos
-                              ? REF_POSITIONS.includes(pos)
-                                ? 'bg-red border-red text-white'
-                                : 'bg-blue-700 border-blue-600 text-white'
-                              : 'border-border text-muted hover:text-white'
-                          )}
-                        >
-                          {pos}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-3xl mx-auto px-4 py-6">
+          {weatherAlerts.length > 0 && (
+            <div className="mb-4 space-y-1.5">
+              {weatherAlerts.map((alert) => (
                 <div
-                  className="space-y-2 overflow-y-auto"
-                  style={{ maxHeight: 'calc(100vh - 220px)' }}
+                  key={alert.id}
+                  className="flex items-center gap-2 bg-yellow-900/30 border border-yellow-600/50 rounded-lg px-3 py-2"
                 >
-                  {allGames
-                    .filter(
-                      (g) =>
-                        g.field_id === selectedFieldId &&
-                        (selectedDateId === null || g.event_date_id === selectedDateId)
-                    )
-                    .map((game) => {
-                      const mine = myAssignedGameIds.has(game.id)
-                      const roles = myAssignmentRoles.get(game.id) ?? []
-                      const isAssigning = quickAssigning === game.id
-                      return (
-                        <button
-                          key={game.id}
-                          onClick={() =>
-                            quickAssignMode ? quickAssignToGame(game) : loadGameDetail(game)
-                          }
-                          disabled={isAssigning}
-                          className={cn(
-                            'w-full text-left rounded-xl p-4 border transition-all',
-                            quickAssignMode
-                              ? 'bg-surface-card border-blue-800/60 hover:border-blue-400 hover:bg-blue-900/10'
-                              : mine
-                                ? 'bg-green-900/15 border-green-800/50 hover:border-green-400'
-                                : 'bg-surface-card border-border hover:border-blue-400'
-                          )}
-                        >
-                          <div className="flex justify-between items-center mb-1">
-                            <span className="font-mono text-[13px] font-bold text-blue-300">
-                              {game.scheduled_time}
-                            </span>
-                            <div className="flex items-center gap-2">
-                              {isAssigning && (
-                                <span className="font-cond text-[9px] text-muted">
-                                  ASSIGNING...
-                                </span>
-                              )}
-                              {!quickAssignMode && mine && roles.length > 0 && (
-                                <div className="flex gap-1">
-                                  {roles.map((r) => (
-                                    <span
-                                      key={r}
-                                      className="font-cond text-[9px] font-black text-green-400 bg-green-900/30 px-1.5 py-0.5 rounded"
-                                    >
-                                      {r}
-                                    </span>
-                                  ))}
-                                </div>
-                              )}
+                  <span className="text-yellow-400 text-[14px]">⚡</span>
+                  <div>
+                    <span className="font-cond text-[10px] font-black tracking-widest text-yellow-300 uppercase mr-2">
+                      {alert.alert_type}
+                    </span>
+                    <span className="font-cond text-[11px] text-yellow-200">
+                      {alert.description}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          {/* ── MY CHECK-IN ── */}
+          {tab === 'checkin' && (
+            <div>
+              {/* Date picker */}
+              {eventDates.length > 0 && (
+                <div className="flex gap-1.5 mb-4 flex-wrap">
+                  <button
+                    onClick={() => setSelectedDateId(null)}
+                    className={cn(
+                      'font-cond text-[10px] font-black tracking-widest px-2.5 py-1 rounded border transition-colors',
+                      selectedDateId === null
+                        ? 'bg-navy border-blue-500 text-white'
+                        : 'border-border text-muted hover:text-white'
+                    )}
+                  >
+                    ALL
+                  </button>
+                  {eventDates.map((d) => (
+                    <button
+                      key={d.id}
+                      onClick={() => setSelectedDateId(d.id)}
+                      className={cn(
+                        'font-cond text-[10px] font-black tracking-widest px-2.5 py-1 rounded border transition-colors',
+                        selectedDateId === d.id
+                          ? 'bg-red border-red text-white'
+                          : 'border-border text-muted hover:text-white'
+                      )}
+                    >
+                      {d.label}
+                      <span
+                        className={cn(
+                          'ml-1 font-normal normal-case tracking-normal',
+                          selectedDateId === d.id ? 'text-red-200' : 'text-muted'
+                        )}
+                      >
+                        {format(new Date(d.date + 'T12:00:00'), 'M/d')}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {todayLabel && (
+                <div className="bg-navy/40 border border-border rounded-lg px-4 py-2.5 mb-4 text-center">
+                  <span className="font-cond text-[11px] font-black tracking-widest text-blue-300 uppercase">
+                    {todayLabel}
+                  </span>
+                </div>
+              )}
+              <div className="bg-surface-card border border-border rounded-xl p-6 text-center mb-4">
+                <div className="w-16 h-16 rounded-full bg-red-900/30 border-2 border-red-700/50 flex items-center justify-center mx-auto mb-3">
+                  <span className="font-cond font-black text-2xl text-red-300">
+                    {ref?.name
+                      ?.split(' ')
+                      .map((n: string) => n[0])
+                      .join('')
+                      .slice(0, 2)}
+                  </span>
+                </div>
+                <div className="font-cond font-black text-[20px] text-white mb-0.5">
+                  {ref?.name}
+                </div>
+                <div className="font-cond text-[12px] text-muted mb-4">{ref?.grade_level}</div>
+                <button
+                  onClick={handleSelfCheckIn}
+                  disabled={checkingIn}
+                  className={cn(
+                    'w-full py-4 rounded-xl font-cond font-black text-[16px] tracking-widest transition-all',
+                    checkedIn
+                      ? 'bg-green-700 hover:bg-green-600 text-white'
+                      : 'bg-navy hover:bg-navy-light text-white border-2 border-border'
+                  )}
+                >
+                  {checkingIn
+                    ? 'UPDATING...'
+                    : checkedIn
+                      ? '✓ CHECKED IN — TAP TO CHECK OUT'
+                      : 'TAP TO CHECK IN'}
+                </button>
+              </div>
+
+              {(() => {
+                const filteredAssigned = allGames.filter(
+                  (g) =>
+                    myAssignedGameIds.has(g.id) &&
+                    (selectedDateId === null || g.event_date_id === selectedDateId)
+                )
+                if (filteredAssigned.length === 0) return null
+                return (
+                  <>
+                    <div className="font-cond text-[11px] font-black tracking-widest text-muted uppercase mb-3">
+                      MY ASSIGNED GAMES ({filteredAssigned.length})
+                    </div>
+                    <div className="space-y-2">
+                      {filteredAssigned.map((game) => {
+                        const roles = myAssignmentRoles.get(game.id) ?? []
+                        return (
+                          <button
+                            key={game.id}
+                            onClick={() => {
+                              setTab('games')
+                              setSelectedFieldId(game.field_id)
+                              loadGameDetail(game)
+                            }}
+                            className="w-full text-left bg-surface-card border border-green-800/40 hover:border-green-400/60 rounded-xl p-3 transition-all"
+                          >
+                            <div className="flex justify-between items-center">
+                              <span className="font-mono text-[12px] font-bold text-blue-300">
+                                {game.scheduled_time}
+                              </span>
                               <span
                                 className={cn(
                                   'font-cond text-[10px] font-black px-2 py-0.5 rounded',
@@ -1033,522 +893,906 @@ export function RefereePortal() {
                                       : 'badge-scheduled'
                                 )}
                               >
-                                {getQuarterLabel(game) || game.status.toUpperCase()}
+                                {game.status.toUpperCase()}
                               </span>
                             </div>
+                            <div className="font-cond font-black text-[13px] text-white mt-0.5">
+                              {game.home_team.name} vs {game.away_team.name}
+                            </div>
+                            <div className="flex items-center justify-between mt-0.5">
+                              <span className="font-cond text-[10px] text-muted">
+                                {game.field.name} · {game.division}
+                              </span>
+                              {roles.length > 0 && (
+                                <div className="flex gap-1">
+                                  {roles.map((r) => (
+                                    <span
+                                      key={r}
+                                      className="font-cond text-[9px] font-black text-red-300 bg-red-900/30 px-1.5 py-0.5 rounded"
+                                    >
+                                      {r}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </>
+                )
+              })()}
+            </div>
+          )}
+
+          {/* ── GAMES TAB ── */}
+          {tab === 'games' && (
+            <div>
+              {/* Date picker */}
+              {eventDates.length > 0 && (
+                <div className="flex gap-1.5 mb-4 flex-wrap">
+                  <button
+                    onClick={() => setSelectedDateId(null)}
+                    className={cn(
+                      'font-cond text-[10px] font-black tracking-widest px-2.5 py-1 rounded border transition-colors',
+                      selectedDateId === null
+                        ? 'bg-navy border-blue-500 text-white'
+                        : 'border-border text-muted hover:text-white'
+                    )}
+                  >
+                    ALL
+                  </button>
+                  {eventDates.map((d) => (
+                    <button
+                      key={d.id}
+                      onClick={() => {
+                        setSelectedDateId(d.id)
+                        setSelectedFieldId(null)
+                        setSelectedGame(null)
+                      }}
+                      className={cn(
+                        'font-cond text-[10px] font-black tracking-widest px-2.5 py-1 rounded border transition-colors',
+                        selectedDateId === d.id
+                          ? 'bg-red border-red text-white'
+                          : 'border-border text-muted hover:text-white'
+                      )}
+                    >
+                      {d.label}
+                      <span
+                        className={cn(
+                          'ml-1 font-normal normal-case tracking-normal',
+                          selectedDateId === d.id ? 'text-red-200' : 'text-muted'
+                        )}
+                      >
+                        {format(new Date(d.date + 'T12:00:00'), 'M/d')}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Field selector */}
+              {!selectedFieldId && (
+                <>
+                  <div className="font-cond text-[11px] font-black tracking-widest text-muted uppercase mb-3">
+                    SELECT A FIELD
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {fields.map((field) => {
+                      const fieldGames = allGames.filter(
+                        (g) =>
+                          g.field_id === field.id &&
+                          (selectedDateId === null || g.event_date_id === selectedDateId)
+                      )
+                      const myCount = fieldGames.filter((g) => myAssignedGameIds.has(g.id)).length
+                      if (fieldGames.length === 0) return null
+                      return (
+                        <button
+                          key={field.id}
+                          onClick={() => {
+                            setSelectedFieldId(field.id)
+                            setSelectedGame(null)
+                          }}
+                          className="bg-surface-card border border-border hover:border-blue-400 rounded-xl p-4 text-left transition-all"
+                        >
+                          <div className="font-cond font-black text-[15px] text-white mb-1">
+                            {field.name}
                           </div>
-                          <div className="font-cond font-black text-[14px] text-white">
-                            {game.home_team.name} vs {game.away_team.name}
+                          <div className="font-cond text-[11px] text-muted">
+                            {fieldGames.length} game{fieldGames.length !== 1 ? 's' : ''}
                           </div>
-                          <div className="font-cond text-[10px] text-muted mt-0.5">
-                            {game.division}
-                          </div>
-                          {(game.status === 'Live' ||
-                            game.status === 'Halftime' ||
-                            game.status === 'Final') && (
-                            <div className="font-mono text-[13px] font-bold text-white mt-1">
-                              {game.home_score ?? 0} — {game.away_score ?? 0}
+                          {myCount > 0 && (
+                            <div className="font-cond text-[10px] text-green-400 mt-1">
+                              ● {myCount} assigned to you
                             </div>
                           )}
                         </button>
                       )
                     })}
-                </div>
-              </>
-            )}
-
-            {/* Game detail */}
-            {selectedGame && (
-              <>
-                <div className="flex items-center gap-2 mb-4">
-                  <button
-                    onClick={() => setSelectedGame(null)}
-                    className="text-muted hover:text-white"
-                  >
-                    <ChevronLeft size={18} />
-                  </button>
-                  <div className="font-cond font-black text-[14px] text-white">
-                    {selectedGame.home_team.name} vs {selectedGame.away_team.name}
                   </div>
-                </div>
+                </>
+              )}
 
-                {/* Game header */}
-                <div className="bg-surface-card border border-border rounded-xl p-4 mb-4">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <div className="font-mono text-[12px] font-bold text-blue-300">
-                        {selectedGame.scheduled_time}
-                      </div>
-                      <div className="font-cond font-black text-[18px] text-white">
-                        {selectedGame.home_team.name} vs {selectedGame.away_team.name}
-                      </div>
-                      <div className="font-cond text-[11px] text-muted">
-                        {selectedGame.field.name} · {selectedGame.division}
-                      </div>
+              {/* Game list for selected field */}
+              {selectedFieldId && !selectedGame && (
+                <>
+                  <div className="flex items-center gap-2 mb-3">
+                    <button
+                      onClick={() => {
+                        setSelectedFieldId(null)
+                        setQuickAssignMode(false)
+                      }}
+                      className="text-muted hover:text-white"
+                    >
+                      <ChevronLeft size={18} />
+                    </button>
+                    <div className="font-cond font-black text-[14px] text-white flex-1">
+                      {fields.find((f) => f.id === selectedFieldId)?.name}
                     </div>
-                    <span
+                    <button
+                      onClick={() => {
+                        setQuickAssignMode((v) => !v)
+                      }}
                       className={cn(
-                        'font-cond text-[11px] font-black px-2 py-1 rounded',
-                        selectedGame.status === 'Live'
-                          ? 'badge-live'
-                          : selectedGame.status === 'Final'
-                            ? 'badge-final'
-                            : selectedGame.status === 'Halftime'
-                              ? 'badge-halftime'
-                              : 'badge-scheduled'
+                        'font-cond text-[10px] font-black tracking-widest px-2.5 py-1 rounded border transition-colors',
+                        quickAssignMode
+                          ? 'bg-red border-red text-white'
+                          : 'border-border text-muted hover:text-white'
                       )}
                     >
-                      {selectedGame.status.toUpperCase()}
-                    </span>
+                      QUICK ASSIGN
+                    </button>
                   </div>
-                  {(selectedGame.status === 'Live' ||
-                    selectedGame.status === 'Halftime' ||
-                    selectedGame.status === 'Final') && (
-                    <div className="text-center font-mono text-[32px] font-bold text-white mt-3">
-                      {selectedGame.home_score ?? 0} — {selectedGame.away_score ?? 0}
+
+                  {/* Quick assign position picker */}
+                  {quickAssignMode && (
+                    <div className="bg-surface-card border border-border rounded-xl p-3 mb-3">
+                      <div className="font-cond text-[10px] font-black tracking-widest text-muted uppercase mb-2">
+                        SELECT POSITION — TAP GAME TO ASSIGN
+                      </div>
+                      <div className="flex gap-1.5 flex-wrap">
+                        {[...REF_POSITIONS, ...VOL_POSITIONS].map((pos) => (
+                          <button
+                            key={pos}
+                            onClick={() => setQuickAssignPos(pos)}
+                            className={cn(
+                              'font-cond text-[10px] font-black tracking-widest px-2.5 py-1 rounded border transition-colors',
+                              quickAssignPos === pos
+                                ? REF_POSITIONS.includes(pos)
+                                  ? 'bg-red border-red text-white'
+                                  : 'bg-blue-700 border-blue-600 text-white'
+                                : 'border-border text-muted hover:text-white'
+                            )}
+                          >
+                            {pos}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   )}
-                </div>
 
-                {slotLoading ? (
-                  <div className="text-center py-6 text-muted font-cond">LOADING...</div>
-                ) : (
-                  <>
-                    {/* ── GAME CONTROL (assigned refs only) ── */}
-                    {isAssigned && selectedGame.status !== 'Cancelled' && (
-                      <div className="bg-surface-card border border-border rounded-xl p-4 mb-4">
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="font-cond text-[10px] font-black tracking-widest text-muted uppercase">
-                            GAME CONTROL
-                          </div>
-                          {selectedGame.quarter && selectedGame.status !== 'Final' && (
-                            <div className="flex gap-1">
-                              {[1, 2, 3, 4].map((q) => (
+                  <div
+                    className="space-y-2 overflow-y-auto"
+                    style={{ maxHeight: 'calc(100vh - 220px)' }}
+                  >
+                    {allGames
+                      .filter(
+                        (g) =>
+                          g.field_id === selectedFieldId &&
+                          (selectedDateId === null || g.event_date_id === selectedDateId)
+                      )
+                      .map((game) => {
+                        const mine = myAssignedGameIds.has(game.id)
+                        const roles = myAssignmentRoles.get(game.id) ?? []
+                        const isAssigning = quickAssigning === game.id
+                        return (
+                          <button
+                            key={game.id}
+                            onClick={() =>
+                              quickAssignMode ? quickAssignToGame(game) : loadGameDetail(game)
+                            }
+                            disabled={isAssigning}
+                            className={cn(
+                              'w-full text-left rounded-xl p-4 border transition-all',
+                              quickAssignMode
+                                ? 'bg-surface-card border-blue-800/60 hover:border-blue-400 hover:bg-blue-900/10'
+                                : mine
+                                  ? 'bg-green-900/15 border-green-800/50 hover:border-green-400'
+                                  : 'bg-surface-card border-border hover:border-blue-400'
+                            )}
+                          >
+                            <div className="flex justify-between items-center mb-1">
+                              <span className="font-mono text-[13px] font-bold text-blue-300">
+                                {game.scheduled_time}
+                              </span>
+                              <div className="flex items-center gap-2">
+                                {isAssigning && (
+                                  <span className="font-cond text-[9px] text-muted">
+                                    ASSIGNING...
+                                  </span>
+                                )}
+                                {!quickAssignMode && mine && roles.length > 0 && (
+                                  <div className="flex gap-1">
+                                    {roles.map((r) => (
+                                      <span
+                                        key={r}
+                                        className="font-cond text-[9px] font-black text-green-400 bg-green-900/30 px-1.5 py-0.5 rounded"
+                                      >
+                                        {r}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
                                 <span
-                                  key={q}
                                   className={cn(
                                     'font-cond text-[10px] font-black px-2 py-0.5 rounded',
-                                    q === selectedGame.quarter
-                                      ? selectedGame.status === 'Halftime'
-                                        ? 'bg-yellow-700/60 text-yellow-200'
-                                        : 'bg-green-700/60 text-green-200'
-                                      : (selectedGame.quarter ?? 0) > q
-                                        ? 'bg-border/40 text-muted'
-                                        : 'border border-border/40 text-border'
+                                    game.status === 'Live'
+                                      ? 'badge-live'
+                                      : game.status === 'Final'
+                                        ? 'badge-final'
+                                        : 'badge-scheduled'
                                   )}
                                 >
-                                  Q{q}
+                                  {getQuarterLabel(game) || game.status.toUpperCase()}
                                 </span>
+                              </div>
+                            </div>
+                            <div className="font-cond font-black text-[14px] text-white">
+                              {game.home_team.name} vs {game.away_team.name}
+                            </div>
+                            <div className="font-cond text-[10px] text-muted mt-0.5">
+                              {game.division}
+                            </div>
+                            {weatherAlerts.length > 0 && (
+                              <div className="flex items-center gap-1 mt-1">
+                                <span className="text-yellow-400 text-[10px]">⚡</span>
+                                <span className="font-cond text-[9px] text-yellow-300">
+                                  Weather alert active
+                                </span>
+                              </div>
+                            )}
+                            {(game.status === 'Live' ||
+                              game.status === 'Halftime' ||
+                              game.status === 'Final') && (
+                              <div className="font-mono text-[13px] font-bold text-white mt-1">
+                                {game.home_score ?? 0} — {game.away_score ?? 0}
+                              </div>
+                            )}
+                          </button>
+                        )
+                      })}
+                  </div>
+                </>
+              )}
+
+              {/* Game detail */}
+              {selectedGame && (
+                <>
+                  <div className="flex items-center gap-2 mb-4">
+                    <button
+                      onClick={() => setSelectedGame(null)}
+                      className="text-muted hover:text-white"
+                    >
+                      <ChevronLeft size={18} />
+                    </button>
+                    <div className="font-cond font-black text-[14px] text-white">
+                      {selectedGame.home_team.name} vs {selectedGame.away_team.name}
+                    </div>
+                  </div>
+
+                  {/* Game header */}
+                  <div className="bg-surface-card border border-border rounded-xl p-4 mb-4">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <div className="font-mono text-[12px] font-bold text-blue-300">
+                          {selectedGame.scheduled_time}
+                        </div>
+                        <div className="font-cond font-black text-[18px] text-white">
+                          {selectedGame.home_team.name} vs {selectedGame.away_team.name}
+                        </div>
+                        <div className="font-cond text-[11px] text-muted">
+                          {selectedGame.field.name} · {selectedGame.division}
+                        </div>
+                      </div>
+                      <span
+                        className={cn(
+                          'font-cond text-[11px] font-black px-2 py-1 rounded',
+                          selectedGame.status === 'Live'
+                            ? 'badge-live'
+                            : selectedGame.status === 'Final'
+                              ? 'badge-final'
+                              : selectedGame.status === 'Halftime'
+                                ? 'badge-halftime'
+                                : 'badge-scheduled'
+                        )}
+                      >
+                        {selectedGame.status.toUpperCase()}
+                      </span>
+                    </div>
+                    {(selectedGame.status === 'Live' ||
+                      selectedGame.status === 'Halftime' ||
+                      selectedGame.status === 'Final') && (
+                      <div className="text-center font-mono text-[32px] font-bold text-white mt-3">
+                        {selectedGame.home_score ?? 0} — {selectedGame.away_score ?? 0}
+                      </div>
+                    )}
+                  </div>
+
+                  {slotLoading ? (
+                    <div className="text-center py-6 text-muted font-cond">LOADING...</div>
+                  ) : (
+                    <>
+                      {/* ── GAME CONTROL (assigned refs only) ── */}
+                      {isAssigned && selectedGame.status !== 'Cancelled' && (
+                        <div className="bg-surface-card border border-border rounded-xl p-4 mb-4">
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="font-cond text-[10px] font-black tracking-widest text-muted uppercase">
+                              GAME CONTROL
+                            </div>
+                            {selectedGame.quarter && selectedGame.status !== 'Final' && (
+                              <div className="flex gap-1">
+                                {[1, 2, 3, 4].map((q) => (
+                                  <span
+                                    key={q}
+                                    className={cn(
+                                      'font-cond text-[10px] font-black px-2 py-0.5 rounded',
+                                      q === selectedGame.quarter
+                                        ? selectedGame.status === 'Halftime'
+                                          ? 'bg-yellow-700/60 text-yellow-200'
+                                          : 'bg-green-700/60 text-green-200'
+                                        : (selectedGame.quarter ?? 0) > q
+                                          ? 'bg-border/40 text-muted'
+                                          : 'border border-border/40 text-border'
+                                    )}
+                                  >
+                                    Q{q}
+                                  </span>
+                                ))}
+                                {selectedGame.status === 'Halftime' && (
+                                  <span className="font-cond text-[10px] font-black px-2 py-0.5 rounded bg-yellow-700/60 text-yellow-200">
+                                    HT
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Score controls */}
+                          {(selectedGame.status === 'Live' ||
+                            selectedGame.status === 'Halftime') && (
+                            <div className="grid grid-cols-2 gap-3 mb-4">
+                              {(
+                                [
+                                  {
+                                    label: selectedGame.home_team.name,
+                                    team: 'home' as const,
+                                    score: selectedGame.home_score ?? 0,
+                                  },
+                                  {
+                                    label: selectedGame.away_team.name,
+                                    team: 'away' as const,
+                                    score: selectedGame.away_score ?? 0,
+                                  },
+                                ] as const
+                              ).map(({ label, team, score }) => (
+                                <div
+                                  key={team}
+                                  className="bg-surface rounded-lg p-3 text-center border border-border/50"
+                                >
+                                  <div className="font-cond text-[10px] text-muted uppercase tracking-wide mb-1 truncate">
+                                    {label}
+                                  </div>
+                                  <div className="font-mono text-[36px] font-bold text-white leading-none mb-2">
+                                    {score}
+                                  </div>
+                                  <div className="flex gap-2">
+                                    <button
+                                      onClick={() => updateScore(team, -1)}
+                                      className="flex-1 font-mono text-[18px] font-bold bg-red-900/30 hover:bg-red-900/50 text-red-300 rounded-lg py-1.5 transition-colors"
+                                    >
+                                      −
+                                    </button>
+                                    <button
+                                      onClick={() => updateScore(team, 1)}
+                                      className="flex-1 font-mono text-[18px] font-bold bg-green-900/30 hover:bg-green-900/50 text-green-300 rounded-lg py-1.5 transition-colors"
+                                    >
+                                      +
+                                    </button>
+                                  </div>
+                                </div>
                               ))}
-                              {selectedGame.status === 'Halftime' && (
-                                <span className="font-cond text-[10px] font-black px-2 py-0.5 rounded bg-yellow-700/60 text-yellow-200">
-                                  HT
+                            </div>
+                          )}
+
+                          {/* Trainers on duty */}
+                          <div className="mb-3">
+                            <div className="font-cond text-[9px] font-black tracking-widest text-muted uppercase mb-1.5">
+                              TRAINERS ON DUTY
+                            </div>
+                            {trainers.filter((t) => t.checked_in).length > 0 ? (
+                              <div className="flex flex-wrap gap-1.5">
+                                {trainers
+                                  .filter((t) => t.checked_in)
+                                  .map((t) => (
+                                    <span
+                                      key={t.id}
+                                      className="font-cond text-[11px] font-black text-green-300 bg-green-900/30 px-2.5 py-1 rounded-lg border border-green-700/40"
+                                    >
+                                      {t.name}
+                                    </span>
+                                  ))}
+                              </div>
+                            ) : (
+                              <div className="font-cond text-[11px] text-muted">
+                                No trainers checked in
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Game state control panel — all states, tap any to jump */}
+                          <div>
+                            <div className="font-cond text-[9px] font-black tracking-widest text-muted uppercase mb-2">
+                              SET GAME STATE
+                            </div>
+                            <div className="grid grid-cols-4 gap-1.5">
+                              {(
+                                [
+                                  { label: 'PRE-GAME', status: 'Scheduled', quarter: undefined },
+                                  { label: 'Q1', status: 'Live', quarter: 1 },
+                                  { label: 'Q2', status: 'Live', quarter: 2 },
+                                  { label: 'HALF', status: 'Halftime', quarter: undefined },
+                                  { label: 'Q3', status: 'Live', quarter: 3 },
+                                  { label: 'Q4', status: 'Live', quarter: 4 },
+                                  { label: 'FINAL', status: 'Final', quarter: undefined },
+                                  { label: 'DELAY', status: 'Delayed', quarter: undefined },
+                                ] as {
+                                  label: string
+                                  status: string
+                                  quarter: number | undefined
+                                }[]
+                              ).map((btn) => {
+                                const isActive =
+                                  btn.status === selectedGame.status &&
+                                  (btn.quarter === undefined
+                                    ? btn.status !== 'Live'
+                                      ? true
+                                      : false
+                                    : btn.quarter === (selectedGame.quarter ?? 1))
+                                const activeBg =
+                                  btn.status === 'Live'
+                                    ? 'bg-green-700 text-white'
+                                    : btn.status === 'Halftime'
+                                      ? 'bg-yellow-700 text-white'
+                                      : btn.status === 'Final'
+                                        ? 'bg-slate-600 text-white'
+                                        : btn.status === 'Delayed'
+                                          ? 'bg-red-700 text-white'
+                                          : 'bg-blue-700 text-white'
+                                return (
+                                  <button
+                                    key={btn.label}
+                                    onClick={() =>
+                                      handleGameAction({ status: btn.status, quarter: btn.quarter })
+                                    }
+                                    className={cn(
+                                      'font-cond font-black text-[11px] tracking-widest py-2.5 rounded-lg transition-colors',
+                                      isActive
+                                        ? activeBg
+                                        : 'bg-surface border border-border text-muted hover:text-white hover:border-white/30'
+                                    )}
+                                  >
+                                    {btn.label}
+                                  </button>
+                                )
+                              })}
+                            </div>
+                          </div>
+
+                          {/* Divider */}
+                          <div className="border-t border-border/40 mt-4 mb-4" />
+
+                          {/* Dispatch trainer section */}
+                          <div className="flex items-center gap-2 mb-3">
+                            <AlertTriangle size={13} className="text-red-400 flex-shrink-0" />
+                            <div className="font-cond text-[10px] font-black tracking-widest text-red-300 uppercase">
+                              DISPATCH TRAINER
+                            </div>
+                          </div>
+
+                          {trainerDispatch ? (
+                            <div className="bg-red-900/20 border border-red-700/50 rounded-lg p-3">
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="w-2 h-2 rounded-full bg-red-400 animate-pulse flex-shrink-0" />
+                                <span className="font-cond text-[10px] font-black tracking-widest text-red-300 uppercase">
+                                  TRAINER DISPATCHED
                                 </span>
+                              </div>
+                              <div className="font-cond font-black text-[16px] text-white mb-2">
+                                {trainerDispatch.trainer_name}
+                              </div>
+                              <div className="space-y-1 text-[11px] font-cond">
+                                <div className="flex justify-between">
+                                  <span className="text-muted">Patient</span>
+                                  <span className="text-white font-bold">
+                                    {trainerDispatch.player_name}
+                                  </span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-muted">Injury</span>
+                                  <span className="text-white">{trainerDispatch.injury_type}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-muted">Dispatched</span>
+                                  <span className="text-white">
+                                    {format(new Date(trainerDispatch.dispatched_at), 'h:mm a')}
+                                  </span>
+                                </div>
+                                {trainerDispatch.notes && (
+                                  <div className="flex justify-between">
+                                    <span className="text-muted">Notes</span>
+                                    <span className="text-white">{trainerDispatch.notes}</span>
+                                  </div>
+                                )}
+                                <div className="flex justify-between">
+                                  <span className="text-muted">Status</span>
+                                  <span
+                                    className={cn(
+                                      'font-bold',
+                                      trainerDispatch.status === 'Available'
+                                        ? 'text-green-400'
+                                        : 'text-red-300'
+                                    )}
+                                  >
+                                    {trainerDispatch.status}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          ) : !showDispatchForm ? (
+                            <button
+                              onClick={() => setShowDispatchForm(true)}
+                              className="w-full font-cond font-black text-[13px] tracking-widest py-3 rounded-lg bg-red-800/50 hover:bg-red-700 border border-red-700/60 text-red-200 transition-colors"
+                            >
+                              DISPATCH TRAINER TO FIELD
+                            </button>
+                          ) : (
+                            <div className="space-y-3">
+                              <div>
+                                <div className="font-cond text-[10px] text-muted uppercase mb-1">
+                                  Player / Person
+                                </div>
+                                <input
+                                  type="text"
+                                  value={dispatchPlayerName}
+                                  onChange={(e) => setDispatchPlayerName(e.target.value)}
+                                  placeholder="Player name (optional)"
+                                  className="w-full bg-surface border border-border rounded-lg px-3 py-2 font-cond text-[12px] text-white placeholder:text-muted focus:outline-none focus:border-red-500"
+                                />
+                              </div>
+                              <div>
+                                <div className="font-cond text-[10px] text-muted uppercase mb-1">
+                                  Injury Type
+                                </div>
+                                <select
+                                  value={dispatchInjuryType}
+                                  onChange={(e) => setDispatchInjuryType(e.target.value)}
+                                  className="w-full bg-[#040e24] border border-border rounded-lg px-3 py-2 font-cond text-[12px] text-white focus:outline-none focus:border-red-500"
+                                >
+                                  {INJURY_TYPES.map((t) => (
+                                    <option key={t} value={t}>
+                                      {t}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={handleDispatchTrainer}
+                                  disabled={dispatching}
+                                  className="flex-1 font-cond font-black text-[12px] tracking-widest py-2.5 rounded-lg bg-red-700 hover:bg-red-600 text-white disabled:opacity-40 transition-colors"
+                                >
+                                  {dispatching ? 'DISPATCHING...' : 'DISPATCH'}
+                                </button>
+                                <button
+                                  onClick={() => setShowDispatchForm(false)}
+                                  className="font-cond text-[12px] text-muted hover:text-white px-4 py-2.5 rounded-lg border border-border transition-colors"
+                                >
+                                  CANCEL
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* ── REFEREE POSITIONS ── */}
+                      <div className="bg-surface-card border border-border rounded-xl p-4 mb-4">
+                        <div className="font-cond text-[10px] font-black tracking-widest text-muted uppercase mb-3">
+                          REFEREE POSITIONS
+                        </div>
+                        <div className="space-y-2">
+                          {REF_POSITIONS.map((pos) => {
+                            const slot = gameSlots.find((s) => s.role === pos)
+                            const isMe = slot?.referee_id === userRole?.referee_id
+                            const isEmpty = !slot
+                            return (
+                              <div
+                                key={pos}
+                                className={cn(
+                                  'flex items-center justify-between rounded-lg px-3 py-2.5 border',
+                                  isMe
+                                    ? 'bg-green-900/20 border-green-700/50'
+                                    : isEmpty
+                                      ? 'bg-surface border-border/50'
+                                      : 'bg-navy/20 border-border/50'
+                                )}
+                              >
+                                <div>
+                                  <span className="font-cond text-[11px] font-black text-muted uppercase tracking-wide">
+                                    {pos}
+                                  </span>
+                                  {slot && (
+                                    <span className="font-cond text-[12px] font-bold text-white ml-2">
+                                      {isMe ? '(You)' : ((slot.referee as any)?.name ?? 'Assigned')}
+                                    </span>
+                                  )}
+                                  {isEmpty && (
+                                    <span className="font-cond text-[12px] text-muted ml-2">
+                                      — OPEN
+                                    </span>
+                                  )}
+                                </div>
+                                {isMe ? (
+                                  <button
+                                    onClick={() => dropPosition(pos)}
+                                    className="font-cond text-[10px] font-bold text-red-400 hover:text-red-300 px-2 py-1 rounded border border-red-800/50 hover:bg-red-900/20 transition-colors"
+                                  >
+                                    DROP
+                                  </button>
+                                ) : isEmpty ? (
+                                  <button
+                                    onClick={() => takePosition(pos)}
+                                    className="font-cond text-[10px] font-bold text-green-400 px-2 py-1 rounded border border-green-700/50 bg-green-900/20 hover:bg-green-800/40 transition-colors"
+                                  >
+                                    TAKE
+                                  </button>
+                                ) : null}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+
+                      {/* ── VOLUNTEER POSITIONS ── */}
+                      <div className="bg-surface-card border border-border rounded-xl p-4 mb-4">
+                        <div className="font-cond text-[10px] font-black tracking-widest text-muted uppercase mb-3">
+                          VOLUNTEER POSITIONS
+                        </div>
+                        <div className="space-y-2">
+                          {VOL_POSITIONS.map((pos) => {
+                            const slot = volSlots.find((s) => s.role === pos)
+                            const isMe = slot?.referee_id === userRole?.referee_id
+                            const isEmpty = !slot
+                            const personName = slot
+                              ? slot.volunteer_id
+                                ? ((slot.volunteer as any)?.name ?? 'Volunteer')
+                                : ((slot.referee as any)?.name ?? 'Referee')
+                              : null
+                            return (
+                              <div
+                                key={pos}
+                                className={cn(
+                                  'flex items-center justify-between rounded-lg px-3 py-2.5 border',
+                                  isMe
+                                    ? 'bg-green-900/20 border-green-700/50'
+                                    : isEmpty
+                                      ? 'bg-surface border-border/50'
+                                      : 'bg-navy/20 border-border/50'
+                                )}
+                              >
+                                <div>
+                                  <span className="font-cond text-[11px] font-black text-muted uppercase tracking-wide">
+                                    {pos}
+                                  </span>
+                                  {slot && (
+                                    <span className="font-cond text-[12px] font-bold text-white ml-2">
+                                      {isMe ? '(You)' : personName}
+                                    </span>
+                                  )}
+                                  {isEmpty && (
+                                    <span className="font-cond text-[12px] text-muted ml-2">
+                                      — OPEN
+                                    </span>
+                                  )}
+                                </div>
+                                {isMe ? (
+                                  <button
+                                    onClick={() => dropVolPosition(pos)}
+                                    className="font-cond text-[10px] font-bold text-red-400 hover:text-red-300 px-2 py-1 rounded border border-red-800/50 hover:bg-red-900/20 transition-colors"
+                                  >
+                                    DROP
+                                  </button>
+                                ) : isEmpty ? (
+                                  <button
+                                    onClick={() => takeVolPosition(pos)}
+                                    className="font-cond text-[10px] font-bold text-blue-400 px-2 py-1 rounded border border-blue-700/50 bg-blue-900/20 hover:bg-blue-800/40 transition-colors"
+                                  >
+                                    TAKE
+                                  </button>
+                                ) : null}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Player roster check-in (assigned only) */}
+                      {isAssigned && (homePlayers.length > 0 || awayPlayers.length > 0) && (
+                        <div>
+                          <div className="font-cond text-[10px] font-black tracking-widest text-muted uppercase mb-3">
+                            PLAYER CHECK-IN
+                          </div>
+                          <div className="grid grid-cols-2 gap-3">
+                            {[
+                              { label: selectedGame.home_team.name, players: homePlayers },
+                              { label: selectedGame.away_team.name, players: awayPlayers },
+                            ].map(({ label, players }) => (
+                              <div
+                                key={label}
+                                className="bg-surface-card border border-border rounded-xl overflow-hidden"
+                              >
+                                <div className="bg-navy/60 px-3 py-2 border-b border-border flex justify-between items-center">
+                                  <div className="font-cond font-black text-[12px] text-white truncate">
+                                    {label}
+                                  </div>
+                                  <div className="font-cond text-[11px] text-green-400 font-bold flex-shrink-0 ml-1">
+                                    {players.filter((p) => checkins.includes(p.id)).length}/
+                                    {players.length}
+                                  </div>
+                                </div>
+                                <div className="divide-y divide-border/30">
+                                  {players.map((p) => {
+                                    const checked = checkins.includes(p.id)
+                                    return (
+                                      <button
+                                        key={p.id}
+                                        onClick={() => togglePlayerCheckin(p.id)}
+                                        className={cn(
+                                          'w-full flex items-center gap-2 px-3 py-2 transition-colors text-left',
+                                          checked ? 'bg-green-900/15' : 'hover:bg-white/5'
+                                        )}
+                                      >
+                                        <div
+                                          className={cn(
+                                            'w-7 h-7 rounded-full flex items-center justify-center font-cond font-black text-[11px] flex-shrink-0',
+                                            checked
+                                              ? 'bg-green-700 text-white'
+                                              : 'bg-navy text-muted'
+                                          )}
+                                        >
+                                          {p.number ?? '—'}
+                                        </div>
+                                        <span
+                                          className={cn(
+                                            'font-cond font-bold text-[11px] flex-1 min-w-0 truncate',
+                                            checked ? 'text-green-300' : 'text-white'
+                                          )}
+                                        >
+                                          {p.name}
+                                        </span>
+                                        {checked ? (
+                                          <CheckCircle
+                                            size={13}
+                                            className="text-green-400 flex-shrink-0"
+                                          />
+                                        ) : (
+                                          <div className="w-3.5 h-3.5 rounded-full border-2 border-border flex-shrink-0" />
+                                        )}
+                                      </button>
+                                    )
+                                  })}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
+          {/* ── AVAILABILITY ── */}
+          {tab === 'availability' && (
+            <div>
+              {eventDates.length > 0 ? (
+                <div className="bg-surface-card border border-border rounded-xl p-4">
+                  <div className="font-cond text-[10px] font-black tracking-widest text-muted uppercase mb-3">
+                    MY AVAILABILITY
+                  </div>
+                  <div className="space-y-2">
+                    {eventDates.map((d) => {
+                      const avail = availability.get(d.date)
+                      const isAvail = avail !== undefined
+                      return (
+                        <div
+                          key={d.id}
+                          className={cn(
+                            'rounded-lg border px-3 py-2',
+                            isAvail
+                              ? 'bg-green-900/15 border-green-700/40'
+                              : 'bg-surface border-border/50'
+                          )}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <span className="font-cond font-black text-[12px] text-white">
+                                {d.label}
+                              </span>
+                              <span className="font-cond text-[10px] text-muted ml-2">
+                                {format(new Date(d.date + 'T12:00:00'), 'EEE M/d')}
+                              </span>
+                            </div>
+                            <button
+                              onClick={() => toggleAvailability(d.date)}
+                              className={cn(
+                                'font-cond text-[10px] font-black tracking-widest px-2.5 py-1 rounded border transition-colors',
+                                isAvail
+                                  ? 'bg-green-700/60 border-green-600 text-green-200 hover:bg-green-700'
+                                  : 'border-border text-muted hover:text-white hover:border-white/30'
+                              )}
+                            >
+                              {isAvail ? 'AVAILABLE' : 'UNAVAILABLE'}
+                            </button>
+                          </div>
+                          {isAvail && avail && (
+                            <div className="flex items-center gap-2 mt-2">
+                              <span className="font-cond text-[9px] text-muted uppercase">
+                                From
+                              </span>
+                              <input
+                                type="time"
+                                value={avail.from}
+                                onChange={(e) => updateAvailTime(d.date, 'from', e.target.value)}
+                                className="bg-surface border border-border rounded px-2 py-0.5 font-mono text-[11px] text-white focus:outline-none focus:border-green-500"
+                              />
+                              <span className="font-cond text-[9px] text-muted uppercase">To</span>
+                              <input
+                                type="time"
+                                value={avail.to}
+                                onChange={(e) => updateAvailTime(d.date, 'to', e.target.value)}
+                                className="bg-surface border border-border rounded px-2 py-0.5 font-mono text-[11px] text-white focus:outline-none focus:border-green-500"
+                              />
+                              {savingAvail === d.date && (
+                                <span className="font-cond text-[9px] text-muted">SAVING...</span>
                               )}
                             </div>
                           )}
                         </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <div className="font-cond text-[11px] text-muted text-center py-8">
+                  No event dates found.
+                </div>
+              )}
+            </div>
+          )}
 
-                        {/* Score controls */}
-                        {(selectedGame.status === 'Live' || selectedGame.status === 'Halftime') && (
-                          <div className="grid grid-cols-2 gap-3 mb-4">
-                            {(
-                              [
-                                {
-                                  label: selectedGame.home_team.name,
-                                  team: 'home' as const,
-                                  score: selectedGame.home_score ?? 0,
-                                },
-                                {
-                                  label: selectedGame.away_team.name,
-                                  team: 'away' as const,
-                                  score: selectedGame.away_score ?? 0,
-                                },
-                              ] as const
-                            ).map(({ label, team, score }) => (
-                              <div
-                                key={team}
-                                className="bg-surface rounded-lg p-3 text-center border border-border/50"
-                              >
-                                <div className="font-cond text-[10px] text-muted uppercase tracking-wide mb-1 truncate">
-                                  {label}
-                                </div>
-                                <div className="font-mono text-[36px] font-bold text-white leading-none mb-2">
-                                  {score}
-                                </div>
-                                <div className="flex gap-2">
-                                  <button
-                                    onClick={() => updateScore(team, -1)}
-                                    className="flex-1 font-mono text-[18px] font-bold bg-red-900/30 hover:bg-red-900/50 text-red-300 rounded-lg py-1.5 transition-colors"
-                                  >
-                                    −
-                                  </button>
-                                  <button
-                                    onClick={() => updateScore(team, 1)}
-                                    className="flex-1 font-mono text-[18px] font-bold bg-green-900/30 hover:bg-green-900/50 text-green-300 rounded-lg py-1.5 transition-colors"
-                                  >
-                                    +
-                                  </button>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-
-                        {/* Quarter / status action buttons */}
-                        {selectedGame.status !== 'Final' && (
-                          <div className="flex gap-2 flex-wrap">
-                            {getGameActions(selectedGame).map((action) => (
-                              <button
-                                key={action.label}
-                                onClick={() => handleGameAction(action.onClick())}
-                                className={cn(
-                                  'flex-1 font-cond font-black text-[13px] tracking-widest py-3 rounded-lg text-white transition-colors',
-                                  action.color
-                                )}
-                              >
-                                {action.label}
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* ── TRAINER STATUS (always shown) ── */}
-                    <div className="bg-surface-card border border-border rounded-xl p-4 mb-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="font-cond text-[10px] font-black tracking-widest text-muted uppercase">
-                          TRAINER
-                        </div>
-                        {!trainerDispatch && !showDispatchForm && (
-                          <button
-                            onClick={() => setShowDispatchForm(true)}
-                            className="flex items-center gap-1.5 font-cond text-[10px] font-black tracking-widest px-2.5 py-1 rounded bg-red-900/40 border border-red-700/60 text-red-300 hover:bg-red-800/50 transition-colors"
-                          >
-                            <AlertTriangle size={11} />
-                            DISPATCH TRAINER
-                          </button>
-                        )}
-                      </div>
-
-                      {/* Dispatch form */}
-                      {showDispatchForm && !trainerDispatch && (
-                        <div className="space-y-3 mt-2">
-                          <div>
-                            <div className="font-cond text-[10px] text-muted uppercase mb-1">
-                              Player / Person
-                            </div>
-                            <input
-                              type="text"
-                              value={dispatchPlayerName}
-                              onChange={(e) => setDispatchPlayerName(e.target.value)}
-                              placeholder="Player name (optional)"
-                              className="w-full bg-surface border border-border rounded-lg px-3 py-2 font-cond text-[12px] text-white placeholder:text-muted focus:outline-none focus:border-red-500"
-                            />
-                          </div>
-                          <div>
-                            <div className="font-cond text-[10px] text-muted uppercase mb-1">
-                              Injury Type
-                            </div>
-                            <select
-                              value={dispatchInjuryType}
-                              onChange={(e) => setDispatchInjuryType(e.target.value)}
-                              className="w-full bg-[#040e24] border border-border rounded-lg px-3 py-2 font-cond text-[12px] text-white focus:outline-none focus:border-red-500"
-                            >
-                              {INJURY_TYPES.map((t) => (
-                                <option key={t} value={t}>
-                                  {t}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                          <div>
-                            <div className="font-cond text-[10px] text-muted uppercase mb-1">
-                              Trainer
-                            </div>
-                            <select
-                              value={dispatchTrainerId}
-                              onChange={(e) => setDispatchTrainerId(e.target.value)}
-                              className="w-full bg-[#040e24] border border-border rounded-lg px-3 py-2 font-cond text-[12px] text-white focus:outline-none focus:border-red-500"
-                            >
-                              <option value="">Select trainer...</option>
-                              {trainers.map((t) => (
-                                <option key={t.id} value={t.id}>
-                                  {t.name}
-                                  {t.checked_in ? ' ✓' : ''}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                          <div className="flex gap-2">
-                            <button
-                              onClick={handleDispatchTrainer}
-                              disabled={!dispatchTrainerId || dispatching}
-                              className="flex-1 font-cond font-black text-[12px] tracking-widest py-2.5 rounded-lg bg-red-700 hover:bg-red-600 text-white disabled:opacity-40 transition-colors"
-                            >
-                              {dispatching ? 'DISPATCHING...' : 'DISPATCH'}
-                            </button>
-                            <button
-                              onClick={() => setShowDispatchForm(false)}
-                              className="font-cond text-[12px] text-muted hover:text-white px-4 py-2.5 rounded-lg border border-border transition-colors"
-                            >
-                              CANCEL
-                            </button>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Dispatch status */}
-                      {trainerDispatch ? (
-                        <div className="mt-1">
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className="w-2 h-2 rounded-full bg-red-400 animate-pulse" />
-                            <span className="font-cond text-[12px] font-black text-red-300 tracking-wide uppercase">
-                              {trainerDispatch.status}
-                            </span>
-                          </div>
-                          <div className="space-y-1 text-[11px] font-cond">
-                            <div>
-                              <span className="text-muted">Trainer: </span>
-                              <span className="text-white font-bold">
-                                {trainerDispatch.trainer_name}
-                              </span>
-                            </div>
-                            <div>
-                              <span className="text-muted">Patient: </span>
-                              <span className="text-white">{trainerDispatch.player_name}</span>
-                            </div>
-                            <div>
-                              <span className="text-muted">Injury: </span>
-                              <span className="text-white">{trainerDispatch.injury_type}</span>
-                            </div>
-                            <div>
-                              <span className="text-muted">Dispatched: </span>
-                              <span className="text-white">
-                                {format(new Date(trainerDispatch.dispatched_at), 'h:mm a')}
-                              </span>
-                            </div>
-                            {trainerDispatch.notes && (
-                              <div>
-                                <span className="text-muted">Notes: </span>
-                                <span className="text-white">{trainerDispatch.notes}</span>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      ) : !showDispatchForm ? (
-                        <div className="font-cond text-[11px] text-muted mt-1">
-                          No trainer dispatched
-                        </div>
-                      ) : null}
-                    </div>
-
-                    {/* ── REFEREE POSITIONS ── */}
-                    <div className="bg-surface-card border border-border rounded-xl p-4 mb-4">
-                      <div className="font-cond text-[10px] font-black tracking-widest text-muted uppercase mb-3">
-                        REFEREE POSITIONS
-                      </div>
-                      <div className="space-y-2">
-                        {REF_POSITIONS.map((pos) => {
-                          const slot = gameSlots.find((s) => s.role === pos)
-                          const isMe = slot?.referee_id === userRole?.referee_id
-                          const isEmpty = !slot
-                          return (
-                            <div
-                              key={pos}
-                              className={cn(
-                                'flex items-center justify-between rounded-lg px-3 py-2.5 border',
-                                isMe
-                                  ? 'bg-green-900/20 border-green-700/50'
-                                  : isEmpty
-                                    ? 'bg-surface border-border/50'
-                                    : 'bg-navy/20 border-border/50'
-                              )}
-                            >
-                              <div>
-                                <span className="font-cond text-[11px] font-black text-muted uppercase tracking-wide">
-                                  {pos}
-                                </span>
-                                {slot && (
-                                  <span className="font-cond text-[12px] font-bold text-white ml-2">
-                                    {isMe ? '(You)' : ((slot.referee as any)?.name ?? 'Assigned')}
-                                  </span>
-                                )}
-                                {isEmpty && (
-                                  <span className="font-cond text-[12px] text-muted ml-2">
-                                    — OPEN
-                                  </span>
-                                )}
-                              </div>
-                              {isMe ? (
-                                <button
-                                  onClick={() => dropPosition(pos)}
-                                  className="font-cond text-[10px] font-bold text-red-400 hover:text-red-300 px-2 py-1 rounded border border-red-800/50 hover:bg-red-900/20 transition-colors"
-                                >
-                                  DROP
-                                </button>
-                              ) : isEmpty ? (
-                                <button
-                                  onClick={() => takePosition(pos)}
-                                  className="font-cond text-[10px] font-bold text-green-400 px-2 py-1 rounded border border-green-700/50 bg-green-900/20 hover:bg-green-800/40 transition-colors"
-                                >
-                                  TAKE
-                                </button>
-                              ) : null}
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </div>
-
-                    {/* ── VOLUNTEER POSITIONS ── */}
-                    <div className="bg-surface-card border border-border rounded-xl p-4 mb-4">
-                      <div className="font-cond text-[10px] font-black tracking-widest text-muted uppercase mb-3">
-                        VOLUNTEER POSITIONS
-                      </div>
-                      <div className="space-y-2">
-                        {VOL_POSITIONS.map((pos) => {
-                          const slot = volSlots.find((s) => s.role === pos)
-                          const isMe = slot?.referee_id === userRole?.referee_id
-                          const isEmpty = !slot
-                          const personName = slot
-                            ? slot.volunteer_id
-                              ? ((slot.volunteer as any)?.name ?? 'Volunteer')
-                              : ((slot.referee as any)?.name ?? 'Referee')
-                            : null
-                          return (
-                            <div
-                              key={pos}
-                              className={cn(
-                                'flex items-center justify-between rounded-lg px-3 py-2.5 border',
-                                isMe
-                                  ? 'bg-green-900/20 border-green-700/50'
-                                  : isEmpty
-                                    ? 'bg-surface border-border/50'
-                                    : 'bg-navy/20 border-border/50'
-                              )}
-                            >
-                              <div>
-                                <span className="font-cond text-[11px] font-black text-muted uppercase tracking-wide">
-                                  {pos}
-                                </span>
-                                {slot && (
-                                  <span className="font-cond text-[12px] font-bold text-white ml-2">
-                                    {isMe ? '(You)' : personName}
-                                  </span>
-                                )}
-                                {isEmpty && (
-                                  <span className="font-cond text-[12px] text-muted ml-2">
-                                    — OPEN
-                                  </span>
-                                )}
-                              </div>
-                              {isMe ? (
-                                <button
-                                  onClick={() => dropVolPosition(pos)}
-                                  className="font-cond text-[10px] font-bold text-red-400 hover:text-red-300 px-2 py-1 rounded border border-red-800/50 hover:bg-red-900/20 transition-colors"
-                                >
-                                  DROP
-                                </button>
-                              ) : isEmpty ? (
-                                <button
-                                  onClick={() => takeVolPosition(pos)}
-                                  className="font-cond text-[10px] font-bold text-blue-400 px-2 py-1 rounded border border-blue-700/50 bg-blue-900/20 hover:bg-blue-800/40 transition-colors"
-                                >
-                                  TAKE
-                                </button>
-                              ) : null}
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </div>
-
-                    {/* Player roster check-in (assigned only) */}
-                    {isAssigned && (homePlayers.length > 0 || awayPlayers.length > 0) && (
-                      <div>
-                        <div className="font-cond text-[10px] font-black tracking-widest text-muted uppercase mb-3">
-                          PLAYER CHECK-IN
-                        </div>
-                        <div className="grid grid-cols-2 gap-3">
-                          {[
-                            { label: selectedGame.home_team.name, players: homePlayers },
-                            { label: selectedGame.away_team.name, players: awayPlayers },
-                          ].map(({ label, players }) => (
-                            <div
-                              key={label}
-                              className="bg-surface-card border border-border rounded-xl overflow-hidden"
-                            >
-                              <div className="bg-navy/60 px-3 py-2 border-b border-border flex justify-between items-center">
-                                <div className="font-cond font-black text-[12px] text-white truncate">
-                                  {label}
-                                </div>
-                                <div className="font-cond text-[11px] text-green-400 font-bold flex-shrink-0 ml-1">
-                                  {players.filter((p) => checkins.includes(p.id)).length}/
-                                  {players.length}
-                                </div>
-                              </div>
-                              <div className="divide-y divide-border/30">
-                                {players.map((p) => {
-                                  const checked = checkins.includes(p.id)
-                                  return (
-                                    <button
-                                      key={p.id}
-                                      onClick={() => togglePlayerCheckin(p.id)}
-                                      className={cn(
-                                        'w-full flex items-center gap-2 px-3 py-2 transition-colors text-left',
-                                        checked ? 'bg-green-900/15' : 'hover:bg-white/5'
-                                      )}
-                                    >
-                                      <div
-                                        className={cn(
-                                          'w-7 h-7 rounded-full flex items-center justify-center font-cond font-black text-[11px] flex-shrink-0',
-                                          checked ? 'bg-green-700 text-white' : 'bg-navy text-muted'
-                                        )}
-                                      >
-                                        {p.number ?? '—'}
-                                      </div>
-                                      <span
-                                        className={cn(
-                                          'font-cond font-bold text-[11px] flex-1 min-w-0 truncate',
-                                          checked ? 'text-green-300' : 'text-white'
-                                        )}
-                                      >
-                                        {p.name}
-                                      </span>
-                                      {checked ? (
-                                        <CheckCircle
-                                          size={13}
-                                          className="text-green-400 flex-shrink-0"
-                                        />
-                                      ) : (
-                                        <div className="w-3.5 h-3.5 rounded-full border-2 border-border flex-shrink-0" />
-                                      )}
-                                    </button>
-                                  )
-                                })}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </>
-                )}
-              </>
-            )}
-          </div>
-        )}
-
-        {/* ── APPROVALS ── */}
-        {tab === 'approvals' && (
-          <ApprovalsPanel
-            personName={ref?.name ?? 'Referee'}
-            personType="referee"
-            eventId={portalEventId}
-          />
-        )}
+          {/* ── APPROVALS ── */}
+          {tab === 'approvals' && (
+            <ApprovalsPanel
+              personName={ref?.name ?? 'Referee'}
+              personType="referee"
+              eventId={portalEventId}
+            />
+          )}
+        </div>
       </div>
     </div>
   )
