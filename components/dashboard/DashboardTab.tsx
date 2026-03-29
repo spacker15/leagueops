@@ -7,6 +7,7 @@ import { StatusBadge, Modal, Btn } from '@/components/ui'
 import { cn, nextStatusLabel, nextGameStatus } from '@/lib/utils'
 import { createClient } from '@/supabase/client'
 import toast from 'react-hot-toast'
+import { format } from 'date-fns'
 import type { Game, GameStatus } from '@/types'
 
 function timeToMin(t: string): number {
@@ -23,6 +24,9 @@ export function DashboardTab() {
   const { state, updateGameStatus, updateGameScore, addLog } = useApp()
   const { userRole, isCoach } = useAuth()
   const [selectedGame, setSelectedGame] = useState<Game | null>(null)
+
+  // Logo lookup from state.teams (always current, even after uploads)
+  const teamLogoMap = Object.fromEntries((state.teams ?? []).map((t) => [t.id, t.logo_url ?? null]))
   const [homeScore, setHomeScore] = useState(0)
   const [awayScore, setAwayScore] = useState(0)
   // Use latest weather reading from auto-poll (store)
@@ -77,6 +81,9 @@ export function DashboardTab() {
             <span className="font-cond text-[13px] font-black tracking-[.12em] text-white uppercase">
               Lightning Delay Active
             </span>
+            <span className="font-cond text-[10px] font-bold text-red-200/60 tracking-wide">
+              {format(new Date(), 'EEE, MMM d')}
+            </span>
           </div>
           <div className="flex items-center gap-4">
             {activeAlerts > 0 && (
@@ -104,6 +111,9 @@ export function DashboardTab() {
             <span className="text-sm">⚠</span>
             <span className="font-cond text-[12px] font-black tracking-[.1em] text-yellow-300 uppercase">
               {activeAlerts} Active Weather Alert{activeAlerts > 1 ? 's' : ''}
+            </span>
+            <span className="font-cond text-[10px] font-bold text-yellow-200/50 tracking-wide">
+              {format(new Date(), 'EEE, MMM d')}
             </span>
           </div>
           <div className="flex items-center gap-3">
@@ -137,9 +147,12 @@ export function DashboardTab() {
             border: '1px solid #166534',
           }}
         >
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <span className="font-cond text-[11px] font-black tracking-[.1em] text-green-400 uppercase">
               ✓ Weather: All Clear
+            </span>
+            <span className="font-cond text-[10px] font-bold text-green-200/40 tracking-wide">
+              {format(new Date(), 'EEE, MMM d')}
             </span>
           </div>
           {latestWeather ? (
@@ -204,10 +217,10 @@ export function DashboardTab() {
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
-                      {g.home_team?.logo_url && (
+                      {teamLogoMap[g.home_team_id] && (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
-                          src={g.home_team.logo_url}
+                          src={teamLogoMap[g.home_team_id]!}
                           alt=""
                           className="w-5 h-5 rounded object-cover"
                         />
@@ -231,10 +244,10 @@ export function DashboardTab() {
                       >
                         {g.away_team?.name ?? 'TBD'}
                       </span>
-                      {g.away_team?.logo_url && (
+                      {teamLogoMap[g.away_team_id] && (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
-                          src={g.away_team.logo_url}
+                          src={teamLogoMap[g.away_team_id]!}
                           alt=""
                           className="w-5 h-5 rounded object-cover"
                         />
@@ -276,6 +289,7 @@ export function DashboardTab() {
                 field={field}
                 game={activeGame ?? null}
                 onOpen={openGame}
+                teamLogoMap={teamLogoMap}
                 onCycleStatus={async (g) => {
                   const n = nextGameStatus(g.status)
                   if (n) await handleStatusChange(g, n)
@@ -335,6 +349,7 @@ export function DashboardTab() {
             onHomeScore={setHomeScore}
             onAwayScore={setAwayScore}
             onStatus={(s) => handleStatusChange(selectedGame, s)}
+            teamLogoMap={teamLogoMap}
           />
         )}
       </Modal>
@@ -348,10 +363,12 @@ function FieldCard({
   game,
   onOpen,
   onCycleStatus,
+  teamLogoMap,
 }: {
   field: { id: number; name: string }
   game: Game | null
   onOpen: (g: Game) => void
+  teamLogoMap: Record<number, string | null>
   onCycleStatus: (g: Game) => void
 }) {
   const isLive = game?.status === 'Live'
@@ -417,10 +434,10 @@ function FieldCard({
           {/* Scoreboard row */}
           <div className="flex items-center mb-2.5">
             <div className="flex-1 min-w-0 flex items-center gap-1.5">
-              {game.home_team?.logo_url && (
+              {teamLogoMap[game.home_team_id] && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={game.home_team.logo_url}
+                  src={teamLogoMap[game.home_team_id]!}
                   alt=""
                   className="w-5 h-5 rounded object-cover flex-shrink-0"
                 />
@@ -467,10 +484,10 @@ function FieldCard({
                   AWAY
                 </div>
               </div>
-              {game.away_team?.logo_url && (
+              {teamLogoMap[game.away_team_id] && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={game.away_team.logo_url}
+                  src={teamLogoMap[game.away_team_id]!}
                   alt=""
                   className="w-5 h-5 rounded object-cover flex-shrink-0"
                 />
@@ -529,6 +546,7 @@ function GameDetail({
   onHomeScore,
   onAwayScore,
   onStatus,
+  teamLogoMap,
 }: {
   game: Game
   homeScore: number
@@ -536,6 +554,7 @@ function GameDetail({
   onHomeScore: (v: number) => void
   onAwayScore: (v: number) => void
   onStatus: (s: GameStatus) => void
+  teamLogoMap: Record<number, string | null>
 }) {
   const statuses: GameStatus[] = ['Scheduled', 'Starting', 'Live', 'Halftime', 'Final', 'Delayed']
   return (
@@ -553,10 +572,10 @@ function GameDetail({
         </div>
         <div className="flex items-center justify-center gap-6">
           <div className="text-center flex-1 flex flex-col items-center gap-1.5">
-            {game.home_team?.logo_url && (
+            {teamLogoMap[game.home_team_id] && (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={game.home_team.logo_url}
+                src={teamLogoMap[game.home_team_id]!}
                 alt=""
                 className="w-10 h-10 rounded object-cover"
               />
@@ -616,10 +635,10 @@ function GameDetail({
             </button>
           </div>
           <div className="text-center flex-1 flex flex-col items-center gap-1.5">
-            {game.away_team?.logo_url && (
+            {teamLogoMap[game.away_team_id] && (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={game.away_team.logo_url}
+                src={teamLogoMap[game.away_team_id]!}
                 alt=""
                 className="w-10 h-10 rounded object-cover"
               />

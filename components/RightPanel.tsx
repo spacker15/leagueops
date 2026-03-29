@@ -3,6 +3,7 @@
 import { useApp } from '@/lib/store'
 import type { TabName } from '@/components/AppShell'
 import { cn } from '@/lib/utils'
+import { format } from 'date-fns'
 import { createClient } from '@/supabase/client'
 
 interface Props {
@@ -133,6 +134,9 @@ function WeatherRPPanel({
           <div className="font-cond text-[11px] font-black text-red-400 text-center tracking-wider mb-1 border border-red-500/40 rounded p-1 lightning-flash">
             ⚡ LIGHTNING DELAY ACTIVE
           </div>
+          <div className="font-cond text-[9px] font-bold text-muted text-center tracking-wide mb-1">
+            {format(new Date(), 'EEE, MMM d, yyyy')}
+          </div>
           <div className="font-mono text-xl text-red-400 text-center">
             {timerM}:{timerS.toString().padStart(2, '0')}
           </div>
@@ -154,6 +158,9 @@ function WeatherRPPanel({
               ALL CLEAR
             </div>
           )}
+          <div className="font-cond text-[9px] font-bold text-muted text-center tracking-wide mb-1.5">
+            {format(new Date(), 'EEE, MMM d, yyyy')}
+          </div>
           {latestReading ? (
             <div className="text-[10px] space-y-0.5">
               <div className="flex justify-between">
