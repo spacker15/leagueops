@@ -43,6 +43,21 @@ const TEST_ACCOUNTS = [
     event_id: 11,
     trainer_id: 1,
   },
+  {
+    email: 'pv-leader@test.leagueops.dev',
+    role: 'program_leader',
+    display_name: 'PV Program Leader',
+    event_id: 11,
+    program_id: 17,
+  },
+  {
+    email: 'pv-coach@test.leagueops.dev',
+    role: 'coach',
+    display_name: 'PV Coach',
+    event_id: 11,
+    program_id: 17,
+    team_id: 161,
+  },
 ]
 
 export async function POST() {
@@ -134,6 +149,7 @@ export async function POST() {
           referee_id: (account as any).referee_id ?? null,
           volunteer_id: volunteerId,
           team_id: (account as any).team_id ?? null,
+          program_id: (account as any).program_id ?? null,
           is_active: true,
         })
 

@@ -58,6 +58,8 @@ export default function Home() {
   if (userRole?.role === 'volunteer') return <VolunteerPortal />
   if (userRole?.role === 'trainer') return <TrainerPortal />
 
+  if (userRole?.role === 'coach') return <ProgramDashboard />
+
   if (userRole?.role === 'program_leader') {
     if (!userRole.is_active) return <PendingApprovalScreen />
     return <ProgramDashboard />

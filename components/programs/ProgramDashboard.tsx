@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useAuth } from '@/lib/auth'
 import { createClient } from '@/supabase/client'
 import { cn } from '@/lib/utils'
@@ -56,7 +56,7 @@ interface Player {
   team_id: number
 }
 
-type Tab = 'overview' | 'teams' | 'rosters' | 'register'
+type Tab = 'overview' | 'teams' | 'rosters' | 'register' | 'matchups'
 
 export function ProgramDashboard() {
   const { userRole, signOut } = useAuth()
@@ -75,6 +75,14 @@ export function ProgramDashboard() {
   const [programPayments, setProgramPayments] = useState<any[]>([])
   const [programGameCounts, setProgramGameCounts] = useState<Record<number, number>>({})
   const [availableDivisions, setAvailableDivisions] = useState<string[]>([])
+
+  // Matchup data — all teams + games in same divisions as this program's teams
+  const [matchupDivTeams, setMatchupDivTeams] = useState<
+    { id: number; name: string; division: string }[]
+  >([])
+  const [matchupDivGames, setMatchupDivGames] = useState<
+    { id: number; home_team_id: number; away_team_id: number; division: string }[]
+  >([])
 
   // New team form
   const [newTeamName, setNewTeamName] = useState('')
@@ -165,6 +173,36 @@ export function ProgramDashboard() {
           if (g.away_team_id) counts[g.away_team_id] = (counts[g.away_team_id] || 0) + 1
         }
         setProgramGameCounts(counts)
+
+        // Load all teams + games in the same divisions for the matchup matrix
+        const divs = [...new Set(teamsList.map((t: any) => t.division as string).filter(Boolean))]
+        if (divs.length > 0) {
+          const [{ data: divTeamsData }, { data: divGamesData }] = await Promise.all([
+            sb
+              .from('teams')
+              .select('id, name, division')
+              .eq('event_id', portalEventId!)
+              .in('division', divs)
+              .order('name'),
+            sb
+              .from('games')
+              .select('id, home_team_id, away_team_id, division')
+              .eq('event_id', portalEventId!)
+              .in('division', divs)
+              .neq('status', 'Cancelled'),
+          ])
+          setMatchupDivTeams(
+            (divTeamsData ?? []) as { id: number; name: string; division: string }[]
+          )
+          setMatchupDivGames(
+            (divGamesData ?? []) as {
+              id: number
+              home_team_id: number
+              away_team_id: number
+              division: string
+            }[]
+          )
+        }
       }
 
       // Load fees and payment records for this program's teams
@@ -356,6 +394,7 @@ export function ProgramDashboard() {
               { id: 'overview', label: 'Overview' },
               { id: 'teams', label: `Teams (${teamRegs.length})` },
               { id: 'rosters', label: 'Rosters' },
+              { id: 'matchups', label: 'Matchups' },
               { id: 'register', label: '+ Register Team' },
             ] as { id: Tab; label: string }[]
           ).map((t) => (
@@ -1054,6 +1093,15 @@ export function ProgramDashboard() {
             </div>
           </div>
         )}
+
+        {/* ── MATCHUPS TAB ── */}
+        {tab === 'matchups' && (
+          <ProgramMatchupSection
+            programTeamIds={new Set(teams.map((t: any) => t.id as number))}
+            divTeams={matchupDivTeams}
+            divGames={matchupDivGames}
+          />
+        )}
       </div>
 
       {/* Schedule Change Request modal */}
@@ -1074,6 +1122,218 @@ export function ProgramDashboard() {
           eventId={portalEventId!}
         />
       )}
+    </div>
+  )
+}
+
+// ── Program Matchup Section ────────────────────────────────────────────────────
+
+interface MatchupGame {
+  id: number
+  home_team_id: number
+  away_team_id: number
+  division: string
+}
+
+interface MatchupTeam {
+  id: number
+  name: string
+  division: string
+}
+
+function ProgramMatchupSection({
+  programTeamIds,
+  divTeams,
+  divGames,
+}: {
+  programTeamIds: Set<number>
+  divTeams: MatchupTeam[]
+  divGames: MatchupGame[]
+}) {
+  const divisions = useMemo(() => [...new Set(divTeams.map((t) => t.division))].sort(), [divTeams])
+
+  if (divTeams.length === 0) {
+    return (
+      <div className="font-cond text-[11px] text-muted text-center py-12">
+        No matchup data available yet.
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-8">
+      {divisions.map((div) => {
+        const divDivTeams = divTeams
+          .filter((t) => t.division === div)
+          .sort((a, b) => {
+            // Program's teams first, then alphabetical
+            const aIsMine = programTeamIds.has(a.id)
+            const bIsMine = programTeamIds.has(b.id)
+            if (aIsMine && !bIsMine) return -1
+            if (!aIsMine && bIsMine) return 1
+            return a.name.localeCompare(b.name)
+          })
+        const divDivGames = divGames.filter((g) => g.division === div)
+        if (divDivTeams.length === 0) return null
+
+        // Build matrix
+        const matrix: Record<number, Record<number, number>> = {}
+        for (const g of divDivGames) {
+          if (!matrix[g.home_team_id]) matrix[g.home_team_id] = {}
+          if (!matrix[g.away_team_id]) matrix[g.away_team_id] = {}
+          matrix[g.home_team_id][g.away_team_id] =
+            (matrix[g.home_team_id]?.[g.away_team_id] ?? 0) + 1
+          matrix[g.away_team_id][g.home_team_id] =
+            (matrix[g.away_team_id]?.[g.home_team_id] ?? 0) + 1
+        }
+
+        const maxCount = Math.max(
+          1,
+          ...divDivTeams.flatMap((row) =>
+            divDivTeams.map((col) => (row.id !== col.id ? (matrix[row.id]?.[col.id] ?? 0) : 0))
+          )
+        )
+
+        return (
+          <div key={div}>
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-1 h-4 rounded-sm bg-navy" />
+              <span className="font-cond text-[11px] font-black tracking-[.12em] text-blue-300 uppercase">
+                {div}
+              </span>
+              <span className="font-cond text-[9px] text-muted ml-1">
+                {divDivTeams.length} teams · {divDivGames.length} games
+              </span>
+            </div>
+            <div className="overflow-auto rounded-lg border border-[#1a2d50]">
+              <table className="border-collapse" style={{ minWidth: 'max-content' }}>
+                <thead>
+                  <tr style={{ background: '#081428' }}>
+                    <th
+                      className="px-3 py-2 border-r border-b border-[#1a2d50] sticky left-0 z-10"
+                      style={{ background: '#081428', minWidth: 150 }}
+                    >
+                      <span className="font-cond text-[9px] font-black tracking-[.12em] text-muted uppercase">
+                        vs →
+                      </span>
+                    </th>
+                    {divDivTeams.map((col) => (
+                      <th
+                        key={col.id}
+                        className="px-2 py-2 border-b border-[#1a2d50]"
+                        style={{ minWidth: 64 }}
+                      >
+                        <div
+                          className={cn(
+                            'font-cond text-[10px] font-black whitespace-nowrap',
+                            programTeamIds.has(col.id) ? 'text-red-300' : 'text-[#8a9ec0]'
+                          )}
+                          style={{
+                            writingMode: 'vertical-rl',
+                            transform: 'rotate(180deg)',
+                            maxHeight: 100,
+                          }}
+                          title={col.name}
+                        >
+                          {col.name.length > 14 ? col.name.slice(0, 13) + '…' : col.name}
+                        </div>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {divDivTeams.map((row, ri) => {
+                    const isMine = programTeamIds.has(row.id)
+                    return (
+                      <tr
+                        key={row.id}
+                        style={{
+                          background: isMine ? '#0a1e38' : ri % 2 === 0 ? '#050f20' : '#030c1a',
+                        }}
+                      >
+                        <td
+                          className="px-3 py-1.5 border-r border-[#1a2d50] sticky left-0 z-10"
+                          style={{
+                            background: isMine ? '#0a1e38' : ri % 2 === 0 ? '#050f20' : '#030c1a',
+                          }}
+                        >
+                          <span
+                            className={cn(
+                              'font-cond text-[11px] font-bold whitespace-nowrap',
+                              isMine ? 'text-red-300' : 'text-white'
+                            )}
+                            title={row.name}
+                          >
+                            {row.name.length > 20 ? row.name.slice(0, 19) + '…' : row.name}
+                          </span>
+                          {isMine && (
+                            <span className="ml-1.5 font-cond text-[9px] text-red-500 font-black">
+                              ★
+                            </span>
+                          )}
+                        </td>
+                        {divDivTeams.map((col) => {
+                          const isSelf = row.id === col.id
+                          const count = isSelf ? null : (matrix[row.id]?.[col.id] ?? 0)
+                          const intensity = isSelf ? 0 : (count ?? 0) / maxCount
+                          return (
+                            <td
+                              key={col.id}
+                              className="text-center px-1 py-1.5"
+                              style={{ borderLeft: '1px solid #0d1e3a' }}
+                            >
+                              {isSelf ? (
+                                <div
+                                  className="w-8 h-6 mx-auto rounded"
+                                  style={{ background: '#0d1e3a' }}
+                                />
+                              ) : count === 0 ? (
+                                <div className="font-cond text-[11px] text-[#2a3d5a] font-black">
+                                  —
+                                </div>
+                              ) : (
+                                <div
+                                  className="w-8 h-6 mx-auto rounded flex items-center justify-center font-mono text-[12px] font-bold"
+                                  style={{
+                                    background: `rgba(59, 130, 246, ${0.15 + intensity * 0.65})`,
+                                    color: intensity > 0.5 ? '#fff' : '#93c5fd',
+                                  }}
+                                >
+                                  {count}
+                                </div>
+                              )}
+                            </td>
+                          )
+                        })}
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+            {/* Legend */}
+            <div className="flex items-center gap-4 mt-2">
+              <div className="flex items-center gap-1.5">
+                <span className="font-cond text-[9px] font-black text-red-400">★</span>
+                <span className="font-cond text-[9px] text-muted">Your team</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-4 h-3 rounded" style={{ background: 'rgba(59,130,246,0.5)' }} />
+                <span className="font-cond text-[9px] text-muted">Games played</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div
+                  className="w-4 h-3 rounded font-cond text-[9px] text-[#2a3d5a] font-black flex items-center justify-center"
+                  style={{ background: '#030c1a' }}
+                >
+                  —
+                </div>
+                <span className="font-cond text-[9px] text-muted">Not yet played</span>
+              </div>
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }
