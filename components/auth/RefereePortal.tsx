@@ -87,6 +87,7 @@ export function RefereePortal() {
   const [allGames, setAllGames] = useState<GameSummary[]>([])
   const [fields, setFields] = useState<Field[]>([])
   const [myAssignedGameIds, setMyAssignedGameIds] = useState<Set<number>>(new Set())
+  const [myAssignmentRoles, setMyAssignmentRoles] = useState<Map<number, string[]>>(new Map())
   const [eventDates, setEventDates] = useState<EventDate[]>([])
   const [selectedDateId, setSelectedDateId] = useState<number | null>(null)
 
@@ -127,7 +128,7 @@ export function RefereePortal() {
         .eq('event_id', portalEventId!)
         .neq('status', 'Cancelled'),
       sb.from('fields').select('id, name').eq('event_id', portalEventId!).order('name'),
-      sb.from('ref_assignments').select('game_id').eq('referee_id', userRole!.referee_id!),
+      sb.from('ref_assignments').select('game_id, role').eq('referee_id', userRole!.referee_id!),
       sb
         .from('event_dates')
         .select('id, date, label, day_number')
@@ -143,6 +144,12 @@ export function RefereePortal() {
     setAllGames(games)
     setFields((fieldsData ?? []) as Field[])
     setMyAssignedGameIds(new Set((myAssignData ?? []).map((a: any) => a.game_id)))
+    const rolesMap = new Map<number, string[]>()
+    for (const a of myAssignData ?? []) {
+      const existing = rolesMap.get(a.game_id) ?? []
+      rolesMap.set(a.game_id, [...existing, a.role])
+    }
+    setMyAssignmentRoles(rolesMap)
 
     const dates = (eventDates ?? []) as EventDate[]
     setEventDates(dates)
@@ -417,6 +424,44 @@ export function RefereePortal() {
         {/* ── MY CHECK-IN ── */}
         {tab === 'checkin' && (
           <div>
+            {/* Date picker */}
+            {eventDates.length > 0 && (
+              <div className="flex gap-1.5 mb-4 flex-wrap">
+                <button
+                  onClick={() => setSelectedDateId(null)}
+                  className={cn(
+                    'font-cond text-[10px] font-black tracking-widest px-2.5 py-1 rounded border transition-colors',
+                    selectedDateId === null
+                      ? 'bg-navy border-blue-500 text-white'
+                      : 'border-border text-muted hover:text-white'
+                  )}
+                >
+                  ALL
+                </button>
+                {eventDates.map((d) => (
+                  <button
+                    key={d.id}
+                    onClick={() => setSelectedDateId(d.id)}
+                    className={cn(
+                      'font-cond text-[10px] font-black tracking-widest px-2.5 py-1 rounded border transition-colors',
+                      selectedDateId === d.id
+                        ? 'bg-red border-red text-white'
+                        : 'border-border text-muted hover:text-white'
+                    )}
+                  >
+                    {d.label}
+                    <span
+                      className={cn(
+                        'ml-1 font-normal normal-case tracking-normal',
+                        selectedDateId === d.id ? 'text-red-200' : 'text-muted'
+                      )}
+                    >
+                      {format(new Date(d.date + 'T12:00:00'), 'M/d')}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
             {todayLabel && (
               <div className="bg-navy/40 border border-border rounded-lg px-4 py-2.5 mb-4 text-center">
                 <span className="font-cond text-[11px] font-black tracking-widest text-blue-300 uppercase">
@@ -454,52 +499,75 @@ export function RefereePortal() {
               </button>
             </div>
 
-            {myAssignedGameIds.size > 0 && (
-              <>
-                <div className="font-cond text-[11px] font-black tracking-widest text-muted uppercase mb-3">
-                  MY ASSIGNED GAMES
-                </div>
-                <div className="space-y-2">
-                  {allGames
-                    .filter((g) => myAssignedGameIds.has(g.id))
-                    .map((game) => (
-                      <button
-                        key={game.id}
-                        onClick={() => {
-                          setTab('games')
-                          setSelectedFieldId(game.field_id)
-                          loadGameDetail(game)
-                        }}
-                        className="w-full text-left bg-surface-card border border-green-800/40 hover:border-green-400/60 rounded-xl p-3 transition-all"
-                      >
-                        <div className="flex justify-between items-center">
-                          <span className="font-mono text-[12px] font-bold text-blue-300">
-                            {game.scheduled_time}
-                          </span>
-                          <span
-                            className={cn(
-                              'font-cond text-[10px] font-black px-2 py-0.5 rounded',
-                              game.status === 'Live'
-                                ? 'badge-live'
-                                : game.status === 'Final'
-                                  ? 'badge-final'
-                                  : 'badge-scheduled'
+            {(() => {
+              const filteredAssigned = allGames.filter(
+                (g) =>
+                  myAssignedGameIds.has(g.id) &&
+                  (selectedDateId === null || g.event_date_id === selectedDateId)
+              )
+              if (filteredAssigned.length === 0) return null
+              return (
+                <>
+                  <div className="font-cond text-[11px] font-black tracking-widest text-muted uppercase mb-3">
+                    MY ASSIGNED GAMES ({filteredAssigned.length})
+                  </div>
+                  <div className="space-y-2">
+                    {filteredAssigned.map((game) => {
+                      const roles = myAssignmentRoles.get(game.id) ?? []
+                      return (
+                        <button
+                          key={game.id}
+                          onClick={() => {
+                            setTab('games')
+                            setSelectedFieldId(game.field_id)
+                            loadGameDetail(game)
+                          }}
+                          className="w-full text-left bg-surface-card border border-green-800/40 hover:border-green-400/60 rounded-xl p-3 transition-all"
+                        >
+                          <div className="flex justify-between items-center">
+                            <span className="font-mono text-[12px] font-bold text-blue-300">
+                              {game.scheduled_time}
+                            </span>
+                            <span
+                              className={cn(
+                                'font-cond text-[10px] font-black px-2 py-0.5 rounded',
+                                game.status === 'Live'
+                                  ? 'badge-live'
+                                  : game.status === 'Final'
+                                    ? 'badge-final'
+                                    : 'badge-scheduled'
+                              )}
+                            >
+                              {game.status.toUpperCase()}
+                            </span>
+                          </div>
+                          <div className="font-cond font-black text-[13px] text-white mt-0.5">
+                            {game.home_team.name} vs {game.away_team.name}
+                          </div>
+                          <div className="flex items-center justify-between mt-0.5">
+                            <span className="font-cond text-[10px] text-muted">
+                              {game.field.name} · {game.division}
+                            </span>
+                            {roles.length > 0 && (
+                              <div className="flex gap-1">
+                                {roles.map((r) => (
+                                  <span
+                                    key={r}
+                                    className="font-cond text-[9px] font-black text-red-300 bg-red-900/30 px-1.5 py-0.5 rounded"
+                                  >
+                                    {r}
+                                  </span>
+                                ))}
+                              </div>
                             )}
-                          >
-                            {game.status.toUpperCase()}
-                          </span>
-                        </div>
-                        <div className="font-cond font-black text-[13px] text-white mt-0.5">
-                          {game.home_team.name} vs {game.away_team.name}
-                        </div>
-                        <div className="font-cond text-[10px] text-muted mt-0.5">
-                          {game.field.name} · {game.division}
-                        </div>
-                      </button>
-                    ))}
-                </div>
-              </>
-            )}
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </>
+              )
+            })()}
           </div>
         )}
 
