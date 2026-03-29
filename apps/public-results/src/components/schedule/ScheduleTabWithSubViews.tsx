@@ -4,6 +4,7 @@ import type { PublicGame, PublicTeam, PublicEventDate } from '@/lib/data'
 import { ByTeamView } from './ByTeamView'
 import { ByFieldView } from './ByFieldView'
 import { ByTimeView } from './ByTimeView'
+import { ByProgramView } from './ByProgramView'
 
 interface Props {
   games: PublicGame[]
@@ -17,6 +18,7 @@ interface Props {
 }
 
 const SUB_VIEWS = [
+  { id: 'program', label: 'By Program' },
   { id: 'team', label: 'By Team' },
   { id: 'field', label: 'By Field' },
   { id: 'time', label: 'By Time' },
@@ -32,7 +34,7 @@ export function ScheduleTabWithSubViews({
   teamId,
   divFilter,
 }: Props) {
-  const activeView = SUB_VIEWS.some((v) => v.id === view) ? view : 'team'
+  const activeView = SUB_VIEWS.some((v) => v.id === view) ? view : 'program'
 
   // Filter games by selected day
   const dayGames = games.filter((g) => g.event_date?.day_number === activeDay)
@@ -81,6 +83,16 @@ export function ScheduleTabWithSubViews({
       )}
 
       {/* Sub-view content */}
+      {activeView === 'program' && (
+        <ByProgramView
+          games={filtered}
+          teams={teams}
+          slug={slug}
+          activeDay={activeDay}
+          divFilter={divFilter}
+          teamId={teamId}
+        />
+      )}
       {activeView === 'team' && (
         <ByTeamView
           games={filtered}

@@ -43,7 +43,14 @@ export interface PublicTeam {
   division: string
   association: string | null
   logo_url?: string | null
-  programs?: { logo_url?: string | null } | null
+  programs?: { name?: string | null; logo_url?: string | null } | null
+}
+
+export interface PublicWeatherAlert {
+  id: number
+  alert_type: string
+  description: string
+  complex?: { name: string } | null
 }
 
 export async function getPublicEvents(): Promise<PublicEvent[]> {
@@ -99,7 +106,7 @@ export async function getPublicGames(eventId: number): Promise<PublicGame[]> {
 export async function getPublicTeams(eventId: number): Promise<PublicTeam[]> {
   const { data, error } = await supabase
     .from('teams')
-    .select('id, name, division, association, logo_url, programs(logo_url)')
+    .select('id, name, division, association, logo_url, programs(name, logo_url)')
     .eq('event_id', eventId)
     .order('division')
     .order('name')
@@ -301,4 +308,16 @@ export async function getPublicBracket(eventId: number): Promise<{
   if (error || !data?.length) return { format: null, rounds: [] }
   const format = (data[0] as unknown as BracketRound).format
   return { format, rounds: data as unknown as BracketRound[] }
+}
+
+export async function getPublicWeatherAlerts(eventId: number): Promise<PublicWeatherAlert[]> {
+  const { data, error } = await supabase
+    .from('weather_alerts')
+    .select('id, alert_type, description, complex:complexes(name)')
+    .eq('event_id', eventId)
+    .eq('is_active', true)
+    .order('created_at', { ascending: false })
+
+  if (error) return []
+  return (data ?? []) as unknown as PublicWeatherAlert[]
 }

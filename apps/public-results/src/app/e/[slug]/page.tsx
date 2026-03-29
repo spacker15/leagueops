@@ -7,6 +7,7 @@ import {
   getPublicEventDates,
   getPublicBracket,
   getPublicStandings,
+  getPublicWeatherAlerts,
 } from '@/lib/data'
 import { LiveScoresClient } from './LiveScoresClient'
 import { EventTabContent } from './EventTabContent'
@@ -23,12 +24,13 @@ export default async function EventPage({ params, searchParams }: Props) {
   const event = await getPublicEventBySlug(params.slug)
   if (!event) notFound()
 
-  const [games, teams, eventDates, bracket, viewStandings] = await Promise.all([
+  const [games, teams, eventDates, bracket, viewStandings, weatherAlerts] = await Promise.all([
     getPublicGames(event.id),
     getPublicTeams(event.id),
     getPublicEventDates(event.id),
     getPublicBracket(event.id),
     getPublicStandings(event.id),
+    getPublicWeatherAlerts(event.id),
   ])
 
   const defaultTab =
@@ -46,6 +48,11 @@ export default async function EventPage({ params, searchParams }: Props) {
   const showStandings = event.public_standings !== false
   const showResults = event.public_results !== false
 
+  // Deduplicate alerts by type
+  const uniqueAlerts = weatherAlerts.filter(
+    (a, idx, arr) => arr.findIndex((x) => x.alert_type === a.alert_type) === idx
+  )
+
   const tabs = [
     ...(showStandings ? [{ id: 'standings', label: 'Standings' }] : []),
     ...(event.public_schedule ? [{ id: 'schedule', label: `Schedule (${games.length})` }] : []),
@@ -53,6 +60,8 @@ export default async function EventPage({ params, searchParams }: Props) {
     { id: 'live', label: `Live (${liveGames.length})`, highlight: liveGames.length > 0 },
     ...(event.has_bracket && bracket.format ? [{ id: 'bracket', label: 'Bracket' }] : []),
   ]
+
+  const isLightning = uniqueAlerts.some((a) => a.alert_type.toLowerCase().includes('lightning'))
 
   return (
     <div className="space-y-5">
@@ -64,6 +73,50 @@ export default async function EventPage({ params, searchParams }: Props) {
         <span>/</span>
         <span className="text-white">{event.name}</span>
       </div>
+
+      {/* Weather alert banner */}
+      {uniqueAlerts.length > 0 && (
+        <div
+          className="rounded-xl px-4 py-3 space-y-2"
+          style={{
+            background: isLightning
+              ? 'linear-gradient(90deg, #7f1d1d, #991b1b, #7f1d1d)'
+              : 'linear-gradient(90deg, #422006, #4a2506, #422006)',
+            border: isLightning ? '2px solid #ef4444' : '1px solid #a16207',
+          }}
+        >
+          {uniqueAlerts.map((alert) => (
+            <div key={alert.id} className="flex items-start gap-2">
+              <span className="text-[14px] shrink-0">
+                {alert.alert_type.toLowerCase().includes('lightning') ? '⚡' : '⚠'}
+              </span>
+              <div>
+                <span
+                  className={`font-cond text-[11px] font-black tracking-widest uppercase mr-2 ${
+                    isLightning ? 'text-red-300' : 'text-yellow-300'
+                  }`}
+                >
+                  {alert.alert_type}
+                </span>
+                <span
+                  className={`font-cond text-[11px] ${isLightning ? 'text-red-200' : 'text-yellow-200'}`}
+                >
+                  {alert.description}
+                </span>
+                {alert.complex?.name && (
+                  <span
+                    className={`font-cond text-[10px] ml-2 ${
+                      isLightning ? 'text-red-300/70' : 'text-yellow-400/70'
+                    }`}
+                  >
+                    — {alert.complex.name}
+                  </span>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Event header */}
       <div className="bg-[#081428] border border-[#1a2d50] rounded-xl p-5">
