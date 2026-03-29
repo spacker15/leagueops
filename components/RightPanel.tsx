@@ -145,9 +145,15 @@ function WeatherRPPanel({
         </div>
       ) : (
         <div>
-          <div className="font-cond text-[10px] font-black text-green-400 text-center tracking-wider border border-green-500/30 rounded p-1 mb-2">
-            ALL CLEAR
-          </div>
+          {alertCount > 0 ? (
+            <div className="font-cond text-[10px] font-black text-yellow-400 text-center tracking-wider border border-yellow-500/40 bg-yellow-900/10 rounded p-1 mb-2">
+              ⚠ {alertCount} ACTIVE ALERT{alertCount > 1 ? 'S' : ''}
+            </div>
+          ) : (
+            <div className="font-cond text-[10px] font-black text-green-400 text-center tracking-wider border border-green-500/30 rounded p-1 mb-2">
+              ALL CLEAR
+            </div>
+          )}
           {latestReading ? (
             <div className="text-[10px] space-y-0.5">
               <div className="flex justify-between">
@@ -181,10 +187,7 @@ function WeatherRPPanel({
         </div>
       )}
       {alertCount > 0 && (
-        <div className="mt-2 flex items-center justify-between">
-          <span className="text-[10px] text-yellow-400 font-cond font-bold tracking-wide">
-            ⚠ {alertCount} ACTIVE ALERT{alertCount > 1 ? 'S' : ''}
-          </span>
+        <div className="mt-2 flex items-center justify-end">
           <button
             onClick={async () => {
               const sb = createClient()

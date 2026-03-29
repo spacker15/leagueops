@@ -253,9 +253,9 @@ export function WeatherTab() {
   return (
     <div>
       {/* Date display */}
-      <div className="flex items-center gap-2 mb-3">
-        <Calendar size={14} className="text-muted" />
-        <span className="font-cond font-bold text-[13px] text-white">
+      <div className="flex items-center gap-2 mb-4 bg-surface-card border border-border rounded-lg px-4 py-2.5">
+        <Calendar size={16} className="text-blue-400" />
+        <span className="font-cond font-black text-[16px] tracking-wide text-white">
           {format(new Date(), 'EEEE, MMMM d, yyyy')}
         </span>
       </div>
