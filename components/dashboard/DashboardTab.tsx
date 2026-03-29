@@ -8,6 +8,7 @@ import { cn, nextStatusLabel, nextGameStatus } from '@/lib/utils'
 import { createClient } from '@/supabase/client'
 import toast from 'react-hot-toast'
 import { format } from 'date-fns'
+import { ChevronDown } from 'lucide-react'
 import type { Game, GameStatus } from '@/types'
 
 function timeToMin(t: string): number {
@@ -57,7 +58,9 @@ export function DashboardTab() {
   }
 
   const fields = state.fields.slice(0, 12)
-  const priority: GameStatus[] = ['Live', 'Starting', 'Halftime', 'Scheduled', 'Delayed', 'Final']
+  const priority: GameStatus[] = ['Live', 'Starting', 'Halftime', 'Scheduled', 'Delayed']
+  const activeGames = state.games.filter((g) => g.status !== 'Final' && g.status !== 'Cancelled')
+  const completedGames = state.games.filter((g) => g.status === 'Final')
 
   const lightningActive = state.lightningActive
   const countdownM = Math.floor(state.lightningSecondsLeft / 60)
@@ -267,13 +270,13 @@ export function DashboardTab() {
           Field Command Board
         </span>
         <span className="font-cond text-[11px] text-muted ml-1">
-          — {fields.length} fields · {state.games.filter((g) => g.status === 'Live').length} live
+          — {fields.length} fields · {activeGames.filter((g) => g.status === 'Live').length} live
         </span>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-3">
         {fields.map((field) => {
-          const fieldGames = state.games
+          const fieldGames = activeGames
             .filter((g) => g.field_id === field.id)
             .sort((a, b) => timeToMin(a.scheduled_time) - timeToMin(b.scheduled_time))
           // Show the current/active game in the main card
@@ -326,6 +329,9 @@ export function DashboardTab() {
         })}
       </div>
 
+      {/* ── Completed Games ──────────────────────────────── */}
+      <CompletedGamesSection games={completedGames} teamLogoMap={teamLogoMap} onOpen={openGame} />
+
       <Modal
         open={!!selectedGame}
         onClose={() => setSelectedGame(null)}
@@ -353,6 +359,100 @@ export function DashboardTab() {
           />
         )}
       </Modal>
+    </div>
+  )
+}
+
+// ── Completed Games Section ──────────────────────────────────
+function CompletedGamesSection({
+  games,
+  teamLogoMap,
+  onOpen,
+}: {
+  games: Game[]
+  teamLogoMap: Record<number, string | null>
+  onOpen: (g: Game) => void
+}) {
+  const [expanded, setExpanded] = useState(false)
+
+  if (games.length === 0) return null
+
+  return (
+    <div className="mt-6">
+      <button
+        onClick={() => setExpanded((e) => !e)}
+        className="flex items-center gap-3 mb-3 w-full text-left group"
+      >
+        <div className="w-1 h-5 rounded-sm bg-gray-600" />
+        <span className="font-cond text-[13px] font-black tracking-[.15em] text-muted uppercase group-hover:text-white transition-colors">
+          Completed ({games.length})
+        </span>
+        <ChevronDown
+          size={14}
+          className={cn('text-muted transition-transform', expanded && 'rotate-180')}
+        />
+      </button>
+      {expanded && (
+        <div className="grid grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-2">
+          {games
+            .sort((a, b) => timeToMin(b.scheduled_time) - timeToMin(a.scheduled_time))
+            .map((game) => (
+              <button
+                key={game.id}
+                onClick={() => onOpen(game)}
+                className="bg-surface-card/60 border border-border rounded-lg p-3 text-left hover:bg-surface-card transition-colors opacity-70 hover:opacity-100"
+              >
+                {/* Header: field + time + division */}
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="font-cond text-[10px] font-bold text-muted">
+                      {game.field?.name ?? `Field ${game.field_id}`}
+                    </span>
+                    <span className="font-mono text-[10px] text-muted">{game.scheduled_time}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {game.division && (
+                      <span className="font-cond text-[9px] font-bold tracking-wider text-muted bg-white/5 px-1.5 py-0.5 rounded">
+                        {game.division}
+                      </span>
+                    )}
+                    <StatusBadge status={game.status} />
+                  </div>
+                </div>
+                {/* Score row */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    {teamLogoMap[game.home_team_id] && (
+                      <img
+                        src={teamLogoMap[game.home_team_id]!}
+                        alt=""
+                        className="w-5 h-5 rounded-full object-cover"
+                      />
+                    )}
+                    <span className="font-cond text-[12px] font-bold text-white truncate">
+                      {game.home_team?.name ?? '?'}
+                    </span>
+                  </div>
+                  <div className="font-mono text-[16px] font-black text-muted px-3 tabular-nums">
+                    {game.home_score ?? 0} – {game.away_score ?? 0}
+                  </div>
+                  <div className="flex items-center gap-2 flex-1 min-w-0 justify-end">
+                    <span className="font-cond text-[12px] font-bold text-white truncate text-right">
+                      {game.away_team?.name ?? '?'}
+                    </span>
+                    {teamLogoMap[game.away_team_id] && (
+                      <img
+                        src={teamLogoMap[game.away_team_id]!}
+                        alt=""
+                        className="w-5 h-5 rounded-full object-cover"
+                      />
+                    )}
+                  </div>
+                </div>
+              </button>
+            ))}
+        </div>
+      )}
     </div>
   )
 }

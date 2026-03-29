@@ -215,7 +215,100 @@ export function LoginPage() {
             </a>
           </div>
         </div>
+
+        {process.env.NEXT_PUBLIC_ENABLE_TEST_LOGIN === 'true' && (
+          <TestLoginSection signIn={signIn} setError={setError} />
+        )}
       </div>
+    </div>
+  )
+}
+
+// ─── Dev-only test login switcher ────────────────────────────
+const TEST_ACCOUNTS = [
+  { role: 'Admin', email: 'admin@test.leagueops.dev', color: 'blue' },
+  { role: 'Coach', email: 'coach@test.leagueops.dev', color: 'green' },
+  { role: 'Referee', email: 'referee@test.leagueops.dev', color: 'yellow' },
+  { role: 'Volunteer', email: 'volunteer@test.leagueops.dev', color: 'purple' },
+  { role: 'Program', email: 'program@test.leagueops.dev', color: 'orange' },
+  { role: 'Trainer', email: 'trainer@test.leagueops.dev', color: 'teal' },
+] as const
+
+const ROLE_STYLES: Record<string, string> = {
+  blue: 'border-blue-500/50 text-blue-300 hover:bg-blue-900/30',
+  green: 'border-green-500/50 text-green-300 hover:bg-green-900/30',
+  yellow: 'border-yellow-500/50 text-yellow-300 hover:bg-yellow-900/30',
+  purple: 'border-purple-500/50 text-purple-300 hover:bg-purple-900/30',
+  orange: 'border-orange-500/50 text-orange-300 hover:bg-orange-900/30',
+  teal: 'border-teal-500/50 text-teal-300 hover:bg-teal-900/30',
+}
+
+function TestLoginSection({
+  signIn,
+  setError,
+}: {
+  signIn: (email: string, password: string) => Promise<{ error: string | null }>
+  setError: (e: string) => void
+}) {
+  const [loggingIn, setLoggingIn] = useState<string | null>(null)
+  const [needsSeed, setNeedsSeed] = useState(false)
+  const [seeding, setSeeding] = useState(false)
+
+  async function quickLogin(email: string) {
+    setError('')
+    setLoggingIn(email)
+    const { error } = await signIn(email, 'testpass1234')
+    if (error) {
+      if (error.includes('Invalid login')) {
+        setNeedsSeed(true)
+      } else {
+        setError(error)
+      }
+    }
+    setLoggingIn(null)
+  }
+
+  async function seedUsers() {
+    setSeeding(true)
+    setError('')
+    try {
+      const res = await fetch('/api/dev/seed-test-users', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Seed failed')
+      setNeedsSeed(false)
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setSeeding(false)
+    }
+  }
+
+  return (
+    <div className="bg-surface-card border border-yellow-500/30 rounded-xl p-4 mt-4">
+      <div className="font-cond text-[10px] font-black tracking-[.12em] text-yellow-400 uppercase mb-3 text-center">
+        ⚡ DEV LOGIN
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        {TEST_ACCOUNTS.map((acct) => (
+          <button
+            key={acct.email}
+            onClick={() => quickLogin(acct.email)}
+            disabled={loggingIn !== null}
+            className={`font-cond text-[11px] font-bold tracking-wide px-3 py-1.5 rounded-lg border transition-colors disabled:opacity-40 ${ROLE_STYLES[acct.color]}`}
+          >
+            {loggingIn === acct.email ? '...' : acct.role}
+          </button>
+        ))}
+      </div>
+      {needsSeed && (
+        <button
+          onClick={seedUsers}
+          disabled={seeding}
+          className="w-full mt-3 font-cond text-[10px] font-bold tracking-wider px-3 py-2 rounded-lg bg-yellow-900/30 text-yellow-400 border border-yellow-500/40 hover:bg-yellow-900/50 transition-colors disabled:opacity-50"
+        >
+          {seeding ? 'CREATING TEST USERS...' : 'SEED TEST USERS (first time setup)'}
+        </button>
+      )}
     </div>
   )
 }
