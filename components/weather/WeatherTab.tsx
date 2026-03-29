@@ -15,6 +15,7 @@ import {
   type WeatherReading,
   type WeatherAlert,
 } from '@/lib/engines/weather'
+import { format } from 'date-fns'
 import {
   Zap,
   Thermometer,
@@ -29,6 +30,7 @@ import {
   Activity,
   ChevronDown,
   ChevronUp,
+  Calendar,
 } from 'lucide-react'
 
 type SubTab = 'overview' | 'complexes' | 'history' | 'protocol'
@@ -174,10 +176,6 @@ export function WeatherTab() {
           style: { background: '#6b0000', color: 'white' },
           duration: 6000,
         })
-      } else if (data.alerts.length > 0) {
-        toast.error(
-          `${data.alerts.length} weather alert${data.alerts.length > 1 ? 's' : ''} issued`
-        )
       } else {
         toast.success(
           `${data.reading.complex_name} — ${data.reading.conditions}, ${data.reading.temperature_f}°F`
@@ -254,6 +252,14 @@ export function WeatherTab() {
 
   return (
     <div>
+      {/* Date display */}
+      <div className="flex items-center gap-2 mb-3">
+        <Calendar size={14} className="text-muted" />
+        <span className="font-cond font-bold text-[13px] text-white">
+          {format(new Date(), 'EEEE, MMMM d, yyyy')}
+        </span>
+      </div>
+
       {/* Sub-tabs */}
       <div className="flex items-center gap-0 mb-4 border-b border-border">
         {SUBTABS.map((t) => (
