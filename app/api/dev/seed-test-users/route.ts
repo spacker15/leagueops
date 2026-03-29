@@ -13,9 +13,10 @@ const TEST_ACCOUNTS = [
   {
     email: 'coach@test.leagueops.dev',
     role: 'coach',
-    display_name: 'Test Coach',
+    display_name: 'Riptide Coach',
     event_id: 11,
-    team_id: 117,
+    program_id: 17,
+    team_id: 161,
   },
   {
     email: 'referee@test.leagueops.dev',
@@ -110,6 +111,20 @@ export async function POST() {
         .eq('user_id', userId)
         .eq('role', account.role)
         .maybeSingle()
+
+      if (existingRole) {
+        // Update key fields on existing roles so re-seeding picks up changes
+        await adminSb
+          .from('user_roles')
+          .update({
+            display_name: account.display_name,
+            program_id: (account as any).program_id ?? null,
+            team_id: (account as any).team_id ?? null,
+            trainer_id: (account as any).trainer_id ?? null,
+            referee_id: (account as any).referee_id ?? null,
+          })
+          .eq('id', existingRole.id)
+      }
 
       if (!existingRole) {
         // For volunteer role, ensure a volunteers row exists and get its id
