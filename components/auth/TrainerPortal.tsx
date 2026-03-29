@@ -218,22 +218,27 @@ export function TrainerPortal() {
           {/* Weather alert banner */}
           {weatherAlerts.length > 0 && (
             <div className="mb-4 space-y-1.5">
-              {weatherAlerts.map((alert) => (
-                <div
-                  key={alert.id}
-                  className="flex items-center gap-2 bg-yellow-900/30 border border-yellow-600/50 rounded-lg px-3 py-2"
-                >
-                  <span className="text-yellow-400 text-[14px]">⚡</span>
-                  <div>
-                    <span className="font-cond text-[10px] font-black tracking-widest text-yellow-300 uppercase mr-2">
-                      {alert.alert_type}
-                    </span>
-                    <span className="font-cond text-[11px] text-yellow-200">
-                      {alert.description}
-                    </span>
+              {weatherAlerts
+                .filter(
+                  (alert, idx, arr) =>
+                    arr.findIndex((a) => a.alert_type === alert.alert_type) === idx
+                )
+                .map((alert) => (
+                  <div
+                    key={alert.id}
+                    className="flex items-center gap-2 bg-yellow-900/30 border border-yellow-600/50 rounded-lg px-3 py-2"
+                  >
+                    <span className="text-yellow-400 text-[14px]">⚡</span>
+                    <div>
+                      <span className="font-cond text-[10px] font-black tracking-widest text-yellow-300 uppercase mr-2">
+                        {alert.alert_type}
+                      </span>
+                      <span className="font-cond text-[11px] text-yellow-200">
+                        {alert.description}
+                      </span>
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
             </div>
           )}
 
