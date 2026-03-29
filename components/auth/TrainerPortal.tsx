@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils'
 import { AlertTriangle, Edit2, LogOut, Plus } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { format } from 'date-fns'
+import { EventDatePicker } from '@/components/ui/EventDatePicker'
 
 type PortalTab = 'checkin' | 'availability' | 'schedule' | 'incidents'
 
@@ -667,38 +668,12 @@ export function TrainerPortal() {
           {tab === 'schedule' && (
             <div>
               {/* Date filter */}
-              {eventDates.length > 0 && (
-                <div className="flex gap-1.5 mb-4 flex-wrap">
-                  <button
-                    onClick={() => setSelectedDateId(null)}
-                    className={cn(
-                      'font-cond text-[10px] font-black tracking-widest px-2.5 py-1 rounded border transition-colors',
-                      selectedDateId === null
-                        ? 'bg-navy border-blue-500 text-white'
-                        : 'border-border text-muted hover:text-white'
-                    )}
-                  >
-                    ALL
-                  </button>
-                  {eventDates.map((d) => (
-                    <button
-                      key={d.id}
-                      onClick={() => setSelectedDateId(d.id)}
-                      className={cn(
-                        'font-cond text-[10px] font-black tracking-widest px-2.5 py-1 rounded border transition-colors',
-                        selectedDateId === d.id
-                          ? 'bg-red border-red text-white'
-                          : 'border-border text-muted hover:text-white'
-                      )}
-                    >
-                      {d.label}
-                      <span className="ml-1 font-normal normal-case tracking-normal text-inherit opacity-70">
-                        {format(new Date(d.date + 'T12:00:00'), 'M/d')}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              )}
+              <EventDatePicker
+                dates={eventDates}
+                selectedId={selectedDateId}
+                onChange={setSelectedDateId}
+                className="mb-4"
+              />
               {gamesByField.length === 0 ? (
                 <div className="font-cond text-[11px] text-muted text-center py-8">
                   No games scheduled.

@@ -22,6 +22,7 @@ import {
   Phone,
 } from 'lucide-react'
 import { ScheduleChangeRequestModal } from '@/components/schedule/ScheduleChangeRequestModal'
+import { EventDatePicker, type PickerDate } from '@/components/ui/EventDatePicker'
 import type { Game } from '@/types'
 
 // Divisions are derived dynamically from event data (registration_fees + existing teams)
@@ -117,7 +118,7 @@ export function ProgramDashboard({ onSwitchToAdmin }: { onSwitchToAdmin?: () => 
 
   // Teams tab UI state
   const [collapsedDivisions, setCollapsedDivisions] = useState<Set<string>>(new Set())
-  const [selectedDate, setSelectedDate] = useState<string | null>(null)
+  const [selectedDateId, setSelectedDateId] = useState<number | null>(null)
 
   // Program leaders + coaches for overview card
   const [programUsers, setProgramUsers] = useState<{ display_name: string; role: string }[]>([])
@@ -961,48 +962,24 @@ export function ProgramDashboard({ onSwitchToAdmin }: { onSwitchToAdmin?: () => 
           <div className="overflow-y-auto" style={{ maxHeight: 'calc(100vh - 120px)' }}>
             {/* Date filter bar */}
             {(() => {
-              const uniqueDates = [
-                ...new Set(
-                  programGames
-                    .map((g) => (g.event_date as any)?.date as string | undefined)
-                    .filter(Boolean) as string[]
-                ),
-              ].sort()
-              if (uniqueDates.length === 0) return null
+              const seen = new Set<number>()
+              const pickerDates: PickerDate[] = []
+              for (const g of programGames) {
+                const ed = g.event_date as any
+                if (ed?.id && !seen.has(ed.id)) {
+                  seen.add(ed.id)
+                  pickerDates.push({ id: ed.id, date: ed.date, label: ed.label ?? null })
+                }
+              }
+              pickerDates.sort((a, b) => a.date.localeCompare(b.date))
+              if (pickerDates.length === 0) return null
               return (
-                <div className="flex items-center gap-2 mb-4 flex-wrap">
-                  <span className="font-cond text-[10px] font-black tracking-widest text-muted uppercase">
-                    DATE
-                  </span>
-                  <button
-                    onClick={() => setSelectedDate(null)}
-                    className={cn(
-                      'font-cond text-[11px] font-bold px-3 py-1 rounded-full border transition-colors',
-                      selectedDate === null
-                        ? 'bg-navy border-blue-400 text-white'
-                        : 'border-border text-muted hover:text-white'
-                    )}
-                  >
-                    ALL
-                  </button>
-                  {uniqueDates.map((d) => (
-                    <button
-                      key={d}
-                      onClick={() => setSelectedDate(d === selectedDate ? null : d)}
-                      className={cn(
-                        'font-cond text-[11px] font-bold px-3 py-1 rounded-full border transition-colors',
-                        selectedDate === d
-                          ? 'bg-navy border-blue-400 text-white'
-                          : 'border-border text-muted hover:text-white'
-                      )}
-                    >
-                      {new Date(d + 'T00:00:00').toLocaleDateString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                      })}
-                    </button>
-                  ))}
-                </div>
+                <EventDatePicker
+                  dates={pickerDates}
+                  selectedId={selectedDateId}
+                  onChange={setSelectedDateId}
+                  className="mb-4"
+                />
               )
             })()}
             {teamRegs.length === 0 ? (
@@ -1028,12 +1005,12 @@ export function ProgramDashboard({ onSwitchToAdmin }: { onSwitchToAdmin?: () => 
                         className="flex items-center gap-2 mb-3 sticky top-0 bg-surface py-2 z-10 w-full text-left hover:opacity-80 transition-opacity"
                       >
                         {isCollapsed ? (
-                          <ChevronRight size={14} className="text-muted flex-shrink-0" />
+                          <ChevronRight size={16} className="text-muted flex-shrink-0" />
                         ) : (
-                          <ChevronDown size={14} className="text-muted flex-shrink-0" />
+                          <ChevronDown size={16} className="text-muted flex-shrink-0" />
                         )}
-                        <div className="w-1 h-4 rounded-sm bg-navy flex-shrink-0" />
-                        <span className="font-cond text-[11px] font-black tracking-[.12em] text-blue-300 uppercase">
+                        <div className="w-1 h-5 rounded-sm bg-navy flex-shrink-0" />
+                        <span className="font-cond text-[14px] font-black tracking-[.12em] text-blue-300 uppercase">
                           {div}
                         </span>
                         <span className="font-cond text-[9px] text-muted">
@@ -1139,11 +1116,12 @@ export function ProgramDashboard({ onSwitchToAdmin }: { onSwitchToAdmin?: () => 
                                       g.home_team_id === matchedTeam.id ||
                                       g.away_team_id === matchedTeam.id
                                   )
-                                  const teamGames = selectedDate
-                                    ? allTeamGames.filter(
-                                        (g) => (g.event_date as any)?.date === selectedDate
-                                      )
-                                    : allTeamGames
+                                  const teamGames =
+                                    selectedDateId !== null
+                                      ? allTeamGames.filter(
+                                          (g) => (g.event_date as any)?.id === selectedDateId
+                                        )
+                                      : allTeamGames
                                   if (teamGames.length === 0) return null
                                   return (
                                     <div className="mt-3 pt-3 border-t border-border/40">
@@ -1572,11 +1550,11 @@ function ProgramMatchupSection({
         return (
           <div key={div}>
             <div className="flex items-center gap-2 mb-3">
-              <div className="w-1 h-4 rounded-sm bg-navy" />
-              <span className="font-cond text-[11px] font-black tracking-[.12em] text-blue-300 uppercase">
+              <div className="w-1 h-5 rounded-sm bg-navy" />
+              <span className="font-cond text-[14px] font-black tracking-[.12em] text-blue-300 uppercase">
                 {div}
               </span>
-              <span className="font-cond text-[9px] text-muted ml-1">
+              <span className="font-cond text-[11px] text-muted ml-1">
                 {divDivTeams.length} teams · {divDivGames.length} games
               </span>
             </div>

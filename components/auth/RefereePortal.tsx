@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils'
 import { CheckCircle, LogOut, ChevronLeft, AlertTriangle } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { format } from 'date-fns'
+import { EventDatePicker } from '@/components/ui/EventDatePicker'
 
 type PortalTab = 'checkin' | 'games' | 'approvals' | 'availability'
 
@@ -783,43 +784,12 @@ export function RefereePortal() {
           {tab === 'checkin' && (
             <div>
               {/* Date picker */}
-              {eventDates.length > 0 && (
-                <div className="flex gap-1.5 mb-4 flex-wrap">
-                  <button
-                    onClick={() => setSelectedDateId(null)}
-                    className={cn(
-                      'font-cond text-[10px] font-black tracking-widest px-2.5 py-1 rounded border transition-colors',
-                      selectedDateId === null
-                        ? 'bg-navy border-blue-500 text-white'
-                        : 'border-border text-muted hover:text-white'
-                    )}
-                  >
-                    ALL
-                  </button>
-                  {eventDates.map((d) => (
-                    <button
-                      key={d.id}
-                      onClick={() => setSelectedDateId(d.id)}
-                      className={cn(
-                        'font-cond text-[10px] font-black tracking-widest px-2.5 py-1 rounded border transition-colors',
-                        selectedDateId === d.id
-                          ? 'bg-red border-red text-white'
-                          : 'border-border text-muted hover:text-white'
-                      )}
-                    >
-                      {d.label}
-                      <span
-                        className={cn(
-                          'ml-1 font-normal normal-case tracking-normal',
-                          selectedDateId === d.id ? 'text-red-200' : 'text-muted'
-                        )}
-                      >
-                        {format(new Date(d.date + 'T12:00:00'), 'M/d')}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              )}
+              <EventDatePicker
+                dates={eventDates}
+                selectedId={selectedDateId}
+                onChange={setSelectedDateId}
+                className="mb-4"
+              />
               {todayLabel && (
                 <div className="bg-navy/40 border border-border rounded-lg px-4 py-2.5 mb-4 text-center">
                   <span className="font-cond text-[11px] font-black tracking-widest text-blue-300 uppercase">
@@ -935,47 +905,16 @@ export function RefereePortal() {
           {tab === 'games' && (
             <div>
               {/* Date picker */}
-              {eventDates.length > 0 && (
-                <div className="flex gap-1.5 mb-4 flex-wrap">
-                  <button
-                    onClick={() => setSelectedDateId(null)}
-                    className={cn(
-                      'font-cond text-[10px] font-black tracking-widest px-2.5 py-1 rounded border transition-colors',
-                      selectedDateId === null
-                        ? 'bg-navy border-blue-500 text-white'
-                        : 'border-border text-muted hover:text-white'
-                    )}
-                  >
-                    ALL
-                  </button>
-                  {eventDates.map((d) => (
-                    <button
-                      key={d.id}
-                      onClick={() => {
-                        setSelectedDateId(d.id)
-                        setSelectedFieldId(null)
-                        setSelectedGame(null)
-                      }}
-                      className={cn(
-                        'font-cond text-[10px] font-black tracking-widest px-2.5 py-1 rounded border transition-colors',
-                        selectedDateId === d.id
-                          ? 'bg-red border-red text-white'
-                          : 'border-border text-muted hover:text-white'
-                      )}
-                    >
-                      {d.label}
-                      <span
-                        className={cn(
-                          'ml-1 font-normal normal-case tracking-normal',
-                          selectedDateId === d.id ? 'text-red-200' : 'text-muted'
-                        )}
-                      >
-                        {format(new Date(d.date + 'T12:00:00'), 'M/d')}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              )}
+              <EventDatePicker
+                dates={eventDates}
+                selectedId={selectedDateId}
+                onChange={(id) => {
+                  setSelectedDateId(id)
+                  setSelectedFieldId(null)
+                  setSelectedGame(null)
+                }}
+                className="mb-4"
+              />
 
               {/* Field selector */}
               {!selectedFieldId && (

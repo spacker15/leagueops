@@ -66,11 +66,14 @@ export function StatusRow() {
       <div className="flex-1" />
 
       {/* Date nav */}
-      <div className="flex items-center gap-2 px-4" style={{ borderLeft: '1px solid #1a2d50' }}>
+      <div
+        className="flex items-center gap-1.5 px-3 ml-auto"
+        style={{ borderLeft: '1px solid #1a2d50' }}
+      >
         <button
           onClick={() => changeDate(-1)}
           className={cn(
-            'font-cond text-[9px] font-black tracking-[.1em] px-2 py-1 rounded transition-colors',
+            'font-cond text-[10px] font-black tracking-[.1em] px-2.5 py-1 rounded transition-colors',
             state.currentDateIdx === -1
               ? 'bg-blue-600 text-white'
               : 'text-muted hover:text-white hover:bg-white/5'
@@ -83,27 +86,52 @@ export function StatusRow() {
           onClick={() =>
             changeDate(Math.max(0, state.currentDateIdx === -1 ? 0 : state.currentDateIdx - 1))
           }
-          disabled={state.currentDateIdx === 0}
-          className="w-6 h-6 flex items-center justify-center rounded transition-colors disabled:opacity-20"
-          style={{ color: '#5a6e9a' }}
-          onMouseEnter={(e) => (e.currentTarget.style.color = 'white')}
-          onMouseLeave={(e) => (e.currentTarget.style.color = '#5a6e9a')}
+          disabled={state.currentDateIdx === 0 || state.currentDateIdx === -1}
+          className="w-6 h-6 flex items-center justify-center rounded transition-colors disabled:opacity-20 text-muted hover:text-white"
         >
           <ChevronLeft size={14} />
         </button>
 
-        <div className="font-cond text-[13px] font-black text-white tracking-wide px-1 min-w-[155px] text-center">
+        <div className="flex flex-col items-center justify-center min-w-[130px] px-1">
           {state.currentDateIdx === -1 ? (
-            <span className="text-blue-300">ALL DATES</span>
+            <span className="font-cond text-[13px] font-black text-blue-300 tracking-wide">
+              ALL DATES
+            </span>
           ) : currentDate ? (
             <>
-              {currentDate.label}
-              <span className="text-muted font-bold text-[11px] ml-2">
-                {format(parseISO(currentDate.date), 'MMM d, yyyy')}
-              </span>
+              {(() => {
+                const first = state.eventDates[0]
+                const wk = first
+                  ? Math.floor(
+                      (new Date(currentDate.date + 'T00:00:00').getTime() -
+                        new Date(first.date + 'T00:00:00').getTime()) /
+                        (7 * 24 * 60 * 60 * 1000)
+                    ) + 1
+                  : 1
+                const multiWeek =
+                  state.eventDates.length > 1 &&
+                  Math.floor(
+                    (new Date(
+                      state.eventDates[state.eventDates.length - 1].date + 'T00:00:00'
+                    ).getTime() -
+                      new Date(state.eventDates[0].date + 'T00:00:00').getTime()) /
+                      (7 * 24 * 60 * 60 * 1000)
+                  ) >= 1
+                return (
+                  <>
+                    <span className="font-cond text-[9px] font-black tracking-[.12em] text-muted uppercase">
+                      {multiWeek ? `WK ${wk} · ` : ''}
+                      {currentDate.label}
+                    </span>
+                    <span className="font-cond text-[13px] font-black text-white tracking-wide">
+                      {format(parseISO(currentDate.date), 'EEE, MMM d')}
+                    </span>
+                  </>
+                )
+              })()}
             </>
           ) : (
-            '—'
+            <span className="text-muted">—</span>
           )}
         </div>
 
@@ -117,19 +145,15 @@ export function StatusRow() {
             )
           }
           disabled={state.currentDateIdx >= state.eventDates.length - 1}
-          className="w-6 h-6 flex items-center justify-center rounded transition-colors disabled:opacity-20"
-          style={{ color: '#5a6e9a' }}
-          onMouseEnter={(e) => (e.currentTarget.style.color = 'white')}
-          onMouseLeave={(e) => (e.currentTarget.style.color = '#5a6e9a')}
+          className="w-6 h-6 flex items-center justify-center rounded transition-colors disabled:opacity-20 text-muted hover:text-white"
         >
           <ChevronRight size={14} />
         </button>
 
-        <span
-          className="font-cond text-[10px] font-black tracking-[.1em] ml-1"
-          style={{ color: '#1e2d40' }}
-        >
-          DAY {state.currentDateIdx + 1}/{state.eventDates.length}
+        <span className="font-cond text-[9px] font-black tracking-[.1em] text-[#1e2d40] ml-0.5 hidden sm:block">
+          {state.currentDateIdx === -1
+            ? `${state.eventDates.length} DAYS`
+            : `${state.currentDateIdx + 1}/${state.eventDates.length}`}
         </span>
       </div>
     </div>

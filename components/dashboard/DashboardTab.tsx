@@ -412,7 +412,7 @@ function CompletedGamesSection({
                   </div>
                   <div className="flex items-center gap-2">
                     {game.division && (
-                      <span className="font-cond text-[9px] font-bold tracking-wider text-muted bg-white/5 px-1.5 py-0.5 rounded">
+                      <span className="font-cond text-[11px] font-bold tracking-wider text-muted bg-white/5 px-1.5 py-0.5 rounded">
                         {game.division}
                       </span>
                     )}
@@ -605,7 +605,7 @@ function FieldCard({
                 ·
               </span>
               <span
-                className="font-cond text-[10px] font-bold tracking-wide"
+                className="font-cond text-[12px] font-bold tracking-wide"
                 style={{ color: '#3a4d70' }}
               >
                 {game.division}
@@ -665,7 +665,7 @@ function GameDetail({
         style={{ background: '#040e20', border: '1px solid #1a2d50' }}
       >
         <div
-          className="font-cond text-[11px] font-black tracking-[.15em] mb-3"
+          className="font-cond text-[13px] font-black tracking-[.15em] mb-3"
           style={{ color: '#3a4d70' }}
         >
           {game.field?.name?.toUpperCase()} · {game.scheduled_time} · {game.division}

@@ -16,6 +16,7 @@ import {
 } from '@dnd-kit/core'
 import { useApp } from '@/lib/store'
 import { Avatar, Pill, Modal, Btn, FormField } from '@/components/ui'
+import { EventDatePicker } from '@/components/ui/EventDatePicker'
 import { cn, findCsvMismatches, type CsvMismatch } from '@/lib/utils'
 import toast from 'react-hot-toast'
 import type {
@@ -1335,35 +1336,23 @@ export function RefsTab() {
       {subTab === 'board' && (
         <>
           {/* Date / week picker */}
-          {state.eventDates.length > 0 && (
-            <div className="flex items-center gap-1.5 mb-3 flex-wrap">
-              <button
-                onClick={() => changeDate(-1)}
-                className={cn(
-                  'font-cond text-[10px] font-black tracking-widest px-2.5 py-1 rounded border transition-colors',
-                  state.currentDateIdx === -1
-                    ? 'bg-navy border-blue-500 text-white'
-                    : 'border-border text-muted hover:text-white hover:border-border/80'
-                )}
-              >
-                ALL
-              </button>
-              {state.eventDates.map((d, idx) => (
-                <button
-                  key={d.id}
-                  onClick={() => changeDate(idx)}
-                  className={cn(
-                    'font-cond text-[10px] font-black tracking-widest px-2.5 py-1 rounded border transition-colors',
-                    state.currentDateIdx === idx
-                      ? 'bg-red border-red text-white'
-                      : 'border-border text-muted hover:text-white hover:border-border/80'
-                  )}
-                >
-                  {d.label}
-                </button>
-              ))}
-            </div>
-          )}
+          <EventDatePicker
+            dates={state.eventDates}
+            selectedId={
+              state.currentDateIdx === -1
+                ? null
+                : (state.eventDates[state.currentDateIdx]?.id ?? null)
+            }
+            onChange={(id) => {
+              if (id === null) {
+                changeDate(-1)
+              } else {
+                const idx = state.eventDates.findIndex((d) => d.id === id)
+                if (idx !== -1) changeDate(idx)
+              }
+            }}
+            className="mb-3"
+          />
         </>
       )}
       {subTab === 'board' && (

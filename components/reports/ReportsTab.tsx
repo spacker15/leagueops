@@ -531,11 +531,11 @@ function MatchupsView({
         return (
           <div key={div}>
             <div className="flex items-center gap-2 mb-3">
-              <div className="w-1 h-4 rounded-sm bg-navy" />
-              <span className="font-cond text-[11px] font-black tracking-[.12em] text-blue-300 uppercase">
+              <div className="w-1 h-5 rounded-sm bg-navy" />
+              <span className="font-cond text-[14px] font-black tracking-[.12em] text-blue-300 uppercase">
                 {div}
               </span>
-              <span className="font-cond text-[9px] text-muted ml-1">
+              <span className="font-cond text-[11px] text-muted ml-1">
                 {divTeams.length} teams · {divGames.length} games
               </span>
             </div>
