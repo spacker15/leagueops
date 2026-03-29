@@ -327,6 +327,7 @@ export function RefsTab() {
     refreshRefs,
     refreshVols,
     currentDate,
+    changeDate,
     eventId,
   } = useApp()
   const [subTab, setSubTab] = useState<SubTab>('board')
@@ -1331,6 +1332,40 @@ export function RefsTab() {
       </div>
 
       {/* ═══ ASSIGNMENT BOARD ════════════════════════════════════ */}
+      {subTab === 'board' && (
+        <>
+          {/* Date / week picker */}
+          {state.eventDates.length > 0 && (
+            <div className="flex items-center gap-1.5 mb-3 flex-wrap">
+              <button
+                onClick={() => changeDate(-1)}
+                className={cn(
+                  'font-cond text-[10px] font-black tracking-widest px-2.5 py-1 rounded border transition-colors',
+                  state.currentDateIdx === -1
+                    ? 'bg-navy border-blue-500 text-white'
+                    : 'border-border text-muted hover:text-white hover:border-border/80'
+                )}
+              >
+                ALL
+              </button>
+              {state.eventDates.map((d, idx) => (
+                <button
+                  key={d.id}
+                  onClick={() => changeDate(idx)}
+                  className={cn(
+                    'font-cond text-[10px] font-black tracking-widest px-2.5 py-1 rounded border transition-colors',
+                    state.currentDateIdx === idx
+                      ? 'bg-red border-red text-white'
+                      : 'border-border text-muted hover:text-white hover:border-border/80'
+                  )}
+                >
+                  {d.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </>
+      )}
       {subTab === 'board' && (
         <DndContext
           sensors={sensors}
