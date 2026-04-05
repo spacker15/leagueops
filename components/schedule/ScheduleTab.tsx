@@ -37,6 +37,7 @@ import {
   CheckSquare,
   Square,
   GitCompareArrows,
+  Pencil,
 } from 'lucide-react'
 
 type ViewMode = 'table' | 'board'
@@ -216,6 +217,87 @@ export function ScheduleTab() {
   const [selectionMode, setSelectionMode] = useState(false)
   const [selectedGameIds, setSelectedGameIds] = useState<Set<number>>(new Set())
   const [bulkDeleting, setBulkDeleting] = useState(false)
+
+  // Edit game modal state
+  const [editGameOpen, setEditGameOpen] = useState(false)
+  const [editGame, setEditGame] = useState<any>(null)
+  const [editTime, setEditTime] = useState('')
+  const [editField, setEditField] = useState('')
+  const [editHome, setEditHome] = useState('')
+  const [editAway, setEditAway] = useState('')
+  const [editDiv, setEditDiv] = useState('')
+  const [editSaving, setEditSaving] = useState(false)
+
+  function openEditGame(game: any) {
+    setEditGame(game)
+    // Convert display time (e.g. "9:00 AM") to 24h for input
+    const m = (game.scheduled_time || '').match(/(\d+):(\d+)\s*(AM|PM)/i)
+    if (m) {
+      let h = parseInt(m[1])
+      const min = parseInt(m[2])
+      if (m[3].toUpperCase() === 'PM' && h !== 12) h += 12
+      if (m[3].toUpperCase() === 'AM' && h === 12) h = 0
+      setEditTime(`${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`)
+    } else {
+      setEditTime('')
+    }
+    setEditField(String(game.field_id))
+    setEditHome(String(game.home_team_id))
+    setEditAway(String(game.away_team_id))
+    setEditDiv(game.division || '')
+    setEditGameOpen(true)
+  }
+
+  async function handleEditGameSave() {
+    if (!editGame) return
+    if (!editField || !editHome || !editAway || editHome === editAway) {
+      toast.error('Fill all fields. Home ≠ Away.')
+      return
+    }
+    setEditSaving(true)
+    try {
+      const sb = createClient()
+      const updates: Record<string, unknown> = {}
+      if (editTime) {
+        const [h, m] = editTime.split(':').map(Number)
+        const ampm = h >= 12 ? 'PM' : 'AM'
+        const dh = h > 12 ? h - 12 : h === 0 ? 12 : h
+        updates.scheduled_time = `${dh}:${m.toString().padStart(2, '0')} ${ampm}`
+      }
+      if (Number(editField) !== editGame.field_id) updates.field_id = Number(editField)
+      if (Number(editHome) !== editGame.home_team_id) updates.home_team_id = Number(editHome)
+      if (Number(editAway) !== editGame.away_team_id) updates.away_team_id = Number(editAway)
+      if (editDiv !== editGame.division) updates.division = editDiv
+
+      if (Object.keys(updates).length === 0) {
+        setEditGameOpen(false)
+        return
+      }
+
+      const { error } = await sb.from('games').update(updates).eq('id', editGame.id)
+      if (error) throw error
+
+      await fetch('/api/ops-log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          event_id: eventId,
+          message: `Game #${editGame.id} edited: ${Object.entries(updates)
+            .map(([k, v]) => `${k}=${v}`)
+            .join(', ')}`,
+          log_type: 'ok',
+        }),
+      })
+
+      toast.success(`Game #${editGame.id} updated`)
+      setEditGameOpen(false)
+      await refreshGames()
+    } catch (err: any) {
+      toast.error(`Update failed: ${err.message}`)
+    } finally {
+      setEditSaving(false)
+    }
+  }
 
   function toggleFollowTeam(id: number) {
     setFollowedTeams((prev) => {
@@ -891,13 +973,50 @@ export function ScheduleTab() {
           timeStr = `${dh}:${m.toString().padStart(2, '0')} ${ampm}`
         }
 
+        // Resolve division: use CSV value mapped through mismatch resolver, or fall back to team's division
+        let resolvedDiv = ''
+        if (row.division) {
+          const divKey = row.division.toLowerCase().trim()
+          const mappedDiv = resolvedNameMap.get(divKey)
+          if (mappedDiv) {
+            resolvedDiv = mappedDiv
+          } else {
+            // Try to match CSV division to an existing division name
+            const existingDivs = [
+              ...new Set((freshTeams ?? []).map((t) => t.division).filter(Boolean)),
+            ]
+            const exactDiv = existingDivs.find((d) => d.toLowerCase().trim() === divKey)
+            if (exactDiv) {
+              resolvedDiv = exactDiv
+            } else {
+              // Try DIV_PREFIX_MAP to resolve e.g. "8U" -> "1/2 Grade"
+              const prefixMatch = row.division.match(/^(\d+U)/i)
+              if (prefixMatch) {
+                const prefix = prefixMatch[1].toLowerCase()
+                const possibleNames = DIV_PREFIX_MAP[prefix] ?? [prefix]
+                for (const d of existingDivs) {
+                  const dLower = d.toLowerCase()
+                  if (possibleNames.some((p) => dLower.includes(p))) {
+                    resolvedDiv = d
+                    break
+                  }
+                }
+              }
+              if (!resolvedDiv) resolvedDiv = row.division
+            }
+          }
+        }
+        if (!resolvedDiv) {
+          resolvedDiv = teamMap.get(homeKey)?.division || teamMap.get(awayKey)?.division || ''
+        }
+
         gamesToInsert.push({
           event_id: eventId,
           event_date_id: eventDateId,
           field_id: field?.id ?? state.fields[0]?.id,
           home_team_id: homeTeamId,
           away_team_id: awayTeamId,
-          division: row.division || teamMap.get(homeKey)?.division || '',
+          division: resolvedDiv,
           scheduled_time: timeStr,
           status: 'Scheduled',
           home_score: 0,
@@ -905,19 +1024,57 @@ export function ScheduleTab() {
         })
       }
 
-      // Batch insert games
+      // Deduplicate: remove games that already exist (same date, time, home, away)
+      let duplicatesSkipped = 0
       if (gamesToInsert.length > 0) {
-        const { error: insertErr, data: inserted } = await sb
+        const { data: existingGames } = await sb
           .from('games')
-          .insert(gamesToInsert)
-          .select('id')
+          .select('event_date_id, scheduled_time, home_team_id, away_team_id')
+          .eq('event_id', eventId!)
 
-        if (insertErr) {
-          toast.error(`Import failed: ${insertErr.message}`)
-        } else {
-          toast.success(
-            `${inserted?.length ?? gamesToInsert.length} game${gamesToInsert.length !== 1 ? 's' : ''} imported${gamesSkipped ? ` (${gamesSkipped} skipped)` : ''}`
+        const existingSet = new Set(
+          (existingGames ?? []).map(
+            (g) => `${g.event_date_id}|${g.scheduled_time}|${g.home_team_id}|${g.away_team_id}`
           )
+        )
+
+        const deduped = gamesToInsert.filter((g) => {
+          const key = `${g.event_date_id}|${g.scheduled_time}|${g.home_team_id}|${g.away_team_id}`
+          if (existingSet.has(key)) {
+            duplicatesSkipped++
+            return false
+          }
+          return true
+        })
+
+        // Batch insert games
+        if (deduped.length > 0) {
+          const { error: insertErr, data: inserted } = await sb
+            .from('games')
+            .insert(deduped)
+            .select('id')
+
+          if (insertErr) {
+            toast.error(`Import failed: ${insertErr.message}`)
+          } else {
+            const parts: string[] = [
+              `${inserted?.length ?? deduped.length} game${deduped.length !== 1 ? 's' : ''} imported`,
+            ]
+            if (gamesSkipped) parts.push(`${gamesSkipped} skipped`)
+            if (duplicatesSkipped)
+              parts.push(
+                `${duplicatesSkipped} duplicate${duplicatesSkipped !== 1 ? 's' : ''} ignored`
+              )
+            toast.success(parts.join(', '))
+          }
+        } else {
+          const parts: string[] = ['No new games to import']
+          if (duplicatesSkipped)
+            parts.push(
+              `${duplicatesSkipped} duplicate${duplicatesSkipped !== 1 ? 's' : ''} already exist`
+            )
+          if (gamesSkipped) parts.push(`${gamesSkipped} skipped`)
+          toast(parts.join(' — '))
         }
       }
 
@@ -1900,6 +2057,27 @@ export function ScheduleTab() {
                           </button>
                         )}
                         <QuickRescheduleBtn game={game} onRescheduled={loadConflicts} />
+                        {userRole?.role === 'admin' && (
+                          <button
+                            onClick={() => openEditGame(game)}
+                            className="font-cond text-[10px] font-bold px-2 py-0.5 rounded bg-surface-card border border-border text-muted hover:text-white hover:border-blue-400 transition-colors"
+                            title="Edit game"
+                          >
+                            <Pencil size={10} />
+                          </button>
+                        )}
+                        {userRole?.role === 'admin' && (
+                          <button
+                            onClick={() => {
+                              if (window.confirm(`Delete game #${game.id}?`))
+                                handleDeleteGame(game.id)
+                            }}
+                            className="font-cond text-[10px] font-bold px-2 py-0.5 rounded bg-surface-card border border-border text-muted hover:text-red-400 hover:border-red-400 transition-colors"
+                            title="Delete game"
+                          >
+                            <Trash2 size={10} />
+                          </button>
+                        )}
                         {(userRole?.role === 'coach' || userRole?.role === 'program_leader') &&
                           game.status !== 'Cancelled' && (
                             <Btn
@@ -2105,6 +2283,96 @@ export function ScheduleTab() {
               <option value="">Select team…</option>
               {state.teams
                 .filter((t) => (!agDiv || t.division === agDiv) && String(t.id) !== agHome)
+                .map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+            </select>
+          </FormField>
+        </div>
+      </Modal>
+
+      {/* Edit game modal */}
+      <Modal
+        open={editGameOpen}
+        onClose={() => setEditGameOpen(false)}
+        title={`EDIT GAME #${editGame?.id ?? ''}`}
+        footer={
+          <>
+            <Btn variant="ghost" size="sm" onClick={() => setEditGameOpen(false)}>
+              CANCEL
+            </Btn>
+            <Btn variant="primary" size="sm" onClick={handleEditGameSave} disabled={editSaving}>
+              {editSaving ? 'SAVING...' : 'SAVE CHANGES'}
+            </Btn>
+          </>
+        }
+      >
+        <div className="grid grid-cols-2 gap-3">
+          <FormField label="Division">
+            <select
+              className="bg-[#040e24] border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400"
+              value={editDiv}
+              onChange={(e) => setEditDiv(e.target.value)}
+            >
+              <option value="">No division</option>
+              {divisions.map((d) => (
+                <option key={d} value={d}>
+                  {d}
+                </option>
+              ))}
+            </select>
+          </FormField>
+          <FormField label="Field">
+            <select
+              className="bg-[#040e24] border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400"
+              value={editField}
+              onChange={(e) => setEditField(e.target.value)}
+            >
+              <option value="">Select field…</option>
+              {state.fields.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.name}
+                  {f.division ? ` (${f.division})` : ''}
+                </option>
+              ))}
+            </select>
+          </FormField>
+          <FormField label="Time">
+            <input
+              type="time"
+              value={editTime}
+              onChange={(e) => setEditTime(e.target.value)}
+              className="bg-[#040e24] border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400 w-full"
+            />
+          </FormField>
+          <div />
+          <FormField label="Home Team">
+            <select
+              className="bg-[#040e24] border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400"
+              value={editHome}
+              onChange={(e) => setEditHome(e.target.value)}
+            >
+              <option value="">Select team…</option>
+              {state.teams
+                .filter((t) => !editDiv || t.division === editDiv)
+                .map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+            </select>
+          </FormField>
+          <FormField label="Away Team">
+            <select
+              className="bg-[#040e24] border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400"
+              value={editAway}
+              onChange={(e) => setEditAway(e.target.value)}
+            >
+              <option value="">Select team…</option>
+              {state.teams
+                .filter((t) => (!editDiv || t.division === editDiv) && String(t.id) !== editHome)
                 .map((t) => (
                   <option key={t.id} value={t.id}>
                     {t.name}
