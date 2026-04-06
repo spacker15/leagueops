@@ -428,9 +428,18 @@ export function CommandCenter() {
           </div>
           <div className="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-4">
             {state.fields.map((field) => {
-              const fieldGames = (gamesByField[field.id] ?? []).sort((a: any, b: any) =>
-                (a.scheduled_time ?? '').localeCompare(b.scheduled_time ?? '')
-              )
+              const fieldGames = (gamesByField[field.id] ?? []).sort((a: any, b: any) => {
+                const parseTime = (t: string): number => {
+                  const m = (t ?? '').match(/(\d+):(\d+)\s*(AM|PM)/i)
+                  if (!m) return 0
+                  let h = parseInt(m[1])
+                  const min = parseInt(m[2])
+                  if (m[3].toUpperCase() === 'PM' && h !== 12) h += 12
+                  if (m[3].toUpperCase() === 'AM' && h === 12) h = 0
+                  return h * 60 + min
+                }
+                return parseTime(a.scheduled_time) - parseTime(b.scheduled_time)
+              })
               const liveGame = fieldGames.find((g: any) => ['Live', 'Halftime'].includes(g.status))
               const fieldAlerts = alerts.filter((a) => a.field_id === field.id && !a.resolved)
 
