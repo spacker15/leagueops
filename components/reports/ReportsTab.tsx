@@ -657,7 +657,15 @@ function MatchupMatrix({
                           style={{ background: '#0d1e3a' }}
                         />
                       ) : count === 0 ? (
-                        <span className="font-mono text-[12px] text-[#1a2d50]">---</span>
+                        <div
+                          className="w-8 h-6 mx-auto rounded flex items-center justify-center"
+                          style={{
+                            background: 'rgba(249,115,22,0.3)',
+                            border: '1px solid rgba(249,115,22,0.6)',
+                          }}
+                        >
+                          <span className="font-mono text-[13px] font-bold text-orange-300">0</span>
+                        </div>
                       ) : (
                         <div
                           className="w-8 h-6 mx-auto rounded flex items-center justify-center"
@@ -696,6 +704,16 @@ function MatchupMatrix({
           Cell = number of times teams have faced each other (home + away combined)
         </span>
         <div className="flex items-center gap-3 ml-auto">
+          <div className="flex items-center gap-1.5">
+            <div
+              className="w-4 h-3 rounded"
+              style={{
+                background: 'rgba(249,115,22,0.3)',
+                border: '1px solid rgba(249,115,22,0.6)',
+              }}
+            />
+            <span className="font-cond text-[9px] text-muted">0 (not played)</span>
+          </div>
           <div className="flex items-center gap-1.5">
             <div
               className="w-4 h-3 rounded"
