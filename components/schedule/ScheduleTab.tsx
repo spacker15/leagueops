@@ -656,11 +656,15 @@ export function ScheduleTab() {
         const suggestions = fuzzyMatch(val, teamCandidates)
         const parsed = parseTeamName(val, fetchedPrograms, divisionNames)
 
+        // Auto-approve matches with 80%+ confidence
+        const bestMatch = suggestions.length > 0 ? suggestions[0] : null
+        const autoApproved = bestMatch && bestMatch.score >= 0.8
+
         entries.push({
           csvValue: val,
           column: 'team',
-          action: null,
-          mapToId: null,
+          action: autoApproved ? 'map' : null,
+          mapToId: autoApproved ? String(bestMatch.id) : null,
           detectedDivision: parsed.detectedDivision,
           detectedProgram: parsed.detectedProgram,
           suggestions,
@@ -1010,12 +1014,32 @@ export function ScheduleTab() {
           resolvedDiv = teamMap.get(homeKey)?.division || teamMap.get(awayKey)?.division || ''
         }
 
+        // Resolve team IDs to the correct division — prevent cross-division mismatches
+        let finalHomeId = homeTeamId
+        let finalAwayId = awayTeamId
+        if (resolvedDiv) {
+          const homeTeam = (freshTeams ?? []).find((t) => t.id === homeTeamId)
+          if (homeTeam && homeTeam.division !== resolvedDiv) {
+            const correctHome = (freshTeams ?? []).find(
+              (t) => t.name === homeTeam.name && t.division === resolvedDiv
+            )
+            if (correctHome) finalHomeId = correctHome.id
+          }
+          const awayTeam = (freshTeams ?? []).find((t) => t.id === awayTeamId)
+          if (awayTeam && awayTeam.division !== resolvedDiv) {
+            const correctAway = (freshTeams ?? []).find(
+              (t) => t.name === awayTeam.name && t.division === resolvedDiv
+            )
+            if (correctAway) finalAwayId = correctAway.id
+          }
+        }
+
         gamesToInsert.push({
           event_id: eventId,
           event_date_id: eventDateId,
           field_id: field?.id ?? state.fields[0]?.id,
-          home_team_id: homeTeamId,
-          away_team_id: awayTeamId,
+          home_team_id: finalHomeId,
+          away_team_id: finalAwayId,
           division: resolvedDiv,
           scheduled_time: timeStr,
           status: 'Scheduled',
