@@ -156,15 +156,28 @@ export async function runWeatherEngine(
   const { data: fields } = await sb.from('fields').select('id').eq('complex_id', complexId)
   const fieldIds = (fields ?? []).map((f: any) => f.id)
 
-  // Get active games on these fields
-  const { data: games } = await sb
-    .from('games')
-    .select('id, status')
-    .in('field_id', fieldIds)
+  // Only auto-delay games on actual game days
+  const todayISO = new Date().toISOString().split('T')[0]
+  const { data: todayEventDate } = await sb
+    .from('event_dates')
+    .select('id')
     .eq('event_id', eventId)
-    .neq('status', 'Final')
+    .eq('date', todayISO)
+    .maybeSingle()
 
-  const activeGameIds = (games ?? []).map((g: any) => g.id)
+  // Get active games on these fields — only for today's event date (game day)
+  let activeGameIds: number[] = []
+  if (todayEventDate) {
+    const { data: games } = await sb
+      .from('games')
+      .select('id, status')
+      .in('field_id', fieldIds)
+      .eq('event_id', eventId)
+      .eq('event_date_id', todayEventDate.id)
+      .neq('status', 'Final')
+
+    activeGameIds = (games ?? []).map((g: any) => g.id)
+  }
 
   // ── Process each alert ──
   for (const alert of alerts) {
