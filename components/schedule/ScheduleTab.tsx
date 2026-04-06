@@ -1122,6 +1122,37 @@ export function ScheduleTab() {
         })
       }
 
+      // Final safety pass: fix any remaining cross-division team references
+      const teamById = new Map((freshTeams ?? []).map((t) => [t.id, t]))
+      const stripAgePrefix = (n: string) =>
+        n
+          .replace(/^\d+U\s*/i, '')
+          .toLowerCase()
+          .trim()
+      for (const game of gamesToInsert) {
+        const div = game.division
+        if (!div) continue
+        for (const key of ['home_team_id', 'away_team_id'] as const) {
+          const team = teamById.get(game[key])
+          if (team && team.division !== div) {
+            // Try exact name match first
+            const exact = (freshTeams ?? []).find((t) => t.name === team.name && t.division === div)
+            if (exact) {
+              game[key] = exact.id
+            } else {
+              // Try suffix match (strip 8U/10U/12U prefix)
+              const suffix = stripAgePrefix(team.name)
+              if (suffix) {
+                const match = (freshTeams ?? []).find(
+                  (t) => t.division === div && stripAgePrefix(t.name) === suffix
+                )
+                if (match) game[key] = match.id
+              }
+            }
+          }
+        }
+      }
+
       // Deduplicate: remove games that already exist (same date, time, home, away)
       let duplicatesSkipped = 0
       if (gamesToInsert.length > 0) {
