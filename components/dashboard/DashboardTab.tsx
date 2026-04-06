@@ -299,7 +299,7 @@ export function DashboardTab() {
         </span>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-3">
         {fields.map((field) => {
           const fieldGames = activeGames
             .filter((g) => g.field_id === field.id)
@@ -555,20 +555,20 @@ function FieldCard({
           NO GAMES SCHEDULED
         </div>
       ) : (
-        <div className="p-3">
+        <div className="p-4">
           {/* Scoreboard row */}
-          <div className="flex items-center mb-2.5">
-            <div className="flex-1 min-w-0 flex items-center gap-1.5">
+          <div className="flex items-center mb-3">
+            <div className="flex-1 min-w-0 flex items-center gap-2">
               {teamLogoMap[game.home_team_id] && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={teamLogoMap[game.home_team_id]!}
                   alt=""
-                  className="w-5 h-5 rounded object-cover flex-shrink-0"
+                  className="w-6 h-6 rounded object-cover flex-shrink-0"
                 />
               )}
-              <div>
-                <div className="font-cond text-[15px] font-black text-white truncate leading-tight">
+              <div className="min-w-0">
+                <div className="font-cond text-[14px] font-black text-white truncate leading-tight max-w-[110px]">
                   {game.home_team?.name ?? '?'}
                 </div>
                 <div className="font-cond text-[9px] tracking-[.1em]" style={{ color: '#5a6e9a' }}>
@@ -578,28 +578,28 @@ function FieldCard({
             </div>
 
             {hasScore ? (
-              <div className="flex items-center gap-1 px-3">
-                <span className="font-mono text-[26px] font-black text-white tabular-nums leading-none">
+              <div className="flex items-center gap-2 px-4 flex-shrink-0">
+                <span className="font-mono text-[28px] font-black text-white tabular-nums leading-none">
                   {game.home_score}
                 </span>
-                <span className="font-cond text-[14px] font-black" style={{ color: '#1a2d50' }}>
+                <span className="font-cond text-[16px] font-black" style={{ color: '#1a2d50' }}>
                   –
                 </span>
-                <span className="font-mono text-[26px] font-black text-white tabular-nums leading-none">
+                <span className="font-mono text-[28px] font-black text-white tabular-nums leading-none">
                   {game.away_score}
                 </span>
               </div>
             ) : (
-              <div className="px-4">
-                <span className="font-cond text-[11px] font-black" style={{ color: '#2a3d60' }}>
+              <div className="px-5 flex-shrink-0">
+                <span className="font-cond text-[12px] font-black" style={{ color: '#2a3d60' }}>
                   VS
                 </span>
               </div>
             )}
 
-            <div className="flex-1 min-w-0 flex items-center justify-end gap-1.5">
-              <div className="text-right">
-                <div className="font-cond text-[15px] font-black text-white truncate leading-tight">
+            <div className="flex-1 min-w-0 flex items-center justify-end gap-2">
+              <div className="text-right min-w-0">
+                <div className="font-cond text-[14px] font-black text-white truncate leading-tight max-w-[110px] ml-auto">
                   {game.away_team?.name ?? '?'}
                 </div>
                 <div
@@ -614,7 +614,7 @@ function FieldCard({
                 <img
                   src={teamLogoMap[game.away_team_id]!}
                   alt=""
-                  className="w-5 h-5 rounded object-cover flex-shrink-0"
+                  className="w-6 h-6 rounded object-cover flex-shrink-0"
                 />
               )}
             </div>
