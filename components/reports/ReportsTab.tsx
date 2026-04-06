@@ -447,6 +447,13 @@ interface AllGame {
   home_team_id: number
   away_team_id: number
   division: string
+  event_date_id: number
+}
+
+interface EventDateInfo {
+  id: number
+  date: string
+  label: string
 }
 
 function MatchupsView({
@@ -461,6 +468,8 @@ function MatchupsView({
   const [allGames, setAllGames] = useState<AllGame[]>([])
   const [loading, setLoading] = useState(true)
   const [settingsDivisions, setSettingsDivisions] = useState<string[]>([])
+  const [eventDates, setEventDates] = useState<EventDateInfo[]>([])
+  const [weekRange, setWeekRange] = useState<[number, number]>([0, 0])
 
   useEffect(() => {
     if (!eventId) {
@@ -468,14 +477,20 @@ function MatchupsView({
       return
     }
     const sb = createClient()
-    sb.from('games')
-      .select('id, home_team_id, away_team_id, division')
-      .eq('event_id', eventId)
-      .then(({ data, error }) => {
-        if (error) console.error('MatchupsView: failed to load games', error)
-        setAllGames((data as AllGame[]) ?? [])
-        setLoading(false)
-      })
+    Promise.all([
+      sb
+        .from('games')
+        .select('id, home_team_id, away_team_id, division, event_date_id')
+        .eq('event_id', eventId),
+      sb.from('event_dates').select('id, date, label').eq('event_id', eventId).order('date'),
+    ]).then(([gamesRes, datesRes]) => {
+      if (gamesRes.error) console.error('MatchupsView: failed to load games', gamesRes.error)
+      setAllGames((gamesRes.data as AllGame[]) ?? [])
+      const dates = (datesRes.data as EventDateInfo[]) ?? []
+      setEventDates(dates)
+      setWeekRange([0, dates.length - 1])
+      setLoading(false)
+    })
   }, [eventId])
 
   // Fetch registration_divisions so divisions with no games appear in per-division view
@@ -500,6 +515,97 @@ function MatchupsView({
 
   if (loading) return <Empty message="Loading matchup data..." />
 
+  // Filter games by selected week range
+  const selectedDateIds = new Set(eventDates.slice(weekRange[0], weekRange[1] + 1).map((d) => d.id))
+  const filteredGames =
+    eventDates.length > 0 ? allGames.filter((g) => selectedDateIds.has(g.event_date_id)) : allGames
+
+  const rangeLabel =
+    eventDates.length > 0
+      ? weekRange[0] === weekRange[1]
+        ? eventDates[weekRange[0]]?.label
+        : `${eventDates[weekRange[0]]?.label} – ${eventDates[weekRange[1]]?.label}`
+      : 'All'
+
+  // Week range slider component
+  const weekSlider = eventDates.length > 1 && (
+    <div className="mb-5 rounded-lg border border-[#1a2d50] bg-[#081428] px-4 py-3">
+      <div className="flex items-center justify-between mb-2">
+        <span className="font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase">
+          Week Range
+        </span>
+        <span className="font-cond text-[12px] font-bold text-blue-300">{rangeLabel}</span>
+      </div>
+      <div className="flex items-center gap-3">
+        <span className="font-cond text-[10px] text-muted whitespace-nowrap">
+          {eventDates[0]?.label}
+        </span>
+        <div className="flex-1 relative" style={{ height: 32 }}>
+          {/* From slider */}
+          <input
+            type="range"
+            min={0}
+            max={eventDates.length - 1}
+            value={weekRange[0]}
+            onChange={(e) => {
+              const v = Number(e.target.value)
+              setWeekRange(([, end]) => [Math.min(v, end), end])
+            }}
+            className="absolute inset-0 w-full appearance-none bg-transparent pointer-events-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-400 [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-blue-600 [&::-webkit-slider-thumb]:cursor-pointer [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-blue-400 [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-blue-600 [&::-moz-range-thumb]:cursor-pointer"
+            style={{ zIndex: 3 }}
+          />
+          {/* To slider */}
+          <input
+            type="range"
+            min={0}
+            max={eventDates.length - 1}
+            value={weekRange[1]}
+            onChange={(e) => {
+              const v = Number(e.target.value)
+              setWeekRange(([start]) => [start, Math.max(v, start)])
+            }}
+            className="absolute inset-0 w-full appearance-none bg-transparent pointer-events-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-400 [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-blue-600 [&::-webkit-slider-thumb]:cursor-pointer [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-blue-400 [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-blue-600 [&::-moz-range-thumb]:cursor-pointer"
+            style={{ zIndex: 4 }}
+          />
+          {/* Track background */}
+          <div
+            className="absolute top-1/2 -translate-y-1/2 h-1.5 rounded-full bg-[#1a2d50] w-full"
+            style={{ zIndex: 1 }}
+          />
+          {/* Active range highlight */}
+          <div
+            className="absolute top-1/2 -translate-y-1/2 h-1.5 rounded-full bg-blue-500/60"
+            style={{
+              zIndex: 2,
+              left: `${(weekRange[0] / (eventDates.length - 1)) * 100}%`,
+              right: `${100 - (weekRange[1] / (eventDates.length - 1)) * 100}%`,
+            }}
+          />
+        </div>
+        <span className="font-cond text-[10px] text-muted whitespace-nowrap">
+          {eventDates[eventDates.length - 1]?.label}
+        </span>
+      </div>
+      {/* Week tick labels */}
+      <div className="flex justify-between mt-1 px-8">
+        {eventDates.map((d, i) => (
+          <button
+            key={d.id}
+            onClick={() => setWeekRange([i, i])}
+            className={cn(
+              'font-cond text-[9px] font-bold transition-colors',
+              i >= weekRange[0] && i <= weekRange[1]
+                ? 'text-blue-300'
+                : 'text-muted hover:text-white'
+            )}
+          >
+            {d.label.replace('Week ', 'W')}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+
   // Helper: find teams that participate in games for a given division
   // (uses game division, NOT team.division — teams can play across divisions)
   function teamsForDivGames(divGames: AllGame[]): Team[] {
@@ -513,36 +619,52 @@ function MatchupsView({
 
   // When a specific division is selected, show a single matrix
   if (divFilter !== 'ALL') {
-    const divGames = allGames.filter((g) => g.division === divFilter)
+    const divGames = filteredGames.filter((g) => g.division === divFilter)
     const divTeams = teamsForDivGames(divGames)
-    if (divTeams.length === 0) return <Empty message="No teams found for this division." />
-    return <MatchupMatrix teams={divTeams} games={divGames} showDivisionOnRow={false} />
+    return (
+      <div>
+        {weekSlider}
+        {divTeams.length === 0 ? (
+          <Empty message="No teams found for this division." />
+        ) : (
+          <MatchupMatrix teams={divTeams} games={divGames} showDivisionOnRow={false} />
+        )}
+      </div>
+    )
   }
 
   // "ALL" — show separate matrices per division
-  const divisionsWithGames = allDivisions.filter((div) => allGames.some((g) => g.division === div))
-  if (divisionsWithGames.length === 0) return <Empty message="No teams found." />
+  const divisionsWithGames = allDivisions.filter((div) =>
+    filteredGames.some((g) => g.division === div)
+  )
 
   return (
-    <div className="space-y-8">
-      {divisionsWithGames.map((div) => {
-        const divGames = allGames.filter((g) => g.division === div)
-        const divTeams = teamsForDivGames(divGames)
-        return (
-          <div key={div}>
-            <div className="flex items-center gap-2 mb-3">
-              <div className="w-1 h-5 rounded-sm bg-navy" />
-              <span className="font-cond text-[14px] font-black tracking-[.12em] text-blue-300 uppercase">
-                {div}
-              </span>
-              <span className="font-cond text-[11px] text-muted ml-1">
-                {divTeams.length} teams · {divGames.length} games
-              </span>
-            </div>
-            <MatchupMatrix teams={divTeams} games={divGames} showDivisionOnRow={false} />
-          </div>
-        )
-      })}
+    <div>
+      {weekSlider}
+      {divisionsWithGames.length === 0 ? (
+        <Empty message="No teams found." />
+      ) : (
+        <div className="space-y-8">
+          {divisionsWithGames.map((div) => {
+            const divGames = filteredGames.filter((g) => g.division === div)
+            const divTeams = teamsForDivGames(divGames)
+            return (
+              <div key={div}>
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-1 h-5 rounded-sm bg-navy" />
+                  <span className="font-cond text-[14px] font-black tracking-[.12em] text-blue-300 uppercase">
+                    {div}
+                  </span>
+                  <span className="font-cond text-[11px] text-muted ml-1">
+                    {divTeams.length} teams · {divGames.length} games
+                  </span>
+                </div>
+                <MatchupMatrix teams={divTeams} games={divGames} showDivisionOnRow={false} />
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
