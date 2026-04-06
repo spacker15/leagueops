@@ -19,13 +19,13 @@ module.exports = {
           light: '#f03a3a',
         },
         surface: {
-          DEFAULT: '#020810',
+          DEFAULT: 'var(--surface)',
           panel: '#030d20',
-          card: '#081428',
-          elevated: '#0a1a3a',
+          card: 'var(--surface-card)',
+          elevated: 'var(--surface-elevated)',
         },
-        border: '#1a2d50',
-        muted: '#5a6e9a',
+        border: 'var(--border)',
+        muted: 'var(--muted)',
       },
       fontFamily: {
         sans: ['var(--font-barlow)', 'system-ui', 'sans-serif'],

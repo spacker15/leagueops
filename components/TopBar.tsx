@@ -4,8 +4,9 @@ import { useState, useRef, useEffect } from 'react'
 import { cn } from '@/lib/utils'
 import type { TabName } from '@/components/AppShell'
 import type { UserRole } from '@/lib/auth'
-import { LogOut, ChevronDown, Menu, X as XIcon } from 'lucide-react'
+import { LogOut, ChevronDown, Menu, X as XIcon, Sun, Moon } from 'lucide-react'
 import { NotificationBell } from '@/components/notifications/NotificationBell'
+import { useTheme } from '@/lib/theme'
 
 const ROLE_BADGE: Record<string, string> = {
   admin: 'bg-red text-white',
@@ -122,7 +123,11 @@ export function TopBar({
   return (
     <header
       className="flex items-stretch flex-shrink-0"
-      style={{ height: 48, background: '#030d20', borderBottom: '2px solid #1a2d50' }}
+      style={{
+        height: 48,
+        background: 'var(--surface-card)',
+        borderBottom: '2px solid var(--border)',
+      }}
     >
       {/* Wordmark */}
       <div
@@ -291,7 +296,7 @@ export function TopBar({
       {/* Right — live + user (desktop) */}
       <div
         className="hidden sm:flex items-center gap-4 px-5 flex-shrink-0"
-        style={{ borderLeft: '1px solid #1a2d50' }}
+        style={{ borderLeft: '1px solid var(--border)' }}
       >
         <div className="flex items-center gap-2">
           <div className="relative w-2 h-2">
@@ -303,10 +308,12 @@ export function TopBar({
 
         <NotificationBell />
 
+        <ThemeToggle />
+
         {userRole && (
           <div
             className="flex items-center gap-2.5 pl-4"
-            style={{ borderLeft: '1px solid #1a2d50' }}
+            style={{ borderLeft: '1px solid var(--border)' }}
           >
             <span
               className={cn(
@@ -437,5 +444,19 @@ export function TopBar({
         </div>
       )}
     </header>
+  )
+}
+
+function ThemeToggle() {
+  const { theme, toggleTheme } = useTheme()
+  return (
+    <button
+      onClick={toggleTheme}
+      title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+      className="p-1.5 rounded-lg hover:bg-white/10 transition-colors"
+      style={{ color: 'var(--muted)' }}
+    >
+      {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
+    </button>
   )
 }
