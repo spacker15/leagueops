@@ -227,6 +227,9 @@ export function ScheduleTab() {
   const [editAway, setEditAway] = useState('')
   const [editDiv, setEditDiv] = useState('')
   const [editSaving, setEditSaving] = useState(false)
+  const [noShowTeam, setNoShowTeam] = useState<'home' | 'away' | null>(null)
+  const [noShowPenalty, setNoShowPenalty] = useState('0')
+  const [noShowNotes, setNoShowNotes] = useState('')
 
   function openEditGame(game: any) {
     setEditGame(game)
@@ -245,6 +248,9 @@ export function ScheduleTab() {
     setEditHome(String(game.home_team_id))
     setEditAway(String(game.away_team_id))
     setEditDiv(game.division || '')
+    setNoShowTeam(null)
+    setNoShowPenalty('0')
+    setNoShowNotes('')
     setEditGameOpen(true)
   }
 
@@ -294,6 +300,62 @@ export function ScheduleTab() {
       await refreshGames()
     } catch (err: any) {
       toast.error(`Update failed: ${err.message}`)
+    } finally {
+      setEditSaving(false)
+    }
+  }
+
+  async function handleNoShow() {
+    if (!editGame || !noShowTeam) return
+    const teamId = noShowTeam === 'home' ? editGame.home_team_id : editGame.away_team_id
+    const teamName =
+      noShowTeam === 'home'
+        ? (editGame.home_team?.name ?? 'Home')
+        : (editGame.away_team?.name ?? 'Away')
+    const penalty = parseInt(noShowPenalty) || 0
+
+    setEditSaving(true)
+    try {
+      const sb = createClient()
+
+      // Record no-show
+      await sb.from('team_no_shows').insert({
+        event_id: eventId,
+        game_id: editGame.id,
+        team_id: teamId,
+        penalty_points: penalty,
+        notes: noShowNotes || null,
+      })
+
+      // Mark game as Final with forfeit score (opponent wins)
+      const updates: Record<string, unknown> = { status: 'Final' }
+      if (noShowTeam === 'home') {
+        updates.home_score = 0
+        updates.away_score = 1
+        updates.notes = `No-show: ${teamName} (forfeit)`
+      } else {
+        updates.home_score = 1
+        updates.away_score = 0
+        updates.notes = `No-show: ${teamName} (forfeit)`
+      }
+      await sb.from('games').update(updates).eq('id', editGame.id)
+
+      // Log to ops_log
+      await fetch('/api/ops-log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          event_id: eventId,
+          message: `NO-SHOW: ${teamName} did not show for Game #${editGame.id}${penalty > 0 ? ` (${penalty} pt penalty)` : ''}${noShowNotes ? ` — ${noShowNotes}` : ''}`,
+          log_type: 'alert',
+        }),
+      })
+
+      toast.success(`${teamName} marked as no-show for Game #${editGame.id}`)
+      setEditGameOpen(false)
+      await refreshGames()
+    } catch (err: any) {
+      toast.error(`Failed: ${err.message}`)
     } finally {
       setEditSaving(false)
     }
@@ -2291,6 +2353,7 @@ export function ScheduleTab() {
           unscheduledGames={unscheduledGames}
           onUnschedule={userRole?.role === 'admin' ? handleUnschedule : undefined}
           onDelete={userRole?.role === 'admin' ? handleDeleteGame : undefined}
+          onEdit={userRole?.role === 'admin' ? openEditGame : undefined}
           selectionMode={selectionMode}
           selectedGameIds={selectedGameIds}
           onToggleSelect={toggleGameSelection}
@@ -2516,6 +2579,78 @@ export function ScheduleTab() {
             </select>
           </FormField>
         </div>
+
+        {/* No-Show Section */}
+        {editGame && editGame.status !== 'Final' && (
+          <div className="mt-4 pt-4 border-t border-border">
+            <div className="font-cond text-[10px] font-black tracking-[.12em] text-red-400 uppercase mb-2">
+              NO-SHOW / FORFEIT
+            </div>
+            <div className="flex gap-2 mb-2">
+              <button
+                onClick={() => setNoShowTeam(noShowTeam === 'home' ? null : 'home')}
+                className={cn(
+                  'flex-1 font-cond text-[11px] font-bold py-1.5 rounded border transition-colors',
+                  noShowTeam === 'home'
+                    ? 'bg-red-900/50 border-red-700 text-red-300'
+                    : 'bg-surface border-border text-muted hover:text-white hover:border-red-700'
+                )}
+              >
+                {editGame.home_team?.name ??
+                  state.teams.find((t) => String(t.id) === editHome)?.name ??
+                  'Home'}{' '}
+                NO-SHOW
+              </button>
+              <button
+                onClick={() => setNoShowTeam(noShowTeam === 'away' ? null : 'away')}
+                className={cn(
+                  'flex-1 font-cond text-[11px] font-bold py-1.5 rounded border transition-colors',
+                  noShowTeam === 'away'
+                    ? 'bg-red-900/50 border-red-700 text-red-300'
+                    : 'bg-surface border-border text-muted hover:text-white hover:border-red-700'
+                )}
+              >
+                {editGame.away_team?.name ??
+                  state.teams.find((t) => String(t.id) === editAway)?.name ??
+                  'Away'}{' '}
+                NO-SHOW
+              </button>
+            </div>
+            {noShowTeam && (
+              <div className="space-y-2 bg-red-900/10 border border-red-900/30 rounded-lg p-3">
+                <div className="grid grid-cols-2 gap-2">
+                  <FormField label="Penalty Points">
+                    <input
+                      type="number"
+                      min="0"
+                      value={noShowPenalty}
+                      onChange={(e) => setNoShowPenalty(e.target.value)}
+                      className="bg-[#040e24] border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-red-400 w-full"
+                    />
+                  </FormField>
+                  <FormField label="Notes">
+                    <input
+                      type="text"
+                      placeholder="Optional reason..."
+                      value={noShowNotes}
+                      onChange={(e) => setNoShowNotes(e.target.value)}
+                      className="bg-[#040e24] border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-red-400 w-full"
+                    />
+                  </FormField>
+                </div>
+                <Btn
+                  variant="danger"
+                  size="sm"
+                  onClick={handleNoShow}
+                  disabled={editSaving}
+                  className="w-full"
+                >
+                  {editSaving ? 'RECORDING...' : `RECORD NO-SHOW & FORFEIT GAME`}
+                </Btn>
+              </div>
+            )}
+          </div>
+        )}
       </Modal>
 
       {/* Generate schedule confirmation modal */}
@@ -3537,6 +3672,7 @@ function ScheduleBoardView({
   unscheduledGames,
   onUnschedule,
   onDelete,
+  onEdit,
   selectionMode,
   selectedGameIds,
   onToggleSelect,
@@ -3555,6 +3691,7 @@ function ScheduleBoardView({
   unscheduledGames: any[]
   onUnschedule?: (gameId: number) => void
   onDelete?: (gameId: number) => void
+  onEdit?: (game: any) => void
   selectionMode: boolean
   selectedGameIds: Set<number>
   onToggleSelect: (gameId: number) => void
@@ -3663,6 +3800,7 @@ function ScheduleBoardView({
                     onRequestChange={onRequestChange}
                     onUnschedule={onUnschedule}
                     onDelete={onDelete}
+                    onEdit={onEdit}
                     selectionMode={selectionMode}
                     isSelected={selectedGameIds.has(game.id)}
                     onToggleSelect={onToggleSelect}
@@ -3733,6 +3871,7 @@ function GameCard({
   onRequestChange,
   onUnschedule,
   onDelete,
+  onEdit,
   selectionMode,
   isSelected,
   onToggleSelect,
@@ -3750,6 +3889,7 @@ function GameCard({
   onRequestChange: (gameId: number) => void
   onUnschedule?: (gameId: number) => void
   onDelete?: (gameId: number) => void
+  onEdit?: (game: any) => void
   selectionMode: boolean
   isSelected: boolean
   onToggleSelect: (gameId: number) => void
@@ -4034,6 +4174,15 @@ function GameCard({
               {nextStatusLabel(game.status)}
             </button>
             <QuickRescheduleBtn game={game} onRescheduled={onRescheduled} />
+            {onEdit && (
+              <button
+                onClick={() => onEdit(game)}
+                className="px-2 py-1 bg-surface-card hover:bg-blue-900/30 text-muted hover:text-blue-300 border border-border rounded transition-colors"
+                title="Edit game"
+              >
+                <Pencil size={12} />
+              </button>
+            )}
             {onUnschedule && (
               <button
                 onClick={() => onUnschedule(game.id)}
