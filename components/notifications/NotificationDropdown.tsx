@@ -74,12 +74,12 @@ export function NotificationDropdown({ userId, onClose, onUnreadChange, onOpenSe
         }
       `}</style>
       <div
-        className="absolute right-0 top-full mt-1 w-80 max-h-[400px] overflow-y-auto bg-[#061428] border border-[#1a2d50] rounded-b-xl shadow-2xl z-50"
+        className="absolute right-0 top-full mt-1 w-80 max-h-[400px] overflow-y-auto bg-[#061428] border border-border rounded-b-xl shadow-2xl z-50"
         role="menu"
         style={{ animation: 'fadeSlideDown 150ms ease-out' }}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-2 border-b border-[#1a2d50]">
+        <div className="flex items-center justify-between px-4 py-2 border-b border-border">
           <span className="font-cond text-[10px] font-black tracking-widest text-muted uppercase">
             Notifications
           </span>
@@ -104,7 +104,7 @@ export function NotificationDropdown({ userId, onClose, onUnreadChange, onOpenSe
           notifications.map((notif) => (
             <div
               key={notif.id}
-              className={`px-4 py-3 border-b border-[#1a2d50] transition-colors duration-150 hover:bg-surface-card/50 cursor-pointer ${
+              className={`px-4 py-3 border-b border-border transition-colors duration-150 hover:bg-surface-card/50 cursor-pointer ${
                 notif.read_at ? 'bg-transparent' : 'bg-surface-card'
               }`}
               role="menuitem"
@@ -125,7 +125,7 @@ export function NotificationDropdown({ userId, onClose, onUnreadChange, onOpenSe
         )}
 
         {/* Footer */}
-        <div className="px-4 py-2 border-t border-[#1a2d50]">
+        <div className="px-4 py-2 border-t border-border">
           <button
             onClick={onOpenSettings ?? onClose}
             className="font-cond text-[10px] font-black tracking-wide text-muted hover:text-white transition-colors duration-150 w-full text-left"

@@ -268,7 +268,7 @@ export function TopBar({
                       <span
                         className={cn(
                           'font-cond text-[12px] font-black tracking-[0.08em] flex items-center gap-1',
-                          activeTab === item.id ? 'text-white' : 'text-[#5a6e9a]'
+                          activeTab === item.id ? 'text-white' : 'text-muted'
                         )}
                       >
                         {item.label.toUpperCase()}
@@ -326,7 +326,7 @@ export function TopBar({
             <span
               className={cn(
                 'font-cond text-[9px] font-black tracking-[.12em] px-2 py-1 rounded',
-                ROLE_BADGE[userRole.role] ?? 'bg-[#1a2d50] text-muted'
+                ROLE_BADGE[userRole.role] ?? 'bg-border text-muted'
               )}
             >
               {userRole.role.replace('_', ' ').toUpperCase()}
@@ -345,7 +345,7 @@ export function TopBar({
             {onChangeEvent && (
               <button
                 onClick={onChangeEvent}
-                className="font-cond text-[9px] font-black tracking-[.1em] px-2 py-1 rounded border border-border text-[#5a6e9a] hover:text-white hover:border-blue-400 transition-colors"
+                className="font-cond text-[9px] font-black tracking-[.1em] px-2 py-1 rounded border border-border text-muted hover:text-white hover:border-blue-400 transition-colors"
               >
                 ⊞ EVENTS
               </button>
@@ -407,7 +407,7 @@ export function TopBar({
                       <span
                         className={cn(
                           'font-cond text-[12px] font-black tracking-[.08em]',
-                          activeTab === group.tab ? 'text-white' : 'text-[#5a6e9a]'
+                          activeTab === group.tab ? 'text-white' : 'text-muted'
                         )}
                       >
                         {group.label}
@@ -432,7 +432,7 @@ export function TopBar({
                         <span
                           className={cn(
                             'font-cond text-[12px] font-black tracking-[.08em] flex items-center gap-1',
-                            activeTab === item.id ? 'text-white' : 'text-[#5a6e9a]'
+                            activeTab === item.id ? 'text-white' : 'text-muted'
                           )}
                         >
                           {item.label.toUpperCase()}

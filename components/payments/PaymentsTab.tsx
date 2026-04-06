@@ -25,7 +25,7 @@ import type {
 } from '@/types'
 
 const inp =
-  'bg-[#081428] border border-[#1a2d50] text-white px-2.5 py-1.5 rounded text-[12px] outline-none focus:border-blue-400 transition-colors w-full'
+  'bg-surface-card border border-border text-white px-2.5 py-1.5 rounded text-[12px] outline-none focus:border-blue-400 transition-colors w-full'
 
 type SubTab = 'overview' | 'teams' | 'fees' | 'history'
 
@@ -104,10 +104,10 @@ function RecordPaymentModal({ payment, onClose, onSaved }: RecordPaymentModalPro
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
       <div
-        className="w-[420px] rounded-xl shadow-2xl border border-[#1a2d50]"
+        className="w-[420px] rounded-xl shadow-2xl border border-border"
         style={{ background: '#061428' }}
       >
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[#1a2d50]">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
           <div>
             <div className="font-cond text-[13px] font-black tracking-wider text-white">
               RECORD PAYMENT
@@ -122,7 +122,7 @@ function RecordPaymentModal({ payment, onClose, onSaved }: RecordPaymentModalPro
         </div>
         <div className="p-5 space-y-4">
           {/* Balance reminder */}
-          <div className="flex justify-between text-[11px] font-cond bg-[#081428] rounded-lg px-3 py-2 border border-[#1a2d50]">
+          <div className="flex justify-between text-[11px] font-cond bg-surface-card rounded-lg px-3 py-2 border border-border">
             <span className="text-muted">Balance due:</span>
             <span className="text-white font-bold">{fmt(payment.balance)}</span>
           </div>
@@ -196,7 +196,7 @@ function RecordPaymentModal({ payment, onClose, onSaved }: RecordPaymentModalPro
         <div className="flex justify-end gap-2 px-5 pb-5">
           <button
             onClick={onClose}
-            className="font-cond text-[11px] font-black tracking-wider px-4 py-2 rounded-lg border border-[#1a2d50] text-muted hover:text-white transition-colors"
+            className="font-cond text-[11px] font-black tracking-wider px-4 py-2 rounded-lg border border-border text-muted hover:text-white transition-colors"
           >
             CANCEL
           </button>
@@ -277,10 +277,10 @@ function AddTeamPaymentModal({ eventId, fees, teams, onClose, onSaved }: AddTeam
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
       <div
-        className="w-[400px] rounded-xl shadow-2xl border border-[#1a2d50]"
+        className="w-[400px] rounded-xl shadow-2xl border border-border"
         style={{ background: '#061428' }}
       >
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[#1a2d50]">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
           <div className="font-cond text-[13px] font-black tracking-wider text-white">ADD TEAM</div>
           <button onClick={onClose} className="text-muted hover:text-white transition-colors">
             <X size={16} />
@@ -338,7 +338,7 @@ function AddTeamPaymentModal({ eventId, fees, teams, onClose, onSaved }: AddTeam
         <div className="flex justify-end gap-2 px-5 pb-5">
           <button
             onClick={onClose}
-            className="font-cond text-[11px] font-black tracking-wider px-4 py-2 rounded-lg border border-[#1a2d50] text-muted hover:text-white transition-colors"
+            className="font-cond text-[11px] font-black tracking-wider px-4 py-2 rounded-lg border border-border text-muted hover:text-white transition-colors"
           >
             CANCEL
           </button>
@@ -438,10 +438,10 @@ function ProgramPaymentModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
       <div
-        className="w-[440px] rounded-xl shadow-2xl border border-[#1a2d50]"
+        className="w-[440px] rounded-xl shadow-2xl border border-border"
         style={{ background: '#061428' }}
       >
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[#1a2d50]">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
           <div>
             <div className="font-cond text-[13px] font-black tracking-wider text-white">
               COLLECT PROGRAM PAYMENT
@@ -476,7 +476,7 @@ function ProgramPaymentModal({
             <div>
               <label className="font-cond text-[10px] text-muted block mb-1">Method</label>
               <select
-                className={cn(inp, 'bg-[#040e24]')}
+                className={cn(inp, 'bg-surface-card')}
                 value={method}
                 onChange={(e) => setMethod(e.target.value as PaymentMethod)}
               >
@@ -520,10 +520,10 @@ function ProgramPaymentModal({
             Payment will be distributed proportionally across {teams.length} teams.
           </div>
         </div>
-        <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-[#1a2d50]">
+        <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-border">
           <button
             onClick={onClose}
-            className="font-cond text-[11px] font-black tracking-wider px-4 py-2 rounded-lg border border-[#1a2d50] text-muted hover:text-white transition-colors"
+            className="font-cond text-[11px] font-black tracking-wider px-4 py-2 rounded-lg border border-border text-muted hover:text-white transition-colors"
           >
             CANCEL
           </button>
@@ -846,7 +846,7 @@ export function PaymentsTab() {
       </div>
 
       {/* SubTabs */}
-      <div className="flex gap-1 mb-5 border-b border-[#1a2d50]">
+      <div className="flex gap-1 mb-5 border-b border-border">
         {SUBTABS.map((t) => (
           <button
             key={t.id}
@@ -906,7 +906,7 @@ export function PaymentsTab() {
                 color: 'text-green-400',
               },
             ].map(({ label, value, icon: Icon, color }) => (
-              <div key={label} className="bg-[#081428] border border-[#1a2d50] rounded-xl p-4">
+              <div key={label} className="bg-surface-card border border-border rounded-xl p-4">
                 <div className="flex items-center gap-2 mb-2">
                   <Icon size={14} className="text-muted" />
                   <span className="font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase">
@@ -920,15 +920,15 @@ export function PaymentsTab() {
 
           {/* By division */}
           {divisions.length > 0 && (
-            <div className="bg-[#081428] border border-[#1a2d50] rounded-xl overflow-hidden">
-              <div className="px-4 py-3 border-b border-[#1a2d50]">
+            <div className="bg-surface-card border border-border rounded-xl overflow-hidden">
+              <div className="px-4 py-3 border-b border-border">
                 <span className="font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase">
                   By Division
                 </span>
               </div>
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-[#1a2d50]">
+                  <tr className="border-b border-border">
                     {[
                       'Division',
                       'Teams',
@@ -959,7 +959,7 @@ export function PaymentsTab() {
                     return (
                       <tr key={div} className="border-b border-[#0d1a2e] last:border-0">
                         <td className="px-4 py-3">
-                          <span className="font-cond font-bold text-[12px] text-blue-300 bg-[#1a2d50] px-2 py-0.5 rounded">
+                          <span className="font-cond font-bold text-[12px] text-blue-300 bg-border px-2 py-0.5 rounded">
                             {div}
                           </span>
                         </td>
@@ -978,7 +978,7 @@ export function PaymentsTab() {
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2">
-                            <div className="flex-1 h-1.5 bg-[#1a2d50] rounded-full overflow-hidden min-w-[60px]">
+                            <div className="flex-1 h-1.5 bg-border rounded-full overflow-hidden min-w-[60px]">
                               <div
                                 className="h-full bg-green-500 rounded-full transition-all"
                                 style={{
@@ -1028,7 +1028,7 @@ export function PaymentsTab() {
                 return (
                   <div
                     key={pg.programName}
-                    className="bg-[#081428] border border-[#1a2d50] rounded-xl overflow-hidden"
+                    className="bg-surface-card border border-border rounded-xl overflow-hidden"
                   >
                     {/* Program header row */}
                     <button
@@ -1081,7 +1081,7 @@ export function PaymentsTab() {
 
                     {/* Expanded: Division > Team breakdown */}
                     {isExpanded && (
-                      <div className="border-t border-[#1a2d50]">
+                      <div className="border-t border-border">
                         {Object.entries(divGroups)
                           .sort(([a], [b]) => a.localeCompare(b))
                           .map(([div, divTeams]) => {
@@ -1094,8 +1094,8 @@ export function PaymentsTab() {
                             return (
                               <div key={div}>
                                 {/* Division header */}
-                                <div className="flex items-center gap-2 px-6 py-2 bg-[#0a1a30] border-b border-[#1a2d50]">
-                                  <span className="font-cond text-[10px] font-bold px-2 py-0.5 rounded bg-[#1a2d50] text-blue-300">
+                                <div className="flex items-center gap-2 px-6 py-2 bg-[#0a1a30] border-b border-border">
+                                  <span className="font-cond text-[10px] font-bold px-2 py-0.5 rounded bg-border text-blue-300">
                                     {div}
                                   </span>
                                   <span className="font-cond text-[10px] text-muted">
@@ -1132,7 +1132,7 @@ export function PaymentsTab() {
                                           className="w-5 h-5 rounded object-cover flex-shrink-0"
                                         />
                                       ) : (
-                                        <div className="w-5 h-5 rounded bg-[#1a2d50] flex-shrink-0" />
+                                        <div className="w-5 h-5 rounded bg-border flex-shrink-0" />
                                       )}
                                       <span className="font-cond text-[12px] text-white flex-1">
                                         {t.team_name}
@@ -1163,7 +1163,7 @@ export function PaymentsTab() {
                                           e.stopPropagation()
                                           setRecordTarget(t)
                                         }}
-                                        className="font-cond text-[9px] font-black tracking-wide px-2 py-0.5 rounded bg-[#1a2d50] hover:bg-blue-900/60 text-blue-300 hover:text-white transition-colors"
+                                        className="font-cond text-[9px] font-black tracking-wide px-2 py-0.5 rounded bg-border hover:bg-blue-900/60 text-blue-300 hover:text-white transition-colors"
                                       >
                                         + PAY
                                       </button>
@@ -1174,7 +1174,7 @@ export function PaymentsTab() {
                             )
                           })}
                         {/* Program totals + collect button */}
-                        <div className="flex items-center gap-3 px-4 py-3 bg-[#040d1c] border-t border-[#1a2d50]">
+                        <div className="flex items-center gap-3 px-4 py-3 bg-[#040d1c] border-t border-border">
                           <span className="font-cond text-[11px] font-black tracking-wider text-muted uppercase flex-1">
                             Program Total: {fmt(pg.totalDue + pgExtra)}
                             {pgExtra > 0 && (
@@ -1216,8 +1216,8 @@ export function PaymentsTab() {
 
           {/* Extra Game Fees Breakdown */}
           {totalExtraGameFees > 0 && (
-            <div className="bg-[#081428] border border-[#1a2d50] rounded-xl overflow-hidden">
-              <div className="px-4 py-3 border-b border-[#1a2d50] flex items-center gap-2">
+            <div className="bg-surface-card border border-border rounded-xl overflow-hidden">
+              <div className="px-4 py-3 border-b border-border flex items-center gap-2">
                 <AlertCircle size={13} className="text-orange-400" />
                 <span className="font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase">
                   Extra Game Fees
@@ -1228,7 +1228,7 @@ export function PaymentsTab() {
               </div>
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-[#1a2d50]">
+                  <tr className="border-b border-border">
                     {[
                       'Team',
                       'Division',
@@ -1259,7 +1259,7 @@ export function PaymentsTab() {
                             {p.team_name}
                           </td>
                           <td className="px-4 py-3">
-                            <span className="font-cond text-[11px] font-bold px-2 py-0.5 rounded bg-[#1a2d50] text-blue-300">
+                            <span className="font-cond text-[11px] font-bold px-2 py-0.5 rounded bg-border text-blue-300">
                               {p.division}
                             </span>
                           </td>
@@ -1344,10 +1344,10 @@ export function PaymentsTab() {
               No teams match filters
             </div>
           ) : (
-            <div className="bg-[#081428] border border-[#1a2d50] rounded-xl overflow-hidden">
+            <div className="bg-surface-card border border-border rounded-xl overflow-hidden">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-[#1a2d50]">
+                  <tr className="border-b border-border">
                     {[
                       'Team',
                       'Division',
@@ -1395,7 +1395,7 @@ export function PaymentsTab() {
                           </div>
                         </td>
                         <td className="px-4 py-3">
-                          <span className="font-cond text-[11px] font-bold px-2 py-0.5 rounded bg-[#1a2d50] text-blue-300">
+                          <span className="font-cond text-[11px] font-bold px-2 py-0.5 rounded bg-border text-blue-300">
                             {p.division || '—'}
                           </span>
                         </td>
@@ -1435,7 +1435,7 @@ export function PaymentsTab() {
                         <td className="px-4 py-3">
                           <button
                             onClick={() => setRecordTarget(p)}
-                            className="font-cond text-[10px] font-black tracking-wide px-2.5 py-1 rounded bg-[#1a2d50] hover:bg-blue-900/60 text-blue-300 hover:text-white transition-colors whitespace-nowrap"
+                            className="font-cond text-[10px] font-black tracking-wide px-2.5 py-1 rounded bg-border hover:bg-blue-900/60 text-blue-300 hover:text-white transition-colors whitespace-nowrap"
                           >
                             + PAYMENT
                           </button>
@@ -1493,10 +1493,10 @@ export function PaymentsTab() {
             for each game beyond the included amount.
           </div>
 
-          <div className="bg-[#081428] border border-[#1a2d50] rounded-xl overflow-hidden">
+          <div className="bg-surface-card border border-border rounded-xl overflow-hidden">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-[#1a2d50]">
+                <tr className="border-b border-border">
                   <th className="font-cond text-[10px] font-black tracking-[.1em] text-muted uppercase text-left px-4 py-2.5">
                     Division
                   </th>
@@ -1538,7 +1538,7 @@ export function PaymentsTab() {
                   return (
                     <tr key={div} className="border-b border-[#0d1a2e] last:border-0">
                       <td className="px-4 py-3">
-                        <span className="font-cond font-bold text-[12px] text-blue-300 bg-[#1a2d50] px-2 py-0.5 rounded">
+                        <span className="font-cond font-bold text-[12px] text-blue-300 bg-border px-2 py-0.5 rounded">
                           {div}
                         </span>
                       </td>
@@ -1652,10 +1652,10 @@ export function PaymentsTab() {
               No payment entries yet
             </div>
           ) : (
-            <div className="bg-[#081428] border border-[#1a2d50] rounded-xl overflow-hidden">
+            <div className="bg-surface-card border border-border rounded-xl overflow-hidden">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-[#1a2d50]">
+                  <tr className="border-b border-border">
                     {['Date', 'Team', 'Amount', 'Method', 'Reference', 'Notes'].map((h) => (
                       <th
                         key={h}

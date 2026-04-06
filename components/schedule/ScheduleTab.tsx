@@ -2834,8 +2834,8 @@ export function ScheduleTab() {
                 ].map((s) => (
                   <div
                     key={s.label}
-                    className="rounded-lg border border-[#1a2d50] px-3 py-2"
-                    style={{ background: '#081428' }}
+                    className="rounded-lg border border-border px-3 py-2"
+                    style={{ background: 'var(--surface-card)' }}
                   >
                     <div className="font-cond text-[9px] font-black tracking-[.15em] text-muted uppercase">
                       {s.label}
@@ -2853,10 +2853,10 @@ export function ScheduleTab() {
                   <div className="font-cond text-[11px] font-black tracking-[.12em] text-yellow-400 uppercase mb-2">
                     In Spreadsheet Only ({compareResult.missingInApp.length})
                   </div>
-                  <div className="rounded-lg border border-[#1a2d50] overflow-hidden">
+                  <div className="rounded-lg border border-border overflow-hidden">
                     <table className="w-full">
                       <thead>
-                        <tr style={{ background: '#081428' }}>
+                        <tr style={{ background: 'var(--surface-card)' }}>
                           <th className="px-3 py-1.5 text-left font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase">
                             Time
                           </th>
@@ -2900,10 +2900,10 @@ export function ScheduleTab() {
                   <div className="font-cond text-[11px] font-black tracking-[.12em] text-yellow-400 uppercase mb-2">
                     In App Only ({compareResult.missingInCsv.length})
                   </div>
-                  <div className="rounded-lg border border-[#1a2d50] overflow-hidden">
+                  <div className="rounded-lg border border-border overflow-hidden">
                     <table className="w-full">
                       <thead>
-                        <tr style={{ background: '#081428' }}>
+                        <tr style={{ background: 'var(--surface-card)' }}>
                           <th className="px-3 py-1.5 text-left font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase">
                             Time
                           </th>
@@ -2947,10 +2947,10 @@ export function ScheduleTab() {
                   <div className="font-cond text-[11px] font-black tracking-[.12em] text-red-400 uppercase mb-2">
                     Field / Division Differences ({compareResult.differences.length})
                   </div>
-                  <div className="rounded-lg border border-[#1a2d50] overflow-hidden">
+                  <div className="rounded-lg border border-border overflow-hidden">
                     <table className="w-full">
                       <thead>
-                        <tr style={{ background: '#081428' }}>
+                        <tr style={{ background: 'var(--surface-card)' }}>
                           <th className="px-3 py-1.5 text-left font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase">
                             Teams
                           </th>
@@ -3056,7 +3056,7 @@ export function ScheduleTab() {
                   </div>
                   {csvMismatches.map((mismatch, i) => (
                     <div key={i} className="flex items-center gap-2 py-1">
-                      <span className="font-cond text-[9px] font-bold tracking-wider px-1.5 py-0.5 rounded bg-[#1a2d50] text-muted uppercase">
+                      <span className="font-cond text-[9px] font-bold tracking-wider px-1.5 py-0.5 rounded bg-border text-muted uppercase">
                         {mismatch.column}
                       </span>
                       <span className="text-red-400 text-xs font-mono">{mismatch.csvValue}</span>

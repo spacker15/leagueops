@@ -111,10 +111,10 @@ export function NotificationBell() {
       )}
       {isOpen && showSettings && (
         <div
-          className="absolute right-0 top-full mt-1 w-96 max-h-[500px] overflow-y-auto bg-[#061428] border border-[#1a2d50] rounded-b-xl shadow-2xl z-50"
+          className="absolute right-0 top-full mt-1 w-96 max-h-[500px] overflow-y-auto bg-[#061428] border border-border rounded-b-xl shadow-2xl z-50"
           style={{ animation: 'fadeSlideDown 150ms ease-out' }}
         >
-          <div className="flex items-center justify-between px-4 py-2 border-b border-[#1a2d50]">
+          <div className="flex items-center justify-between px-4 py-2 border-b border-border">
             <button
               onClick={() => setShowSettings(false)}
               className="font-cond text-[10px] font-black tracking-wide text-muted hover:text-white transition-colors duration-150"

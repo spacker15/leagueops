@@ -93,7 +93,7 @@ export function ReportsTab() {
             onClick={() => setSub(t.id)}
             className={cn(
               'font-cond text-[11px] font-black tracking-[.12em] px-4 py-2 transition-colors relative',
-              sub === t.id ? 'text-white' : 'text-[#5a6e9a] hover:text-white'
+              sub === t.id ? 'text-white' : 'text-muted hover:text-white'
             )}
           >
             {t.label}
@@ -1628,7 +1628,7 @@ function StatCell({
 
 function TeamName({ name, win }: { name: string; win: boolean }) {
   return (
-    <span className={cn('font-cond text-[13px] font-bold', win ? 'text-white' : 'text-[#5a6e9a]')}>
+    <span className={cn('font-cond text-[13px] font-bold', win ? 'text-white' : 'text-muted')}>
       {win && (
         <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1.5 mb-0.5" />
       )}

@@ -1529,7 +1529,7 @@ export function RefereePortal() {
                                 <select
                                   value={dispatchInjuryType}
                                   onChange={(e) => setDispatchInjuryType(e.target.value)}
-                                  className="w-full bg-[#040e24] border border-border rounded-lg px-3 py-2 font-cond text-[12px] text-white focus:outline-none focus:border-red-500"
+                                  className="w-full bg-surface-card border border-border rounded-lg px-3 py-2 font-cond text-[12px] text-white focus:outline-none focus:border-red-500"
                                 >
                                   {INJURY_TYPES.map((t) => (
                                     <option key={t} value={t}>

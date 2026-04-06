@@ -96,11 +96,11 @@ export function VenueAutocompleteInput({
       <div className="relative">
         <Search
           size={14}
-          className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6e9a] pointer-events-none"
+          className="absolute left-3 top-1/2 -translate-y-1/2 text-muted pointer-events-none"
         />
         <input
           className={cn(
-            'w-full bg-[#081428] border border-[#1a2d50] text-white px-3 py-2 rounded-lg text-[13px] outline-none focus:border-blue-400 transition-colors',
+            'w-full bg-surface-card border border-border text-white px-3 py-2 rounded-lg text-[13px] outline-none focus:border-blue-400 transition-colors',
             'pl-9'
           )}
           value={venueQuery || value}
@@ -110,7 +110,7 @@ export function VenueAutocompleteInput({
           placeholder="Search venue or enter address"
         />
         {venueSearching && (
-          <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[#5a6e9a] text-[10px] font-cond">
+          <div className="absolute right-3 top-1/2 -translate-y-1/2 text-muted text-[10px] font-cond">
             Searching...
           </div>
         )}
@@ -118,16 +118,16 @@ export function VenueAutocompleteInput({
 
       {/* Dropdown */}
       {showVenueDropdown && venuePredictions.length > 0 && (
-        <div className="absolute z-50 left-0 right-0 mt-1 bg-[#081428] border border-[#1a2d50] rounded-xl overflow-hidden shadow-xl">
+        <div className="absolute z-50 left-0 right-0 mt-1 bg-surface-card border border-border rounded-xl overflow-hidden shadow-xl">
           {venuePredictions.map((p) => (
             <button
               key={p.place_id}
               type="button"
-              className="w-full text-left px-4 py-3 hover:bg-[#0d1a2e] transition-colors border-b border-[#1a2d50] last:border-0"
+              className="w-full text-left px-4 py-3 hover:bg-[#0d1a2e] transition-colors border-b border-border last:border-0"
               onMouseDown={() => handleSelect(p.place_id)}
             >
               <div className="font-cond text-[12px] font-bold text-white">{p.main_text}</div>
-              <div className="font-cond text-[10px] text-[#5a6e9a]">{p.secondary_text}</div>
+              <div className="font-cond text-[10px] text-muted">{p.secondary_text}</div>
             </button>
           ))}
         </div>

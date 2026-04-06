@@ -764,7 +764,7 @@ function RegisterPageInner() {
   }
 
   const inp =
-    'w-full bg-[#081428] border border-border text-white px-3 py-2.5 rounded-lg text-[13px] outline-none focus:border-blue-400 transition-colors placeholder-white/20'
+    'w-full bg-surface-card border border-border text-white px-3 py-2.5 rounded-lg text-[13px] outline-none focus:border-blue-400 transition-colors placeholder-white/20'
   const lbl = 'font-cond text-[10px] font-bold tracking-widest text-muted uppercase block mb-1.5'
   const progQs = questions.filter((q) => q.section === 'program')
   const teamQs = questions.filter((q) => q.section === 'team')
@@ -1619,7 +1619,9 @@ function RegisterPageInner() {
                             )}
                           />
                         </button>
-                        <span className="font-cond text-[12px] text-white">Available All Dates</span>
+                        <span className="font-cond text-[12px] text-white">
+                          Available All Dates
+                        </span>
                       </div>
 
                       {/* Individual date checkboxes (when toggle is OFF) */}

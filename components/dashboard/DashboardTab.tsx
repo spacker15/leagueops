@@ -578,7 +578,10 @@ function FieldCard({
                 <div className="font-cond text-[14px] font-black text-white truncate leading-tight max-w-[110px]">
                   {game.home_team?.name ?? '?'}
                 </div>
-                <div className="font-cond text-[9px] tracking-[.1em]" style={{ color: '#5a6e9a' }}>
+                <div
+                  className="font-cond text-[9px] tracking-[.1em]"
+                  style={{ color: 'var(--muted)' }}
+                >
                   HOME
                 </div>
               </div>
@@ -617,7 +620,7 @@ function FieldCard({
                 </div>
                 <div
                   className="font-cond text-[9px] tracking-[.1em] text-right"
-                  style={{ color: '#5a6e9a' }}
+                  style={{ color: 'var(--muted)' }}
                 >
                   AWAY
                 </div>
@@ -636,7 +639,7 @@ function FieldCard({
           {/* Info row */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="font-mono text-[11px] font-bold" style={{ color: '#5a6e9a' }}>
+              <span className="font-mono text-[11px] font-bold" style={{ color: 'var(--muted)' }}>
                 {game.scheduled_time}
               </span>
               <span className="font-cond text-[10px] font-bold" style={{ color: 'var(--muted)' }}>

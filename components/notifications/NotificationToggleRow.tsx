@@ -38,7 +38,7 @@ export function NotificationToggleRow({
             aria-label={`${label} Email notifications`}
             onClick={() => onEmailChange(!emailOn)}
             className={`relative w-10 h-5 rounded-full transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-navy/50 ${
-              emailOn ? 'bg-navy' : 'bg-[#1a2d50]'
+              emailOn ? 'bg-navy' : 'bg-border'
             }`}
           >
             <span
@@ -60,7 +60,7 @@ export function NotificationToggleRow({
             aria-label={`${label} Push notifications`}
             onClick={() => onPushChange(!pushOn)}
             className={`relative w-10 h-5 rounded-full transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-navy/50 ${
-              pushOn ? 'bg-navy' : 'bg-[#1a2d50]'
+              pushOn ? 'bg-navy' : 'bg-border'
             }`}
           >
             <span

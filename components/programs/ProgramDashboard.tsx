@@ -687,7 +687,7 @@ export function ProgramDashboard({ onSwitchToAdmin }: { onSwitchToAdmin?: () => 
                         />
                         {canInviteCoach && (
                           <select
-                            className="bg-[#040e24] border border-border text-white px-2 py-1.5 rounded-lg text-[11px] outline-none"
+                            className="bg-surface-card border border-border text-white px-2 py-1.5 rounded-lg text-[11px] outline-none"
                             value={inviteRole}
                             onChange={(e) =>
                               setInviteRole(e.target.value as 'coach' | 'assistant_coach')
@@ -867,7 +867,7 @@ export function ProgramDashboard({ onSwitchToAdmin }: { onSwitchToAdmin?: () => 
                             </div>
                           </td>
                           <td className="px-3 py-2.5">
-                            <span className="font-cond text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#1a2d50] text-blue-300">
+                            <span className="font-cond text-[10px] font-bold px-1.5 py-0.5 rounded bg-border text-blue-300">
                               {p.division}
                             </span>
                           </td>
@@ -1561,13 +1561,13 @@ function ProgramMatchupSection({
                 {divDivTeams.length} teams · {divDivGames.length} games
               </span>
             </div>
-            <div className="overflow-auto rounded-lg border border-[#1a2d50]">
+            <div className="overflow-auto rounded-lg border border-border">
               <table className="border-collapse" style={{ minWidth: 'max-content' }}>
                 <thead>
-                  <tr style={{ background: '#081428' }}>
+                  <tr style={{ background: 'var(--surface-card)' }}>
                     <th
-                      className="px-3 py-2 border-r border-b border-[#1a2d50] sticky left-0 z-10"
-                      style={{ background: '#081428', minWidth: 150 }}
+                      className="px-3 py-2 border-r border-b border-border sticky left-0 z-10"
+                      style={{ background: 'var(--surface-card)', minWidth: 150 }}
                     >
                       <span className="font-cond text-[9px] font-black tracking-[.12em] text-muted uppercase">
                         vs →
@@ -1576,7 +1576,7 @@ function ProgramMatchupSection({
                     {divDivTeams.map((col) => (
                       <th
                         key={col.id}
-                        className="px-2 py-2 border-b border-[#1a2d50]"
+                        className="px-2 py-2 border-b border-border"
                         style={{ minWidth: 64 }}
                       >
                         <div
@@ -1608,7 +1608,7 @@ function ProgramMatchupSection({
                         }}
                       >
                         <td
-                          className="px-3 py-1.5 border-r border-[#1a2d50] sticky left-0 z-10"
+                          className="px-3 py-1.5 border-r border-border sticky left-0 z-10"
                           style={{
                             background: isMine ? '#0a1e38' : ri % 2 === 0 ? '#050f20' : '#030c1a',
                           }}

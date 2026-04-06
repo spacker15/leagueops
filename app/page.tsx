@@ -32,12 +32,15 @@ export default function Home() {
 
   if (loading) {
     return (
-      <div className="h-screen flex items-center justify-center" style={{ background: '#020810' }}>
+      <div
+        className="h-screen flex items-center justify-center"
+        style={{ background: 'var(--surface)' }}
+      >
         <div className="text-center">
           <div className="font-cond text-4xl font-black text-white mb-2 tracking-widest">
             LEAGUEOPS
           </div>
-          <div className="font-cond text-sm tracking-widest" style={{ color: '#5a6e9a' }}>
+          <div className="font-cond text-sm tracking-widest" style={{ color: 'var(--muted)' }}>
             LOADING...
           </div>
           <div className="mt-4 flex gap-1 justify-center">

@@ -58,7 +58,7 @@ export function JoinClient({ token, type, eventName, primaryColor, logoUrl }: Pr
     return (
       <div
         className="min-h-screen flex items-center justify-center p-4"
-        style={{ background: '#020810' }}
+        style={{ background: 'var(--surface)' }}
       >
         <div className="bg-[#081428] border border-green-800/50 rounded-2xl p-8 max-w-sm w-full text-center">
           <CheckCircle size={48} className="mx-auto mb-4 text-green-400" />
@@ -80,7 +80,7 @@ export function JoinClient({ token, type, eventName, primaryColor, logoUrl }: Pr
   return (
     <div
       className="min-h-screen flex flex-col items-center justify-center p-4"
-      style={{ background: '#020810' }}
+      style={{ background: 'var(--surface)' }}
     >
       {/* Card */}
       <div className="w-full max-w-md">

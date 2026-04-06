@@ -76,7 +76,7 @@ export function FormField({
 }
 
 const base =
-  'bg-[#040e24] border border-[#1e3060] text-white px-2.5 py-1.5 rounded-lg text-[12px] outline-none focus:border-blue-400/60 transition-colors'
+  'bg-surface-card border border-border text-white px-2.5 py-1.5 rounded-lg text-[12px] outline-none focus:border-blue-400/60 transition-colors'
 
 export function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return <input className={cn(base, props.className)} {...props} />
@@ -95,7 +95,7 @@ export function Textarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement
 // ─── Card ─────────────────────────────────────────────────────
 export function Card({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={cn('bg-surface-card border border-[#1e3060] rounded-xl', className)}>
+    <div className={cn('bg-surface-card border border-border rounded-xl', className)}>
       {children}
     </div>
   )
@@ -112,7 +112,7 @@ export function SectionHeader({
   return (
     <div
       className={cn(
-        'font-cond text-[10px] font-black tracking-widest text-muted uppercase border-b border-[#1e3060] pb-2 mb-3',
+        'font-cond text-[10px] font-black tracking-widest text-muted uppercase border-b border-border pb-2 mb-3',
         className
       )}
     >
@@ -143,8 +143,8 @@ export function Modal({
         if (e.target === e.currentTarget) onClose()
       }}
     >
-      <div className="bg-[#060f2a] border border-[#1e3060] sm:rounded-xl w-full sm:w-[580px] sm:max-w-[95vw] max-h-screen sm:max-h-[88vh] overflow-y-auto shadow-2xl">
-        <div className="flex justify-between items-center px-5 py-3.5 border-b border-[#1e3060]">
+      <div className="bg-[#060f2a] border border-border sm:rounded-xl w-full sm:w-[580px] sm:max-w-[95vw] max-h-screen sm:max-h-[88vh] overflow-y-auto shadow-2xl">
+        <div className="flex justify-between items-center px-5 py-3.5 border-b border-border">
           <span className="font-cond text-[15px] font-black tracking-wide text-white">{title}</span>
           <button onClick={onClose} className="text-muted hover:text-white transition-colors">
             <X size={16} />
@@ -152,7 +152,7 @@ export function Modal({
         </div>
         <div className="p-5">{children}</div>
         {footer && (
-          <div className="flex justify-end gap-2 px-5 py-3 border-t border-[#1e3060]">{footer}</div>
+          <div className="flex justify-end gap-2 px-5 py-3 border-t border-border">{footer}</div>
         )}
       </div>
     </div>

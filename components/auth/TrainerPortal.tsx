@@ -844,7 +844,7 @@ export function TrainerPortal() {
                           onChange={(e) =>
                             setIncForm((p) => ({ ...p, injury_type: e.target.value }))
                           }
-                          className="w-full bg-[#040e24] border border-border rounded-lg px-3 py-2 font-cond text-[12px] text-white focus:outline-none focus:border-red-500"
+                          className="w-full bg-surface-card border border-border rounded-lg px-3 py-2 font-cond text-[12px] text-white focus:outline-none focus:border-red-500"
                         >
                           {INJURY_TYPES.map((t) => (
                             <option key={t} value={t}>
@@ -858,7 +858,7 @@ export function TrainerPortal() {
                         <select
                           value={incForm.field_id}
                           onChange={(e) => setIncForm((p) => ({ ...p, field_id: e.target.value }))}
-                          className="w-full bg-[#040e24] border border-border rounded-lg px-3 py-2 font-cond text-[12px] text-white focus:outline-none focus:border-red-500"
+                          className="w-full bg-surface-card border border-border rounded-lg px-3 py-2 font-cond text-[12px] text-white focus:outline-none focus:border-red-500"
                         >
                           <option value="">— Select field —</option>
                           {fields.map((f) => (
@@ -875,7 +875,7 @@ export function TrainerPortal() {
                         <select
                           value={incForm.status}
                           onChange={(e) => setIncForm((p) => ({ ...p, status: e.target.value }))}
-                          className="w-full bg-[#040e24] border border-border rounded-lg px-3 py-2 font-cond text-[12px] text-white focus:outline-none focus:border-red-500"
+                          className="w-full bg-surface-card border border-border rounded-lg px-3 py-2 font-cond text-[12px] text-white focus:outline-none focus:border-red-500"
                         >
                           {INCIDENT_STATUSES.map((s) => (
                             <option key={s} value={s}>

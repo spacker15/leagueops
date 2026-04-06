@@ -428,14 +428,13 @@ export function EventPicker({ onSelectEvent, onSwitchToProgram }: Props) {
   }
 
   const inp =
-    'w-full bg-[#030d20] border border-[#1a2d50] text-white px-3 py-2 rounded-lg text-[13px] outline-none focus:border-blue-400 transition-colors'
-  const lbl =
-    'font-cond text-[9px] font-black tracking-[.12em] text-[#5a6e9a] uppercase block mb-1.5'
+    'w-full bg-surface-card border border-border text-white px-3 py-2 rounded-lg text-[13px] outline-none focus:border-blue-400 transition-colors'
+  const lbl = 'font-cond text-[9px] font-black tracking-[.12em] text-muted uppercase block mb-1.5'
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: '#020810' }}>
+    <div className="min-h-screen flex flex-col" style={{ background: 'var(--surface)' }}>
       {/* Header */}
-      <div className="flex items-center justify-between px-8 py-4 border-b border-[#1a2d50]">
+      <div className="flex items-center justify-between px-8 py-4 border-b border-border">
         <div className="flex items-center gap-3">
           <div className="w-1 h-6 rounded-sm bg-red" />
           <svg width="20" height="20" viewBox="0 0 22 22" fill="none">
@@ -452,15 +451,15 @@ export function EventPicker({ onSelectEvent, onSwitchToProgram }: Props) {
           {onSwitchToProgram && (
             <button
               onClick={onSwitchToProgram}
-              className="font-cond text-[11px] font-bold text-blue-300 hover:text-white border border-[#1a2d50] rounded px-3 py-1.5 transition-colors"
+              className="font-cond text-[11px] font-bold text-blue-300 hover:text-white border border-border rounded px-3 py-1.5 transition-colors"
             >
               PROGRAM VIEW
             </button>
           )}
-          <span className="font-cond text-[12px] text-[#5a6e9a]">{userRole?.display_name}</span>
+          <span className="font-cond text-[12px] text-muted">{userRole?.display_name}</span>
           <button
             onClick={signOut}
-            className="flex items-center gap-1.5 font-cond text-[11px] text-[#5a6e9a] hover:text-white transition-colors"
+            className="flex items-center gap-1.5 font-cond text-[11px] text-muted hover:text-white transition-colors"
           >
             <LogOut size={13} /> Sign out
           </button>
@@ -474,7 +473,7 @@ export function EventPicker({ onSelectEvent, onSwitchToProgram }: Props) {
             <div className="font-cond text-[28px] font-black tracking-[.06em] text-white mb-1">
               MY EVENTS
             </div>
-            <div className="font-cond text-[13px] text-[#5a6e9a]">
+            <div className="font-cond text-[13px] text-muted">
               Select an event to manage, or create a new one
             </div>
           </div>
@@ -485,7 +484,7 @@ export function EventPicker({ onSelectEvent, onSwitchToProgram }: Props) {
                 'flex items-center gap-1.5 font-cond text-[11px] font-black tracking-[.08em] px-3 py-2 rounded-lg border transition-colors',
                 showArchived
                   ? 'border-blue-500/40 bg-blue-900/20 text-blue-400'
-                  : 'border-[#1a2d50] text-[#5a6e9a] hover:text-white hover:border-[#2a3d60]'
+                  : 'border-border text-muted hover:text-white hover:border-blue-400'
               )}
             >
               {showArchived ? <EyeOff size={12} /> : <Eye size={12} />}
@@ -505,7 +504,7 @@ export function EventPicker({ onSelectEvent, onSwitchToProgram }: Props) {
 
         {/* ── Create wizard ─────────────────────────────────────────────────── */}
         {showForm && (
-          <div className="bg-[#081428] border border-[#1a2d50] rounded-2xl p-6 mb-6">
+          <div className="bg-surface-card border border-border rounded-2xl p-6 mb-6">
             {/* Step indicator */}
             <div className="flex items-center gap-3 mb-6">
               {[
@@ -520,7 +519,7 @@ export function EventPicker({ onSelectEvent, onSwitchToProgram }: Props) {
                         ? 'bg-red text-white'
                         : step > n
                           ? 'bg-green-700 text-white'
-                          : 'bg-[#1a2d50] text-[#5a6e9a]'
+                          : 'bg-border text-muted'
                     )}
                   >
                     {step > n ? '✓' : n}
@@ -528,12 +527,12 @@ export function EventPicker({ onSelectEvent, onSwitchToProgram }: Props) {
                   <span
                     className={cn(
                       'font-cond text-[11px] font-black tracking-wide',
-                      step === n ? 'text-white' : 'text-[#5a6e9a]'
+                      step === n ? 'text-white' : 'text-muted'
                     )}
                   >
                     {label.toUpperCase()}
                   </span>
-                  {n < 2 && <ChevronRight size={12} className="text-[#1a2d50]" />}
+                  {n < 2 && <ChevronRight size={12} className="text-border" />}
                 </div>
               ))}
             </div>
@@ -612,8 +611,8 @@ export function EventPicker({ onSelectEvent, onSwitchToProgram }: Props) {
                 </div>
 
                 {/* ── Primary Complex ── */}
-                <div className="mt-5 pt-4 border-t border-[#1a2d50]">
-                  <div className="font-cond text-[11px] font-black tracking-[.12em] text-[#5a6e9a] uppercase mb-3">
+                <div className="mt-5 pt-4 border-t border-border">
+                  <div className="font-cond text-[11px] font-black tracking-[.12em] text-muted uppercase mb-3">
                     Primary Complex *
                   </div>
                   <div className="grid grid-cols-2 gap-4">
@@ -636,15 +635,15 @@ export function EventPicker({ onSelectEvent, onSwitchToProgram }: Props) {
                       />
                     </div>
                   </div>
-                  <p className="text-[10px] text-[#5a6e9a] mt-1.5">
+                  <p className="text-[10px] text-muted mt-1.5">
                     You can add more complexes and fields from Settings → Map after creation.
                   </p>
                 </div>
 
-                <div className="flex gap-3 mt-5 pt-4 border-t border-[#1a2d50]">
+                <div className="flex gap-3 mt-5 pt-4 border-t border-border">
                   <button
                     onClick={resetForm}
-                    className="font-cond text-[12px] text-[#5a6e9a] hover:text-white px-4 py-2 transition-colors"
+                    className="font-cond text-[12px] text-muted hover:text-white px-4 py-2 transition-colors"
                   >
                     CANCEL
                   </button>
@@ -664,7 +663,7 @@ export function EventPicker({ onSelectEvent, onSwitchToProgram }: Props) {
                 <div className="font-cond text-[14px] font-black tracking-[.1em] text-white mb-1">
                   COPY FROM AN EXISTING EVENT?
                 </div>
-                <div className="font-cond text-[11px] text-[#5a6e9a] mb-5">
+                <div className="font-cond text-[11px] text-muted mb-5">
                   Optionally carry over settings or people from a previous event. Each event is
                   fully independent — changes here won't affect other events.
                 </div>
@@ -679,7 +678,7 @@ export function EventPicker({ onSelectEvent, onSwitchToProgram }: Props) {
                         'flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all',
                         copySourceId === null
                           ? 'border-blue-500/60 bg-blue-900/20'
-                          : 'border-[#1a2d50] bg-[#030d20] hover:border-[#2a3d60]'
+                          : 'border-border bg-surface hover:border-blue-400'
                       )}
                     >
                       <input
@@ -692,7 +691,7 @@ export function EventPicker({ onSelectEvent, onSwitchToProgram }: Props) {
                         <div className="font-cond text-[12px] font-black text-white">
                           Start fresh
                         </div>
-                        <div className="font-cond text-[10px] text-[#5a6e9a]">
+                        <div className="font-cond text-[10px] text-muted">
                           Blank event with no pre-loaded data
                         </div>
                       </div>
@@ -706,7 +705,7 @@ export function EventPicker({ onSelectEvent, onSwitchToProgram }: Props) {
                           'flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all',
                           copySourceId === ev.id
                             ? 'border-blue-500/60 bg-blue-900/20'
-                            : 'border-[#1a2d50] bg-[#030d20] hover:border-[#2a3d60]'
+                            : 'border-border bg-surface hover:border-blue-400'
                         )}
                       >
                         <input
@@ -719,7 +718,7 @@ export function EventPicker({ onSelectEvent, onSwitchToProgram }: Props) {
                           <div className="font-cond text-[12px] font-black text-white truncate">
                             {ev.name}
                           </div>
-                          <div className="font-cond text-[10px] text-[#5a6e9a]">
+                          <div className="font-cond text-[10px] text-muted">
                             {SPORTS_EMOJI[ev.sport] ?? '🏆'} {ev.sport} ·{' '}
                             {formatDate(ev.start_date)}
                           </div>
@@ -729,7 +728,7 @@ export function EventPicker({ onSelectEvent, onSwitchToProgram }: Props) {
                             'font-cond text-[9px] font-black tracking-wider px-2 py-0.5 rounded flex-shrink-0',
                             ev.status === 'active'
                               ? 'bg-green-900/40 text-green-400'
-                              : 'bg-[#1a2d50] text-[#5a6e9a]'
+                              : 'bg-border text-muted'
                           )}
                         >
                           {ev.status.toUpperCase()}
@@ -738,7 +737,7 @@ export function EventPicker({ onSelectEvent, onSwitchToProgram }: Props) {
                     ))}
 
                     {events.length === 0 && (
-                      <div className="font-cond text-[11px] text-[#5a6e9a] italic px-3">
+                      <div className="font-cond text-[11px] text-muted italic px-3">
                         No previous events to copy from
                       </div>
                     )}
@@ -747,7 +746,7 @@ export function EventPicker({ onSelectEvent, onSwitchToProgram }: Props) {
 
                 {/* What to copy — only shown when a source is selected */}
                 {copySourceId !== null && (
-                  <div className="mb-5 p-4 rounded-xl border border-[#1a2d50] bg-[#030d20]">
+                  <div className="mb-5 p-4 rounded-xl border border-border bg-surface">
                     <div className={lbl}>What to copy</div>
                     <div className="space-y-3 mt-2">
                       <label className="flex items-start gap-3 cursor-pointer group">
@@ -764,7 +763,7 @@ export function EventPicker({ onSelectEvent, onSwitchToProgram }: Props) {
                               Fields & Settings
                             </span>
                           </div>
-                          <div className="font-cond text-[10px] text-[#5a6e9a] mt-0.5">
+                          <div className="font-cond text-[10px] text-muted mt-0.5">
                             Copies all fields (names, numbers, map positions) and configured rules
                           </div>
                         </div>
@@ -783,7 +782,7 @@ export function EventPicker({ onSelectEvent, onSwitchToProgram }: Props) {
                               Referees & Volunteers
                             </span>
                           </div>
-                          <div className="font-cond text-[10px] text-[#5a6e9a] mt-0.5">
+                          <div className="font-cond text-[10px] text-muted mt-0.5">
                             Copies the ref pool and volunteer roster — check-in status starts fresh
                           </div>
                         </div>
@@ -802,7 +801,7 @@ export function EventPicker({ onSelectEvent, onSwitchToProgram }: Props) {
                               Teams
                             </span>
                           </div>
-                          <div className="font-cond text-[10px] text-[#5a6e9a] mt-0.5">
+                          <div className="font-cond text-[10px] text-muted mt-0.5">
                             Copies team names and divisions
                           </div>
                         </div>
@@ -821,7 +820,7 @@ export function EventPicker({ onSelectEvent, onSwitchToProgram }: Props) {
                               Complexes & Fields
                             </span>
                           </div>
-                          <div className="font-cond text-[10px] text-[#5a6e9a] mt-0.5">
+                          <div className="font-cond text-[10px] text-muted mt-0.5">
                             Copies all complexes and their fields (in addition to the primary
                             complex above)
                           </div>
@@ -831,10 +830,10 @@ export function EventPicker({ onSelectEvent, onSwitchToProgram }: Props) {
                   </div>
                 )}
 
-                <div className="flex gap-3 pt-4 border-t border-[#1a2d50]">
+                <div className="flex gap-3 pt-4 border-t border-border">
                   <button
                     onClick={() => setStep(1)}
-                    className="flex items-center gap-1.5 font-cond text-[12px] text-[#5a6e9a] hover:text-white px-4 py-2 transition-colors"
+                    className="flex items-center gap-1.5 font-cond text-[12px] text-muted hover:text-white px-4 py-2 transition-colors"
                   >
                     <ArrowLeft size={13} /> BACK
                   </button>
@@ -857,12 +856,12 @@ export function EventPicker({ onSelectEvent, onSwitchToProgram }: Props) {
 
         {/* Events grid */}
         {loading ? (
-          <div className="text-center py-20 text-[#5a6e9a] font-cond">LOADING EVENTS...</div>
+          <div className="text-center py-20 text-muted font-cond">LOADING EVENTS...</div>
         ) : events.length === 0 && !showForm ? (
           <div className="text-center py-20">
             <Trophy size={48} className="mx-auto mb-4" style={{ color: '#1a2d50' }} />
             <div className="font-cond text-[18px] font-black text-white mb-2">NO EVENTS YET</div>
-            <div className="font-cond text-[13px] text-[#5a6e9a]">
+            <div className="font-cond text-[13px] text-muted">
               Click CREATE EVENT to get started
             </div>
           </div>
@@ -883,7 +882,10 @@ export function EventPicker({ onSelectEvent, onSwitchToProgram }: Props) {
                       'group relative rounded-2xl overflow-hidden border transition-all cursor-pointer',
                       isArchived ? 'opacity-50 hover:opacity-80' : 'hover:border-blue-400/60'
                     )}
-                    style={{ background: '#081428', borderColor: isLive ? '#22c55e40' : '#1a2d50' }}
+                    style={{
+                      background: 'var(--surface-card)',
+                      borderColor: isLive ? '#22c55e40' : '#1a2d50',
+                    }}
                     onClick={() => onSelectEvent(ev.id)}
                   >
                     <div className="h-1.5" style={{ background: color }} />
@@ -909,7 +911,7 @@ export function EventPicker({ onSelectEvent, onSwitchToProgram }: Props) {
                             <div className="font-cond text-[16px] font-black text-white leading-tight">
                               {ev.name}
                             </div>
-                            <div className="font-cond text-[10px] text-[#5a6e9a] capitalize mt-0.5">
+                            <div className="font-cond text-[10px] text-muted capitalize mt-0.5">
                               {ev.sport} {ev.event_type}
                             </div>
                           </div>
@@ -923,7 +925,7 @@ export function EventPicker({ onSelectEvent, onSwitchToProgram }: Props) {
                                 ? 'bg-amber-900/30 text-amber-500'
                                 : ev.status === 'completed'
                                   ? 'bg-gray-800 text-gray-500'
-                                  : 'bg-[#0d1a2e] text-[#5a6e9a]'
+                                  : 'bg-[#0d1a2e] text-muted'
                           )}
                         >
                           {ev.status.toUpperCase()}
@@ -931,11 +933,11 @@ export function EventPicker({ onSelectEvent, onSwitchToProgram }: Props) {
                       </div>
 
                       <div className="space-y-1.5 mb-4">
-                        <div className="flex items-center gap-2 font-cond text-[11px] text-[#5a6e9a]">
+                        <div className="flex items-center gap-2 font-cond text-[11px] text-muted">
                           <MapPin size={11} className="flex-shrink-0" />
                           <span className="truncate">{ev.location}</span>
                         </div>
-                        <div className="flex items-center gap-2 font-cond text-[11px] text-[#5a6e9a]">
+                        <div className="flex items-center gap-2 font-cond text-[11px] text-muted">
                           <Calendar size={11} className="flex-shrink-0" />
                           <span>
                             {formatDate(ev.start_date)}
@@ -946,14 +948,14 @@ export function EventPicker({ onSelectEvent, onSwitchToProgram }: Props) {
                         </div>
                       </div>
 
-                      <div className="flex items-center justify-between pt-3 border-t border-[#1a2d50]">
+                      <div className="flex items-center justify-between pt-3 border-t border-border">
                         {ev.event_code && (
                           <button
                             onClick={(e) => {
                               e.stopPropagation()
                               copyCode(ev.id, ev.event_code!)
                             }}
-                            className="flex items-center gap-1.5 font-mono text-[11px] font-bold text-[#5a6e9a] hover:text-white transition-colors"
+                            className="flex items-center gap-1.5 font-mono text-[11px] font-bold text-muted hover:text-white transition-colors"
                             title="Copy event code"
                           >
                             {copiedCode === ev.id ? (
@@ -979,13 +981,13 @@ export function EventPicker({ onSelectEvent, onSwitchToProgram }: Props) {
                         ) : (
                           <button
                             onClick={(e) => archiveEvent(e, ev.id)}
-                            className="flex items-center gap-1.5 font-cond text-[10px] font-black tracking-[.08em] text-[#5a6e9a] hover:text-amber-400 transition-colors opacity-0 group-hover:opacity-100"
+                            className="flex items-center gap-1.5 font-cond text-[10px] font-black tracking-[.08em] text-muted hover:text-amber-400 transition-colors opacity-0 group-hover:opacity-100"
                             title="Archive event"
                           >
                             <Archive size={12} /> ARCHIVE
                           </button>
                         )}
-                        <div className="flex items-center gap-1.5 font-cond text-[11px] font-black tracking-[.08em] text-[#5a6e9a] group-hover:text-white transition-colors ml-auto">
+                        <div className="flex items-center gap-1.5 font-cond text-[11px] font-black tracking-[.08em] text-muted group-hover:text-white transition-colors ml-auto">
                           OPEN{' '}
                           <ChevronRight
                             size={13}

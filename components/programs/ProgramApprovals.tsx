@@ -1508,7 +1508,7 @@ export function ProgramApprovals() {
                             type="color"
                             value={newTeam.color}
                             onChange={(e) => setNewTeam({ ...newTeam, color: e.target.value })}
-                            className="w-8 h-8 rounded border border-[#1e3060] bg-transparent cursor-pointer"
+                            className="w-8 h-8 rounded border border-border bg-transparent cursor-pointer"
                           />
                           <Input
                             value={newTeam.color}
@@ -1758,7 +1758,7 @@ export function ProgramApprovals() {
                                       </button>
                                       {expandedConflict.has(team.id) &&
                                         conflictsByTeam.get(team.id)?.map((c, i) => (
-                                          <span key={i} className="text-[11px] text-[#5a6e9a]">
+                                          <span key={i} className="text-[11px] text-muted">
                                             Coach {c.coachName} is also assigned to other teams
                                           </span>
                                         ))}
@@ -1854,7 +1854,7 @@ export function ProgramApprovals() {
                                     </button>
                                     {expandedConflict.has(team.id) &&
                                       conflictsByTeam.get(team.id)?.map((c, i) => (
-                                        <span key={i} className="text-[11px] text-[#5a6e9a]">
+                                        <span key={i} className="text-[11px] text-muted">
                                           Coach {c.coachName} is also assigned to other teams
                                         </span>
                                       ))}
@@ -2073,7 +2073,7 @@ export function ProgramApprovals() {
                             : ''
                     )}
                   >
-                    <span className="font-cond text-[9px] font-bold tracking-wider px-1.5 py-0.5 rounded bg-[#1a2d50] text-muted uppercase">
+                    <span className="font-cond text-[9px] font-bold tracking-wider px-1.5 py-0.5 rounded bg-border text-muted uppercase">
                       {mismatch.column}
                     </span>
                     <span className="text-red-400 text-xs font-mono min-w-[100px]">
@@ -2114,7 +2114,7 @@ export function ProgramApprovals() {
                       <span className="font-cond text-[10px] font-bold text-blue-400">MAP:</span>
                     </label>
                     <select
-                      className="bg-[#081428] border border-[#1a2d50] text-white px-2 py-0.5 rounded text-xs outline-none focus:border-blue-400 transition-colors max-w-[180px]"
+                      className="bg-surface-card border border-border text-white px-2 py-0.5 rounded text-xs outline-none focus:border-blue-400 transition-colors max-w-[180px]"
                       value={
                         mismatch.resolvedTo !== '__skip__' && mismatch.resolvedTo !== '__create__'
                           ? (mismatch.resolvedTo ?? '')

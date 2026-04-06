@@ -59,7 +59,7 @@ export function MultiDatePicker({
               {DAY_NAMES.map((day) => (
                 <div
                   key={day}
-                  className="text-[12px] text-[#5a6e9a] font-cond font-black tracking-[.12em] uppercase text-center py-1"
+                  className="text-[12px] text-muted font-cond font-black tracking-[.12em] uppercase text-center py-1"
                 >
                   {day}
                 </div>
@@ -74,13 +74,15 @@ export function MultiDatePicker({
                 const isAfterEnd = day > end
                 const isOutOfRange = isBeforeStart || isAfterEnd
                 const isoStr = format(day, 'yyyy-MM-dd')
-                const isSelected = !isOutOfRange && selectedDates.some((d) => {
-                  try {
-                    return isSameDay(parseISO(d), day)
-                  } catch {
-                    return false
-                  }
-                })
+                const isSelected =
+                  !isOutOfRange &&
+                  selectedDates.some((d) => {
+                    try {
+                      return isSameDay(parseISO(d), day)
+                    } catch {
+                      return false
+                    }
+                  })
 
                 if (!isInMonth || isOutOfRange) {
                   return (

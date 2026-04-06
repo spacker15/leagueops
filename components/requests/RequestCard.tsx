@@ -131,10 +131,24 @@ export function RequestCard({ request, eventId }: RequestCardProps) {
       <div className="flex justify-between items-start mb-3">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="font-cond text-[15px] font-black text-white">{teamName}</span>
-          <Pill variant={request.request_type === 'reschedule' ? 'blue' : request.request_type === 'change_opponent' ? 'yellow' : 'red'}>
-            {request.request_type === 'reschedule' ? 'Reschedule' : request.request_type === 'change_opponent' ? 'Change Opponent' : 'Cancel'}
+          <Pill
+            variant={
+              request.request_type === 'reschedule'
+                ? 'blue'
+                : request.request_type === 'change_opponent'
+                  ? 'yellow'
+                  : 'red'
+            }
+          >
+            {request.request_type === 'reschedule'
+              ? 'Reschedule'
+              : request.request_type === 'change_opponent'
+                ? 'Change Opponent'
+                : 'Cancel'}
           </Pill>
-          <span className={`badge-request-${request.status}`}>{request.status.replace('_', ' ')}</span>
+          <span className={`badge-request-${request.status}`}>
+            {request.status.replace('_', ' ')}
+          </span>
         </div>
         <span className="font-mono text-[10px] text-muted flex-shrink-0 ml-2">
           {formatDistanceToNow(new Date(request.created_at), { addSuffix: true })}
@@ -143,22 +157,23 @@ export function RequestCard({ request, eventId }: RequestCardProps) {
 
       {/* Games sub-list */}
       {request.games && request.games.length > 0 && (
-        <div className="border border-[#1a2d50] rounded-lg mb-3">
+        <div className="border border-border rounded-lg mb-3">
           {request.games.map((rg, idx) => (
             <div
               key={rg.id}
-              className={`flex gap-3 items-center py-1.5 px-3 border-b border-[#1a2d50] last:border-0 ${idx === 0 ? '' : ''}`}
+              className={`flex gap-3 items-center py-1.5 px-3 border-b border-border last:border-0 ${idx === 0 ? '' : ''}`}
             >
               {rg.game && (
                 <>
                   {(rg.game as any).event_date?.date && (
                     <span className="font-mono text-[12px] text-muted">
-                      {new Date((rg.game as any).event_date.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      {new Date((rg.game as any).event_date.date + 'T00:00:00').toLocaleDateString(
+                        'en-US',
+                        { month: 'short', day: 'numeric' }
+                      )}
                     </span>
                   )}
-                  <span className="font-mono text-[12px] text-muted">
-                    {rg.game.scheduled_time}
-                  </span>
+                  <span className="font-mono text-[12px] text-muted">{rg.game.scheduled_time}</span>
                   {rg.game.field && (
                     <span className="text-[12px] text-muted">{rg.game.field.name}</span>
                   )}
@@ -169,7 +184,9 @@ export function RequestCard({ request, eventId }: RequestCardProps) {
                   )}
                 </>
               )}
-              <span className={`badge-request-${rg.status} ml-auto`}>{rg.status.replace('_', ' ')}</span>
+              <span className={`badge-request-${rg.status} ml-auto`}>
+                {rg.status.replace('_', ' ')}
+              </span>
             </div>
           ))}
         </div>
@@ -257,7 +274,8 @@ export function RequestCard({ request, eventId }: RequestCardProps) {
             // Change opponent — admin handles manually
             <div>
               <p className="text-[12px] text-muted mb-2">
-                Approve this opponent change request? You will need to manually reassign the opponent in the schedule.
+                Approve this opponent change request? You will need to manually reassign the
+                opponent in the schedule.
               </p>
               <div className="flex items-center gap-2">
                 <Btn
@@ -320,7 +338,10 @@ export function RequestCard({ request, eventId }: RequestCardProps) {
                       {rg.game && (
                         <span className="text-[12px] text-muted">
                           {(rg.game as any).event_date?.date
-                            ? new Date((rg.game as any).event_date.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' '
+                            ? new Date(
+                                (rg.game as any).event_date.date + 'T00:00:00'
+                              ).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) +
+                              ' '
                             : ''}
                           {rg.game.scheduled_time}
                           {rg.game.field && ` · ${rg.game.field.name}`}
@@ -340,7 +361,7 @@ export function RequestCard({ request, eventId }: RequestCardProps) {
 
                     {/* Slot suggestion panel */}
                     {isActive && (
-                      <div className="bg-[#0a1a3a] border border-[#1e3060] rounded-lg p-3 mt-2">
+                      <div className="bg-[#0a1a3a] border border-border rounded-lg p-3 mt-2">
                         {isLoading && (
                           <p className="font-cond text-[12px] text-muted animate-pulse">
                             Finding available slots...
@@ -377,12 +398,11 @@ export function RequestCard({ request, eventId }: RequestCardProps) {
                         )}
 
                         {!isLoading && !hasError && suggestions.length > 0 && (
-                          <div
-                            role="radiogroup"
-                            aria-label="Available time slots"
-                          >
+                          <div role="radiogroup" aria-label="Available time slots">
                             {suggestions.slice(0, 5).map((slot, i) => {
-                              const isSelected = selected?.scheduledTime === slot.scheduledTime && selected?.fieldId === slot.fieldId
+                              const isSelected =
+                                selected?.scheduledTime === slot.scheduledTime &&
+                                selected?.fieldId === slot.fieldId
                               return (
                                 <div
                                   key={i}
@@ -390,20 +410,23 @@ export function RequestCard({ request, eventId }: RequestCardProps) {
                                   aria-checked={isSelected}
                                   aria-label={`${format(new Date(slot.scheduledTime), 'MMM d')} ${format(new Date(slot.scheduledTime), 'h:mm a')} at ${slot.fieldName}`}
                                   tabIndex={0}
-                                  onClick={() => setSelectedSlots((prev) => ({ ...prev, [rg.id]: slot }))}
+                                  onClick={() =>
+                                    setSelectedSlots((prev) => ({ ...prev, [rg.id]: slot }))
+                                  }
                                   onKeyDown={(e) => {
                                     if (e.key === 'Enter' || e.key === ' ') {
                                       e.preventDefault()
                                       setSelectedSlots((prev) => ({ ...prev, [rg.id]: slot }))
                                     }
                                   }}
-                                  className={`flex items-center gap-3 px-3 py-2.5 border-b border-[#1a2d50] last:border-0 cursor-pointer hover:bg-[#0d2040] rounded transition-colors duration-150 ${
+                                  className={`flex items-center gap-3 px-3 py-2.5 border-b border-border last:border-0 cursor-pointer hover:bg-[#0d2040] rounded transition-colors duration-150 ${
                                     isSelected ? 'bg-[#0B3D91]/20 border border-[#0B3D91]/40' : ''
                                   }`}
                                 >
                                   <div className="flex flex-col flex-1">
                                     <span className="font-mono text-[12px] text-white">
-                                      {format(new Date(slot.scheduledTime), 'MMM d, yyyy')} {format(new Date(slot.scheduledTime), 'h:mm a')}
+                                      {format(new Date(slot.scheduledTime), 'MMM d, yyyy')}{' '}
+                                      {format(new Date(slot.scheduledTime), 'h:mm a')}
                                     </span>
                                     <span className="text-[12px] text-muted">{slot.fieldName}</span>
                                   </div>

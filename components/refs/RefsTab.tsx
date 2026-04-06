@@ -2108,7 +2108,7 @@ export function RefsTab() {
                     <span className="text-red-400 text-xs font-mono">{mismatch.csvValue}</span>
                     <span className="text-gray-500 text-xs">&rarr;</span>
                     <select
-                      className="bg-[#081428] border border-[#1a2d50] text-white px-2 py-0.5 rounded text-xs outline-none focus:border-blue-400 transition-colors"
+                      className="bg-surface-card border border-border text-white px-2 py-0.5 rounded text-xs outline-none focus:border-blue-400 transition-colors"
                       value={mismatch.resolvedTo ?? ''}
                       onChange={(e) => resolveCsvMismatch(i, e.target.value)}
                     >
@@ -2351,7 +2351,7 @@ export function RefsTab() {
                   <div className="flex-1">
                     <select
                       id="trainer-avail-date"
-                      className="w-full bg-[#040e24] border border-border text-white px-2 py-1.5 rounded text-[12px] outline-none focus:border-blue-400"
+                      className="w-full bg-surface-card border border-border text-white px-2 py-1.5 rounded text-[12px] outline-none focus:border-blue-400"
                       defaultValue=""
                       onChange={(e) => {
                         if (e.target.value) addTrainerAvailDate(e.target.value)

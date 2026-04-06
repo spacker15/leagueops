@@ -86,9 +86,8 @@ const EVENT_TYPES = [
 const TIMEZONES = ['Eastern', 'Central', 'Mountain', 'Pacific', 'Alaska', 'Hawaii']
 
 const inp =
-  'w-full bg-[#081428] border border-[#1a2d50] text-white px-3 py-2 rounded-lg text-[13px] outline-none focus:border-blue-400 transition-colors'
-const lbl =
-  'font-cond text-[10px] font-black tracking-[.12em] text-[#5a6e9a] uppercase block mb-1.5'
+  'w-full bg-surface-card border border-border text-white px-3 py-2 rounded-lg text-[13px] outline-none focus:border-blue-400 transition-colors'
+const lbl = 'font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase block mb-1.5'
 const sectionHdr =
   'font-cond text-[12px] font-black tracking-[.12em] text-white uppercase mb-3 flex items-center gap-2'
 
@@ -1272,8 +1271,8 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                     mine < cur
                       ? 'bg-green-600 text-white'
                       : mine === cur
-                        ? 'border-2 border-blue-400 bg-[#081428] text-white'
-                        : 'border border-[#1a2d50] bg-[#081428] text-muted'
+                        ? 'border-2 border-blue-400 bg-surface-card text-white'
+                        : 'border border-border bg-surface-card text-muted'
                   )}
                 >
                   {mine < cur ? '✓' : i + 1}
@@ -1286,7 +1285,7 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                 >
                   {['Sport', 'Type', 'Details'][i]}
                 </span>
-                {i < 2 && <div className="flex-1 h-px bg-[#1a2d50] ml-2" />}
+                {i < 2 && <div className="flex-1 h-px bg-border ml-2" />}
               </div>
             )
           })}
@@ -1310,7 +1309,7 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                     'flex flex-col items-center gap-2 py-5 rounded-xl border transition-all hover:border-blue-400',
                     event.sport === s.name
                       ? 'border-blue-400 bg-[#0d1f3a]'
-                      : 'border-[#1a2d50] bg-[#081428]'
+                      : 'border-border bg-surface-card'
                   )}
                 >
                   <span className="text-3xl">{s.icon}</span>
@@ -1341,7 +1340,7 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                     'flex items-start gap-4 p-5 rounded-xl border text-left transition-all hover:border-blue-400',
                     event.event_type === t.id
                       ? 'border-blue-400 bg-[#0d1f3a]'
-                      : 'border-[#1a2d50] bg-[#081428]'
+                      : 'border-border bg-surface-card'
                   )}
                 >
                   <span className="text-3xl flex-shrink-0 mt-0.5">{t.icon}</span>
@@ -1365,7 +1364,7 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
 
         {/* Step 3: Details */}
         {setupStep === 'details' && (
-          <div className="bg-[#081428] border border-[#1a2d50] rounded-xl p-6">
+          <div className="bg-surface-card border border-border rounded-xl p-6">
             <div className="flex items-center gap-3 mb-5">
               <span className="text-2xl">{SPORTS.find((s) => s.name === event.sport)?.icon}</span>
               <div>
@@ -1440,7 +1439,7 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
               </div>
             </div>
 
-            <div className="flex justify-between mt-6 pt-4 border-t border-[#1a2d50]">
+            <div className="flex justify-between mt-6 pt-4 border-t border-border">
               <button
                 onClick={() => setSetupStep('type')}
                 className="font-cond text-[11px] text-muted hover:text-white"
@@ -1566,7 +1565,7 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
         <div className="flex items-center gap-4">
           <div
             className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl flex-shrink-0"
-            style={{ background: '#081428', border: '1px solid #1a2d50' }}
+            style={{ background: 'var(--surface-card)', border: '1px solid var(--border)' }}
           >
             {sport?.icon}
           </div>
@@ -1598,9 +1597,9 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                     ? s === 'active'
                       ? 'bg-green-700 text-white'
                       : s === 'draft'
-                        ? 'bg-[#1a2d50] text-white'
+                        ? 'bg-border text-white'
                         : 'bg-gray-700 text-white'
-                    : 'bg-[#081428] border border-[#1a2d50] text-muted hover:text-white'
+                    : 'bg-surface-card border border-border text-muted hover:text-white'
                 )}
               >
                 {s.toUpperCase()}
@@ -1619,7 +1618,7 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
       </div>
 
       {/* Settings sub-tabs */}
-      <div className="flex border-b border-[#1a2d50] mb-5">
+      <div className="flex border-b border-border mb-5">
         {SETTINGS_TABS.map((t) => (
           <button
             key={t.id}
@@ -1890,7 +1889,7 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                 {divisions.map((d) => (
                   <div
                     key={d.id}
-                    className="flex items-center justify-between bg-[#040e24] border border-[#1a2d50] rounded-lg px-3 py-2"
+                    className="flex items-center justify-between bg-surface-card border border-border rounded-lg px-3 py-2"
                     style={{ borderLeftWidth: 3, borderLeftColor: d.color || '#0B3D91' }}
                   >
                     <div className="flex items-center gap-3">
@@ -1937,7 +1936,7 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                     </div>
                     <button
                       onClick={() => removeDivision(d.id)}
-                      className="text-[#5a6e9a] hover:text-red-400 transition-colors text-[10px] font-cond font-bold"
+                      className="text-muted hover:text-red-400 transition-colors text-[10px] font-cond font-bold"
                     >
                       REMOVE
                     </button>
@@ -1945,7 +1944,7 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                 ))}
 
                 {addingDiv ? (
-                  <div className="bg-[#040e24] border border-[#1a2d50] rounded-lg p-3 space-y-2">
+                  <div className="bg-surface-card border border-border rounded-lg p-3 space-y-2">
                     <div className="grid grid-cols-4 gap-2">
                       <div>
                         <label className={lbl}>Division Name *</label>
@@ -1984,7 +1983,7 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                             type="color"
                             value={newDiv.color}
                             onChange={(e) => setNewDiv({ ...newDiv, color: e.target.value })}
-                            className="w-8 h-8 rounded border border-[#1a2d50] cursor-pointer bg-transparent"
+                            className="w-8 h-8 rounded border border-border cursor-pointer bg-transparent"
                           />
                           <input
                             className={cn(inp, 'flex-1')}
@@ -2123,7 +2122,7 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                             ? 'px-4 py-2 rounded-lg font-cond text-[11px] font-black tracking-[.1em] uppercase bg-red text-white transition-colors'
                             : event.registration_opens_at || event.registration_closes_at
                               ? 'px-4 py-2 rounded-lg font-cond text-[11px] font-black tracking-[.1em] uppercase bg-[#0B3D91] text-white transition-colors'
-                              : 'px-4 py-2 rounded-lg font-cond text-[11px] font-black tracking-[.1em] uppercase bg-[#1a2d50] text-muted transition-colors'
+                              : 'px-4 py-2 rounded-lg font-cond text-[11px] font-black tracking-[.1em] uppercase bg-border text-muted transition-colors'
                       }
                     >
                       {event.registration_open === true
@@ -2228,7 +2227,7 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                     return (
                       <div
                         key={divName}
-                        className="border border-[#1a2d50] rounded-lg overflow-hidden"
+                        className="border border-border rounded-lg overflow-hidden"
                       >
                         <button
                           type="button"
@@ -2258,14 +2257,14 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                           )}
                         </button>
                         {isOpen && (
-                          <div className="px-4 pb-4 pt-2 border-t border-[#1a2d50]">
+                          <div className="px-4 pb-4 pt-2 border-t border-border">
                             <div className="grid grid-cols-2 gap-4">
                               <div>
                                 <label className={lbl}>Schedule Increment (minutes)</label>
                                 <input
                                   type="number"
                                   min={0}
-                                  className="w-full bg-[#081428] border border-[#1a2d50] text-white px-3 py-2 rounded-lg text-[13px] outline-none focus:border-blue-400 transition-colors font-mono"
+                                  className="w-full bg-surface-card border border-border text-white px-3 py-2 rounded-lg text-[13px] outline-none focus:border-blue-400 transition-colors font-mono"
                                   value={vals?.schedule_increment ?? ''}
                                   placeholder={String(event.schedule_increment)}
                                   onChange={(e) =>
@@ -2285,7 +2284,7 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                                 <input
                                   type="number"
                                   min={0}
-                                  className="w-full bg-[#081428] border border-[#1a2d50] text-white px-3 py-2 rounded-lg text-[13px] outline-none focus:border-blue-400 transition-colors font-mono"
+                                  className="w-full bg-surface-card border border-border text-white px-3 py-2 rounded-lg text-[13px] outline-none focus:border-blue-400 transition-colors font-mono"
                                   value={vals?.time_between_games ?? ''}
                                   placeholder={String(event.time_between_games)}
                                   onChange={(e) =>
@@ -2305,7 +2304,7 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                                 <input
                                   type="number"
                                   min={0}
-                                  className="w-full bg-[#081428] border border-[#1a2d50] text-white px-3 py-2 rounded-lg text-[13px] outline-none focus:border-blue-400 transition-colors font-mono"
+                                  className="w-full bg-surface-card border border-border text-white px-3 py-2 rounded-lg text-[13px] outline-none focus:border-blue-400 transition-colors font-mono"
                                   value={vals?.periods_per_game ?? ''}
                                   placeholder={String(event.periods_per_game)}
                                   onChange={(e) =>
@@ -2325,7 +2324,7 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                                 <input
                                   type="number"
                                   min={0}
-                                  className="w-full bg-[#081428] border border-[#1a2d50] text-white px-3 py-2 rounded-lg text-[13px] outline-none focus:border-blue-400 transition-colors font-mono"
+                                  className="w-full bg-surface-card border border-border text-white px-3 py-2 rounded-lg text-[13px] outline-none focus:border-blue-400 transition-colors font-mono"
                                   value={vals?.minutes_per_period ?? ''}
                                   placeholder={String(event.minutes_per_period)}
                                   onChange={(e) =>
@@ -2363,7 +2362,7 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                                       .eq('division_name', divName)
                                     toast.success(`Override cleared for ${divName}`)
                                   }}
-                                  className="font-cond text-[11px] font-black tracking-[.08em] uppercase px-4 py-1.5 bg-transparent border border-[#1a2d50] text-muted hover:text-white hover:border-red-500 rounded-lg transition-colors"
+                                  className="font-cond text-[11px] font-black tracking-[.08em] uppercase px-4 py-1.5 bg-transparent border border-border text-muted hover:text-white hover:border-red-500 rounded-lg transition-colors"
                                 >
                                   Clear Override
                                 </button>
@@ -2413,13 +2412,13 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
               <div className="flex items-center gap-2">
                 <button
                   onClick={loadCopyableEvents}
-                  className="flex items-center gap-1.5 font-cond font-black text-[11px] tracking-[.1em] px-4 py-2 rounded-lg border border-[#1a2d50] hover:bg-[#0c1a35] text-[#5a6e9a] hover:text-white transition-colors"
+                  className="flex items-center gap-1.5 font-cond font-black text-[11px] tracking-[.1em] px-4 py-2 rounded-lg border border-border hover:bg-[#0c1a35] text-muted hover:text-white transition-colors"
                 >
                   <Copy size={12} /> COPY RULES FROM EVENT
                 </button>
                 <div className="flex items-center gap-2">
                   <select
-                    className="bg-[#040e24] border border-[#1a2d50] text-white font-cond text-[11px] font-bold px-2 py-2 rounded-lg outline-none"
+                    className="bg-surface-card border border-border text-white font-cond text-[11px] font-bold px-2 py-2 rounded-lg outline-none"
                     value={addRuleScope}
                     onChange={(e) => setAddRuleScope(e.target.value as 'global' | 'division')}
                   >
@@ -2428,7 +2427,7 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                   </select>
                   {addRuleScope === 'division' && (
                     <select
-                      className="bg-[#040e24] border border-[#1a2d50] text-white font-cond text-[11px] font-bold px-2 py-2 rounded-lg outline-none"
+                      className="bg-surface-card border border-border text-white font-cond text-[11px] font-bold px-2 py-2 rounded-lg outline-none"
                       value={addRuleDivision}
                       onChange={(e) => setAddRuleDivision(e.target.value)}
                     >
@@ -2441,7 +2440,7 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                     </select>
                   )}
                   <select
-                    className="bg-[#040e24] border border-[#1a2d50] text-white font-cond text-[11px] font-bold px-2 py-2 rounded-lg outline-none"
+                    className="bg-surface-card border border-border text-white font-cond text-[11px] font-bold px-2 py-2 rounded-lg outline-none"
                     value={addRuleTemplate}
                     onChange={(e) => setAddRuleTemplate(e.target.value)}
                   >
@@ -2475,7 +2474,7 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
 
             {/* Copy Rules Dropdown */}
             {showCopyRules && (
-              <div className="bg-[#081428] border border-[#1a2d50] rounded-xl p-4 space-y-3">
+              <div className="bg-surface-card border border-border rounded-xl p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="font-cond font-bold text-[12px] tracking-[.08em] text-white uppercase">
                     Select Source Event
@@ -2549,7 +2548,7 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                 return grouped.map(({ category, rules: catRules }) => (
                   <div
                     key={category}
-                    className="bg-[#081428] border border-[#1a2d50] rounded-xl overflow-hidden"
+                    className="bg-surface-card border border-border rounded-xl overflow-hidden"
                   >
                     <button
                       onClick={() =>
@@ -2560,7 +2559,7 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                           return next
                         })
                       }
-                      className="w-full flex items-center justify-between px-5 py-3 border-b border-[#1a2d50] hover:bg-[#0c1a35] transition-colors"
+                      className="w-full flex items-center justify-between px-5 py-3 border-b border-border hover:bg-[#0c1a35] transition-colors"
                     >
                       <div className="flex items-center gap-2">
                         <Shield size={13} className="text-muted" />
@@ -2620,7 +2619,7 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                               </span>
 
                               {/* Category badge */}
-                              <span className="font-cond text-[9px] font-bold tracking-wider px-2 py-0.5 rounded bg-[#1a2d50] text-muted uppercase flex-shrink-0">
+                              <span className="font-cond text-[9px] font-bold tracking-wider px-2 py-0.5 rounded bg-border text-muted uppercase flex-shrink-0">
                                 {rule.category}
                               </span>
 
@@ -2696,9 +2695,9 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                                 )}
 
                                 {/* ── Admin Overrides Section ── */}
-                                <div className="mt-3 pt-3 border-t border-[#1a2d50]">
+                                <div className="mt-3 pt-3 border-t border-border">
                                   <div className="flex items-center justify-between mb-2">
-                                    <div className="font-cond text-[10px] font-black tracking-[.12em] text-[#5a6e9a] uppercase">
+                                    <div className="font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase">
                                       Admin Overrides
                                     </div>
                                     <button
@@ -2734,8 +2733,8 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                                           className={cn(
                                             'flex items-center gap-2 px-2 py-1.5 rounded text-[10px]',
                                             ov.enabled
-                                              ? 'bg-[#081428]'
-                                              : 'bg-[#081428]/50 opacity-60'
+                                              ? 'bg-surface-card'
+                                              : 'bg-surface-card/50 opacity-60'
                                           )}
                                         >
                                           <span
@@ -2748,7 +2747,7 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                                           >
                                             {ov.override_action}
                                           </span>
-                                          <span className="font-cond font-bold text-muted uppercase px-1.5 py-0.5 rounded bg-[#1a2d50]">
+                                          <span className="font-cond font-bold text-muted uppercase px-1.5 py-0.5 rounded bg-border">
                                             {ov.scope_type}
                                           </span>
                                           <span className="text-gray-300 flex-1 truncate">
@@ -2795,7 +2794,7 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
 
                                   {/* Add override form */}
                                   {addingOverrideForRule === rule.id && (
-                                    <div className="bg-[#081428] border border-[#1a2d50] rounded-lg p-3 space-y-2 mt-2">
+                                    <div className="bg-surface-card border border-border rounded-lg p-3 space-y-2 mt-2">
                                       <div className="grid grid-cols-2 gap-2">
                                         <div>
                                           <div className={lbl}>Scope</div>
@@ -2942,7 +2941,7 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                                       <div className="flex gap-2 justify-end">
                                         <button
                                           onClick={() => setAddingOverrideForRule(null)}
-                                          className="font-cond font-black text-[10px] tracking-[.08em] px-3 py-1.5 rounded border border-[#1a2d50] text-muted hover:text-white transition-colors"
+                                          className="font-cond font-black text-[10px] tracking-[.08em] px-3 py-1.5 rounded border border-border text-muted hover:text-white transition-colors"
                                         >
                                           CANCEL
                                         </button>
@@ -3166,7 +3165,7 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
               <div className="flex items-start gap-6">
                 {logoPreview ? (
                   <div className="relative">
-                    <div className="w-28 h-28 rounded-xl border border-[#1a2d50] bg-white/5 flex items-center justify-center overflow-hidden">
+                    <div className="w-28 h-28 rounded-xl border border-border bg-white/5 flex items-center justify-center overflow-hidden">
                       <img
                         src={logoPreview}
                         alt="Logo"
@@ -3187,7 +3186,7 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                 ) : (
                   <button
                     onClick={() => fileRef.current?.click()}
-                    className="w-28 h-28 rounded-xl border-2 border-dashed border-[#1a2d50] hover:border-blue-400 flex flex-col items-center justify-center gap-2 transition-colors"
+                    className="w-28 h-28 rounded-xl border-2 border-dashed border-border hover:border-blue-400 flex flex-col items-center justify-center gap-2 transition-colors"
                   >
                     <Upload size={20} className="text-muted" />
                     <span className="font-cond text-[9px] text-muted">UPLOAD</span>
@@ -3200,7 +3199,7 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                   </div>
                   <button
                     onClick={() => fileRef.current?.click()}
-                    className="font-cond text-[11px] font-black tracking-[.1em] px-4 py-2 rounded-lg border border-[#1a2d50] text-muted hover:text-white transition-colors"
+                    className="font-cond text-[11px] font-black tracking-[.1em] px-4 py-2 rounded-lg border border-border text-muted hover:text-white transition-colors"
                   >
                     {logoPreview ? 'CHANGE LOGO' : 'CHOOSE FILE'}
                   </button>
@@ -3228,7 +3227,7 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                 <div>
                   <label className={lbl}>Primary Color</label>
                   <div className="flex gap-2 items-center">
-                    <div className="w-10 h-10 rounded-lg border border-[#1a2d50] overflow-hidden flex-shrink-0">
+                    <div className="w-10 h-10 rounded-lg border border-border overflow-hidden flex-shrink-0">
                       <input
                         type="color"
                         value={event.primary_color}
@@ -3247,7 +3246,7 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                 <div>
                   <label className={lbl}>Accent Color</label>
                   <div className="flex gap-2 items-center">
-                    <div className="w-10 h-10 rounded-lg border border-[#1a2d50] overflow-hidden flex-shrink-0">
+                    <div className="w-10 h-10 rounded-lg border border-border overflow-hidden flex-shrink-0">
                       <input
                         type="color"
                         value={event.secondary_color}
@@ -3265,7 +3264,7 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                 </div>
               </div>
               {/* Preview */}
-              <div className="mt-4 rounded-lg overflow-hidden border border-[#1a2d50]">
+              <div className="mt-4 rounded-lg overflow-hidden border border-border">
                 <div
                   className="px-4 py-2.5 flex items-center gap-3"
                   style={{ background: event.primary_color }}
@@ -3298,7 +3297,7 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                 {complexes.map((c) => (
                   <div
                     key={c.id}
-                    className="bg-[#050e1a] border border-[#1a2d50] rounded-lg overflow-hidden"
+                    className="bg-[#050e1a] border border-border rounded-lg overflow-hidden"
                   >
                     {editingCxId === c.id ? (
                       <div className="p-3 space-y-2">
@@ -3352,7 +3351,7 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                           </button>
                           <button
                             onClick={() => setEditingCxId(null)}
-                            className="font-cond font-black text-[11px] tracking-[.1em] px-3 py-1.5 rounded border border-[#1a2d50] text-muted hover:text-white transition-colors"
+                            className="font-cond font-black text-[11px] tracking-[.1em] px-3 py-1.5 rounded border border-border text-muted hover:text-white transition-colors"
                           >
                             CANCEL
                           </button>
@@ -3378,7 +3377,7 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                         <div className="flex gap-1">
                           <button
                             onClick={() => startEditComplex(c)}
-                            className="w-7 h-7 flex items-center justify-center rounded hover:bg-[#1a2d50] text-muted hover:text-white transition-colors"
+                            className="w-7 h-7 flex items-center justify-center rounded hover:bg-border text-muted hover:text-white transition-colors"
                           >
                             <Pencil size={12} />
                           </button>
@@ -3452,7 +3451,7 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                           setAddingComplex(false)
                           setNewCx({ name: '', address: '', lat: '', lng: '' })
                         }}
-                        className="font-cond font-black text-[11px] tracking-[.1em] px-3 py-1.5 rounded border border-[#1a2d50] text-muted hover:text-white transition-colors"
+                        className="font-cond font-black text-[11px] tracking-[.1em] px-3 py-1.5 rounded border border-border text-muted hover:text-white transition-colors"
                       >
                         CANCEL
                       </button>
@@ -3461,7 +3460,7 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                 ) : (
                   <button
                     onClick={() => setAddingComplex(true)}
-                    className="w-full flex items-center justify-center gap-2 font-cond font-black text-[11px] tracking-[.1em] py-2.5 rounded-lg border border-dashed border-[#1a2d50] text-muted hover:text-white hover:border-blue-400 transition-colors"
+                    className="w-full flex items-center justify-center gap-2 font-cond font-black text-[11px] tracking-[.1em] py-2.5 rounded-lg border border-dashed border-border text-muted hover:text-white hover:border-blue-400 transition-colors"
                   >
                     <Plus size={12} /> ADD COMPLEX
                   </button>
@@ -3473,7 +3472,7 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
               <div className="space-y-3">
                 {mapPhotoPreview ? (
                   <div
-                    className="relative rounded-lg overflow-hidden border border-[#1a2d50]"
+                    className="relative rounded-lg overflow-hidden border border-border"
                     style={{ height: 180 }}
                   >
                     <img src={mapPhotoPreview} alt="Park" className="w-full h-full object-cover" />
@@ -3491,7 +3490,7 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                 ) : (
                   <button
                     onClick={() => mapFileRef.current?.click()}
-                    className="w-full h-36 rounded-lg border-2 border-dashed border-[#1a2d50] hover:border-blue-400 flex flex-col items-center justify-center gap-2 bg-white/5 transition-colors"
+                    className="w-full h-36 rounded-lg border-2 border-dashed border-border hover:border-blue-400 flex flex-col items-center justify-center gap-2 bg-white/5 transition-colors"
                   >
                     <Upload size={20} className="text-muted" />
                     <span className="font-cond text-[10px] text-muted">
@@ -3502,7 +3501,7 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                 <div className="flex items-center gap-3">
                   <button
                     onClick={() => mapFileRef.current?.click()}
-                    className="font-cond text-[11px] font-black tracking-[.1em] px-4 py-2 rounded-lg border border-[#1a2d50] text-muted hover:text-white transition-colors"
+                    className="font-cond text-[11px] font-black tracking-[.1em] px-4 py-2 rounded-lg border border-border text-muted hover:text-white transition-colors"
                   >
                     {mapPhotoPreview ? 'CHANGE PHOTO' : 'CHOOSE FILE'}
                   </button>
@@ -3590,13 +3589,13 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
           <div className="space-y-6">
             {event.status !== 'active' ? (
               /* Draft gate -- sharing only available for active events */
-              <div className="border border-[#1a2d50] bg-[#030d20] rounded-lg p-6 flex items-center gap-3">
-                <Lock size={14} className="text-[#5a6e9a] flex-shrink-0" />
+              <div className="border border-border bg-surface rounded-lg p-6 flex items-center gap-3">
+                <Lock size={14} className="text-muted flex-shrink-0" />
                 <div>
                   <div className="font-cond text-[12px] font-black text-white mb-1">
                     Registration link available after publishing
                   </div>
-                  <div className="text-[11px] text-[#5a6e9a]">
+                  <div className="text-[11px] text-muted">
                     Publish this event to generate the registration link and QR code.
                   </div>
                 </div>
@@ -3643,13 +3642,13 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                           href={mailtoHref}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 font-cond font-bold text-[10px] uppercase tracking-[.1em] text-[#5a6e9a] hover:text-white transition-colors px-2.5 py-1.5 rounded border border-[#1a2d50]"
+                          className="inline-flex items-center gap-1 font-cond font-bold text-[10px] uppercase tracking-[.1em] text-muted hover:text-white transition-colors px-2.5 py-1.5 rounded border border-border"
                         >
                           <Mail size={11} /> EMAIL
                         </a>
                         <a
                           href={smsHref}
-                          className="inline-flex items-center gap-1 font-cond font-bold text-[10px] uppercase tracking-[.1em] text-[#5a6e9a] hover:text-white transition-colors px-2.5 py-1.5 rounded border border-[#1a2d50]"
+                          className="inline-flex items-center gap-1 font-cond font-bold text-[10px] uppercase tracking-[.1em] text-muted hover:text-white transition-colors px-2.5 py-1.5 rounded border border-border"
                         >
                           <MessageSquare size={11} /> TEXT
                         </a>
@@ -3678,7 +3677,7 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
 
                 {/* Player Check-in */}
                 <Card title="Player Check-in" icon={<Users size={14} />}>
-                  <div className="font-cond text-[11px] text-[#5a6e9a]">
+                  <div className="font-cond text-[11px] text-muted">
                     Individual player QR codes are managed in the{' '}
                     <span className="text-white font-bold">QR Codes</span> tab. Each player gets a
                     unique check-in link.
@@ -3810,8 +3809,8 @@ function PermissionsPanel({
 
   return (
     <div className="space-y-5">
-      <div className="bg-[#081428] border border-[#1a2d50] rounded-xl overflow-hidden">
-        <div className="flex items-center gap-2 px-5 py-3 border-b border-[#1a2d50]">
+      <div className="bg-surface-card border border-border rounded-xl overflow-hidden">
+        <div className="flex items-center gap-2 px-5 py-3 border-b border-border">
           <Lock size={13} className="text-muted" />
           <span className="font-cond text-[11px] font-black tracking-[.12em] text-white uppercase">
             Tab Visibility by Role
@@ -3823,7 +3822,7 @@ function PermissionsPanel({
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-[#1a2d50]">
+              <tr className="border-b border-border">
                 <th className="font-cond text-[10px] font-black tracking-[.1em] text-muted uppercase text-left px-4 py-2.5 w-36">
                   Tab
                 </th>
@@ -3865,7 +3864,7 @@ function PermissionsPanel({
             </tbody>
           </table>
         </div>
-        <div className="flex items-center gap-3 px-4 py-3 border-t border-[#1a2d50]">
+        <div className="flex items-center gap-3 px-4 py-3 border-t border-border">
           {CONFIGURABLE_ROLES.map((role) => (
             <button
               key={role.id}
@@ -3878,7 +3877,7 @@ function PermissionsPanel({
         </div>
       </div>
 
-      <div className="bg-[#081428] border border-[#1a2d50] rounded-xl p-4">
+      <div className="bg-surface-card border border-border rounded-xl p-4">
         <div className="font-cond text-[10px] text-muted leading-relaxed">
           <strong className="text-white/60">How it works:</strong> Unchecked tabs are hidden from
           that role's navigation. If all boxes are unchecked for a role, the user will only see
@@ -3912,8 +3911,8 @@ function Card({
   children: React.ReactNode
 }) {
   return (
-    <div className="bg-[#081428] border border-[#1a2d50] rounded-xl overflow-hidden">
-      <div className="flex items-center gap-2 px-5 py-3 border-b border-[#1a2d50]">
+    <div className="bg-surface-card border border-border rounded-xl overflow-hidden">
+      <div className="flex items-center gap-2 px-5 py-3 border-b border-border">
         {icon && <span className="text-muted">{icon}</span>}
         <span className="font-cond text-[11px] font-black tracking-[.12em] text-white uppercase">
           {title}
@@ -3952,7 +3951,7 @@ function Toggle({
         onClick={() => onChange(!value)}
         className={cn(
           'relative w-10 h-5 rounded-full border-2 flex-shrink-0 transition-all',
-          value ? 'bg-blue-600 border-blue-500' : 'bg-[#0d1a2e] border-[#1a2d50]'
+          value ? 'bg-blue-600 border-blue-500' : 'bg-[#0d1a2e] border-border'
         )}
       >
         <span
@@ -3979,13 +3978,13 @@ function NumField({
 }) {
   return (
     <div>
-      <label className="font-cond text-[10px] font-black tracking-[.12em] text-[#5a6e9a] uppercase block mb-1.5">
+      <label className="font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase block mb-1.5">
         {label}
       </label>
       <input
         type="number"
         min={0}
-        className="w-full bg-[#081428] border border-[#1a2d50] text-white px-3 py-2 rounded-lg text-[13px] outline-none focus:border-blue-400 transition-colors font-mono"
+        className="w-full bg-surface-card border border-border text-white px-3 py-2 rounded-lg text-[13px] outline-none focus:border-blue-400 transition-colors font-mono"
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
       />
@@ -4040,7 +4039,7 @@ function RefRequirementsCard({
   }
 
   const numInp =
-    'w-14 bg-[#050f20] border border-[#1a2d50] text-white text-center px-2 py-1.5 rounded text-[13px] font-mono outline-none focus:border-blue-400 transition-colors'
+    'w-14 bg-[#050f20] border border-border text-white text-center px-2 py-1.5 rounded text-[13px] font-mono outline-none focus:border-blue-400 transition-colors'
 
   return (
     <Card title="Referee Requirements" icon={<Users size={14} />}>
@@ -4097,7 +4096,7 @@ function RefRequirementsCard({
         })}
 
         {/* Default row */}
-        <div className="grid grid-cols-[1fr_80px_80px] gap-2 items-center px-1 py-1 rounded border-t border-[#1a2d50] mt-2 pt-3">
+        <div className="grid grid-cols-[1fr_80px_80px] gap-2 items-center px-1 py-1 rounded border-t border-border mt-2 pt-3">
           <span className="font-cond text-[11px] font-black tracking-[.08em] text-muted uppercase">
             All Other Divisions
           </span>
@@ -4187,13 +4186,13 @@ function AddRuleForm({
   }
 
   const formInp =
-    'w-full bg-[#081428] border border-[#1a2d50] text-white px-3 py-2 rounded-lg text-[13px] outline-none focus:border-blue-400 transition-colors'
+    'w-full bg-surface-card border border-border text-white px-3 py-2 rounded-lg text-[13px] outline-none focus:border-blue-400 transition-colors'
   const formLbl =
-    'font-cond text-[10px] font-black tracking-[.12em] text-[#5a6e9a] uppercase block mb-1.5'
+    'font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase block mb-1.5'
 
   return (
-    <div className="bg-[#081428] border border-[#1a2d50] rounded-xl overflow-hidden">
-      <div className="flex items-center justify-between px-5 py-3 border-b border-[#1a2d50]">
+    <div className="bg-surface-card border border-border rounded-xl overflow-hidden">
+      <div className="flex items-center justify-between px-5 py-3 border-b border-border">
         <span className="font-cond text-[11px] font-black tracking-[.12em] text-white uppercase">
           New Rule
         </span>
@@ -4316,7 +4315,7 @@ function AddRuleForm({
         <div className="flex items-center justify-end gap-3 pt-2">
           <button
             onClick={onCancel}
-            className="font-cond font-black text-[11px] tracking-[.1em] px-4 py-2 rounded-lg border border-[#1a2d50] text-muted hover:text-white transition-colors"
+            className="font-cond font-black text-[11px] tracking-[.1em] px-4 py-2 rounded-lg border border-border text-muted hover:text-white transition-colors"
           >
             CANCEL
           </button>
@@ -4395,7 +4394,7 @@ function GameDayLabelRow({
             }
           }}
           onBlur={save}
-          className="flex-1 bg-[#040e24] border border-blue-400 text-white px-2 py-0.5 rounded text-[12px] font-cond font-bold outline-none"
+          className="flex-1 bg-surface-card border border-blue-400 text-white px-2 py-0.5 rounded text-[12px] font-cond font-bold outline-none"
         />
       ) : (
         <span className="flex-1 font-cond text-[12px] font-bold text-white truncate">
@@ -4440,7 +4439,7 @@ function ShareLinkSection({ label, url }: { label: string; url: string }) {
       <div className="flex-1 min-w-0 space-y-2">
         <div className="flex items-center gap-3">
           <input
-            className="flex-1 bg-[#081428] border border-[#1a2d50] text-white px-3 py-2 rounded text-[12px] outline-none cursor-default select-all"
+            className="flex-1 bg-surface-card border border-border text-white px-3 py-2 rounded text-[12px] outline-none cursor-default select-all"
             value={url}
             readOnly
             onClick={(e) => (e.target as HTMLInputElement).select()}
@@ -4453,7 +4452,7 @@ function ShareLinkSection({ label, url }: { label: string; url: string }) {
             <span>{copied ? 'COPIED' : 'COPY'}</span>
           </button>
         </div>
-        <div className="font-cond text-[10px] text-[#5a6e9a]">Scan to view public results</div>
+        <div className="font-cond text-[10px] text-muted">Scan to view public results</div>
       </div>
     </div>
   )
@@ -4521,7 +4520,7 @@ function InviteLinkSection({
           <div className="flex-1 min-w-0 space-y-2">
             <div className="flex items-center gap-3">
               <input
-                className="flex-1 bg-[#081428] border border-[#1a2d50] text-white px-3 py-2 rounded text-[12px] outline-none cursor-default select-all"
+                className="flex-1 bg-surface-card border border-border text-white px-3 py-2 rounded text-[12px] outline-none cursor-default select-all"
                 value={url}
                 readOnly
                 onClick={(e) => (e.target as HTMLInputElement).select()}
@@ -4534,15 +4533,13 @@ function InviteLinkSection({
                 <span>{copied ? 'COPIED' : 'COPY'}</span>
               </button>
             </div>
-            <div className="font-cond text-[10px] text-[#5a6e9a]">
-              Scan to open {type} sign-up form
-            </div>
+            <div className="font-cond text-[10px] text-muted">Scan to open {type} sign-up form</div>
           </div>
         </div>
       ) : (
         <button
           onClick={generate}
-          className="flex items-center gap-1.5 font-cond font-black text-[11px] tracking-[.1em] px-4 py-2 rounded-lg border border-[#1a2d50] text-[#5a6e9a] hover:text-white hover:border-blue-400 transition-colors"
+          className="flex items-center gap-1.5 font-cond font-black text-[11px] tracking-[.1em] px-4 py-2 rounded-lg border border-border text-muted hover:text-white hover:border-blue-400 transition-colors"
         >
           <Plus size={12} /> GENERATE LINK
         </button>

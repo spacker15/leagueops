@@ -35,7 +35,9 @@ export function ScheduleChangeRequestModal({
   const [selectedGameIds, setSelectedGameIds] = useState<Set<number>>(
     preSelectedGameId ? new Set([preSelectedGameId]) : new Set()
   )
-  const [requestType, setRequestType] = useState<'reschedule' | 'cancel' | 'change_opponent'>('reschedule')
+  const [requestType, setRequestType] = useState<'reschedule' | 'cancel' | 'change_opponent'>(
+    'reschedule'
+  )
   const [reasonCategory, setReasonCategory] = useState('')
   const [reasonDetails, setReasonDetails] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -65,7 +67,9 @@ export function ScheduleChangeRequestModal({
 
   // Filter to only future games
   const now = new Date().toISOString()
-  const futureGames = teamGames.filter((g) => g.scheduled_time > now || g.status === 'Scheduled' || g.status === 'Starting')
+  const futureGames = teamGames.filter(
+    (g) => g.scheduled_time > now || g.status === 'Scheduled' || g.status === 'Starting'
+  )
 
   function toggleGame(gameId: number) {
     setSelectedGameIds((prev) => {
@@ -129,7 +133,7 @@ export function ScheduleChangeRequestModal({
           <span className="font-cond text-[10px] font-black tracking-[.12em] uppercase text-muted block mb-2">
             AFFECTED GAMES
           </span>
-          <div className="max-h-[200px] overflow-y-auto border border-[#1e3060] rounded-lg">
+          <div className="max-h-[200px] overflow-y-auto border border-border rounded-lg">
             {futureGames.length === 0 ? (
               <div className="flex items-center justify-center py-6 font-cond text-[12px] text-muted">
                 No upcoming games.
@@ -140,13 +144,13 @@ export function ScheduleChangeRequestModal({
                 const isChecked = selectedGameIds.has(game.id)
                 const opponent =
                   game.home_team_id === teamId
-                    ? game.away_team?.name ?? `Team #${game.away_team_id}`
-                    : game.home_team?.name ?? `Team #${game.home_team_id}`
+                    ? (game.away_team?.name ?? `Team #${game.away_team_id}`)
+                    : (game.home_team?.name ?? `Team #${game.home_team_id}`)
 
                 return (
                   <label
                     key={game.id}
-                    className={`flex items-center gap-3 px-3 py-2.5 border-b border-[#1e3060] last:border-0 cursor-pointer hover:bg-white/5 transition-colors ${
+                    className={`flex items-center gap-3 px-3 py-2.5 border-b border-border last:border-0 cursor-pointer hover:bg-white/5 transition-colors ${
                       isPreSelected ? 'bg-[#0a1a3a]' : ''
                     }`}
                   >
@@ -162,9 +166,7 @@ export function ScheduleChangeRequestModal({
                         {game.scheduled_time}
                       </span>
                       {game.field?.name && (
-                        <span className="text-[12px] text-muted truncate">
-                          {game.field.name}
-                        </span>
+                        <span className="text-[12px] text-muted truncate">{game.field.name}</span>
                       )}
                       <span className="text-[12px] text-white font-black truncate">
                         vs {opponent}
@@ -220,7 +222,7 @@ export function ScheduleChangeRequestModal({
           <Select
             value={reasonCategory}
             onChange={(e) => setReasonCategory(e.target.value)}
-            className="bg-[#040e24]"
+            className="bg-surface-card"
           >
             <option value="">Select a reason...</option>
             <option value="Coach conflict">Coach conflict</option>

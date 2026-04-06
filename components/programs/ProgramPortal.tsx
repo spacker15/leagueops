@@ -242,7 +242,7 @@ export function ProgramPortal({ token }: { token: string }) {
   const inp =
     'w-full bg-surface border border-border text-white px-3 py-2 rounded text-[13px] outline-none focus:border-blue-400'
   const sel =
-    'w-full bg-[#040e24] border border-border text-white px-3 py-2 rounded text-[13px] outline-none focus:border-blue-400'
+    'w-full bg-surface-card border border-border text-white px-3 py-2 rounded text-[13px] outline-none focus:border-blue-400'
   const label = 'font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase mb-1'
 
   return (

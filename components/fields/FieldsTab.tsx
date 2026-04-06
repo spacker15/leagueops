@@ -10,7 +10,7 @@ import { createClient } from '@/supabase/client'
 import type { Complex, FieldAvailability } from '@/types'
 
 const inp =
-  'bg-[#081428] border border-[#1a2d50] text-white px-2.5 py-1.5 rounded text-[12px] outline-none focus:border-blue-400 transition-colors w-full'
+  'bg-surface-card border border-border text-white px-2.5 py-1.5 rounded text-[12px] outline-none focus:border-blue-400 transition-colors w-full'
 
 interface EditState {
   name: string
@@ -239,7 +239,7 @@ export function FieldsTab() {
               onClick={() => onChange(toggleDiv(selected, d.name))}
               className={cn(
                 'font-cond text-[10px] font-bold px-2 py-1 rounded border transition-colors',
-                active ? 'text-white' : 'text-muted border-[#1a2d50] hover:text-white'
+                active ? 'text-white' : 'text-muted border-border hover:text-white'
               )}
               style={
                 active
@@ -270,7 +270,7 @@ export function FieldsTab() {
       </div>
 
       {/* Add form */}
-      <div className="bg-[#081428] border border-[#1a2d50] rounded-xl p-4 mb-5">
+      <div className="bg-surface-card border border-border rounded-xl p-4 mb-5">
         <div className="font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase mb-3">
           Add Field
         </div>
@@ -337,10 +337,10 @@ export function FieldsTab() {
           No fields yet — add your first field above
         </div>
       ) : (
-        <div className="bg-[#081428] border border-[#1a2d50] rounded-xl overflow-hidden">
+        <div className="bg-surface-card border border-border rounded-xl overflow-hidden">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-[#1a2d50]">
+              <tr className="border-b border-border">
                 <th className="font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase text-left px-4 py-2.5 w-16">
                   #
                 </th>
@@ -426,7 +426,7 @@ export function FieldsTab() {
                             </button>
                             <button
                               onClick={() => setEditId(null)}
-                              className="w-7 h-7 flex items-center justify-center rounded bg-[#1a2d50] hover:bg-[#1a3060] text-muted hover:text-white"
+                              className="w-7 h-7 flex items-center justify-center rounded bg-border hover:bg-surface-elevated text-muted hover:text-white"
                             >
                               <X size={12} />
                             </button>
@@ -459,7 +459,7 @@ export function FieldsTab() {
                         {complexes.length > 0 && (
                           <td className="px-4 py-3">
                             {complexName(field.complex_id) ? (
-                              <span className="font-cond text-[11px] font-bold px-2 py-0.5 rounded bg-[#1a2d50] text-green-300">
+                              <span className="font-cond text-[11px] font-bold px-2 py-0.5 rounded bg-border text-green-300">
                                 {complexName(field.complex_id)}
                               </span>
                             ) : (
@@ -474,7 +474,7 @@ export function FieldsTab() {
                                 setAvailExpandedId(availExpandedId === field.id ? null : field.id)
                               }
                               className={cn(
-                                'w-7 h-7 flex items-center justify-center rounded hover:bg-[#1a2d50] transition-colors',
+                                'w-7 h-7 flex items-center justify-center rounded hover:bg-border transition-colors',
                                 availExpandedId === field.id
                                   ? 'text-blue-400'
                                   : 'text-muted hover:text-white'
@@ -485,7 +485,7 @@ export function FieldsTab() {
                             </button>
                             <button
                               onClick={() => startEdit(field)}
-                              className="w-7 h-7 flex items-center justify-center rounded hover:bg-[#1a2d50] text-muted hover:text-white transition-colors"
+                              className="w-7 h-7 flex items-center justify-center rounded hover:bg-border text-muted hover:text-white transition-colors"
                             >
                               <Pencil size={12} />
                             </button>
@@ -504,7 +504,7 @@ export function FieldsTab() {
                     <tr>
                       <td
                         colSpan={complexes.length > 0 ? 5 : 4}
-                        className="bg-[#060e1e] px-4 py-3 border-b border-[#1a2d50]"
+                        className="bg-[#060e1e] px-4 py-3 border-b border-border"
                       >
                         <FieldAvailabilityEditor
                           fieldId={field.id}
@@ -633,18 +633,18 @@ function FieldAvailabilityEditor({
             type="time"
             value={bulkFrom}
             onChange={(e) => setBulkFrom(e.target.value)}
-            className="bg-[#081428] border border-[#1a2d50] text-white px-1.5 py-0.5 rounded text-[11px] outline-none"
+            className="bg-surface-card border border-border text-white px-1.5 py-0.5 rounded text-[11px] outline-none"
           />
           <span className="text-muted text-[10px]">to</span>
           <input
             type="time"
             value={bulkTo}
             onChange={(e) => setBulkTo(e.target.value)}
-            className="bg-[#081428] border border-[#1a2d50] text-white px-1.5 py-0.5 rounded text-[11px] outline-none"
+            className="bg-surface-card border border-border text-white px-1.5 py-0.5 rounded text-[11px] outline-none"
           />
           <button
             onClick={applyBulk}
-            className="font-cond text-[9px] font-black tracking-[.1em] px-2 py-1 rounded bg-[#1a2d50] hover:bg-[#1a3060] text-white transition-colors"
+            className="font-cond text-[9px] font-black tracking-[.1em] px-2 py-1 rounded bg-border hover:bg-surface-elevated text-white transition-colors"
           >
             APPLY ALL
           </button>
@@ -660,14 +660,14 @@ function FieldAvailabilityEditor({
               type="time"
               value={local[ed.id]?.from ?? '08:00'}
               onChange={(e) => setTime(ed.id, 'from', e.target.value)}
-              className="bg-[#081428] border border-[#1a2d50] text-white px-1.5 py-0.5 rounded text-[11px] outline-none focus:border-blue-400"
+              className="bg-surface-card border border-border text-white px-1.5 py-0.5 rounded text-[11px] outline-none focus:border-blue-400"
             />
             <span className="text-muted text-[10px]">to</span>
             <input
               type="time"
               value={local[ed.id]?.to ?? '17:00'}
               onChange={(e) => setTime(ed.id, 'to', e.target.value)}
-              className="bg-[#081428] border border-[#1a2d50] text-white px-1.5 py-0.5 rounded text-[11px] outline-none focus:border-blue-400"
+              className="bg-surface-card border border-border text-white px-1.5 py-0.5 rounded text-[11px] outline-none focus:border-blue-400"
             />
           </div>
         ))}

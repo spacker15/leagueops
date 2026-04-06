@@ -16,7 +16,7 @@ export default async function CoachJoinPage({ params }: { params: { token: strin
     return (
       <div
         className="min-h-screen flex items-center justify-center p-4"
-        style={{ background: '#020810' }}
+        style={{ background: 'var(--surface)' }}
       >
         <div className="bg-[#081428] border border-red-800/50 rounded-2xl p-8 max-w-sm w-full text-center">
           <div className="text-4xl mb-4">❌</div>
