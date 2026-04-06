@@ -22,7 +22,7 @@ function timeToMin(t: string): number {
 }
 
 export function DashboardTab() {
-  const { state, updateGameStatus, updateGameScore, addLog } = useApp()
+  const { state, updateGameStatus, updateGameScore, addLog, refreshGames, eventId } = useApp()
   const { userRole, isCoach } = useAuth()
   const [selectedGame, setSelectedGame] = useState<Game | null>(null)
 
@@ -136,7 +136,30 @@ export function DashboardTab() {
                 for (const a of active) {
                   await sb.from('weather_alerts').update({ is_active: false }).eq('id', a.id)
                 }
-                toast.success(`${active.length} alert${active.length > 1 ? 's' : ''} resolved`)
+
+                // Resume all delayed games back to Scheduled
+                if (eventId) {
+                  const { data: delayedGames } = await sb
+                    .from('games')
+                    .select('id')
+                    .eq('event_id', eventId)
+                    .eq('status', 'Delayed')
+                  if (delayedGames && delayedGames.length > 0) {
+                    await sb
+                      .from('games')
+                      .update({ status: 'Scheduled' })
+                      .eq('event_id', eventId)
+                      .eq('status', 'Delayed')
+                    await refreshGames()
+                    toast.success(
+                      `${active.length} alert${active.length > 1 ? 's' : ''} resolved, ${delayedGames.length} game${delayedGames.length > 1 ? 's' : ''} resumed`
+                    )
+                  } else {
+                    toast.success(`${active.length} alert${active.length > 1 ? 's' : ''} resolved`)
+                  }
+                } else {
+                  toast.success(`${active.length} alert${active.length > 1 ? 's' : ''} resolved`)
+                }
               }}
               className="font-cond text-[10px] font-bold tracking-wider px-2.5 py-1 rounded bg-green-900/40 text-green-400 border border-green-800/50 hover:bg-green-800/60 transition-colors"
             >
