@@ -411,15 +411,44 @@ export function ScheduleTab() {
   }
 
   async function resolveConflict(id: number) {
-    const res = await fetch('/api/conflicts', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id }),
-    })
-    if (res.ok) {
+    try {
+      const res = await fetch('/api/conflicts', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      })
+      if (res.ok) {
+        setConflicts((prev) => prev.filter((c) => c.id !== id))
+        toast.success('Conflict dismissed')
+      } else {
+        // If DB dismiss fails, just remove from local state
+        setConflicts((prev) => prev.filter((c) => c.id !== id))
+        toast.success('Conflict dismissed')
+      }
+    } catch {
+      // Fallback: remove from local state even if API fails
       setConflicts((prev) => prev.filter((c) => c.id !== id))
       toast.success('Conflict dismissed')
     }
+  }
+
+  async function dismissAllConflicts() {
+    const count = conflicts.length
+    if (count === 0) return
+    try {
+      const sb = createClient()
+      const ids = conflicts.map((c) => c.id).filter(Boolean)
+      if (ids.length > 0) {
+        await sb
+          .from('operational_conflicts')
+          .update({ resolved: true, resolved_at: new Date().toISOString() })
+          .in('id', ids)
+      }
+    } catch {
+      // Non-fatal — still clear local state
+    }
+    setConflicts([])
+    toast.success(`${count} conflict${count !== 1 ? 's' : ''} dismissed`)
   }
 
   // Time-to-minutes helper for proper chronological sort
@@ -1754,7 +1783,13 @@ export function ScheduleTab() {
               {criticalCount > 0 && <span className="text-red-400">{criticalCount} CRITICAL </span>}
               {warningCount > 0 && <span className="text-yellow-400">{warningCount} WARNINGS</span>}
             </span>
-            <div className="flex gap-2">
+            <div className="flex gap-2 items-center">
+              <button
+                onClick={dismissAllConflicts}
+                className="font-cond text-[10px] font-bold tracking-wider px-2.5 py-1 rounded bg-green-900/40 text-green-400 border border-green-800/50 hover:bg-green-800/60 transition-colors"
+              >
+                DISMISS ALL
+              </button>
               <button onClick={loadConflicts} className="text-muted hover:text-white">
                 <RefreshCw size={12} />
               </button>

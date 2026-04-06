@@ -88,6 +88,14 @@ export async function runFieldConflictEngine(
   const overlapTol = 0 // from rules — overlap_tolerance_min
   const cascadeWindow = 15 // from rules — cascade_delay_min
 
+  // Division-aware game duration: younger divisions have shorter games
+  function getGameDuration(division: string): number {
+    const div = division.toLowerCase()
+    if (div.includes('1/2') || div.includes('8u') || div.includes('k/1')) return 40
+    if (div.includes('3/4') || div.includes('10u')) return 50
+    return gameDuration // default for 5/6, 7/8, etc.
+  }
+
   // Load games for this date with field info
   const { data: games } = await sb
     .from('games')
@@ -183,7 +191,8 @@ export async function runFieldConflictEngine(
         if (a.status === 'Final' && b.status === 'Final') continue
 
         const aStart = timeToMinutes(a.scheduled_time)
-        const aEnd = aStart + gameDuration
+        const aDuration = getGameDuration((a as any).division ?? '')
+        const aEnd = aStart + aDuration
         const bStart = timeToMinutes(b.scheduled_time)
 
         // Overlap: B starts before A ends (minus tolerance)
@@ -564,7 +573,11 @@ export async function applyResolution(
 }
 
 // ─── Run both engines together ────────────────────────────────
-export async function runFullConflictScan(eventDateId: number, eventId: number, sb: SupabaseClient) {
+export async function runFullConflictScan(
+  eventDateId: number,
+  eventId: number,
+  sb: SupabaseClient
+) {
   const [fieldResult] = await Promise.all([runFieldConflictEngine(eventDateId, eventId, sb)])
 
   await sb.from('conflict_engine_runs').insert({
