@@ -18,6 +18,9 @@
 }
 
 [data-theme='light'] {
+  --navy: #1a52b8;
+  --navy-dark: #0b3d91;
+  --navy-light: #2563eb;
   --surface: #f0f2f5;
   --surface-card: #ffffff;
   --surface-elevated: #e8ecf1;
@@ -26,6 +29,171 @@
   --text-primary: #111827;
   --text-secondary: #374151;
   --select-bg: #ffffff;
+}
+
+/* ── Light Mode Global Overrides ──────────────────────────────────────
+   Many components use hardcoded dark hex colors via Tailwind arbitrary
+   values (bg-[#081428]) or inline styles. These CSS overrides catch
+   the most common patterns without touching every component file. */
+[data-theme='light'] {
+  color-scheme: light;
+}
+
+/* Surface / card backgrounds */
+[data-theme='light'] .bg-surface,
+[data-theme='light'] [style*='background: #020810'],
+[data-theme='light'] [style*='background: rgb(2, 8, 16)'],
+[data-theme='light'] [style*='background:#020810'] {
+  background: #f0f2f5 !important;
+}
+
+[data-theme='light'] .bg-surface-card,
+[data-theme='light'] [class*='bg-surface-card'],
+[data-theme='light'] [style*='background: #081428'],
+[data-theme='light'] [style*='background:#081428'] {
+  background: #ffffff !important;
+}
+
+/* Hardcoded dark backgrounds via arbitrary Tailwind classes */
+[data-theme='light'] [class*='bg-\\[\\#081428\\]'],
+[data-theme='light'] [class*='bg-\\[\\#040e24\\]'],
+[data-theme='light'] [class*='bg-\\[\\#030d20\\]'],
+[data-theme='light'] [class*='bg-\\[\\#0d1e3a\\]'] {
+  background-color: #f8f9fb !important;
+}
+
+/* Row striping and panel backgrounds used in tables/matrices */
+[data-theme='light'] [style*='background: #050f20'],
+[data-theme='light'] [style*='background: #030c1a'],
+[data-theme='light'] [style*='background: #0a1a3a'] {
+  background: #ffffff !important;
+}
+[data-theme='light'] [style*='background: #061428'],
+[data-theme='light'] [style*='background:#061428'] {
+  background: #f0f4f8 !important;
+}
+[data-theme='light'] [style*='background: #0f1520'],
+[data-theme='light'] [style*='background:#0f1520'],
+[data-theme='light'] [style*='background: #111520'],
+[data-theme='light'] [style*='background:#111520'] {
+  background: #f1f5f9 !important;
+}
+
+/* Navy backgrounds — keep navy but lighten for readability */
+[data-theme='light'] .bg-navy {
+  background-color: #1e40af !important;
+}
+[data-theme='light'] .bg-navy\/60,
+[data-theme='light'] [class*='bg-navy\\/60'] {
+  background-color: rgba(30, 64, 175, 0.15) !important;
+}
+
+/* Text colors */
+[data-theme='light'] .text-white {
+  color: #111827 !important;
+}
+[data-theme='light'] .text-muted {
+  color: #6b7a94 !important;
+}
+[data-theme='light'] .text-blue-300 {
+  color: #2563eb !important;
+}
+[data-theme='light'] .text-blue-400 {
+  color: #1d4ed8 !important;
+}
+[data-theme='light'] .text-green-400 {
+  color: #16a34a !important;
+}
+[data-theme='light'] .text-red-400 {
+  color: #dc2626 !important;
+}
+[data-theme='light'] .text-yellow-300,
+[data-theme='light'] .text-yellow-400 {
+  color: #b45309 !important;
+}
+[data-theme='light'] .text-orange-300 {
+  color: #c2410c !important;
+}
+
+/* Keep white text on navy/dark accent backgrounds */
+[data-theme='light'] .bg-navy .text-white,
+[data-theme='light'] .bg-navy-light .text-white,
+[data-theme='light'] .bg-green-700 .text-white,
+[data-theme='light'] .bg-red .text-white,
+[data-theme='light'] [class*='badge-'] {
+  color: inherit !important;
+}
+[data-theme='light'] .bg-navy .text-white,
+[data-theme='light'] .bg-navy-light .text-white,
+[data-theme='light'] .bg-green-700 .text-white {
+  color: #ffffff !important;
+}
+
+/* Border colors */
+[data-theme='light'] .border-border,
+[data-theme='light'] [class*='border-border'] {
+  border-color: #d0d7e2 !important;
+}
+[data-theme='light'] [class*='border-\\[\\#1a2d50\\]'],
+[data-theme='light'] [style*='border: 1px solid #1a2d50'],
+[data-theme='light'] [style*='border-color: #1a2d50'],
+[data-theme='light'] [style*='border: 1px solid #0d1e3a'],
+[data-theme='light'] [style*='borderLeft: 1px solid #0d1e3a'] {
+  border-color: #d0d7e2 !important;
+}
+
+/* Select / input backgrounds */
+[data-theme='light'] select,
+[data-theme='light'] input[type='time'],
+[data-theme='light'] input[type='text'],
+[data-theme='light'] input[type='number'],
+[data-theme='light'] textarea {
+  background-color: #ffffff !important;
+  color: #111827 !important;
+  border-color: #d0d7e2 !important;
+}
+[data-theme='light'] select option {
+  background-color: #ffffff !important;
+  color: #111827 !important;
+}
+
+/* Sidebar / right panel */
+[data-theme='light'] [style*='background: linear-gradient'] {
+  background: #f8f9fb !important;
+}
+
+/* Score and mono text */
+[data-theme='light'] .font-mono.text-white,
+[data-theme='light'] .font-mono.text-green-400 {
+  color: #111827 !important;
+}
+
+/* Semi-transparent backgrounds */
+[data-theme='light'] [class*='bg-white\\/5'],
+[data-theme='light'] [class*='bg-white\\/10'] {
+  background-color: rgba(0, 0, 0, 0.03) !important;
+}
+[data-theme='light'] [class*='bg-blue-900\\/'] {
+  background-color: rgba(37, 99, 235, 0.08) !important;
+}
+[data-theme='light'] [class*='bg-red-900\\/'] {
+  background-color: rgba(220, 38, 38, 0.08) !important;
+}
+[data-theme='light'] [class*='bg-green-900\\/'] {
+  background-color: rgba(22, 163, 74, 0.08) !important;
+}
+[data-theme='light'] [class*='bg-yellow-900\\/'] {
+  background-color: rgba(180, 83, 9, 0.08) !important;
+}
+
+/* Hover states */
+[data-theme='light'] [class*='hover\\:bg-white\\/5']:hover {
+  background-color: rgba(0, 0, 0, 0.05) !important;
+}
+
+/* Shadows — add subtle shadow in light mode */
+[data-theme='light'] .bg-surface-card {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
 * {
