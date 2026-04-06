@@ -25,7 +25,7 @@ export function StatusRow() {
   return (
     <div
       className="flex items-stretch flex-shrink-0"
-      style={{ height: 38, background: '#020810', borderBottom: '1px solid #1a2d50' }}
+      style={{ height: 38, background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}
     >
       {/* Game status pills */}
       {PILLS.map((p, i) => {

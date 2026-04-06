@@ -132,7 +132,7 @@ export function TopBar({
       {/* Wordmark */}
       <div
         className="flex items-center gap-2.5 pl-4 pr-5 flex-shrink-0"
-        style={{ borderRight: '1px solid #1a2d50' }}
+        style={{ borderRight: '1px solid var(--border)' }}
       >
         <div className="w-1 h-5 rounded-sm bg-red mr-1" />
         <svg width="18" height="18" viewBox="0 0 22 22" fill="none">
@@ -176,8 +176,12 @@ export function TopBar({
               <button
                 className="flex items-center gap-1.5 px-4 h-full transition-all relative"
                 style={{
-                  background: isOpen ? '#081428' : active ? 'rgba(11,61,145,0.15)' : 'transparent',
-                  borderRight: '1px solid #1a2d50',
+                  background: isOpen
+                    ? 'var(--surface-card)'
+                    : active
+                      ? 'rgba(11,61,145,0.15)'
+                      : 'transparent',
+                  borderRight: '1px solid var(--border)',
                 }}
                 onClick={() => {
                   if (isDirect) {
@@ -207,7 +211,7 @@ export function TopBar({
                   {subLabel && (
                     <span
                       className="font-cond text-[9px] tracking-wide mt-0.5"
-                      style={{ color: '#3a5070' }}
+                      style={{ color: 'var(--muted)' }}
                     >
                       {subLabel}
                     </span>
@@ -231,7 +235,11 @@ export function TopBar({
               {!isDirect && isOpen && (
                 <div
                   className="absolute top-full left-0 z-50 py-1 rounded-b-xl shadow-2xl min-w-[160px]"
-                  style={{ background: '#061428', border: '1px solid #1a2d50', borderTop: 'none' }}
+                  style={{
+                    background: 'var(--surface-card)',
+                    border: '1px solid var(--border)',
+                    borderTop: 'none',
+                  }}
                 >
                   {group.items!.map((item) => (
                     <button
@@ -329,7 +337,7 @@ export function TopBar({
             {onSwitchToProgram && (
               <button
                 onClick={onSwitchToProgram}
-                className="font-cond text-[9px] font-black tracking-[.1em] px-2 py-1 rounded border border-[#1a2d50] text-blue-300 hover:text-white hover:border-blue-400 transition-colors"
+                className="font-cond text-[9px] font-black tracking-[.1em] px-2 py-1 rounded border border-border text-blue-300 hover:text-white hover:border-blue-400 transition-colors"
               >
                 PROGRAM VIEW
               </button>
@@ -337,7 +345,7 @@ export function TopBar({
             {onChangeEvent && (
               <button
                 onClick={onChangeEvent}
-                className="font-cond text-[9px] font-black tracking-[.1em] px-2 py-1 rounded border border-[#1a2d50] text-[#5a6e9a] hover:text-white hover:border-blue-400 transition-colors"
+                className="font-cond text-[9px] font-black tracking-[.1em] px-2 py-1 rounded border border-border text-[#5a6e9a] hover:text-white hover:border-blue-400 transition-colors"
               >
                 ⊞ EVENTS
               </button>
@@ -360,7 +368,7 @@ export function TopBar({
           {/* Backdrop */}
           <div className="absolute inset-0 bg-black/60" onClick={() => setMobileOpen(false)} />
           {/* Drawer panel */}
-          <div className="absolute left-0 top-0 bottom-0 w-72 bg-[#030d20] border-r border-border overflow-y-auto">
+          <div className="absolute left-0 top-0 bottom-0 w-72 bg-surface-card border-r border-border overflow-y-auto">
             {/* Close button */}
             <div className="flex items-center justify-between px-4 h-12 border-b border-border">
               <span className="font-cond text-sm font-black tracking-widest text-white">MENU</span>

@@ -235,7 +235,7 @@ export function DashboardTab() {
                 {coachGames.map((g) => (
                   <div
                     key={g.id}
-                    className="bg-[#081428] border border-[#1a2d50] rounded-lg p-3 flex items-center justify-between cursor-pointer hover:border-blue-500/40 transition-colors"
+                    className="bg-surface-card border border-border rounded-lg p-3 flex items-center justify-between cursor-pointer hover:border-blue-500/40 transition-colors"
                     onClick={() => openGame(g)}
                   >
                     <div className="flex items-center gap-4">
@@ -516,13 +516,20 @@ function FieldCard({
   return (
     <div
       className="rounded-xl overflow-hidden cursor-pointer transition-all hover:translate-y-[-1px]"
-      style={{ background: '#081428', border: `1px solid ${borderColor}`, ...glowStyle }}
+      style={{
+        background: 'var(--surface-card)',
+        border: `1px solid ${borderColor}`,
+        ...glowStyle,
+      }}
       onClick={() => game && onOpen(game)}
     >
       {/* Field header */}
       <div
         className="flex items-center justify-between px-3 py-2"
-        style={{ background: '#0a1a3a', borderBottom: `1px solid ${borderColor}30` }}
+        style={{
+          background: 'var(--surface-elevated)',
+          borderBottom: `1px solid ${borderColor}30`,
+        }}
       >
         <div className="flex items-center gap-2">
           {isLive && (
@@ -540,7 +547,7 @@ function FieldCard({
         ) : (
           <span
             className="font-cond text-[9px] font-black tracking-[.15em]"
-            style={{ color: '#1e2d40' }}
+            style={{ color: 'var(--border)' }}
           >
             OPEN
           </span>
@@ -550,7 +557,7 @@ function FieldCard({
       {!game ? (
         <div
           className="px-3 py-4 font-cond text-[11px] font-black tracking-[.1em]"
-          style={{ color: '#1e2d40' }}
+          style={{ color: 'var(--border)' }}
         >
           NO GAMES SCHEDULED
         </div>
@@ -582,7 +589,10 @@ function FieldCard({
                 <span className="font-mono text-[28px] font-black text-white tabular-nums leading-none">
                   {game.home_score}
                 </span>
-                <span className="font-cond text-[16px] font-black" style={{ color: '#1a2d50' }}>
+                <span
+                  className="font-cond text-[16px] font-black"
+                  style={{ color: 'var(--border)' }}
+                >
                   –
                 </span>
                 <span className="font-mono text-[28px] font-black text-white tabular-nums leading-none">
@@ -591,7 +601,10 @@ function FieldCard({
               </div>
             ) : (
               <div className="px-5 flex-shrink-0">
-                <span className="font-cond text-[12px] font-black" style={{ color: '#2a3d60' }}>
+                <span
+                  className="font-cond text-[12px] font-black"
+                  style={{ color: 'var(--muted)' }}
+                >
                   VS
                 </span>
               </div>
@@ -626,12 +639,12 @@ function FieldCard({
               <span className="font-mono text-[11px] font-bold" style={{ color: '#5a6e9a' }}>
                 {game.scheduled_time}
               </span>
-              <span className="font-cond text-[10px] font-bold" style={{ color: '#3a4d70' }}>
+              <span className="font-cond text-[10px] font-bold" style={{ color: 'var(--muted)' }}>
                 ·
               </span>
               <span
                 className="font-cond text-[12px] font-bold tracking-wide"
-                style={{ color: '#3a4d70' }}
+                style={{ color: 'var(--muted)' }}
               >
                 {game.division}
               </span>
@@ -639,13 +652,17 @@ function FieldCard({
             {game.status !== 'Final' && (
               <button
                 className="font-cond text-[10px] font-black tracking-[.08em] px-2.5 py-1 rounded transition-colors"
-                style={{ background: '#0d1f3a', border: '1px solid #1a3060', color: '#60a5fa' }}
+                style={{
+                  background: 'var(--surface-elevated)',
+                  border: '1px solid var(--border)',
+                  color: '#60a5fa',
+                }}
                 onMouseEnter={(e) => {
                   ;(e.currentTarget as HTMLElement).style.background = '#0B3D91'
                   ;(e.currentTarget as HTMLElement).style.color = 'white'
                 }}
                 onMouseLeave={(e) => {
-                  ;(e.currentTarget as HTMLElement).style.background = '#0d1f3a'
+                  ;(e.currentTarget as HTMLElement).style.background = 'var(--surface-elevated)'
                   ;(e.currentTarget as HTMLElement).style.color = '#60a5fa'
                 }}
                 onClick={(e) => {
@@ -687,11 +704,11 @@ function GameDetail({
       {/* Big matchup */}
       <div
         className="rounded-xl p-5 mb-5 text-center"
-        style={{ background: '#040e20', border: '1px solid #1a2d50' }}
+        style={{ background: 'var(--surface-card)', border: '1px solid var(--border)' }}
       >
         <div
           className="font-cond text-[13px] font-black tracking-[.15em] mb-3"
-          style={{ color: '#3a4d70' }}
+          style={{ color: 'var(--muted)' }}
         >
           {game.field?.name?.toUpperCase()} · {game.scheduled_time} · {game.division}
         </div>
@@ -708,7 +725,10 @@ function GameDetail({
             <div className="font-cond text-[20px] font-black text-white leading-tight">
               {game.home_team?.name}
             </div>
-            <div className="font-cond text-[9px] tracking-[.15em]" style={{ color: '#3a4d70' }}>
+            <div
+              className="font-cond text-[9px] tracking-[.15em]"
+              style={{ color: 'var(--muted)' }}
+            >
               HOME
             </div>
           </div>
@@ -716,9 +736,9 @@ function GameDetail({
             <button
               onClick={() => onHomeScore(Math.max(0, homeScore - 1))}
               className="w-7 h-7 rounded font-cond font-black text-lg text-white transition-colors"
-              style={{ background: '#1a2d50' }}
+              style={{ background: 'var(--border)' }}
               onMouseEnter={(e) => (e.currentTarget.style.background = '#0B3D91')}
-              onMouseLeave={(e) => (e.currentTarget.style.background = '#1a2d50')}
+              onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--border)')}
             >
               −
             </button>
@@ -728,21 +748,24 @@ function GameDetail({
             <button
               onClick={() => onHomeScore(homeScore + 1)}
               className="w-7 h-7 rounded font-cond font-black text-lg text-white transition-colors"
-              style={{ background: '#1a2d50' }}
+              style={{ background: 'var(--border)' }}
               onMouseEnter={(e) => (e.currentTarget.style.background = '#0B3D91')}
-              onMouseLeave={(e) => (e.currentTarget.style.background = '#1a2d50')}
+              onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--border)')}
             >
               +
             </button>
-            <span className="font-cond text-[28px] font-black mx-2" style={{ color: '#1a2d50' }}>
+            <span
+              className="font-cond text-[28px] font-black mx-2"
+              style={{ color: 'var(--border)' }}
+            >
               –
             </span>
             <button
               onClick={() => onAwayScore(Math.max(0, awayScore - 1))}
               className="w-7 h-7 rounded font-cond font-black text-lg text-white transition-colors"
-              style={{ background: '#1a2d50' }}
+              style={{ background: 'var(--border)' }}
               onMouseEnter={(e) => (e.currentTarget.style.background = '#0B3D91')}
-              onMouseLeave={(e) => (e.currentTarget.style.background = '#1a2d50')}
+              onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--border)')}
             >
               −
             </button>
@@ -752,9 +775,9 @@ function GameDetail({
             <button
               onClick={() => onAwayScore(awayScore + 1)}
               className="w-7 h-7 rounded font-cond font-black text-lg text-white transition-colors"
-              style={{ background: '#1a2d50' }}
+              style={{ background: 'var(--border)' }}
               onMouseEnter={(e) => (e.currentTarget.style.background = '#0B3D91')}
-              onMouseLeave={(e) => (e.currentTarget.style.background = '#1a2d50')}
+              onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--border)')}
             >
               +
             </button>
@@ -771,7 +794,10 @@ function GameDetail({
             <div className="font-cond text-[20px] font-black text-white leading-tight">
               {game.away_team?.name}
             </div>
-            <div className="font-cond text-[9px] tracking-[.15em]" style={{ color: '#3a4d70' }}>
+            <div
+              className="font-cond text-[9px] tracking-[.15em]"
+              style={{ color: 'var(--muted)' }}
+            >
               AWAY
             </div>
           </div>
@@ -781,7 +807,7 @@ function GameDetail({
       {/* Status buttons */}
       <div
         className="font-cond text-[9px] font-black tracking-[.15em] mb-2"
-        style={{ color: '#3a4d70' }}
+        style={{ color: 'var(--muted)' }}
       >
         GAME STATUS
       </div>
@@ -793,7 +819,7 @@ function GameDetail({
             className="font-cond text-[11px] font-black tracking-[.1em] px-3 py-1.5 rounded transition-all"
             style={{
               background: game.status === s ? '#0B3D91' : '#0a1428',
-              border: `1px solid ${game.status === s ? '#1a52b8' : '#1a2d50'}`,
+              border: `1px solid ${game.status === s ? '#1a52b8' : 'var(--border)'}`,
               color: game.status === s ? 'white' : '#5a6e9a',
             }}
           >

@@ -83,7 +83,10 @@ export function ReportsTab() {
       </div>
 
       {/* Sub-tab bar */}
-      <div className="flex gap-1 mb-5 flex-wrap" style={{ borderBottom: '1px solid #1a2d50' }}>
+      <div
+        className="flex gap-1 mb-5 flex-wrap"
+        style={{ borderBottom: '1px solid var(--border)' }}
+      >
         {SUB_TABS.map((t) => (
           <button
             key={t.id}
@@ -107,7 +110,7 @@ export function ReportsTab() {
             <select
               value={divFilter}
               onChange={(e) => setDivFilter(e.target.value)}
-              className="bg-[#081428] border border-[#1a2d50] text-white px-2 py-1 rounded text-[11px] font-cond font-bold outline-none focus:border-blue-400"
+              className="bg-surface-card border border-border text-white px-2 py-1 rounded text-[11px] font-cond font-bold outline-none focus:border-blue-400"
             >
               {divisions.map((d) => (
                 <option key={d} value={d}>
@@ -172,10 +175,10 @@ function ResultsView({
             <div className="font-cond text-[10px] font-black tracking-[.15em] text-muted uppercase mb-2">
               {div}
             </div>
-            <div className="rounded-lg overflow-hidden border border-[#1a2d50]">
+            <div className="rounded-lg overflow-hidden border border-border">
               <table className="w-full">
                 <thead>
-                  <tr style={{ background: '#081428' }}>
+                  <tr style={{ background: 'var(--surface-card)' }}>
                     <Th>Home</Th>
                     <Th align="center">Score</Th>
                     <Th>Away</Th>
@@ -188,7 +191,12 @@ function ResultsView({
                     const homeWin = g.home_score > g.away_score
                     const awayWin = g.away_score > g.home_score
                     return (
-                      <tr key={g.id} style={{ background: i % 2 === 0 ? '#050f20' : '#030c1a' }}>
+                      <tr
+                        key={g.id}
+                        style={{
+                          background: i % 2 === 0 ? 'var(--surface)' : 'var(--surface-card)',
+                        }}
+                      >
                         <Td>
                           <TeamName
                             name={g.home_team?.name ?? `Team ${g.home_team_id}`}
@@ -267,10 +275,10 @@ function StandingsView({
               <div className="font-cond text-[10px] font-black tracking-[.15em] text-muted uppercase mb-2">
                 {div}
               </div>
-              <div className="rounded-lg overflow-hidden border border-[#1a2d50]">
+              <div className="rounded-lg overflow-hidden border border-border">
                 <table className="w-full">
                   <thead>
-                    <tr style={{ background: '#081428' }}>
+                    <tr style={{ background: 'var(--surface-card)' }}>
                       <Th>#</Th>
                       <Th>Team</Th>
                       <Th align="center">GP</Th>
@@ -287,7 +295,9 @@ function StandingsView({
                     {sorted.map((r, i) => (
                       <tr
                         key={r.teamId}
-                        style={{ background: i % 2 === 0 ? '#050f20' : '#030c1a' }}
+                        style={{
+                          background: i % 2 === 0 ? 'var(--surface)' : 'var(--surface-card)',
+                        }}
                       >
                         <Td>
                           <span className="font-mono text-[12px] text-muted">{i + 1}</span>
@@ -399,8 +409,8 @@ function LeaderBoard({
   ascending?: boolean
 }) {
   return (
-    <div className="rounded-lg border border-[#1a2d50] overflow-hidden">
-      <div className="px-4 py-2.5" style={{ background: '#081428' }}>
+    <div className="rounded-lg border border-border overflow-hidden">
+      <div className="px-4 py-2.5" style={{ background: 'var(--surface-card)' }}>
         <div className="font-cond text-[11px] font-black tracking-[.12em] text-white">{title}</div>
         <div className="font-cond text-[9px] text-muted mt-0.5">{subtitle}</div>
       </div>
@@ -414,14 +424,14 @@ function LeaderBoard({
             <div
               key={r.teamId}
               className="flex items-center gap-3 px-4 py-2"
-              style={{ background: i % 2 === 0 ? '#050f20' : '#030c1a' }}
+              style={{ background: i % 2 === 0 ? 'var(--surface)' : 'var(--surface-card)' }}
             >
               <span className="font-mono text-[11px] text-muted w-4 flex-shrink-0">{i + 1}</span>
               <div className="flex-1 min-w-0">
                 <div className="font-cond text-[12px] font-bold text-white truncate">{r.name}</div>
                 <div
                   className="mt-0.5 h-1 rounded-full overflow-hidden"
-                  style={{ background: '#1a2d50' }}
+                  style={{ background: 'var(--border)' }}
                 >
                   <div
                     className="h-full rounded-full"
@@ -529,7 +539,7 @@ function MatchupsView({
 
   // Week range slider component
   const weekSlider = eventDates.length > 1 && (
-    <div className="mb-5 rounded-lg border border-[#1a2d50] bg-[#081428] px-4 py-3">
+    <div className="mb-5 rounded-lg border border-border bg-surface-card px-4 py-3">
       <div className="flex items-center justify-between mb-2">
         <span className="font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase">
           Week Range
@@ -569,7 +579,7 @@ function MatchupsView({
           />
           {/* Track background */}
           <div
-            className="absolute top-1/2 -translate-y-1/2 h-1.5 rounded-full bg-[#1a2d50] w-full"
+            className="absolute top-1/2 -translate-y-1/2 h-1.5 rounded-full bg-border w-full"
             style={{ zIndex: 1 }}
           />
           {/* Active range highlight */}
@@ -709,14 +719,14 @@ function MatchupMatrix({
       <div className="font-cond text-[10px] font-black tracking-[.15em] text-muted uppercase mb-3">
         Games Played Between Teams · {games.length} total games
       </div>
-      <div className="overflow-auto rounded-lg border border-[#1a2d50]">
+      <div className="overflow-auto rounded-lg border border-border">
         <table className="border-collapse" style={{ minWidth: 'max-content' }}>
           <thead>
-            <tr style={{ background: '#081428' }}>
+            <tr style={{ background: 'var(--surface-card)' }}>
               {/* Top-left corner cell */}
               <th
-                className="px-3 py-2 border-r border-b border-[#1a2d50] sticky left-0 z-10"
-                style={{ background: '#081428', minWidth: 140 }}
+                className="px-3 py-2 border-r border-b border-border sticky left-0 z-10"
+                style={{ background: 'var(--surface-card)', minWidth: 140 }}
               >
                 <span className="font-cond text-[9px] font-black tracking-[.12em] text-muted uppercase">
                   vs →
@@ -725,11 +735,11 @@ function MatchupMatrix({
               {matrixTeams.map((col) => (
                 <th
                   key={col.id}
-                  className="px-2 py-2 border-b border-[#1a2d50]"
+                  className="px-2 py-2 border-b border-border"
                   style={{ minWidth: 64 }}
                 >
                   <div
-                    className="font-cond text-[10px] font-black text-[#8a9ec0] whitespace-nowrap"
+                    className="font-cond text-[10px] font-black text-muted whitespace-nowrap"
                     style={{
                       writingMode: 'vertical-rl',
                       transform: 'rotate(180deg)',
@@ -745,11 +755,14 @@ function MatchupMatrix({
           </thead>
           <tbody>
             {matrixTeams.map((row, ri) => (
-              <tr key={row.id} style={{ background: ri % 2 === 0 ? '#050f20' : '#030c1a' }}>
+              <tr
+                key={row.id}
+                style={{ background: ri % 2 === 0 ? 'var(--surface)' : 'var(--surface-card)' }}
+              >
                 {/* Row header */}
                 <td
-                  className="px-3 py-1.5 border-r border-[#1a2d50] sticky left-0 z-10"
-                  style={{ background: ri % 2 === 0 ? '#050f20' : '#030c1a' }}
+                  className="px-3 py-1.5 border-r border-border sticky left-0 z-10"
+                  style={{ background: ri % 2 === 0 ? 'var(--surface)' : 'var(--surface-card)' }}
                 >
                   <span
                     className="font-cond text-[11px] font-bold text-white whitespace-nowrap"
@@ -770,13 +783,13 @@ function MatchupMatrix({
                   return (
                     <td
                       key={col.id}
-                      className="text-center px-1 py-1.5 border-[#1a2d50]"
-                      style={{ borderLeft: '1px solid #0d1e3a' }}
+                      className="text-center px-1 py-1.5 border-border"
+                      style={{ borderLeft: '1px solid var(--border)' }}
                     >
                       {isSelf ? (
                         <div
                           className="w-8 h-6 mx-auto rounded"
-                          style={{ background: '#0d1e3a' }}
+                          style={{ background: 'var(--surface-elevated)' }}
                         />
                       ) : count === 0 ? (
                         <div
@@ -1060,7 +1073,7 @@ function RefScheduleView({
           <select
             value={selectedDateId}
             onChange={(e) => setSelectedDateId(e.target.value)}
-            className="bg-[#040e24] border border-[#1a2d50] rounded px-3 py-1.5 text-sm text-white font-cond focus:outline-none focus:ring-1 focus:ring-[#0B3D91]"
+            className="bg-surface-card border border-border rounded px-3 py-1.5 text-sm text-white font-cond focus:outline-none focus:ring-1 focus:ring-[#0B3D91]"
           >
             <option value="all">All Dates</option>
             {eventDates.map((d) => (
@@ -1081,8 +1094,8 @@ function RefScheduleView({
         ].map((s) => (
           <div
             key={s.label}
-            className="rounded-lg border border-[#1a2d50] px-4 py-3"
-            style={{ background: '#081428' }}
+            className="rounded-lg border border-border px-4 py-3"
+            style={{ background: 'var(--surface-card)' }}
           >
             <div className="font-cond text-[9px] font-black tracking-[.15em] text-muted uppercase">
               {s.label}
@@ -1156,19 +1169,19 @@ function RefScheduleView({
                 Referee Demand Summary
               </span>
             </div>
-            <div className="rounded-lg overflow-auto border border-[#1a2d50]">
+            <div className="rounded-lg overflow-auto border border-border">
               <table className="w-full border-collapse" style={{ minWidth: 'max-content' }}>
                 <thead>
-                  <tr style={{ background: '#081428' }}>
+                  <tr style={{ background: 'var(--surface-card)' }}>
                     <Th>Time</Th>
                     {demandDivs.map((div) => (
-                      <th key={div} className="px-3 py-2 border-b border-[#1a2d50] text-center">
+                      <th key={div} className="px-3 py-2 border-b border-border text-center">
                         <span className="font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase">
                           {div}
                         </span>
                       </th>
                     ))}
-                    <th className="px-3 py-2 border-b border-[#1a2d50] text-center border-l border-[#1a2d50]">
+                    <th className="px-3 py-2 border-b border-border text-center border-l border-border">
                       <span className="font-cond text-[10px] font-black tracking-[.12em] text-white uppercase">
                         Total
                       </span>
@@ -1189,7 +1202,12 @@ function RefScheduleView({
                       { adult: 0, youth: 0, games: 0 }
                     )
                     return (
-                      <tr key={timeStr} style={{ background: i % 2 === 0 ? '#050f20' : '#030c1a' }}>
+                      <tr
+                        key={timeStr}
+                        style={{
+                          background: i % 2 === 0 ? 'var(--surface)' : 'var(--surface-card)',
+                        }}
+                      >
                         <Td>
                           <span className="font-mono text-[12px] font-bold text-white">
                             {formatTime(timeStr)}
@@ -1239,7 +1257,7 @@ function RefScheduleView({
                           )
                         })}
                         <td
-                          className="px-2 py-1.5 text-center border-l border-[#1a2d50]"
+                          className="px-2 py-1.5 text-center border-l border-border"
                           style={{ background: 'rgba(11,61,145,0.15)' }}
                         >
                           <div className="flex items-center justify-center gap-2">
@@ -1264,7 +1282,7 @@ function RefScheduleView({
                     )
                   })}
                   {/* Totals row */}
-                  <tr style={{ background: '#081428', borderTop: '2px solid #1a2d50' }}>
+                  <tr style={{ background: 'var(--surface-card)', borderTop: '2px solid #1a2d50' }}>
                     <Td>
                       <span className="font-cond text-[11px] font-black tracking-[.12em] text-white uppercase">
                         Total
@@ -1288,7 +1306,7 @@ function RefScheduleView({
                       </td>
                     ))}
                     <td
-                      className="px-2 py-1.5 text-center border-l border-[#1a2d50]"
+                      className="px-2 py-1.5 text-center border-l border-border"
                       style={{ background: 'rgba(11,61,145,0.2)' }}
                     >
                       <div className="flex items-center justify-center gap-2">
@@ -1322,10 +1340,10 @@ function RefScheduleView({
               Ref Assignments by Field &amp; Time
             </span>
           </div>
-          <div className="rounded-lg overflow-auto border border-[#1a2d50]">
+          <div className="rounded-lg overflow-auto border border-border">
             <table className="w-full border-collapse" style={{ minWidth: 'max-content' }}>
               <thead>
-                <tr style={{ background: '#081428' }}>
+                <tr style={{ background: 'var(--surface-card)' }}>
                   <Th>Time</Th>
                   {activeFieldIds.map((field) => {
                     // Extract field number from name (e.g., "Field 1" → "1")
@@ -1333,7 +1351,7 @@ function RefScheduleView({
                     return (
                       <th
                         key={field.id}
-                        className="px-3 py-2 border-b border-[#1a2d50] text-center"
+                        className="px-3 py-2 border-b border-border text-center"
                         colSpan={1}
                       >
                         <span className="font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase">
@@ -1346,7 +1364,10 @@ function RefScheduleView({
               </thead>
               <tbody>
                 {allTimes.map((timeStr, i) => (
-                  <tr key={timeStr} style={{ background: i % 2 === 0 ? '#050f20' : '#030c1a' }}>
+                  <tr
+                    key={timeStr}
+                    style={{ background: i % 2 === 0 ? 'var(--surface)' : 'var(--surface-card)' }}
+                  >
                     <Td>
                       <span className="font-mono text-[12px] font-bold text-white">
                         {formatTime(timeStr)}
@@ -1572,7 +1593,7 @@ function Td({
   return (
     <td
       className={cn(
-        'font-cond text-[12px] text-[#8a9ec0] px-3 py-2',
+        'font-cond text-[12px] text-muted px-3 py-2',
         align === 'center' && 'text-center',
         align === 'right' && 'text-right'
       )}
@@ -1596,7 +1617,7 @@ function StatCell({
       <span
         className={cn(
           'font-mono text-[12px]',
-          highlight ? 'text-emerald-400 font-bold' : dim ? 'text-red-400' : 'text-[#8a9ec0]'
+          highlight ? 'text-emerald-400 font-bold' : dim ? 'text-red-400' : 'text-muted'
         )}
       >
         {children}

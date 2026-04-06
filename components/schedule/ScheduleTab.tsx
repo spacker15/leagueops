@@ -2147,7 +2147,7 @@ export function ScheduleTab() {
                         {game.event_date?.label ?? '—'}
                       </td>
                     )}
-                    <td className="font-mono text-blue-300 text-[11px] px-3 py-2 whitespace-nowrap sticky left-0 z-10 bg-[#020810]">
+                    <td className="font-mono text-blue-300 text-[11px] px-3 py-2 whitespace-nowrap sticky left-0 z-10 bg-surface">
                       {game.display_id && (
                         <span className="text-[9px] text-muted mr-1.5">{game.display_id}</span>
                       )}
@@ -2380,7 +2380,7 @@ export function ScheduleTab() {
         <div className="grid grid-cols-2 gap-3">
           <FormField label="Division">
             <select
-              className="bg-[#040e24] border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400"
+              className="bg-surface-card border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400"
               value={agDiv}
               onChange={(e) => {
                 setAgDiv(e.target.value)
@@ -2399,7 +2399,7 @@ export function ScheduleTab() {
           </FormField>
           <FormField label="Field">
             <select
-              className="bg-[#040e24] border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400"
+              className="bg-surface-card border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400"
               value={agField}
               onChange={(e) => setAgField(e.target.value)}
             >
@@ -2417,7 +2417,7 @@ export function ScheduleTab() {
           <FormField label="Time">
             <div className="flex gap-1">
               <select
-                className="bg-[#040e24] border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400 flex-1"
+                className="bg-surface-card border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400 flex-1"
                 value={agTime}
                 onChange={(e) => setAgTime(e.target.value)}
               >
@@ -2450,7 +2450,7 @@ export function ScheduleTab() {
                 type="time"
                 value={agTime}
                 onChange={(e) => setAgTime(e.target.value)}
-                className="bg-[#040e24] border border-border text-white px-1.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400 w-[100px]"
+                className="bg-surface-card border border-border text-white px-1.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400 w-[100px]"
                 title="Custom time"
               />
             </div>
@@ -2458,7 +2458,7 @@ export function ScheduleTab() {
           <div />
           <FormField label="Home Team">
             <select
-              className="bg-[#040e24] border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400"
+              className="bg-surface-card border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400"
               value={agHome}
               onChange={(e) => setAgHome(e.target.value)}
             >
@@ -2474,7 +2474,7 @@ export function ScheduleTab() {
           </FormField>
           <FormField label="Away Team">
             <select
-              className="bg-[#040e24] border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400"
+              className="bg-surface-card border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400"
               value={agAway}
               onChange={(e) => setAgAway(e.target.value)}
             >
@@ -2510,7 +2510,7 @@ export function ScheduleTab() {
         <div className="grid grid-cols-2 gap-3">
           <FormField label="Division">
             <select
-              className="bg-[#040e24] border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400"
+              className="bg-surface-card border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400"
               value={editDiv}
               onChange={(e) => setEditDiv(e.target.value)}
             >
@@ -2524,7 +2524,7 @@ export function ScheduleTab() {
           </FormField>
           <FormField label="Field">
             <select
-              className="bg-[#040e24] border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400"
+              className="bg-surface-card border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400"
               value={editField}
               onChange={(e) => setEditField(e.target.value)}
             >
@@ -2542,13 +2542,13 @@ export function ScheduleTab() {
               type="time"
               value={editTime}
               onChange={(e) => setEditTime(e.target.value)}
-              className="bg-[#040e24] border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400 w-full"
+              className="bg-surface-card border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400 w-full"
             />
           </FormField>
           <div />
           <FormField label="Home Team">
             <select
-              className="bg-[#040e24] border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400"
+              className="bg-surface-card border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400"
               value={editHome}
               onChange={(e) => setEditHome(e.target.value)}
             >
@@ -2564,7 +2564,7 @@ export function ScheduleTab() {
           </FormField>
           <FormField label="Away Team">
             <select
-              className="bg-[#040e24] border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400"
+              className="bg-surface-card border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400"
               value={editAway}
               onChange={(e) => setEditAway(e.target.value)}
             >
@@ -2625,7 +2625,7 @@ export function ScheduleTab() {
                       min="0"
                       value={noShowPenalty}
                       onChange={(e) => setNoShowPenalty(e.target.value)}
-                      className="bg-[#040e24] border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-red-400 w-full"
+                      className="bg-surface-card border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-red-400 w-full"
                     />
                   </FormField>
                   <FormField label="Notes">
@@ -2634,7 +2634,7 @@ export function ScheduleTab() {
                       placeholder="Optional reason..."
                       value={noShowNotes}
                       onChange={(e) => setNoShowNotes(e.target.value)}
-                      className="bg-[#040e24] border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-red-400 w-full"
+                      className="bg-surface-card border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-red-400 w-full"
                     />
                   </FormField>
                 </div>
@@ -3062,7 +3062,7 @@ export function ScheduleTab() {
                       <span className="text-red-400 text-xs font-mono">{mismatch.csvValue}</span>
                       <span className="text-gray-500 text-xs">&rarr;</span>
                       <select
-                        className="bg-[#081428] border border-[#1a2d50] text-white px-2 py-0.5 rounded text-xs outline-none focus:border-blue-400 transition-colors"
+                        className="bg-surface-card border border-border text-white px-2 py-0.5 rounded text-xs outline-none focus:border-blue-400 transition-colors"
                         value={mismatch.resolvedTo ?? ''}
                         onChange={(e) => resolveCsvMismatch(i, e.target.value)}
                       >
@@ -3178,7 +3178,7 @@ export function ScheduleTab() {
                                         DIVISION:
                                       </span>
                                       <select
-                                        className="bg-[#081428] border border-[#1a2d50] text-white px-1.5 py-0.5 rounded text-[10px] outline-none focus:border-green-400"
+                                        className="bg-surface-card border border-border text-white px-1.5 py-0.5 rounded text-[10px] outline-none focus:border-green-400"
                                         value={entry.detectedDivision ?? ''}
                                         onChange={(e) => setResolverDivision(i, e.target.value)}
                                       >
@@ -3200,7 +3200,7 @@ export function ScheduleTab() {
                                         PROGRAM:
                                       </span>
                                       <select
-                                        className="bg-[#081428] border border-[#1a2d50] text-white px-1.5 py-0.5 rounded text-[10px] outline-none focus:border-green-400"
+                                        className="bg-surface-card border border-border text-white px-1.5 py-0.5 rounded text-[10px] outline-none focus:border-green-400"
                                         value={
                                           entry.detectedProgram
                                             ? String(entry.detectedProgram.id)
@@ -3248,7 +3248,7 @@ export function ScheduleTab() {
                                   MAP TO EXISTING:
                                 </span>
                                 <select
-                                  className="bg-[#081428] border border-[#1a2d50] text-white px-1.5 py-0.5 rounded text-[10px] outline-none focus:border-blue-400 max-w-[220px]"
+                                  className="bg-surface-card border border-border text-white px-1.5 py-0.5 rounded text-[10px] outline-none focus:border-blue-400 max-w-[220px]"
                                   value={entry.mapToId ?? ''}
                                   onChange={(e) => setResolverMapId(i, e.target.value)}
                                   disabled={entry.action !== 'map'}
