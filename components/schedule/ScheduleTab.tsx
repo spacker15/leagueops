@@ -615,13 +615,45 @@ export function ScheduleTab() {
         return
       }
 
-      const headers = parsed[0].map((h) => h.toLowerCase().replace(/\s+/g, '_'))
+      const rawHeaders = parsed[0].map((h) => h.toLowerCase().replace(/\s+/g, '_'))
+
+      // Flexible header aliases — map common variations to expected names
+      const headerAliases: Record<string, string> = {
+        date: 'date',
+        game_date: 'date',
+        day: 'date',
+        time: 'time',
+        game_time: 'time',
+        start_time: 'time',
+        start: 'time',
+        home_team: 'home_team',
+        home: 'home_team',
+        team_1: 'home_team',
+        team1: 'home_team',
+        away_team: 'away_team',
+        away: 'away_team',
+        visitor: 'away_team',
+        team_2: 'away_team',
+        team2: 'away_team',
+        division: 'division',
+        div: 'division',
+        grade: 'division',
+        age_group: 'division',
+        field: 'field',
+        field_name: 'field',
+        location: 'field',
+        venue: 'field',
+      }
+
+      const headers = rawHeaders.map((h) => headerAliases[h] ?? h)
+
       const expectedCols = ['date', 'time', 'home_team', 'away_team', 'division', 'field']
       const rows: Record<string, string>[] = []
       const warnings: string[] = []
 
       const missing = expectedCols.filter((c) => !headers.includes(c))
-      if (missing.length > 0) warnings.push(`Missing columns: ${missing.join(', ')}`)
+      if (missing.length > 0)
+        warnings.push(`Missing columns: ${missing.join(', ')}. Found: ${rawHeaders.join(', ')}`)
 
       for (let i = 1; i < parsed.length; i++) {
         const obj: Record<string, string> = {}
@@ -640,7 +672,7 @@ export function ScheduleTab() {
       }
 
       if (rows.length === 0) {
-        toast.error('No valid rows found in CSV')
+        toast.error(`No valid rows found in CSV. Headers found: ${rawHeaders.join(', ')}`)
         return
       }
 
