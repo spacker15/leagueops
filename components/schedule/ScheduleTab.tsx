@@ -1079,20 +1079,33 @@ export function ScheduleTab() {
         let finalHomeId = homeTeamId
         let finalAwayId = awayTeamId
         if (resolvedDiv) {
-          const homeTeam = (freshTeams ?? []).find((t) => t.id === homeTeamId)
-          if (homeTeam && homeTeam.division !== resolvedDiv) {
-            const correctHome = (freshTeams ?? []).find(
-              (t) => t.name === homeTeam.name && t.division === resolvedDiv
+          // Helper: find the correct team in the target division
+          // First try exact name match, then try matching by color suffix (e.g. "Riptide Black" → "8U Riptide Black")
+          function findTeamInDiv(teamId: number): number {
+            const team = (freshTeams ?? []).find((t) => t.id === teamId)
+            if (!team || team.division === resolvedDiv) return teamId
+            // Exact name match in target division
+            const exact = (freshTeams ?? []).find(
+              (t) => t.name === team.name && t.division === resolvedDiv
             )
-            if (correctHome) finalHomeId = correctHome.id
+            if (exact) return exact.id
+            // Strip age prefix (8U/10U/12U) and match by suffix
+            const stripPrefix = (n: string) =>
+              n
+                .replace(/^\d+U\s*/i, '')
+                .toLowerCase()
+                .trim()
+            const suffix = stripPrefix(team.name)
+            if (suffix) {
+              const bySuffix = (freshTeams ?? []).find(
+                (t) => t.division === resolvedDiv && stripPrefix(t.name) === suffix
+              )
+              if (bySuffix) return bySuffix.id
+            }
+            return teamId
           }
-          const awayTeam = (freshTeams ?? []).find((t) => t.id === awayTeamId)
-          if (awayTeam && awayTeam.division !== resolvedDiv) {
-            const correctAway = (freshTeams ?? []).find(
-              (t) => t.name === awayTeam.name && t.division === resolvedDiv
-            )
-            if (correctAway) finalAwayId = correctAway.id
-          }
+          finalHomeId = findTeamInDiv(homeTeamId)
+          finalAwayId = findTeamInDiv(awayTeamId)
         }
 
         gamesToInsert.push({
