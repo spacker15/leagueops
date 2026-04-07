@@ -3,6 +3,48 @@ import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { updateUserSchema } from '@/schemas/admin'
 
+export async function GET(req: NextRequest) {
+  // Auth guard
+  const supabase = await createClient()
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser()
+
+  if (authError || !user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const { data: roleCheck } = await supabase
+    .from('user_roles')
+    .select('role')
+    .eq('user_id', user.id)
+    .eq('role', 'admin')
+    .single()
+
+  if (!roleCheck) {
+    return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
+  }
+
+  const userId = req.nextUrl.searchParams.get('user_id')
+  if (!userId) {
+    return NextResponse.json({ error: 'user_id required' }, { status: 400 })
+  }
+
+  const adminSb = createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  )
+
+  const { data: authUser, error } = await adminSb.auth.admin.getUserById(userId)
+  if (error || !authUser?.user) {
+    return NextResponse.json({ error: 'User not found' }, { status: 404 })
+  }
+
+  return NextResponse.json({ email: authUser.user.email })
+}
+
 export async function POST(req: NextRequest) {
   // Auth guard — verify requester is authenticated
   const supabase = await createClient()
@@ -49,15 +91,24 @@ export async function POST(req: NextRequest) {
     { auth: { autoRefreshToken: false, persistSession: false } }
   )
 
-  // Update auth user (password and/or email)
-  const authUpdate: { password?: string; email?: string } = {}
-  if (password) authUpdate.password = password
-  if (email) authUpdate.email = email
+  // Update auth user password
+  if (password) {
+    const { error: pwError } = await adminSb.auth.admin.updateUserById(user_id, {
+      password,
+    })
+    if (pwError) {
+      return NextResponse.json({ error: pwError.message }, { status: 400 })
+    }
+  }
 
-  if (Object.keys(authUpdate).length > 0) {
-    const { error: updateError } = await adminSb.auth.admin.updateUserById(user_id, authUpdate)
-    if (updateError) {
-      return NextResponse.json({ error: updateError.message }, { status: 400 })
+  // Update auth user email (separate call to avoid conflicts)
+  if (email) {
+    const { error: emailError } = await adminSb.auth.admin.updateUserById(user_id, {
+      email,
+      email_confirm: true,
+    })
+    if (emailError) {
+      return NextResponse.json({ error: emailError.message }, { status: 400 })
     }
   }
 

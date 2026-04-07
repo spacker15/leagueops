@@ -64,6 +64,7 @@ export function UserManagement() {
   const [editBirthday, setEditBirthday] = useState('')
   const [saving, setSaving] = useState(false)
   const [editDetails, setEditDetails] = useState<LinkedDetails | null>(null)
+  const [origAuthEmail, setOrigAuthEmail] = useState('')
   // Editable linked entity fields
   const [editLinkedName, setEditLinkedName] = useState('')
   const [editLinkedEmail, setEditLinkedEmail] = useState('')
@@ -279,7 +280,7 @@ export function UserManagement() {
   async function startEditing(u: UserRoleRow) {
     setEditingId(u.id)
     setEditName(u.display_name ?? '')
-    setEditEmail(u.email ?? '')
+    setEditEmail('')
     setEditPassword('')
     setEditBirthday(u.birthday ?? '')
     setEditDetails(null)
@@ -289,6 +290,18 @@ export function UserManagement() {
     setEditLinkedPhone('')
     setEditLinkedRole('')
     setEditLinkedCerts('')
+
+    // Fetch auth user email
+    try {
+      const emailRes = await fetch(`/api/admin/update-user?user_id=${u.user_id}`)
+      const emailData = await emailRes.json()
+      if (emailData.email) {
+        setEditEmail(emailData.email)
+        setOrigAuthEmail(emailData.email)
+      }
+    } catch {
+      // Non-blocking
+    }
 
     // Fetch linked entity details
     const sb = createClient()
@@ -347,6 +360,7 @@ export function UserManagement() {
     setEditPassword('')
     setEditBirthday('')
     setEditDetails(null)
+    setOrigAuthEmail('')
     setEditLinkedName('')
     setEditLinkedEmail('')
     setEditLinkedPhone('')
@@ -366,7 +380,7 @@ export function UserManagement() {
     }
     if (editPassword) payload.password = editPassword
     if (editName && editName !== (u.display_name ?? '')) payload.display_name = editName
-    if (editEmail && editEmail !== (u.email ?? '')) payload.email = editEmail
+    if (editEmail && editEmail !== origAuthEmail) payload.email = editEmail
 
     const hasAuthChanges = editPassword || payload.display_name || payload.email
     if (hasAuthChanges) {
