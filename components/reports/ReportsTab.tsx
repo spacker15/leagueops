@@ -28,7 +28,7 @@ function timeToMin(t: string): number {
 }
 
 export function ReportsTab() {
-  const { state } = useApp()
+  const { state, currentDate, changeDate } = useApp()
   const [sub, setSub] = useState<SubTab>('results')
   const [allGames, setAllGames] = useState<Game[]>([])
 
@@ -138,6 +138,17 @@ export function ReportsTab() {
           referees={state.referees}
           eventId={state.event?.id ?? null}
           divFilter={divFilter}
+          globalDateId={currentDate?.id ?? null}
+          globalDateIdx={state.currentDateIdx}
+          eventDatesFromState={state.eventDates}
+          onDateChange={(dateId) => {
+            if (dateId === null) {
+              changeDate(-1)
+            } else {
+              const idx = state.eventDates.findIndex((d) => d.id === dateId)
+              if (idx !== -1) changeDate(idx)
+            }
+          }}
         />
       )}
     </div>
@@ -762,12 +773,20 @@ function RefScheduleView({
   referees,
   eventId,
   divFilter,
+  globalDateId,
+  globalDateIdx,
+  eventDatesFromState,
+  onDateChange,
 }: {
   games: Game[]
   fields: { id: number; name: string }[]
   referees: Referee[]
   eventId: number | null
   divFilter: string
+  globalDateId: number | null
+  globalDateIdx: number
+  eventDatesFromState: { id: number; date: string; label: string | null }[]
+  onDateChange: (dateId: number | null) => void
 }) {
   const [assignments, setAssignments] = useState<RefAssignmentRow[]>([])
   const [refRules, setRefRules] = useState<RefRules>({
@@ -776,10 +795,9 @@ function RefScheduleView({
     default: { adult: 2, youth: 0 },
   })
   const [loading, setLoading] = useState(true)
-  const [eventDates, setEventDates] = useState<
-    { id: number; date: string; label: string | null }[]
-  >([])
-  const [selectedDateId, setSelectedDateId] = useState<string>('all')
+
+  // Derive selectedDateId from global state
+  const selectedDateId = globalDateIdx === -1 ? 'all' : String(globalDateId ?? 'all')
 
   useEffect(() => {
     if (!eventId) {
@@ -787,18 +805,6 @@ function RefScheduleView({
       return
     }
     const sb = createClient()
-    // Fetch event_dates for the date filter
-    sb.from('event_dates')
-      .select('id, date, label')
-      .eq('event_id', eventId)
-      .order('date', { ascending: true })
-      .then(({ data }) => {
-        const dates = data ?? []
-        setEventDates(dates)
-        if (dates.length > 0) {
-          setSelectedDateId(String(dates[0].id))
-        }
-      })
     // Fetch ref_requirements from event config
     sb.from('events')
       .select('ref_requirements')
@@ -912,18 +918,21 @@ function RefScheduleView({
   return (
     <div className="space-y-5">
       {/* Date filter */}
-      {eventDates.length > 0 && (
+      {eventDatesFromState.length > 0 && (
         <div className="flex items-center gap-3">
           <label className="font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase">
             Game Date
           </label>
           <select
             value={selectedDateId}
-            onChange={(e) => setSelectedDateId(e.target.value)}
+            onChange={(e) => {
+              const val = e.target.value
+              onDateChange(val === 'all' ? null : parseInt(val))
+            }}
             className="bg-[#040e24] border border-[#1a2d50] rounded px-3 py-1.5 text-sm text-white font-cond focus:outline-none focus:ring-1 focus:ring-[#0B3D91]"
           >
             <option value="all">All Dates</option>
-            {eventDates.map((d) => (
+            {eventDatesFromState.map((d) => (
               <option key={d.id} value={String(d.id)}>
                 {d.label || d.date}
               </option>
