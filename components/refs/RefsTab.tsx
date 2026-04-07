@@ -620,7 +620,11 @@ export function RefsTab() {
 
   // Load all assignments for today's games
   const loadAssignments = useCallback(async () => {
-    if (!state.games.length) return
+    if (!state.games.length) {
+      setAssignments([])
+      setBlockAssignments([])
+      return
+    }
     const sb = createClient()
     const gameIds = state.games.map((g) => g.id)
 
