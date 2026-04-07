@@ -23,3 +23,14 @@ export const createUserSchema = z.object({
 })
 
 export type CreateUserInput = z.infer<typeof createUserSchema>
+
+// POST /api/admin/update-user — update user details and/or reset password
+export const updateUserSchema = z.object({
+  user_id: z.string().uuid(),
+  role_id: z.number().int().positive(),
+  password: z.string().min(8).optional(),
+  display_name: z.string().min(1).optional(),
+  email: z.string().email().optional(),
+})
+
+export type UpdateUserInput = z.infer<typeof updateUserSchema>

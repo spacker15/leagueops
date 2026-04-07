@@ -7,7 +7,7 @@ import { useApp } from '@/lib/store'
 import { Btn, FormField, SectionHeader } from '@/components/ui'
 import { cn } from '@/lib/utils'
 import toast from 'react-hot-toast'
-import { Trash2, UserPlus, RefreshCw } from 'lucide-react'
+import { UserPlus, RefreshCw, Pencil, KeyRound, X, Check } from 'lucide-react'
 
 interface UserRoleRow {
   id: number
@@ -44,6 +44,12 @@ export function UserManagement() {
   const [newTrainerPhone, setNewTrainerPhone] = useState('')
   const [newTrainerCerts, setNewTrainerCerts] = useState('')
   const [sending, setSending] = useState(false)
+  // Edit/reset password state
+  const [editingId, setEditingId] = useState<number | null>(null)
+  const [editName, setEditName] = useState('')
+  const [editEmail, setEditEmail] = useState('')
+  const [editPassword, setEditPassword] = useState('')
+  const [saving, setSaving] = useState(false)
   const [refs, setRefs] = useState<any[]>([])
   const [vols, setVols] = useState<any[]>([])
   const [trainers, setTrainers] = useState<any[]>([])
@@ -58,14 +64,32 @@ export function UserManagement() {
 
   if (!eventId) return null
 
+  const ROLE_ORDER: Record<string, number> = {
+    admin: 0,
+    league_admin: 1,
+    program_leader: 2,
+    coach: 3,
+    referee: 4,
+    volunteer: 5,
+    trainer: 6,
+  }
+
+  function sortUsers(list: UserRoleRow[]): UserRoleRow[] {
+    return [...list].sort((a, b) => {
+      const roleA = ROLE_ORDER[a.role] ?? 99
+      const roleB = ROLE_ORDER[b.role] ?? 99
+      if (roleA !== roleB) return roleA - roleB
+      const nameA = (a.display_name ?? '').toLowerCase()
+      const nameB = (b.display_name ?? '').toLowerCase()
+      return nameA.localeCompare(nameB)
+    })
+  }
+
   async function loadUsers() {
     const sb = createClient()
     setLoading(true)
-    const { data } = await sb
-      .from('user_roles')
-      .select('*')
-      .order('created_at', { ascending: false })
-    setUsers((data as UserRoleRow[]) ?? [])
+    const { data } = await sb.from('user_roles').select('*')
+    setUsers(sortUsers((data as UserRoleRow[]) ?? []))
     setLoading(false)
   }
 
@@ -230,6 +254,57 @@ export function UserManagement() {
     await sb.from('user_roles').update({ is_active: !current }).eq('id', id)
     setUsers((prev) => prev.map((u) => (u.id === id ? { ...u, is_active: !current } : u)))
     toast.success(current ? 'User deactivated' : 'User activated')
+  }
+
+  function startEditing(u: UserRoleRow) {
+    setEditingId(u.id)
+    setEditName(u.display_name ?? '')
+    setEditEmail(u.email ?? '')
+    setEditPassword('')
+  }
+
+  function cancelEditing() {
+    setEditingId(null)
+    setEditName('')
+    setEditEmail('')
+    setEditPassword('')
+  }
+
+  async function saveUser(u: UserRoleRow) {
+    setSaving(true)
+    const payload: Record<string, unknown> = {
+      user_id: u.user_id,
+      role_id: u.id,
+    }
+    if (editPassword) payload.password = editPassword
+    if (editName && editName !== (u.display_name ?? '')) payload.display_name = editName
+    if (editEmail && editEmail !== (u.email ?? '')) payload.email = editEmail
+
+    if (!editPassword && !payload.display_name && !payload.email) {
+      toast.error('No changes to save')
+      setSaving(false)
+      return
+    }
+
+    const res = await fetch('/api/admin/update-user', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+
+    const data = await res.json()
+    if (data.error) {
+      toast.error(typeof data.error === 'string' ? data.error : 'Failed to update user')
+    } else {
+      const changes: string[] = []
+      if (editPassword) changes.push('password reset')
+      if (payload.display_name) changes.push('name updated')
+      if (payload.email) changes.push('email updated')
+      toast.success(`User updated: ${changes.join(', ')}`)
+      cancelEditing()
+      loadUsers()
+    }
+    setSaving(false)
   }
 
   const ROLE_COLORS: Record<string, string> = {
@@ -474,40 +549,100 @@ export function UserManagement() {
                 <div
                   key={u.id}
                   className={cn(
-                    'bg-surface-card border border-border rounded-lg p-3 flex items-center gap-3',
+                    'bg-surface-card border border-border rounded-lg p-3',
                     !u.is_active && 'opacity-50'
                   )}
                 >
-                  <div className="flex-1 min-w-0">
-                    <div className="font-cond font-black text-[13px] text-white truncate">
-                      {u.display_name ?? 'Unknown'}
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="font-cond font-black text-[13px] text-white truncate">
+                        {u.display_name ?? 'Unknown'}
+                      </div>
+                      <div className="font-cond text-[10px] text-muted">
+                        {u.referee_id && `Ref #${u.referee_id}`}
+                        {u.volunteer_id && `Vol #${u.volunteer_id}`}
+                        {u.program_id && `Program #${u.program_id}`}
+                        {u.coach_id && `Coach #${u.coach_id}`}
+                      </div>
                     </div>
-                    <div className="font-cond text-[10px] text-muted">
-                      {u.referee_id && `Ref #${u.referee_id}`}
-                      {u.volunteer_id && `Vol #${u.volunteer_id}`}
-                      {u.program_id && `Program #${u.program_id}`}
-                      {u.coach_id && `Coach #${u.coach_id}`}
-                    </div>
+                    <span
+                      className={cn(
+                        'font-cond text-[10px] font-bold px-2 py-0.5 rounded',
+                        ROLE_COLORS[u.role] ?? 'text-muted bg-surface'
+                      )}
+                    >
+                      {u.role.replace('_', ' ').toUpperCase()}
+                    </span>
+                    <button
+                      onClick={() => startEditing(u)}
+                      className="font-cond text-[10px] font-bold px-2 py-1 rounded border border-border text-muted hover:bg-blue-900/20 hover:text-blue-400 hover:border-blue-800/50 transition-colors"
+                      title="Edit user"
+                    >
+                      <Pencil size={10} className="inline mr-1" />
+                      EDIT
+                    </button>
+                    <button
+                      onClick={() => toggleActive(u.id, u.is_active)}
+                      className={cn(
+                        'font-cond text-[10px] font-bold px-2 py-1 rounded border transition-colors',
+                        u.is_active
+                          ? 'border-green-800/50 text-green-400 bg-green-900/20 hover:bg-red-900/20 hover:text-red-400 hover:border-red-800/50'
+                          : 'border-border text-muted hover:bg-green-900/20 hover:text-green-400'
+                      )}
+                    >
+                      {u.is_active ? 'ACTIVE' : 'INACTIVE'}
+                    </button>
                   </div>
-                  <span
-                    className={cn(
-                      'font-cond text-[10px] font-bold px-2 py-0.5 rounded',
-                      ROLE_COLORS[u.role] ?? 'text-muted bg-surface'
-                    )}
-                  >
-                    {u.role.replace('_', ' ').toUpperCase()}
-                  </span>
-                  <button
-                    onClick={() => toggleActive(u.id, u.is_active)}
-                    className={cn(
-                      'font-cond text-[10px] font-bold px-2 py-1 rounded border transition-colors',
-                      u.is_active
-                        ? 'border-green-800/50 text-green-400 bg-green-900/20 hover:bg-red-900/20 hover:text-red-400 hover:border-red-800/50'
-                        : 'border-border text-muted hover:bg-green-900/20 hover:text-green-400'
-                    )}
-                  >
-                    {u.is_active ? 'ACTIVE' : 'INACTIVE'}
-                  </button>
+
+                  {/* Inline edit panel */}
+                  {editingId === u.id && (
+                    <div className="mt-3 pt-3 border-t border-border space-y-2">
+                      <FormField label="Display Name">
+                        <input
+                          className="w-full bg-surface border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400"
+                          value={editName}
+                          onChange={(e) => setEditName(e.target.value)}
+                          placeholder="Full name"
+                        />
+                      </FormField>
+                      <FormField label="Email">
+                        <input
+                          className="w-full bg-surface border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400"
+                          value={editEmail}
+                          onChange={(e) => setEditEmail(e.target.value)}
+                          placeholder="user@example.com"
+                          type="email"
+                        />
+                      </FormField>
+                      <FormField label="New Password">
+                        <div className="flex items-center gap-2">
+                          <KeyRound size={12} className="text-muted shrink-0" />
+                          <input
+                            className="w-full bg-surface border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400"
+                            value={editPassword}
+                            onChange={(e) => setEditPassword(e.target.value)}
+                            placeholder="Leave blank to keep current"
+                            type="password"
+                          />
+                        </div>
+                      </FormField>
+                      <div className="flex gap-2 pt-1">
+                        <Btn
+                          size="sm"
+                          variant="primary"
+                          onClick={() => saveUser(u)}
+                          disabled={saving}
+                        >
+                          <Check size={10} className="inline mr-1" />
+                          {saving ? 'SAVING...' : 'SAVE'}
+                        </Btn>
+                        <Btn size="sm" variant="ghost" onClick={cancelEditing}>
+                          <X size={10} className="inline mr-1" />
+                          CANCEL
+                        </Btn>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
