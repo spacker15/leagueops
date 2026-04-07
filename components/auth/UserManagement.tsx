@@ -7,7 +7,7 @@ import { useApp } from '@/lib/store'
 import { Btn, FormField, SectionHeader } from '@/components/ui'
 import { cn } from '@/lib/utils'
 import toast from 'react-hot-toast'
-import { UserPlus, RefreshCw, Pencil, KeyRound, X, Check } from 'lucide-react'
+import { UserPlus, RefreshCw, Pencil, KeyRound, X, Check, Filter } from 'lucide-react'
 
 interface UserRoleRow {
   id: number
@@ -19,8 +19,17 @@ interface UserRoleRow {
   volunteer_id: number | null
   program_id: number | null
   coach_id: number | null
+  trainer_id: number | null
   created_at: string
   email?: string
+}
+
+interface LinkedDetails {
+  referee?: { name: string; phone: string | null; email: string | null; grade_level: string | null; checked_in: boolean }
+  volunteer?: { name: string; role: string; phone: string | null; checked_in: boolean }
+  program?: { name: string; short_name: string | null }
+  coach?: { name: string; email: string; phone: string | null; certifications: string | null }
+  trainer?: { name: string; email: string | null; phone: string | null; certifications: string | null; checked_in: boolean }
 }
 
 export function UserManagement() {
@@ -44,12 +53,15 @@ export function UserManagement() {
   const [newTrainerPhone, setNewTrainerPhone] = useState('')
   const [newTrainerCerts, setNewTrainerCerts] = useState('')
   const [sending, setSending] = useState(false)
+  // Filter state
+  const [roleFilter, setRoleFilter] = useState<string>('all')
   // Edit/reset password state
   const [editingId, setEditingId] = useState<number | null>(null)
   const [editName, setEditName] = useState('')
   const [editEmail, setEditEmail] = useState('')
   const [editPassword, setEditPassword] = useState('')
   const [saving, setSaving] = useState(false)
+  const [editDetails, setEditDetails] = useState<LinkedDetails | null>(null)
   const [refs, setRefs] = useState<any[]>([])
   const [vols, setVols] = useState<any[]>([])
   const [trainers, setTrainers] = useState<any[]>([])
@@ -256,11 +268,39 @@ export function UserManagement() {
     toast.success(current ? 'User deactivated' : 'User activated')
   }
 
-  function startEditing(u: UserRoleRow) {
+  async function startEditing(u: UserRoleRow) {
     setEditingId(u.id)
     setEditName(u.display_name ?? '')
     setEditEmail(u.email ?? '')
     setEditPassword('')
+    setEditDetails(null)
+
+    // Fetch linked entity details
+    const sb = createClient()
+    const details: LinkedDetails = {}
+
+    if (u.referee_id) {
+      const { data } = await sb.from('referees').select('name, phone, email, grade_level, checked_in').eq('id', u.referee_id).single()
+      if (data) details.referee = data
+    }
+    if (u.volunteer_id) {
+      const { data } = await sb.from('volunteers').select('name, role, phone, checked_in').eq('id', u.volunteer_id).single()
+      if (data) details.volunteer = data
+    }
+    if (u.program_id) {
+      const { data } = await sb.from('programs').select('name, short_name').eq('id', u.program_id).single()
+      if (data) details.program = data
+    }
+    if (u.coach_id) {
+      const { data } = await sb.from('coaches').select('name, email, phone, certifications').eq('id', u.coach_id).single()
+      if (data) details.coach = data
+    }
+    if (u.trainer_id) {
+      const { data } = await sb.from('trainers').select('name, email, phone, certifications, checked_in').eq('id', u.trainer_id).single()
+      if (data) details.trainer = data
+    }
+
+    setEditDetails(details)
   }
 
   function cancelEditing() {
@@ -268,6 +308,7 @@ export function UserManagement() {
     setEditName('')
     setEditEmail('')
     setEditPassword('')
+    setEditDetails(null)
   }
 
   async function saveUser(u: UserRoleRow) {
@@ -315,7 +356,23 @@ export function UserManagement() {
     player: 'text-purple-400 bg-purple-900/30',
     program_leader: 'text-orange-400 bg-orange-900/30',
     coach: 'text-cyan-400 bg-cyan-900/30',
+    trainer: 'text-teal-400 bg-teal-900/30',
   }
+
+  const ROLE_LABELS: Record<string, string> = {
+    admin: 'Admin',
+    league_admin: 'League Admin',
+    program_leader: 'Program Leader',
+    coach: 'Coach',
+    referee: 'Referee',
+    volunteer: 'Volunteer',
+    trainer: 'Trainer',
+  }
+
+  const filteredUsers = roleFilter === 'all' ? users : users.filter((u) => u.role === roleFilter)
+  const availableRoles = [...new Set(users.map((u) => u.role))].sort(
+    (a, b) => (ROLE_ORDER[a] ?? 99) - (ROLE_ORDER[b] ?? 99)
+  )
 
   return (
     <div>
@@ -534,23 +591,41 @@ export function UserManagement() {
         <div>
           <div className="flex justify-between items-center mb-3">
             <div className="font-cond text-[11px] font-bold text-muted tracking-widest uppercase">
-              {users.length} USERS
+              {filteredUsers.length}{roleFilter !== 'all' ? ` / ${users.length}` : ''} USERS
             </div>
-            <Btn size="sm" variant="ghost" onClick={loadUsers}>
-              <RefreshCw size={11} className="inline mr-1" /> REFRESH
-            </Btn>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
+                <Filter size={10} className="text-muted" />
+                <select
+                  className="bg-[#040e24] border border-border text-white px-2 py-1 rounded text-[11px] font-cond font-bold outline-none focus:border-blue-400"
+                  value={roleFilter}
+                  onChange={(e) => setRoleFilter(e.target.value)}
+                >
+                  <option value="all">ALL ROLES</option>
+                  {availableRoles.map((r) => (
+                    <option key={r} value={r}>
+                      {(ROLE_LABELS[r] ?? r).toUpperCase()}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <Btn size="sm" variant="ghost" onClick={loadUsers}>
+                <RefreshCw size={11} className="inline mr-1" /> REFRESH
+              </Btn>
+            </div>
           </div>
 
           {loading ? (
             <div className="text-center py-8 text-muted font-cond">LOADING...</div>
           ) : (
             <div className="space-y-2">
-              {users.map((u) => (
+              {filteredUsers.map((u) => (
                 <div
                   key={u.id}
                   className={cn(
                     'bg-surface-card border border-border rounded-lg p-3',
-                    !u.is_active && 'opacity-50'
+                    !u.is_active && 'opacity-50',
+                    editingId === u.id && 'border-blue-800/60'
                   )}
                 >
                   <div className="flex items-center gap-3">
@@ -563,6 +638,7 @@ export function UserManagement() {
                         {u.volunteer_id && `Vol #${u.volunteer_id}`}
                         {u.program_id && `Program #${u.program_id}`}
                         {u.coach_id && `Coach #${u.coach_id}`}
+                        {u.trainer_id && `Trainer #${u.trainer_id}`}
                       </div>
                     </div>
                     <span
@@ -574,12 +650,20 @@ export function UserManagement() {
                       {u.role.replace('_', ' ').toUpperCase()}
                     </span>
                     <button
-                      onClick={() => startEditing(u)}
-                      className="font-cond text-[10px] font-bold px-2 py-1 rounded border border-border text-muted hover:bg-blue-900/20 hover:text-blue-400 hover:border-blue-800/50 transition-colors"
+                      onClick={() => editingId === u.id ? cancelEditing() : startEditing(u)}
+                      className={cn(
+                        'font-cond text-[10px] font-bold px-2 py-1 rounded border transition-colors',
+                        editingId === u.id
+                          ? 'border-blue-800/50 text-blue-400 bg-blue-900/20'
+                          : 'border-border text-muted hover:bg-blue-900/20 hover:text-blue-400 hover:border-blue-800/50'
+                      )}
                       title="Edit user"
                     >
-                      <Pencil size={10} className="inline mr-1" />
-                      EDIT
+                      {editingId === u.id ? (
+                        <><X size={10} className="inline mr-1" />CLOSE</>
+                      ) : (
+                        <><Pencil size={10} className="inline mr-1" />EDIT</>
+                      )}
                     </button>
                     <button
                       onClick={() => toggleActive(u.id, u.is_active)}
@@ -594,52 +678,109 @@ export function UserManagement() {
                     </button>
                   </div>
 
-                  {/* Inline edit panel */}
+                  {/* Edit card with full details */}
                   {editingId === u.id && (
-                    <div className="mt-3 pt-3 border-t border-border space-y-2">
-                      <FormField label="Display Name">
-                        <input
-                          className="w-full bg-surface border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400"
-                          value={editName}
-                          onChange={(e) => setEditName(e.target.value)}
-                          placeholder="Full name"
-                        />
-                      </FormField>
-                      <FormField label="Email">
-                        <input
-                          className="w-full bg-surface border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400"
-                          value={editEmail}
-                          onChange={(e) => setEditEmail(e.target.value)}
-                          placeholder="user@example.com"
-                          type="email"
-                        />
-                      </FormField>
-                      <FormField label="New Password">
-                        <div className="flex items-center gap-2">
-                          <KeyRound size={12} className="text-muted shrink-0" />
+                    <div className="mt-3 pt-3 border-t border-border">
+                      {/* Linked entity details card */}
+                      {editDetails && (Object.keys(editDetails).length > 0) && (
+                        <div className="mb-3 bg-surface rounded-lg border border-border p-3">
+                          <div className="font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase mb-2">
+                            ASSIGNED DETAILS
+                          </div>
+                          <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
+                            {editDetails.referee && (
+                              <>
+                                <DetailRow label="Referee" value={editDetails.referee.name} />
+                                <DetailRow label="Email" value={editDetails.referee.email} />
+                                <DetailRow label="Phone" value={editDetails.referee.phone} />
+                                <DetailRow label="Grade Level" value={editDetails.referee.grade_level} />
+                                <DetailRow label="Checked In" value={editDetails.referee.checked_in ? 'Yes' : 'No'} />
+                              </>
+                            )}
+                            {editDetails.volunteer && (
+                              <>
+                                <DetailRow label="Volunteer" value={editDetails.volunteer.name} />
+                                <DetailRow label="Vol. Role" value={editDetails.volunteer.role} />
+                                <DetailRow label="Phone" value={editDetails.volunteer.phone} />
+                                <DetailRow label="Checked In" value={editDetails.volunteer.checked_in ? 'Yes' : 'No'} />
+                              </>
+                            )}
+                            {editDetails.program && (
+                              <>
+                                <DetailRow label="Program" value={editDetails.program.name} />
+                                <DetailRow label="Short Name" value={editDetails.program.short_name} />
+                              </>
+                            )}
+                            {editDetails.coach && (
+                              <>
+                                <DetailRow label="Coach" value={editDetails.coach.name} />
+                                <DetailRow label="Email" value={editDetails.coach.email} />
+                                <DetailRow label="Phone" value={editDetails.coach.phone} />
+                                <DetailRow label="Certifications" value={editDetails.coach.certifications} />
+                              </>
+                            )}
+                            {editDetails.trainer && (
+                              <>
+                                <DetailRow label="Trainer" value={editDetails.trainer.name} />
+                                <DetailRow label="Email" value={editDetails.trainer.email} />
+                                <DetailRow label="Phone" value={editDetails.trainer.phone} />
+                                <DetailRow label="Certifications" value={editDetails.trainer.certifications} />
+                                <DetailRow label="Checked In" value={editDetails.trainer.checked_in ? 'Yes' : 'No'} />
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      {!editDetails && (u.referee_id || u.volunteer_id || u.program_id || u.coach_id || u.trainer_id) && (
+                        <div className="mb-3 text-[11px] text-muted font-cond">Loading details...</div>
+                      )}
+
+                      {/* Edit fields */}
+                      <div className="space-y-2">
+                        <FormField label="Display Name">
                           <input
                             className="w-full bg-surface border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400"
-                            value={editPassword}
-                            onChange={(e) => setEditPassword(e.target.value)}
-                            placeholder="Leave blank to keep current"
-                            type="password"
+                            value={editName}
+                            onChange={(e) => setEditName(e.target.value)}
+                            placeholder="Full name"
                           />
+                        </FormField>
+                        <FormField label="Email">
+                          <input
+                            className="w-full bg-surface border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400"
+                            value={editEmail}
+                            onChange={(e) => setEditEmail(e.target.value)}
+                            placeholder="user@example.com"
+                            type="email"
+                          />
+                        </FormField>
+                        <FormField label="New Password">
+                          <div className="flex items-center gap-2">
+                            <KeyRound size={12} className="text-muted shrink-0" />
+                            <input
+                              className="w-full bg-surface border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400"
+                              value={editPassword}
+                              onChange={(e) => setEditPassword(e.target.value)}
+                              placeholder="Leave blank to keep current"
+                              type="password"
+                            />
+                          </div>
+                        </FormField>
+                        <div className="flex gap-2 pt-1">
+                          <Btn
+                            size="sm"
+                            variant="primary"
+                            onClick={() => saveUser(u)}
+                            disabled={saving}
+                          >
+                            <Check size={10} className="inline mr-1" />
+                            {saving ? 'SAVING...' : 'SAVE'}
+                          </Btn>
+                          <Btn size="sm" variant="ghost" onClick={cancelEditing}>
+                            <X size={10} className="inline mr-1" />
+                            CANCEL
+                          </Btn>
                         </div>
-                      </FormField>
-                      <div className="flex gap-2 pt-1">
-                        <Btn
-                          size="sm"
-                          variant="primary"
-                          onClick={() => saveUser(u)}
-                          disabled={saving}
-                        >
-                          <Check size={10} className="inline mr-1" />
-                          {saving ? 'SAVING...' : 'SAVE'}
-                        </Btn>
-                        <Btn size="sm" variant="ghost" onClick={cancelEditing}>
-                          <X size={10} className="inline mr-1" />
-                          CANCEL
-                        </Btn>
                       </div>
                     </div>
                   )}
@@ -650,5 +791,18 @@ export function UserManagement() {
         </div>
       </div>
     </div>
+  )
+}
+
+function DetailRow({ label, value }: { label: string; value: string | null | undefined }) {
+  return (
+    <>
+      <div className="font-cond text-[10px] font-bold text-muted uppercase tracking-wide">
+        {label}
+      </div>
+      <div className="font-cond text-[12px] text-white">
+        {value || <span className="text-muted/50">—</span>}
+      </div>
+    </>
   )
 }
