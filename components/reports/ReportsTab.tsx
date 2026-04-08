@@ -796,8 +796,22 @@ function RefScheduleView({
   })
   const [loading, setLoading] = useState(true)
 
-  // Derive selectedDateId from global state
-  const selectedDateId = globalDateIdx === -1 ? 'all' : String(globalDateId ?? 'all')
+  // Local date state, synced with global picker
+  const [selectedDateId, setSelectedDateId] = useState<string>(() =>
+    globalDateIdx === -1 ? 'all' : String(globalDateId ?? 'all')
+  )
+
+  // Sync local → global when dropdown changes
+  function handleDateChange(val: string) {
+    setSelectedDateId(val)
+    onDateChange(val === 'all' ? null : parseInt(val))
+  }
+
+  // Sync global → local when global picker changes
+  useEffect(() => {
+    const derived = globalDateIdx === -1 ? 'all' : String(globalDateId ?? 'all')
+    setSelectedDateId(derived)
+  }, [globalDateIdx, globalDateId])
 
   useEffect(() => {
     if (!eventId) {
@@ -925,10 +939,7 @@ function RefScheduleView({
           </label>
           <select
             value={selectedDateId}
-            onChange={(e) => {
-              const val = e.target.value
-              onDateChange(val === 'all' ? null : parseInt(val))
-            }}
+            onChange={(e) => handleDateChange(e.target.value)}
             className="bg-[#040e24] border border-[#1a2d50] rounded px-3 py-1.5 text-sm text-white font-cond focus:outline-none focus:ring-1 focus:ring-[#0B3D91]"
           >
             <option value="all">All Dates</option>
