@@ -760,11 +760,7 @@ function getExpected(division: string, rules: RefRules): { adult: number; youth:
 }
 
 function isYouthRef(gradeLevel: string): boolean {
-  // Grade 8 = Youth entry-level; Grade 7 and below = Adult
-  const lvl = gradeLevel?.toLowerCase() ?? ''
-  if (lvl.includes('youth')) return true
-  const num = parseInt(gradeLevel.replace(/\D/g, ''))
-  return !isNaN(num) && num >= 8
+  return (gradeLevel?.toLowerCase() ?? '') === 'youth'
 }
 
 function RefScheduleView({

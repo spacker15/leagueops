@@ -26,7 +26,7 @@ interface UserRoleRow {
 }
 
 interface LinkedDetails {
-  referee?: { name: string; phone: string | null; email: string | null; checked_in: boolean }
+  referee?: { name: string; phone: string | null; email: string | null; checked_in: boolean; grade_level: string }
   volunteer?: { name: string; role: string; phone: string | null; checked_in: boolean }
   program?: { name: string; short_name: string | null }
   coach?: { name: string; email: string; phone: string | null; certifications: string | null }
@@ -71,6 +71,7 @@ export function UserManagement() {
   const [editLinkedPhone, setEditLinkedPhone] = useState('')
   const [editLinkedRole, setEditLinkedRole] = useState('')
   const [editLinkedCerts, setEditLinkedCerts] = useState('')
+  const [editLinkedGradeLevel, setEditLinkedGradeLevel] = useState('Adult')
   const [refs, setRefs] = useState<any[]>([])
   const [vols, setVols] = useState<any[]>([])
   const [trainers, setTrainers] = useState<any[]>([])
@@ -308,12 +309,13 @@ export function UserManagement() {
     const details: LinkedDetails = {}
 
     if (u.referee_id) {
-      const { data } = await sb.from('referees').select('name, phone, email, checked_in').eq('id', u.referee_id).single()
+      const { data } = await sb.from('referees').select('name, phone, email, checked_in, grade_level').eq('id', u.referee_id).single()
       if (data) {
         details.referee = data
         setEditLinkedName(data.name ?? '')
         setEditLinkedEmail(data.email ?? '')
         setEditLinkedPhone(data.phone ?? '')
+        setEditLinkedGradeLevel(data.grade_level === 'Youth' ? 'Youth' : 'Adult')
       }
     }
     if (u.volunteer_id) {
@@ -366,6 +368,7 @@ export function UserManagement() {
     setEditLinkedPhone('')
     setEditLinkedRole('')
     setEditLinkedCerts('')
+    setEditLinkedGradeLevel('Adult')
   }
 
   async function saveUser(u: UserRoleRow) {
@@ -412,6 +415,7 @@ export function UserManagement() {
       if (editLinkedName !== editDetails.referee.name) updates.name = editLinkedName
       if (editLinkedEmail !== (editDetails.referee.email ?? '')) updates.email = editLinkedEmail || null
       if (editLinkedPhone !== (editDetails.referee.phone ?? '')) updates.phone = editLinkedPhone || null
+      if (editLinkedGradeLevel !== editDetails.referee.grade_level) updates.grade_level = editLinkedGradeLevel
       if (Object.keys(updates).length > 0) {
         await sb.from('referees').update(updates).eq('id', u.referee_id)
         changes.push('referee details updated')
@@ -872,6 +876,34 @@ export function UserManagement() {
                                   value={editLinkedPhone}
                                   onChange={(e) => setEditLinkedPhone(e.target.value)}
                                 />
+                              </FormField>
+                              <FormField label="Ref Type">
+                                <div className="flex gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditLinkedGradeLevel('Adult')}
+                                    className={cn(
+                                      'flex-1 font-cond text-[11px] font-bold py-1.5 rounded border transition-colors',
+                                      editLinkedGradeLevel === 'Adult'
+                                        ? 'bg-blue-900/40 border-blue-500 text-blue-300'
+                                        : 'bg-surface border-border text-muted hover:text-white'
+                                    )}
+                                  >
+                                    ADULT
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditLinkedGradeLevel('Youth')}
+                                    className={cn(
+                                      'flex-1 font-cond text-[11px] font-bold py-1.5 rounded border transition-colors',
+                                      editLinkedGradeLevel === 'Youth'
+                                        ? 'bg-green-900/40 border-green-500 text-green-300'
+                                        : 'bg-surface border-border text-muted hover:text-white'
+                                    )}
+                                  >
+                                    YOUTH
+                                  </button>
+                                </div>
                               </FormField>
                               <div className="flex items-end pb-1">
                                 <span className={cn('font-cond text-[11px] font-bold', editDetails.referee.checked_in ? 'text-green-400' : 'text-muted')}>

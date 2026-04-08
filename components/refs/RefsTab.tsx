@@ -1651,10 +1651,28 @@ export function RefsTab() {
                     <Avatar name={ref.name} variant="red" />
                     <div className="min-w-0 flex-1">
                       <div className="font-cond font-black text-[13px] truncate">{ref.name}</div>
-                      <div className="font-cond text-[10px] text-muted">{ref.grade_level}</div>
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-1 mb-2">
+                    <button
+                      onClick={async () => {
+                        const isYouth = ref.grade_level?.toLowerCase().includes('youth')
+                        const newGrade = isYouth ? 'Adult' : 'Youth'
+                        const sb = createClient()
+                        await sb.from('referees').update({ grade_level: newGrade }).eq('id', ref.id)
+                        await refreshRefs()
+                        toast.success(`${ref.name} set to ${newGrade}`)
+                      }}
+                      className={cn(
+                        'font-cond text-[10px] font-bold px-2 py-0.5 rounded cursor-pointer transition-colors',
+                        ref.grade_level?.toLowerCase().includes('youth')
+                          ? 'bg-green-900/30 text-green-400 hover:bg-green-900/50'
+                          : 'bg-blue-900/30 text-blue-300 hover:bg-blue-900/50'
+                      )}
+                      title="Click to toggle Adult/Youth"
+                    >
+                      {ref.grade_level?.toLowerCase().includes('youth') ? 'YOUTH' : 'ADULT'}
+                    </button>
                     {ref.checked_in ? (
                       <Pill variant="green">CHECKED IN</Pill>
                     ) : (
