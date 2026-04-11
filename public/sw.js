@@ -29,6 +29,15 @@ self.addEventListener('push', function (event) {
     url = data.url || '/'
   }
 
+  // Detect urgent notifications (trainer dispatch, medical, lightning)
+  var isUrgent =
+    (title && (title.toLowerCase().includes('trainer') ||
+     title.toLowerCase().includes('medical') ||
+     title.toLowerCase().includes('lightning') ||
+     title.toLowerCase().includes('dispatch'))) ||
+    (body && (body.toLowerCase().includes('dispatch') ||
+     body.toLowerCase().includes('trainer')))
+
   event.waitUntil(
     self.registration.showNotification(title, {
       body: body,
@@ -36,6 +45,9 @@ self.addEventListener('push', function (event) {
       badge: '/icon.png',
       data: { url: url },
       tag: recentPushTimestamps.length >= 3 ? 'collapsed-summary' : undefined,
+      vibrate: isUrgent ? [300, 100, 300, 100, 300] : [200, 100, 200],
+      requireInteraction: isUrgent ? true : false,
+      silent: false,
     })
   )
 })
