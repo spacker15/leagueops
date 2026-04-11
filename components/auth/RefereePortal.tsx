@@ -1847,6 +1847,16 @@ export function RefereePortal() {
               eventId={portalEventId}
             />
           )}
+
+          {/* ── RULES ── */}
+          {tab === 'rules' && (
+            <div>
+              <div className="font-cond text-[13px] font-black tracking-wider text-white mb-3">
+                2026 USA LACROSSE BOYS YOUTH RULES
+              </div>
+              <RulesReference />
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -1958,18 +1968,6 @@ function ApprovalsPanel({
           })}
         </div>
       )}
-
-          {/* ── RULES ── */}
-          {tab === 'rules' && (
-            <div>
-              <div className="font-cond text-[13px] font-black tracking-wider text-white mb-3">
-                2026 USA LACROSSE BOYS YOUTH RULES
-              </div>
-              <RulesReference />
-            </div>
-          )}
-        </div>
-      </div>
     </div>
   )
 }
