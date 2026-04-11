@@ -20,7 +20,7 @@ export function RightPanel({ onNavigate }: Props) {
   const s = state.lightningSecondsLeft % 60
 
   return (
-    <aside className="w-72 bg-surface-panel border-l border-border overflow-y-auto flex-shrink-0">
+    <aside className="w-72 bg-surface-panel border-l border-border overflow-y-auto flex-shrink-0" style={{ maxHeight: 'calc(100vh - 48px)' }}>
       {/* Weather / Lightning — always at top */}
       <WeatherRPPanel
         lightningActive={lightningActive}
@@ -103,25 +103,36 @@ function Section({
 
 // ─── Trainer On Duty ─────────────────────────────────────────
 function TrainerOnDutyPanel({ fields }: { fields: { id: number; name: string }[] }) {
-  const { state } = useApp()
+  const { state, dispatchTrainer } = useApp()
   const [dispatchingId, setDispatchingId] = useState<number | null>(null)
+  const [dispatching, setDispatching] = useState(false)
 
   const onDuty = state.trainers.filter((t) => t.checked_in)
   const offDuty = state.trainers.filter((t) => !t.checked_in)
 
-  async function dispatchToField(trainerId: number, fieldId: number) {
+  async function handleDispatch(trainerId: number, fieldId: number) {
     const trainer = state.trainers.find((t) => t.id === trainerId)
     const field = fields.find((f) => f.id === fieldId)
-    if (!trainer || !field) return
+    if (!trainer || !field || !state.event?.id) return
 
-    const sb = createClient()
-    await sb.from('ops_log').insert({
-      event_id: state.event?.id,
-      message: `Trainer dispatched: ${trainer.name} → ${field.name}`,
-      log_type: 'alert',
-      occurred_at: new Date().toISOString(),
-    })
-    toast.success(`${trainer.name} dispatched to ${field.name}`)
+    setDispatching(true)
+    try {
+      await dispatchTrainer({
+        event_id: state.event.id,
+        field_id: fieldId,
+        game_id: null,
+        player_name: '',
+        injury_type: 'General / Unknown',
+        trainer_name: trainer.name,
+        status: 'Dispatched',
+        dispatched_at: new Date().toISOString(),
+        notes: `Quick dispatch to ${field.name}`,
+      })
+      toast.success(`${trainer.name} dispatched to ${field.name}`)
+    } catch {
+      toast.error('Failed to dispatch trainer')
+    }
+    setDispatching(false)
     setDispatchingId(null)
   }
 
@@ -142,6 +153,7 @@ function TrainerOnDutyPanel({ fields }: { fields: { id: number; name: string }[]
                 </div>
                 <button
                   onClick={() => setDispatchingId(dispatchingId === t.id ? null : t.id)}
+                  disabled={dispatching}
                   className="font-cond text-[9px] font-bold tracking-wider px-1.5 py-0.5 rounded bg-red/20 text-red-300 border border-red/40 hover:bg-red/30 transition-colors"
                 >
                   DISPATCH
@@ -152,8 +164,9 @@ function TrainerOnDutyPanel({ fields }: { fields: { id: number; name: string }[]
                   {fields.map((f) => (
                     <button
                       key={f.id}
-                      onClick={() => dispatchToField(t.id, f.id)}
-                      className="block w-full text-left font-cond text-[10px] px-2 py-1 rounded bg-surface border border-border text-muted hover:text-white hover:border-blue-400 transition-colors"
+                      onClick={() => handleDispatch(t.id, f.id)}
+                      disabled={dispatching}
+                      className="block w-full text-left font-cond text-[10px] px-2 py-1 rounded bg-surface border border-border text-muted hover:text-white hover:border-blue-400 transition-colors disabled:opacity-50"
                     >
                       → {f.name}
                     </button>
