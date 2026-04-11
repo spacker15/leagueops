@@ -198,6 +198,7 @@ export function RefereePortal() {
   const [loading, setLoading] = useState(true)
   const [checkingIn, setCheckingIn] = useState(false)
   const [todayLabel, setTodayLabel] = useState('')
+  const [activeDispatches, setActiveDispatches] = useState<{ id: number; trainer_name: string; player_name: string; status: string; field_id: number | null }[]>([])
 
   const [allGames, setAllGames] = useState<GameSummary[]>([])
   const [fields, setFields] = useState<Field[]>([])
@@ -338,6 +339,15 @@ export function RefereePortal() {
         `Next: ${upcomingDate.label} — ${format(new Date(upcomingDate.date + 'T12:00:00'), 'EEEE, MMMM d')}`
       )
     }
+
+    // Load active medical dispatches
+    const { data: dispatches } = await sb
+      .from('medical_incidents')
+      .select('id, trainer_name, player_name, status, field_id')
+      .eq('event_id', portalEventId!)
+      .not('status', 'in', '("Resolved","Released")')
+    setActiveDispatches(dispatches ?? [])
+
     setLoading(false)
   }
 
@@ -807,6 +817,28 @@ export function RefereePortal() {
                 ))}
             </div>
           )}
+          {/* Active medical dispatch banner */}
+          {activeDispatches.length > 0 && (
+            <div className="mb-4 space-y-1.5">
+              {activeDispatches.map((d) => (
+                <div
+                  key={d.id}
+                  className="flex items-center gap-2 bg-red-900/30 border border-red-600/50 rounded-lg px-3 py-2 animate-pulse"
+                >
+                  <span className="text-red-400 text-[14px]">🚨</span>
+                  <div>
+                    <span className="font-cond text-[10px] font-black tracking-widest text-red-300 uppercase mr-2">
+                      TRAINER DISPATCHED
+                    </span>
+                    <span className="font-cond text-[11px] text-red-200">
+                      {d.trainer_name}{d.player_name ? ` · ${d.player_name}` : ''} — {d.status}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
           {/* ── MY CHECK-IN ── */}
           {tab === 'checkin' && (
             <div>

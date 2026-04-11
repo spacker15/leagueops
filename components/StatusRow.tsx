@@ -22,11 +22,36 @@ export function StatusRow() {
     counts[p.key] = g.filter((x) => x.status === p.key).length
   })
 
+  const activeDispatches = state.medicalIncidents.filter(
+    (m) => m.status !== 'Resolved' && m.status !== 'Released'
+  )
+
   return (
-    <div
-      className="flex items-stretch flex-shrink-0"
-      style={{ height: 38, background: '#020810', borderBottom: '1px solid #1a2d50' }}
-    >
+    <div className="flex-shrink-0">
+      {/* Medical dispatch banner */}
+      {activeDispatches.length > 0 && (
+        <div
+          className="flex items-center gap-3 px-4 py-1.5 animate-pulse"
+          style={{ background: '#3b0808', borderBottom: '1px solid #7f1d1d' }}
+        >
+          <span className="text-[14px]">🚨</span>
+          <span className="font-cond text-[11px] font-black tracking-widest text-red-300 uppercase">
+            TRAINER DISPATCHED
+          </span>
+          {activeDispatches.map((m) => (
+            <span key={m.id} className="font-cond text-[11px] text-red-200">
+              {m.trainer_name} → {m.field?.name ?? `Field ${m.field_id}`}
+              {m.player_name ? ` · ${m.player_name}` : ''}
+              <span className="text-red-400 font-bold ml-1.5">{m.status.toUpperCase()}</span>
+            </span>
+          ))}
+        </div>
+      )}
+
+      <div
+        className="flex items-stretch"
+        style={{ height: 38, background: '#020810', borderBottom: '1px solid #1a2d50' }}
+      >
       {/* Game status pills */}
       {PILLS.map((p, i) => {
         const count = counts[p.key]
@@ -185,6 +210,7 @@ export function StatusRow() {
             ? `${state.eventDates.length} DAYS`
             : `${state.currentDateIdx + 1}/${state.eventDates.length}`}
         </span>
+      </div>
       </div>
     </div>
   )
