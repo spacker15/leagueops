@@ -13,14 +13,68 @@ interface Props {
 }
 
 export function RightPanel({ onNavigate }: Props) {
-  const { state } = useApp()
+  const { state, currentDate } = useApp()
 
   const lightningActive = state.lightningActive
   const m = Math.floor(state.lightningSecondsLeft / 60)
   const s = state.lightningSecondsLeft % 60
 
+  // Compute first/last game times
+  const gameTimes = state.games
+    .map((g) => {
+      const match = g.scheduled_time?.match(/(\d+):(\d+)\s*(AM|PM)/i)
+      if (!match) return null
+      let h = parseInt(match[1])
+      const min = parseInt(match[2])
+      if (match[3].toUpperCase() === 'PM' && h !== 12) h += 12
+      if (match[3].toUpperCase() === 'AM' && h === 12) h = 0
+      return { time: g.scheduled_time, minutes: h * 60 + min, status: g.status }
+    })
+    .filter(Boolean) as { time: string; minutes: number; status: string }[]
+
+  gameTimes.sort((a, b) => a.minutes - b.minutes)
+  const firstGame = gameTimes[0] ?? null
+  const lastGame = gameTimes[gameTimes.length - 1] ?? null
+  const gamesRemaining = state.games.filter((g) => g.status === 'Scheduled' || g.status === 'Starting').length
+  const gamesLive = state.games.filter((g) => g.status === 'Live' || g.status === 'Halftime').length
+  const gamesFinal = state.games.filter((g) => g.status === 'Final').length
+
   return (
     <aside className="w-72 bg-surface-panel border-l border-border overflow-y-auto flex-shrink-0" style={{ maxHeight: 'calc(100vh - 48px)' }}>
+      {/* Today's Schedule quick view */}
+      {state.games.length > 0 && (
+        <Section title={currentDate?.label ? `${currentDate.label.toUpperCase()} SCHEDULE` : "TODAY'S SCHEDULE"}>
+          <div className="space-y-1.5">
+            <div className="flex justify-between text-[11px]">
+              <span className="text-muted font-cond">First Game</span>
+              <span className="text-white font-mono font-bold">{firstGame?.time ?? '—'}</span>
+            </div>
+            <div className="flex justify-between text-[11px]">
+              <span className="text-muted font-cond">Last Game</span>
+              <span className="text-white font-mono font-bold">{lastGame?.time ?? '—'}</span>
+            </div>
+            <div className="border-t border-border/50 pt-1.5 mt-1.5 flex justify-between text-[11px]">
+              <span className="text-muted font-cond">Total</span>
+              <span className="text-white font-mono">{state.games.length}</span>
+            </div>
+            {gamesLive > 0 && (
+              <div className="flex justify-between text-[11px]">
+                <span className="text-green-400 font-cond font-bold">Live</span>
+                <span className="text-green-400 font-mono font-bold">{gamesLive}</span>
+              </div>
+            )}
+            <div className="flex justify-between text-[11px]">
+              <span className="text-muted font-cond">Remaining</span>
+              <span className={cn('font-mono', gamesRemaining > 0 ? 'text-blue-300' : 'text-muted')}>{gamesRemaining}</span>
+            </div>
+            <div className="flex justify-between text-[11px]">
+              <span className="text-muted font-cond">Final</span>
+              <span className="text-muted font-mono">{gamesFinal}</span>
+            </div>
+          </div>
+        </Section>
+      )}
+
       {/* Weather / Lightning — always at top */}
       <WeatherRPPanel
         lightningActive={lightningActive}
