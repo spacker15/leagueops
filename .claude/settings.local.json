@@ -71,7 +71,8 @@
       "Bash(grep -rn preview C:/Users/Seanp/.claude/get-shit-done/ --include=*.md -l)",
       "Bash(grep -rn \"preview\\\\|when_to_verify\\\\|verification_workflow\" C:/Users/Seanp/.claude/ --include=*.json --include=*.js)",
       "Bash(grep -n \"medical_incidents_status_check\\\\|status_check\\\\|CHECK.*status\" /d/Claude/leagueops/supabase/*.sql)",
-      "Bash(grep -n \"role.*coach\\\\|assistant_coach\\\\|program_invite\\\\|registration_invites\" /d/Claude/leagueops/supabase/*.sql)"
+      "Bash(grep -n \"role.*coach\\\\|assistant_coach\\\\|program_invite\\\\|registration_invites\" /d/Claude/leagueops/supabase/*.sql)",
+      "mcp__92e521f4-caee-4127-95dd-72a06d7106ab__get_logs"
     ]
   }
 }
