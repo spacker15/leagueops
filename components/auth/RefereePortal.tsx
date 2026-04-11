@@ -192,7 +192,7 @@ function timeToMin(t: string): number {
 export function RefereePortal() {
   const { userRole, signOut } = useAuth()
   const portalEventId = userRole?.event_id
-  const [tab, setTab] = useState<PortalTab>('checkin')
+  const [tab, setTab] = useState<PortalTab>('games')
   const [ref, setRef] = useState<any>(null)
   const [checkedIn, setCheckedIn] = useState(false)
   const [loading, setLoading] = useState(true)
