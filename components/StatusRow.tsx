@@ -4,6 +4,8 @@ import { useApp } from '@/lib/store'
 import { cn } from '@/lib/utils'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
+import { createClient } from '@/supabase/client'
+import toast from 'react-hot-toast'
 
 const PILLS = [
   { key: 'Scheduled', label: 'SCHED', activeColor: '#60a5fa', bg: '#071830' },
@@ -15,7 +17,7 @@ const PILLS = [
 ]
 
 export function StatusRow() {
-  const { state, currentDate, changeDate } = useApp()
+  const { state, currentDate, changeDate, updateMedicalStatus } = useApp()
   const g = state.games
   const counts: Record<string, number> = {}
   PILLS.forEach((p) => {
@@ -62,19 +64,32 @@ export function StatusRow() {
       {/* Medical dispatch banner */}
       {activeDispatches.length > 0 && (
         <div
-          className="flex flex-wrap items-center gap-2 sm:gap-3 px-3 sm:px-4 py-1.5 animate-pulse"
+          className="px-3 sm:px-4 py-1.5"
           style={{ background: '#3b0808', borderBottom: '1px solid #7f1d1d' }}
         >
-          <span className="text-[14px]">🚨</span>
-          <span className="font-cond text-[10px] sm:text-[11px] font-black tracking-widest text-red-300 uppercase">
-            TRAINER DISPATCHED
-          </span>
           {activeDispatches.map((m) => (
-            <span key={m.id} className="font-cond text-[10px] sm:text-[11px] text-red-200">
-              {m.trainer_name} → {m.field?.name ?? `Field ${m.field_id}`}
-              {m.player_name ? ` · ${m.player_name}` : ''}
-              <span className="text-red-400 font-bold ml-1.5">{m.status.toUpperCase()}</span>
-            </span>
+            <div key={m.id} className="flex items-center gap-2 sm:gap-3 flex-wrap">
+              <span className="text-[14px] animate-pulse">🚨</span>
+              <span className="font-cond text-[10px] sm:text-[11px] font-black tracking-widest text-red-300 uppercase">
+                TRAINER DISPATCHED
+              </span>
+              <span className="font-cond text-[10px] sm:text-[11px] text-red-200 flex-1">
+                {m.trainer_name} → {m.field?.name ?? `Field ${m.field_id}`}
+                {m.player_name ? ` · ${m.player_name}` : ''}
+                <span className="text-red-400 font-bold ml-1.5">{m.status.toUpperCase()}</span>
+              </span>
+              <button
+                onClick={async () => {
+                  const sb = createClient()
+                  await sb.from('medical_incidents').update({ status: 'Resolved' }).eq('id', m.id)
+                  updateMedicalStatus(m.id, 'Resolved')
+                  toast.success('Dispatch resolved')
+                }}
+                className="font-cond text-[9px] sm:text-[10px] font-bold tracking-wider px-2 py-0.5 rounded bg-green-900/40 text-green-400 border border-green-800/50 hover:bg-green-800/60 transition-colors flex-shrink-0"
+              >
+                RESOLVE
+              </button>
+            </div>
           ))}
         </div>
       )}

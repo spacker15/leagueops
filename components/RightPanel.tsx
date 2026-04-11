@@ -157,7 +157,7 @@ function Section({
 
 // ─── Trainer On Duty ─────────────────────────────────────────
 function TrainerOnDutyPanel({ fields }: { fields: { id: number; name: string }[] }) {
-  const { state, dispatchTrainer } = useApp()
+  const { state, dispatchTrainer, updateMedicalStatus } = useApp()
   const [dispatchingId, setDispatchingId] = useState<number | null>(null)
   const [dispatching, setDispatching] = useState(false)
 
@@ -232,6 +232,34 @@ function TrainerOnDutyPanel({ fields }: { fields: { id: number; name: string }[]
           ))}
         </div>
       )}
+      {/* Active dispatches */}
+      {state.medicalIncidents.filter((m) => m.status !== 'Resolved' && m.status !== 'Released').length > 0 && (
+        <div className="mt-2 pt-1.5 border-t border-red-800/30">
+          <div className="font-cond text-[9px] text-red-400 tracking-wider font-bold mb-1">ACTIVE DISPATCHES</div>
+          {state.medicalIncidents
+            .filter((m) => m.status !== 'Resolved' && m.status !== 'Released')
+            .map((m) => (
+              <div key={m.id} className="flex items-center justify-between mb-1">
+                <div className="min-w-0">
+                  <div className="font-cond text-[10px] text-red-200 truncate">
+                    {m.trainer_name}{m.player_name ? ` · ${m.player_name}` : ''}
+                  </div>
+                  <div className="font-cond text-[9px] text-red-400/70">{m.status}</div>
+                </div>
+                <button
+                  onClick={async () => {
+                    await updateMedicalStatus(m.id, 'Resolved')
+                    toast.success('Dispatch resolved')
+                  }}
+                  className="font-cond text-[8px] font-bold px-1.5 py-0.5 rounded bg-green-900/30 text-green-400 border border-green-800/50 hover:bg-green-800/60 transition-colors flex-shrink-0 ml-1"
+                >
+                  RESOLVE
+                </button>
+              </div>
+            ))}
+        </div>
+      )}
+
       {offDuty.length > 0 && (
         <div className="mt-2 pt-1.5 border-t border-border/50">
           <div className="font-cond text-[9px] text-muted tracking-wider mb-1">OFF DUTY</div>
