@@ -726,7 +726,8 @@ export function RefereePortal() {
     )
 
   const isAssigned = selectedGame
-    ? gameSlots.some((s) => s.referee_id === userRole?.referee_id)
+    ? gameSlots.some((s) => s.referee_id === userRole?.referee_id) ||
+      volSlots.some((s) => s.referee_id === userRole?.referee_id || s.volunteer_id === userRole?.volunteer_id)
     : false
 
   return (
