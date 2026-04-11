@@ -132,7 +132,22 @@ export function ReportsTab() {
         <LeadersView games={finalGames} teams={state.teams} divFilter={divFilter} />
       )}
       {sub === 'matchups' && (
-        <MatchupsView teams={state.teams} eventId={state.event?.id ?? null} divFilter={divFilter} />
+        <MatchupsView
+          teams={state.teams}
+          eventId={state.event?.id ?? null}
+          divFilter={divFilter}
+          globalDateId={currentDate?.id ?? null}
+          globalDateIdx={state.currentDateIdx}
+          eventDatesFromState={state.eventDates}
+          onDateChange={(dateId) => {
+            if (dateId === null) {
+              changeDate(-1)
+            } else {
+              const idx = state.eventDates.findIndex((d) => d.id === dateId)
+              if (idx !== -1) changeDate(idx)
+            }
+          }}
+        />
       )}
       {sub === 'ref-schedule' && (
         <RefScheduleView
@@ -480,20 +495,31 @@ interface AllGame {
   home_team_id: number
   away_team_id: number
   division: string
+  event_date_id: number | null
 }
 
 function MatchupsView({
   teams,
   eventId,
   divFilter,
+  globalDateId,
+  globalDateIdx,
+  eventDatesFromState,
+  onDateChange,
 }: {
   teams: Team[]
   eventId: number | null
   divFilter: string
+  globalDateId: number | null
+  globalDateIdx: number
+  eventDatesFromState: { id: number; date: string; label: string }[]
+  onDateChange: (dateId: number | null) => void
 }) {
   const [allGames, setAllGames] = useState<AllGame[]>([])
   const [loading, setLoading] = useState(true)
   const [settingsDivisions, setSettingsDivisions] = useState<string[]>([])
+
+  const selectedDateId = globalDateIdx === -1 ? 'all' : String(globalDateId ?? 'all')
 
   useEffect(() => {
     if (!eventId) {
@@ -502,7 +528,7 @@ function MatchupsView({
     }
     const sb = createClient()
     sb.from('games')
-      .select('id, home_team_id, away_team_id, division')
+      .select('id, home_team_id, away_team_id, division, event_date_id')
       .eq('event_id', eventId)
       .then(({ data, error }) => {
         if (error) console.error('MatchupsView: failed to load games', error)
@@ -531,6 +557,13 @@ function MatchupsView({
     return [...new Set([...settingsDivisions, ...gameDivs])].sort()
   }, [allGames, settingsDivisions])
 
+  // Filter by selected date
+  const filteredGames = useMemo(() => {
+    if (selectedDateId === 'all') return allGames
+    const dateId = parseInt(selectedDateId)
+    return allGames.filter((g) => g.event_date_id === dateId)
+  }, [allGames, selectedDateId])
+
   if (loading) return <Empty message="Loading matchup data..." />
 
   // Helper: find teams that participate in games for a given division
@@ -544,22 +577,47 @@ function MatchupsView({
     return teams.filter((t) => teamIds.has(t.id)).sort((a, b) => a.name.localeCompare(b.name))
   }
 
+  // Date picker
+  const datePicker = eventDatesFromState.length > 0 ? (
+    <div className="flex items-center gap-3 mb-4">
+      <label className="font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase">
+        Game Date
+      </label>
+      <select
+        value={selectedDateId}
+        onChange={(e) => {
+          const val = e.target.value
+          onDateChange(val === 'all' ? null : parseInt(val))
+        }}
+        className="bg-[#040e24] border border-border rounded px-3 py-1.5 text-sm text-white font-cond focus:outline-none focus:ring-1 focus:ring-navy"
+      >
+        <option value="all">All Dates</option>
+        {eventDatesFromState.map((d) => (
+          <option key={d.id} value={String(d.id)}>
+            {d.label || d.date}
+          </option>
+        ))}
+      </select>
+    </div>
+  ) : null
+
   // When a specific division is selected, show a single matrix
   if (divFilter !== 'ALL') {
-    const divGames = allGames.filter((g) => g.division === divFilter)
+    const divGames = filteredGames.filter((g) => g.division === divFilter)
     const divTeams = teamsForDivGames(divGames)
-    if (divTeams.length === 0) return <Empty message="No teams found for this division." />
-    return <MatchupMatrix teams={divTeams} games={divGames} showDivisionOnRow={false} />
+    if (divTeams.length === 0) return <>{datePicker}<Empty message="No teams found for this division." /></>
+    return <>{datePicker}<MatchupMatrix teams={divTeams} games={divGames} showDivisionOnRow={false} /></>
   }
 
   // "ALL" — show separate matrices per division
-  const divisionsWithGames = allDivisions.filter((div) => allGames.some((g) => g.division === div))
-  if (divisionsWithGames.length === 0) return <Empty message="No teams found." />
+  const divisionsWithGames = allDivisions.filter((div) => filteredGames.some((g) => g.division === div))
+  if (divisionsWithGames.length === 0) return <>{datePicker}<Empty message="No teams found." /></>
 
   return (
     <div className="space-y-8">
+      {datePicker}
       {divisionsWithGames.map((div) => {
-        const divGames = allGames.filter((g) => g.division === div)
+        const divGames = filteredGames.filter((g) => g.division === div)
         const divTeams = teamsForDivGames(divGames)
         return (
           <div key={div}>
