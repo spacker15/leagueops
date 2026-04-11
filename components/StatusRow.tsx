@@ -28,7 +28,9 @@ export function StatusRow() {
     (m) => m.status !== 'Resolved' && m.status !== 'Released'
   )
 
-  // Last game time
+  // First and last game time
+  let firstGameTime = ''
+  let firstGameMin = Infinity
   let lastGameTime = ''
   let lastGameMin = 0
   for (const game of g) {
@@ -39,6 +41,7 @@ export function StatusRow() {
     if (m[3].toUpperCase() === 'PM' && h !== 12) h += 12
     if (m[3].toUpperCase() === 'AM' && h === 12) h = 0
     const total = h * 60 + min
+    if (total < firstGameMin) { firstGameMin = total; firstGameTime = game.scheduled_time }
     if (total > lastGameMin) { lastGameMin = total; lastGameTime = game.scheduled_time }
   }
 
@@ -158,6 +161,24 @@ export function StatusRow() {
             <ChevronRight size={18} />
           </button>
         </div>
+
+        {/* Mobile first/last game strip */}
+        {g.length > 0 && lastGameTime && (
+          <div
+            className="flex items-center justify-center gap-4 px-2 sm:hidden"
+            style={{ height: 22, borderBottom: '1px solid #1a2d50', background: '#030c1a' }}
+          >
+            <span className="font-cond text-[9px] text-muted">
+              FIRST <span className="text-white font-bold">{firstGameTime || '—'}</span>
+            </span>
+            <span className="font-cond text-[9px] text-muted">
+              LAST <span className="text-white font-bold">{lastGameTime}</span>
+            </span>
+            <span className="font-cond text-[9px] text-muted">
+              {g.length} GAMES
+            </span>
+          </div>
+        )}
 
         {/* Pills row — scrollable on mobile */}
         <div
