@@ -89,10 +89,11 @@ export function RightPanel({ onNavigate }: Props) {
 
       {/* Incident Monitor */}
       <Section title="INCIDENT MONITOR" action={() => onNavigate('incidents')} actionLabel="LOG">
-        {state.incidents.slice(0, 4).length === 0 ? (
+        {state.incidents.length === 0 ? (
           <p className="text-[11px] text-muted">No active incidents</p>
         ) : (
-          state.incidents.slice(0, 4).map((inc) => (
+          <div className="max-h-48 overflow-y-auto space-y-1.5">
+          {state.incidents.map((inc) => (
             <div
               key={inc.id}
               className={cn(
@@ -116,7 +117,8 @@ export function RightPanel({ onNavigate }: Props) {
                 {inc.field?.name ?? '—'} · {inc.team?.name ?? '—'}
               </div>
             </div>
-          ))
+          ))}
+          </div>
         )}
       </Section>
     </aside>
