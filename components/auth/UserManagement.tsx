@@ -516,7 +516,7 @@ export function UserManagement() {
       <SectionHeader>USER MANAGEMENT</SectionHeader>
       <div className="grid grid-cols-2 gap-6">
         {/* Create user form */}
-        <div>
+        <div className="overflow-y-auto" style={{ maxHeight: 'calc(100vh - 140px)' }}>
           <div className="bg-surface-card border border-border rounded-lg p-4">
             <div className="font-cond font-black text-[13px] tracking-wide mb-4 flex items-center gap-2">
               <UserPlus size={14} /> CREATE USER
@@ -725,7 +725,7 @@ export function UserManagement() {
         </div>
 
         {/* User list */}
-        <div>
+        <div className="overflow-y-auto" style={{ maxHeight: 'calc(100vh - 140px)' }}>
           <div className="flex justify-between items-center mb-3">
             <div className="font-cond text-[11px] font-bold text-muted tracking-widest uppercase">
               {filteredUsers.length}{roleFilter !== 'all' ? ` / ${users.length}` : ''} USERS

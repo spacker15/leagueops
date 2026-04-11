@@ -449,7 +449,7 @@ export function ProgramDashboard({ onSwitchToAdmin }: { onSwitchToAdmin?: () => 
   const pendingTeams = teamRegs.filter((t) => t.status === 'pending')
 
   return (
-    <div className="min-h-screen bg-surface">
+    <div className="min-h-screen bg-surface overflow-y-auto">
       {/* Header */}
       <div className="bg-navy-dark border-b-2 border-red px-4 py-0 flex items-stretch">
         <div className="flex items-center gap-3 px-2 py-3">
