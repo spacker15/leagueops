@@ -122,6 +122,7 @@ function TrainerOnDutyPanel({ fields }: { fields: { id: number; name: string }[]
         field_id: fieldId,
         game_id: null,
         player_name: '',
+        team_name: null,
         injury_type: 'General / Unknown',
         trainer_name: trainer.name,
         status: 'Dispatched',
