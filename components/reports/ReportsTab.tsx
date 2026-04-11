@@ -502,24 +502,28 @@ function MatchupsView({
   teams,
   eventId,
   divFilter,
-  globalDateId,
-  globalDateIdx,
   eventDatesFromState,
-  onDateChange,
 }: {
   teams: Team[]
   eventId: number | null
   divFilter: string
-  globalDateId: number | null
-  globalDateIdx: number
+  globalDateId?: number | null
+  globalDateIdx?: number
   eventDatesFromState: { id: number; date: string; label: string }[]
-  onDateChange: (dateId: number | null) => void
+  onDateChange?: (dateId: number | null) => void
 }) {
   const [allGames, setAllGames] = useState<AllGame[]>([])
   const [loading, setLoading] = useState(true)
   const [settingsDivisions, setSettingsDivisions] = useState<string[]>([])
+  const [fromIdx, setFromIdx] = useState(0)
+  const [toIdx, setToIdx] = useState(eventDatesFromState.length > 0 ? eventDatesFromState.length - 1 : 0)
 
-  const selectedDateId = globalDateIdx === -1 ? 'all' : String(globalDateId ?? 'all')
+  // Update toIdx when dates load
+  useEffect(() => {
+    if (eventDatesFromState.length > 0) {
+      setToIdx(eventDatesFromState.length - 1)
+    }
+  }, [eventDatesFromState.length])
 
   useEffect(() => {
     if (!eventId) {
@@ -557,17 +561,21 @@ function MatchupsView({
     return [...new Set([...settingsDivisions, ...gameDivs])].sort()
   }, [allGames, settingsDivisions])
 
-  // Filter by selected date
+  // Filter by date range
   const filteredGames = useMemo(() => {
-    if (selectedDateId === 'all') return allGames
-    const dateId = parseInt(selectedDateId)
-    return allGames.filter((g) => g.event_date_id === dateId)
-  }, [allGames, selectedDateId])
+    if (eventDatesFromState.length === 0) return allGames
+    const fromDate = eventDatesFromState[fromIdx]
+    const toDate = eventDatesFromState[toIdx]
+    if (!fromDate || !toDate) return allGames
+    const validIds = new Set(
+      eventDatesFromState.slice(fromIdx, toIdx + 1).map((d) => d.id)
+    )
+    return allGames.filter((g) => g.event_date_id !== null && validIds.has(g.event_date_id))
+  }, [allGames, fromIdx, toIdx, eventDatesFromState])
 
   if (loading) return <Empty message="Loading matchup data..." />
 
   // Helper: find teams that participate in games for a given division
-  // (uses game division, NOT team.division — teams can play across divisions)
   function teamsForDivGames(divGames: AllGame[]): Team[] {
     const teamIds = new Set<number>()
     for (const g of divGames) {
@@ -577,27 +585,69 @@ function MatchupsView({
     return teams.filter((t) => teamIds.has(t.id)).sort((a, b) => a.name.localeCompare(b.name))
   }
 
-  // Date picker
-  const datePicker = eventDatesFromState.length > 0 ? (
-    <div className="flex items-center gap-3 mb-4">
-      <label className="font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase">
-        Game Date
-      </label>
-      <select
-        value={selectedDateId}
-        onChange={(e) => {
-          const val = e.target.value
-          onDateChange(val === 'all' ? null : parseInt(val))
-        }}
-        className="bg-[#040e24] border border-border rounded px-3 py-1.5 text-sm text-white font-cond focus:outline-none focus:ring-1 focus:ring-navy"
-      >
-        <option value="all">All Dates</option>
-        {eventDatesFromState.map((d) => (
-          <option key={d.id} value={String(d.id)}>
-            {d.label || d.date}
-          </option>
+  const fromLabel = eventDatesFromState[fromIdx]?.label ?? ''
+  const toLabel = eventDatesFromState[toIdx]?.label ?? ''
+  const isAllDates = fromIdx === 0 && toIdx === eventDatesFromState.length - 1
+
+  // Date range slider
+  const datePicker = eventDatesFromState.length > 1 ? (
+    <div className="bg-surface-card border border-border rounded-lg p-3 mb-4">
+      <div className="flex items-center justify-between mb-2">
+        <span className="font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase">
+          Date Range
+        </span>
+        <span className="font-cond text-[12px] font-bold text-white">
+          {isAllDates ? 'All Dates' : fromIdx === toIdx ? fromLabel : `${fromLabel} → ${toLabel}`}
+        </span>
+      </div>
+      <div className="flex items-center gap-3">
+        <div className="flex-1">
+          <div className="font-cond text-[9px] text-muted mb-1">FROM</div>
+          <input
+            type="range"
+            min={0}
+            max={eventDatesFromState.length - 1}
+            value={fromIdx}
+            onChange={(e) => {
+              const v = parseInt(e.target.value)
+              setFromIdx(v)
+              if (v > toIdx) setToIdx(v)
+            }}
+            className="w-full accent-blue-500"
+          />
+          <div className="font-cond text-[10px] text-blue-300 font-bold mt-0.5">{fromLabel}</div>
+        </div>
+        <div className="flex-1">
+          <div className="font-cond text-[9px] text-muted mb-1">TO</div>
+          <input
+            type="range"
+            min={0}
+            max={eventDatesFromState.length - 1}
+            value={toIdx}
+            onChange={(e) => {
+              const v = parseInt(e.target.value)
+              setToIdx(v)
+              if (v < fromIdx) setFromIdx(v)
+            }}
+            className="w-full accent-blue-500"
+          />
+          <div className="font-cond text-[10px] text-blue-300 font-bold mt-0.5">{toLabel}</div>
+        </div>
+      </div>
+      {/* Week labels */}
+      <div className="flex justify-between mt-1">
+        {eventDatesFromState.map((d, i) => (
+          <span
+            key={d.id}
+            className={cn(
+              'font-cond text-[8px] font-bold',
+              i >= fromIdx && i <= toIdx ? 'text-blue-400' : 'text-muted/40'
+            )}
+          >
+            {d.label?.replace('Week ', 'W') ?? `D${i + 1}`}
+          </span>
         ))}
-      </select>
+      </div>
     </div>
   ) : null
 
