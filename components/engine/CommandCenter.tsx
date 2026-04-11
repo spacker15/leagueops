@@ -29,6 +29,16 @@ import {
 
 type CmdTab = 'alerts' | 'feed' | 'fields' | 'handoff'
 
+function timeToMin(t: string): number {
+  const m = t?.match(/(\d+):(\d+)\s*(AM|PM)/i)
+  if (!m) return 0
+  let h = parseInt(m[1])
+  const min = parseInt(m[2])
+  if (m[3].toUpperCase() === 'PM' && h !== 12) h += 12
+  if (m[3].toUpperCase() === 'AM' && h === 12) h = 0
+  return h * 60 + min
+}
+
 interface OpsLogEntry {
   id: number
   message: string
@@ -429,7 +439,7 @@ export function CommandCenter() {
           <div className="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-4">
             {state.fields.map((field) => {
               const fieldGames = (gamesByField[field.id] ?? []).sort((a: any, b: any) =>
-                (a.scheduled_time ?? '').localeCompare(b.scheduled_time ?? '')
+                timeToMin(a.scheduled_time ?? '') - timeToMin(b.scheduled_time ?? '')
               )
               const liveGame = fieldGames.find((g: any) => ['Live', 'Halftime'].includes(g.status))
               const fieldAlerts = alerts.filter((a) => a.field_id === field.id && !a.resolved)
@@ -724,6 +734,8 @@ function FieldCard({
   const [expanded, setExpanded] = useState(false)
   const hasCritical = fieldAlerts.some((a) => a.severity === 'critical')
   const hasWarning = fieldAlerts.some((a) => a.severity === 'warning')
+  const firstGame = games.length > 0 ? games[0] : null
+  const lastGame = games.length > 0 ? games[games.length - 1] : null
 
   return (
     <div
@@ -762,6 +774,19 @@ function FieldCard({
           ) : (
             <div className="font-cond text-[11px] text-muted mt-0.5">
               {games.filter((g: any) => g.status === 'Scheduled').length} upcoming
+            </div>
+          )}
+          {games.length > 0 && (
+            <div className="flex gap-3 mt-0.5">
+              <span className="font-cond text-[9px] text-muted">
+                FIRST <span className="text-white font-bold">{firstGame?.scheduled_time}</span>
+              </span>
+              <span className="font-cond text-[9px] text-muted">
+                LAST <span className="text-white font-bold">{lastGame?.scheduled_time}</span>
+              </span>
+              <span className="font-cond text-[9px] text-muted">
+                {games.length} GAME{games.length !== 1 ? 'S' : ''}
+              </span>
             </div>
           )}
         </div>
