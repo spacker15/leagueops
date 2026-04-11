@@ -737,8 +737,11 @@ function FieldCard({
   const [expanded, setExpanded] = useState(false)
   const hasCritical = fieldAlerts.some((a) => a.severity === 'critical')
   const hasWarning = fieldAlerts.some((a) => a.severity === 'warning')
-  const firstGame = games.length > 0 ? games[0] : null
-  const lastGame = games.length > 0 ? games[games.length - 1] : null
+  const chronological = [...games].sort((a: any, b: any) =>
+    timeToMin(a.scheduled_time ?? '') - timeToMin(b.scheduled_time ?? '')
+  )
+  const firstGame = chronological.length > 0 ? chronological[0] : null
+  const lastGame = chronological.length > 0 ? chronological[chronological.length - 1] : null
 
   return (
     <div
