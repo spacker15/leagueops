@@ -63,6 +63,36 @@ export function StatusRow() {
         )
       })}
 
+      {/* Last game indicator */}
+      {g.length > 0 && (() => {
+        let latestTime = ''
+        let latestMin = 0
+        for (const game of g) {
+          const m = game.scheduled_time?.match(/(\d+):(\d+)\s*(AM|PM)/i)
+          if (!m) continue
+          let h = parseInt(m[1])
+          const min = parseInt(m[2])
+          if (m[3].toUpperCase() === 'PM' && h !== 12) h += 12
+          if (m[3].toUpperCase() === 'AM' && h === 12) h = 0
+          const total = h * 60 + min
+          if (total > latestMin) { latestMin = total; latestTime = game.scheduled_time }
+        }
+        if (!latestTime) return null
+        return (
+          <div
+            className="flex items-center gap-1.5 px-3"
+            style={{ borderRight: '1px solid #1a2d50' }}
+          >
+            <span className="font-cond text-[9px] font-black tracking-[.1em] text-muted">
+              LAST GAME
+            </span>
+            <span className="font-cond text-[13px] font-black text-white">
+              {latestTime}
+            </span>
+          </div>
+        )
+      })()}
+
       <div className="flex-1" />
 
       {/* Date nav */}
