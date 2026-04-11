@@ -88,65 +88,113 @@ export function RightPanel({ onNavigate }: Props) {
       <TrainerOnDutyPanel fields={state.fields} />
 
       {/* Incident Monitor */}
-      <Section title="INCIDENT MONITOR" action={() => onNavigate('incidents')} actionLabel="LOG">
-        {state.incidents.length === 0 && state.medicalIncidents.length === 0 ? (
-          <p className="text-[11px] text-muted">No active incidents</p>
-        ) : (
-          <div className="max-h-48 overflow-y-auto space-y-1.5">
-          {/* Medical dispatches */}
-          {state.medicalIncidents
-            .filter((m) => m.status !== 'Resolved')
-            .map((m) => (
-            <div
-              key={`med-${m.id}`}
-              className="rounded p-1.5 border-l-2 text-[10px] bg-white/5 border-blue-500"
-            >
-              <div className="font-cond text-[11px] font-black tracking-wide text-blue-400">
-                MEDICAL — {m.injury_type.toUpperCase()}
+      {(() => {
+        const today = new Date().toISOString().split('T')[0]
+        const todayIncidents = state.incidents.filter((inc) =>
+          inc.occurred_at?.startsWith(today) || inc.created_at?.startsWith(today)
+        )
+        const todayMedical = state.medicalIncidents.filter((m) =>
+          m.status !== 'Resolved' || m.dispatched_at?.startsWith(today)
+        ).filter((m) =>
+          m.dispatched_at?.startsWith(today)
+        )
+        const totalToday = todayIncidents.length + todayMedical.length
+
+        return (
+          <Section
+            title={`INCIDENT MONITOR${totalToday > 0 ? ` (${totalToday})` : ''}`}
+            action={() => onNavigate('incidents')}
+            actionLabel="LOG"
+          >
+            {totalToday === 0 ? (
+              <p className="text-[11px] text-muted">No incidents today</p>
+            ) : (
+              <div className="max-h-60 overflow-y-auto space-y-1.5">
+                {/* Medical dispatches today */}
+                {todayMedical
+                  .filter((m) => m.status !== 'Resolved')
+                  .map((m) => (
+                    <div
+                      key={`med-${m.id}`}
+                      className="rounded p-1.5 border-l-2 text-[10px] bg-white/5 border-blue-500"
+                    >
+                      <div className="flex justify-between">
+                        <span className="font-cond text-[11px] font-black tracking-wide text-blue-400">
+                          MEDICAL — {m.injury_type.toUpperCase()}
+                        </span>
+                        <span className="font-mono text-[9px] text-muted">
+                          {new Date(m.dispatched_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                        </span>
+                      </div>
+                      <div className="text-muted mt-0.5">
+                        {m.field?.name ?? '—'} · {m.player_name || '—'}
+                      </div>
+                      <div className="text-muted">
+                        Trainer: {m.trainer_name} · <span className="text-blue-300">{m.status}</span>
+                      </div>
+                    </div>
+                  ))}
+                {/* Resolved medical today */}
+                {todayMedical
+                  .filter((m) => m.status === 'Resolved')
+                  .map((m) => (
+                    <div
+                      key={`med-r-${m.id}`}
+                      className="rounded p-1.5 border-l-2 text-[10px] bg-white/5 border-green-800/50 opacity-60"
+                    >
+                      <div className="flex justify-between">
+                        <span className="font-cond text-[11px] font-black tracking-wide text-green-400">
+                          RESOLVED — {m.injury_type.toUpperCase()}
+                        </span>
+                        <span className="font-mono text-[9px] text-muted">
+                          {new Date(m.dispatched_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                        </span>
+                      </div>
+                      <div className="text-muted mt-0.5">
+                        {m.player_name || '—'} · {m.trainer_name}
+                      </div>
+                    </div>
+                  ))}
+                {/* General incidents today */}
+                {todayIncidents.map((inc) => (
+                  <div
+                    key={`inc-${inc.id}`}
+                    className={cn(
+                      'rounded p-1.5 border-l-2 text-[10px]',
+                      ['Player Injury', 'Ejection'].includes(inc.type)
+                        ? 'bg-white/5 border-red-500'
+                        : 'bg-white/5 border-yellow-500'
+                    )}
+                  >
+                    <div className="flex justify-between">
+                      <span
+                        className={cn(
+                          'font-cond text-[11px] font-black tracking-wide',
+                          ['Player Injury', 'Ejection'].includes(inc.type) ? 'text-red-400' : 'text-yellow-400'
+                        )}
+                      >
+                        {inc.type.toUpperCase()}
+                      </span>
+                      <span className="font-mono text-[9px] text-muted">
+                        {new Date(inc.occurred_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                      </span>
+                    </div>
+                    <div className="text-muted mt-0.5">
+                      {inc.field?.name ?? '—'} · {inc.team?.name ?? '—'}
+                    </div>
+                    {inc.person_involved && (
+                      <div className="text-white font-bold mt-0.5">{inc.person_involved}</div>
+                    )}
+                    {inc.description && (
+                      <div className="text-gray-400 mt-0.5">{inc.description}</div>
+                    )}
+                  </div>
+                ))}
               </div>
-              <div className="text-muted mt-0.5">
-                {m.field?.name ?? '—'} · {m.player_name || '—'}
-              </div>
-              <div className="text-muted">
-                Trainer: {m.trainer_name} · {m.status}
-              </div>
-            </div>
-          ))}
-          {/* General incidents */}
-          {state.incidents.map((inc) => (
-            <div
-              key={`inc-${inc.id}`}
-              className={cn(
-                'rounded p-1.5 border-l-2 text-[10px]',
-                ['Player Injury', 'Ejection'].includes(inc.type)
-                  ? 'bg-white/5 border-red-500'
-                  : 'bg-white/5 border-yellow-500'
-              )}
-            >
-              <div
-                className={cn(
-                  'font-cond text-[11px] font-black tracking-wide',
-                  ['Player Injury', 'Ejection'].includes(inc.type)
-                    ? 'text-red-400'
-                    : 'text-yellow-400'
-                )}
-              >
-                {inc.type.toUpperCase()}
-              </div>
-              <div className="text-muted mt-0.5">
-                {inc.field?.name ?? '—'} · {inc.team?.name ?? '—'}
-              </div>
-              {inc.person_involved && (
-                <div className="text-white font-bold mt-0.5">{inc.person_involved}</div>
-              )}
-              {inc.description && (
-                <div className="text-gray-400 mt-0.5">{inc.description}</div>
-              )}
-            </div>
-          ))}
-          </div>
-        )}
-      </Section>
+            )}
+          </Section>
+        )
+      })()}
     </aside>
   )
 }
