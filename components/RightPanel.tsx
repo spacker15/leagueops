@@ -89,15 +89,35 @@ export function RightPanel({ onNavigate }: Props) {
 
       {/* Incident Monitor */}
       <Section title="INCIDENT MONITOR" action={() => onNavigate('incidents')} actionLabel="LOG">
-        {state.incidents.length === 0 ? (
+        {state.incidents.length === 0 && state.medicalIncidents.length === 0 ? (
           <p className="text-[11px] text-muted">No active incidents</p>
         ) : (
           <div className="max-h-48 overflow-y-auto space-y-1.5">
+          {/* Medical dispatches */}
+          {state.medicalIncidents
+            .filter((m) => m.status !== 'Resolved')
+            .map((m) => (
+            <div
+              key={`med-${m.id}`}
+              className="rounded p-1.5 border-l-2 text-[10px] bg-white/5 border-blue-500"
+            >
+              <div className="font-cond text-[11px] font-black tracking-wide text-blue-400">
+                MEDICAL — {m.injury_type.toUpperCase()}
+              </div>
+              <div className="text-muted mt-0.5">
+                {m.field?.name ?? '—'} · {m.player_name || '—'}
+              </div>
+              <div className="text-muted">
+                Trainer: {m.trainer_name} · {m.status}
+              </div>
+            </div>
+          ))}
+          {/* General incidents */}
           {state.incidents.map((inc) => (
             <div
-              key={inc.id}
+              key={`inc-${inc.id}`}
               className={cn(
-                'rounded p-1.5 mb-1.5 border-l-2 text-[10px]',
+                'rounded p-1.5 border-l-2 text-[10px]',
                 ['Player Injury', 'Ejection'].includes(inc.type)
                   ? 'bg-white/5 border-red-500'
                   : 'bg-white/5 border-yellow-500'
@@ -116,6 +136,12 @@ export function RightPanel({ onNavigate }: Props) {
               <div className="text-muted mt-0.5">
                 {inc.field?.name ?? '—'} · {inc.team?.name ?? '—'}
               </div>
+              {inc.person_involved && (
+                <div className="text-white font-bold mt-0.5">{inc.person_involved}</div>
+              )}
+              {inc.description && (
+                <div className="text-gray-400 mt-0.5">{inc.description}</div>
+              )}
             </div>
           ))}
           </div>
