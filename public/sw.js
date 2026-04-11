@@ -29,15 +29,6 @@ self.addEventListener('push', function (event) {
     url = data.url || '/'
   }
 
-  // Detect urgent notifications (trainer dispatch, medical, lightning)
-  var isUrgent =
-    (title && (title.toLowerCase().includes('trainer') ||
-     title.toLowerCase().includes('medical') ||
-     title.toLowerCase().includes('lightning') ||
-     title.toLowerCase().includes('dispatch'))) ||
-    (body && (body.toLowerCase().includes('dispatch') ||
-     body.toLowerCase().includes('trainer')))
-
   event.waitUntil(
     self.registration.showNotification(title, {
       body: body,
@@ -45,15 +36,20 @@ self.addEventListener('push', function (event) {
       badge: '/icon.png',
       data: { url: url },
       tag: recentPushTimestamps.length >= 3 ? 'collapsed-summary' : undefined,
-      vibrate: isUrgent ? [300, 100, 300, 100, 300] : [200, 100, 200],
-      requireInteraction: isUrgent ? true : false,
+      vibrate: [300, 100, 300, 100, 300, 100, 300, 100, 300, 100, 300],
+      requireInteraction: true,
       silent: false,
+      actions: [{ action: 'acknowledge', title: 'ACKNOWLEDGE' }],
     })
   )
 })
 
 self.addEventListener('notificationclick', function (event) {
   event.notification.close()
+  if (event.action === 'acknowledge') {
+    // Just close — acknowledged
+    return
+  }
   const url = event.notification.data && event.notification.data.url ? event.notification.data.url : '/'
   event.waitUntil(clients.openWindow(url))
 })
