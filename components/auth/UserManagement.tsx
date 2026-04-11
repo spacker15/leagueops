@@ -72,6 +72,7 @@ export function UserManagement() {
   const [editLinkedRole, setEditLinkedRole] = useState('')
   const [editLinkedCerts, setEditLinkedCerts] = useState('')
   const [editLinkedGradeLevel, setEditLinkedGradeLevel] = useState('Adult')
+  const [editRole, setEditRole] = useState('')
   const [refs, setRefs] = useState<any[]>([])
   const [vols, setVols] = useState<any[]>([])
   const [trainers, setTrainers] = useState<any[]>([])
@@ -296,6 +297,7 @@ export function UserManagement() {
     setEditEmail('')
     setEditPassword('')
     setEditBirthday(u.birthday ?? '')
+    setEditRole(u.role)
     setEditDetails(null)
     // Reset linked fields
     setEditLinkedName('')
@@ -373,6 +375,7 @@ export function UserManagement() {
     setEditEmail('')
     setEditPassword('')
     setEditBirthday('')
+    setEditRole('')
     setEditDetails(null)
     setOrigAuthEmail('')
     setEditLinkedName('')
@@ -415,10 +418,14 @@ export function UserManagement() {
       if (payload.email) changes.push('email updated')
     }
 
-    // 2. Update birthday on user_roles
-    if (editBirthday !== (u.birthday ?? '')) {
-      await sb.from('user_roles').update({ birthday: editBirthday || null }).eq('id', u.id)
-      changes.push('birthday updated')
+    // 2. Update role and birthday on user_roles
+    const roleUpdates: Record<string, string | null> = {}
+    if (editRole && editRole !== u.role) roleUpdates.role = editRole
+    if (editBirthday !== (u.birthday ?? '')) roleUpdates.birthday = editBirthday || null
+    if (Object.keys(roleUpdates).length > 0) {
+      await sb.from('user_roles').update(roleUpdates).eq('id', u.id)
+      if (roleUpdates.role) changes.push(`role changed to ${editRole}`)
+      if (roleUpdates.birthday !== undefined) changes.push('birthday updated')
     }
 
     // 3. Update linked entity fields
@@ -828,6 +835,21 @@ export function UserManagement() {
                               onChange={(e) => setEditName(e.target.value)}
                               placeholder="Full name"
                             />
+                          </FormField>
+                          <FormField label="Role">
+                            <select
+                              className="w-full bg-[#040e24] border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400"
+                              value={editRole}
+                              onChange={(e) => setEditRole(e.target.value)}
+                            >
+                              <option value="admin">Admin</option>
+                              <option value="league_admin">League Admin</option>
+                              <option value="referee">Referee</option>
+                              <option value="volunteer">Volunteer</option>
+                              <option value="program_leader">Program Leader</option>
+                              <option value="coach">Coach</option>
+                              <option value="trainer">Trainer</option>
+                            </select>
                           </FormField>
                           <FormField label="Email">
                             <input
