@@ -5,9 +5,9 @@ import { useApp } from '@/lib/store'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/supabase/client'
 import { getAllGamesByEvent } from '@/lib/db'
-import type { Game, Team, Referee } from '@/types'
+import type { Game, Team, Referee, Incident, MedicalIncident } from '@/types'
 
-type SubTab = 'results' | 'standings' | 'leaders' | 'matchups' | 'ref-schedule'
+type SubTab = 'results' | 'standings' | 'leaders' | 'matchups' | 'ref-schedule' | 'incidents'
 
 const SUB_TABS: { id: SubTab; label: string }[] = [
   { id: 'results', label: 'RESULTS' },
@@ -15,6 +15,7 @@ const SUB_TABS: { id: SubTab; label: string }[] = [
   { id: 'leaders', label: 'STAT LEADERS' },
   { id: 'matchups', label: 'MATCHUPS' },
   { id: 'ref-schedule', label: 'REF SCHEDULE' },
+  { id: 'incidents', label: 'INCIDENTS' },
 ]
 
 function timeToMin(t: string): number {
@@ -149,6 +150,14 @@ export function ReportsTab() {
               if (idx !== -1) changeDate(idx)
             }
           }}
+        />
+      )}
+      {sub === 'incidents' && (
+        <IncidentsReportView
+          incidents={state.incidents}
+          medicalIncidents={state.medicalIncidents}
+          eventDates={state.eventDates}
+          fields={state.fields}
         />
       )}
     </div>
@@ -1489,6 +1498,201 @@ function TeamName({ name, win }: { name: string; win: boolean }) {
       )}
       {name}
     </span>
+  )
+}
+
+// ── Incidents Report ────────────────────────────────────────────────────────
+
+function IncidentsReportView({
+  incidents,
+  medicalIncidents,
+  eventDates,
+  fields,
+}: {
+  incidents: Incident[]
+  medicalIncidents: MedicalIncident[]
+  eventDates: { id: number; date: string; label: string }[]
+  fields: { id: number; name: string }[]
+}) {
+  const [filter, setFilter] = useState<'all' | 'incidents' | 'medical'>('all')
+
+  const fieldMap = Object.fromEntries(fields.map((f) => [f.id, f.name]))
+
+  const sortedIncidents = useMemo(
+    () => [...incidents].sort((a, b) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime()),
+    [incidents]
+  )
+  const sortedMedical = useMemo(
+    () => [...medicalIncidents].sort((a, b) => new Date(b.dispatched_at).getTime() - new Date(a.dispatched_at).getTime()),
+    [medicalIncidents]
+  )
+
+  const incidentCount = incidents.length
+  const medicalCount = medicalIncidents.length
+  const resolvedMedical = medicalIncidents.filter((m) => m.status === 'Resolved').length
+  const activeMedical = medicalCount - resolvedMedical
+  const injuryIncidents = incidents.filter((i) => i.type === 'Player Injury').length
+  const ejections = incidents.filter((i) => i.type === 'Ejection').length
+
+  return (
+    <div className="space-y-5">
+      {/* Summary cards */}
+      <div className="grid grid-cols-4 gap-3">
+        {[
+          { label: 'TOTAL INCIDENTS', value: incidentCount, color: '#f59e0b' },
+          { label: 'MEDICAL DISPATCHES', value: medicalCount, color: '#60a5fa' },
+          { label: 'ACTIVE MEDICAL', value: activeMedical, color: activeMedical > 0 ? '#ef4444' : '#34d399' },
+          { label: 'EJECTIONS', value: ejections, color: ejections > 0 ? '#ef4444' : '#8a9ec0' },
+        ].map((s) => (
+          <div
+            key={s.label}
+            className="rounded-lg border border-border px-4 py-3 bg-surface-card"
+          >
+            <div className="font-cond text-[9px] font-black tracking-[.15em] text-muted uppercase">
+              {s.label}
+            </div>
+            <div className="font-mono text-[28px] font-bold mt-0.5" style={{ color: s.color }}>
+              {s.value}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Filter */}
+      <div className="flex gap-2">
+        {(['all', 'incidents', 'medical'] as const).map((f) => (
+          <button
+            key={f}
+            onClick={() => setFilter(f)}
+            className={cn(
+              'font-cond text-[11px] font-bold tracking-wider px-3 py-1.5 rounded border transition-colors',
+              filter === f
+                ? 'bg-navy border-blue-500 text-white'
+                : 'bg-surface border-border text-muted hover:text-white'
+            )}
+          >
+            {f === 'all' ? `ALL (${incidentCount + medicalCount})` : f === 'incidents' ? `INCIDENTS (${incidentCount})` : `MEDICAL (${medicalCount})`}
+          </button>
+        ))}
+      </div>
+
+      {/* Incidents list */}
+      {(filter === 'all' || filter === 'incidents') && sortedIncidents.length > 0 && (
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            <div className="w-1 h-4 rounded-sm bg-yellow-500" />
+            <span className="font-cond text-[11px] font-black tracking-[.12em] text-white uppercase">
+              Incidents ({incidentCount})
+            </span>
+          </div>
+          <div className="rounded-lg overflow-hidden border border-border">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="bg-surface-card">
+                  <Th>Time</Th>
+                  <Th>Type</Th>
+                  <Th>Field</Th>
+                  <Th>Team</Th>
+                  <Th>Person</Th>
+                  <Th>Description</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedIncidents.map((inc, i) => {
+                  const isAlert = ['Player Injury', 'Ejection'].includes(inc.type)
+                  return (
+                    <tr key={inc.id} style={{ background: i % 2 === 0 ? 'var(--surface)' : 'var(--surface-card)' }}>
+                      <Td>
+                        <span className="font-mono text-[11px] text-white">
+                          {new Date(inc.occurred_at).toLocaleString('en-US', {
+                            month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+                          })}
+                        </span>
+                      </Td>
+                      <Td>
+                        <span className={cn(
+                          'font-cond text-[10px] font-bold px-2 py-0.5 rounded',
+                          isAlert ? 'bg-red-900/30 text-red-400' : 'bg-yellow-900/30 text-yellow-400'
+                        )}>
+                          {inc.type.toUpperCase()}
+                        </span>
+                      </Td>
+                      <Td><span className="text-[11px] text-muted">{inc.field?.name ?? fieldMap[inc.field_id ?? 0] ?? '—'}</span></Td>
+                      <Td><span className="text-[11px] text-muted">{inc.team?.name ?? '—'}</span></Td>
+                      <Td><span className="text-[11px] text-white font-bold">{inc.person_involved ?? '—'}</span></Td>
+                      <Td><span className="text-[11px] text-gray-300">{inc.description}</span></Td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Medical dispatches list */}
+      {(filter === 'all' || filter === 'medical') && sortedMedical.length > 0 && (
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            <div className="w-1 h-4 rounded-sm bg-blue-500" />
+            <span className="font-cond text-[11px] font-black tracking-[.12em] text-white uppercase">
+              Medical Dispatches ({medicalCount})
+            </span>
+          </div>
+          <div className="rounded-lg overflow-hidden border border-border">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="bg-surface-card">
+                  <Th>Time</Th>
+                  <Th>Status</Th>
+                  <Th>Player</Th>
+                  <Th>Team</Th>
+                  <Th>Injury</Th>
+                  <Th>Field</Th>
+                  <Th>Trainer</Th>
+                  <Th>Notes</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedMedical.map((m, i) => {
+                  const statusColor =
+                    m.status === 'Resolved' ? 'text-green-400 bg-green-900/30'
+                      : m.status === 'Dispatched' ? 'text-red-400 bg-red-900/30'
+                        : m.status === 'Transported' ? 'text-orange-400 bg-orange-900/30'
+                          : 'text-blue-400 bg-blue-900/30'
+                  return (
+                    <tr key={m.id} style={{ background: i % 2 === 0 ? 'var(--surface)' : 'var(--surface-card)' }}>
+                      <Td>
+                        <span className="font-mono text-[11px] text-white">
+                          {new Date(m.dispatched_at).toLocaleString('en-US', {
+                            month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+                          })}
+                        </span>
+                      </Td>
+                      <Td>
+                        <span className={cn('font-cond text-[10px] font-bold px-2 py-0.5 rounded', statusColor)}>
+                          {m.status.toUpperCase()}
+                        </span>
+                      </Td>
+                      <Td><span className="text-[11px] text-white font-bold">{m.player_name || '—'}</span></Td>
+                      <Td><span className="text-[11px] text-muted">{m.team_name ?? '—'}</span></Td>
+                      <Td><span className="text-[11px] text-muted">{m.injury_type}</span></Td>
+                      <Td><span className="text-[11px] text-muted">{m.field?.name ?? fieldMap[m.field_id ?? 0] ?? '—'}</span></Td>
+                      <Td><span className="text-[11px] text-white">{m.trainer_name}</span></Td>
+                      <Td><span className="text-[11px] text-gray-300">{m.notes ?? '—'}</span></Td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {incidentCount + medicalCount === 0 && (
+        <Empty message="No incidents or medical dispatches logged." />
+      )}
+    </div>
   )
 }
 

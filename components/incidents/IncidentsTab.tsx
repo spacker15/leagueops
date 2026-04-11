@@ -504,7 +504,7 @@ export function IncidentsTab() {
       </div>
 
       {/* RIGHT: Incident log */}
-      <div>
+      <div className="overflow-y-auto" style={{ maxHeight: 'calc(100vh - 140px)' }}>
         <SectionHeader>INCIDENT LOG ({state.incidents.length})</SectionHeader>
         <div className="space-y-2">
           {state.incidents.length === 0 && (
