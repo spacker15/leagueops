@@ -310,6 +310,51 @@ export function AppProvider({
     loadAll()
   }, [eventId])
 
+  // ---- Auto-checkout: reset all check-ins 1hr after last game ----
+  useEffect(() => {
+    if (!eventId || !state.games.length) return
+    // Find the latest game time today
+    let latestMin = 0
+    for (const g of state.games) {
+      const m = g.scheduled_time?.match(/(\d+):(\d+)\s*(AM|PM)/i)
+      if (!m) continue
+      let h = parseInt(m[1])
+      const min = parseInt(m[2])
+      if (m[3].toUpperCase() === 'PM' && h !== 12) h += 12
+      if (m[3].toUpperCase() === 'AM' && h === 12) h = 0
+      const total = h * 60 + min + 60 // add ~60min for game duration
+      if (total > latestMin) latestMin = total
+    }
+    if (latestMin === 0) return
+    const endPlusOneHour = latestMin + 60 // 1 hour after last game ends
+    const now = new Date()
+    const nowMin = now.getHours() * 60 + now.getMinutes()
+    if (nowMin >= endPlusOneHour) {
+      // Auto-checkout everyone who is still checked in
+      const sb = createClient()
+      const checkedInRefs = state.referees.filter((r) => r.checked_in)
+      const checkedInVols = state.volunteers.filter((v) => v.checked_in)
+      const checkedInTrainers = state.trainers.filter((t) => t.checked_in)
+      if (checkedInRefs.length + checkedInVols.length + checkedInTrainers.length > 0) {
+        Promise.all([
+          checkedInRefs.length > 0
+            ? sb.from('referees').update({ checked_in: false }).eq('event_id', eventId).eq('checked_in', true)
+            : null,
+          checkedInVols.length > 0
+            ? sb.from('volunteers').update({ checked_in: false }).eq('event_id', eventId).eq('checked_in', true)
+            : null,
+          checkedInTrainers.length > 0
+            ? sb.from('trainers').update({ checked_in: false }).eq('event_id', eventId).eq('checked_in', true)
+            : null,
+        ]).then(() => {
+          dispatch({ type: 'SET_REFEREES', payload: state.referees.map((r) => ({ ...r, checked_in: false })) })
+          dispatch({ type: 'SET_VOLUNTEERS', payload: state.volunteers.map((v) => ({ ...v, checked_in: false })) })
+          dispatch({ type: 'SET_TRAINERS', payload: state.trainers.map((t) => ({ ...t, checked_in: false })) })
+        })
+      }
+    }
+  }, [eventId, state.games.length]) // only run when games load, not on every state change
+
   // ---- Auto-poll weather for all complexes (every 5 min) ----
   useEffect(() => {
     if (!eventId) return

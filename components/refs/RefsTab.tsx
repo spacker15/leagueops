@@ -347,8 +347,10 @@ export function RefsTab() {
     state,
     toggleRefCheckin,
     toggleVolCheckin,
+    toggleTrainerCheckin,
     refreshRefs,
     refreshVols,
+    refreshTrainers,
     currentDate,
     changeDate,
     eventId,
@@ -413,8 +415,8 @@ export function RefsTab() {
   const [newVolEmail, setNewVolEmail] = useState('')
   const [addingSaving, setAddingSaving] = useState(false)
 
-  // Trainers
-  const [trainers, setTrainers] = useState<Trainer[]>([])
+  // Trainers — use global state.trainers, keep availability counts local
+  const trainers = state.trainers
   const [trainerAvailCounts, setTrainerAvailCounts] = useState<Record<number, number>>({})
   const [addTrainerOpen, setAddTrainerOpen] = useState(false)
   const [newTrainerName, setNewTrainerName] = useState('')
@@ -424,32 +426,23 @@ export function RefsTab() {
   const [selectedTrainer, setSelectedTrainer] = useState<Trainer | null>(null)
   const [trainerAvailability, setTrainerAvailability] = useState<TrainerAvailability[]>([])
 
-  const loadTrainers = useCallback(async () => {
-    if (!eventId) return
+  const loadTrainerAvailCounts = useCallback(async () => {
+    if (!eventId || trainers.length === 0) return
     const sb = createClient()
-    const { data } = await sb.from('trainers').select('*').eq('event_id', eventId).order('name')
-    const list = (data as Trainer[]) ?? []
-    setTrainers(list)
-    // Load availability counts for all trainers
-    if (list.length > 0) {
-      const { data: avail } = await sb
-        .from('trainer_availability')
-        .select('trainer_id')
-        .in(
-          'trainer_id',
-          list.map((t) => t.id)
-        )
-      const counts: Record<number, number> = {}
-      for (const row of avail ?? []) {
-        counts[row.trainer_id] = (counts[row.trainer_id] ?? 0) + 1
-      }
-      setTrainerAvailCounts(counts)
+    const { data: avail } = await sb
+      .from('trainer_availability')
+      .select('trainer_id')
+      .in('trainer_id', trainers.map((t) => t.id))
+    const counts: Record<number, number> = {}
+    for (const row of avail ?? []) {
+      counts[row.trainer_id] = (counts[row.trainer_id] ?? 0) + 1
     }
-  }, [eventId])
+    setTrainerAvailCounts(counts)
+  }, [eventId, trainers])
 
   useEffect(() => {
-    loadTrainers()
-  }, [loadTrainers])
+    loadTrainerAvailCounts()
+  }, [loadTrainerAvailCounts])
 
   async function saveNewTrainer() {
     if (!newTrainerName.trim()) {
@@ -477,13 +470,13 @@ export function RefsTab() {
     setNewTrainerEmail('')
     setAddTrainerOpen(false)
     setAddingSaving(false)
-    await loadTrainers()
+    await refreshTrainers()
   }
 
   async function deleteTrainer(id: number) {
     const sb = createClient()
     await sb.from('trainers').delete().eq('id', id)
-    setTrainers((prev) => prev.filter((t) => t.id !== id))
+    await refreshTrainers()
     toast.success('Trainer removed')
   }
 
@@ -2048,15 +2041,7 @@ export function RefsTab() {
                     )}
                     <div className="flex gap-1 mt-2">
                       <button
-                        onClick={async () => {
-                          const sb = createClient()
-                          const next = !trainer.checked_in
-                          await sb.from('trainers').update({ checked_in: next }).eq('id', trainer.id)
-                          setTrainers((prev) =>
-                            prev.map((t) => (t.id === trainer.id ? { ...t, checked_in: next } : t))
-                          )
-                          toast.success(`${trainer.name} ${next ? 'checked in' : 'checked out'}`)
-                        }}
+                        onClick={() => toggleTrainerCheckin(trainer.id)}
                         className="flex-1 font-cond text-[10px] font-bold tracking-wider py-1 rounded bg-navy hover:bg-navy-light text-white transition-colors"
                       >
                         {trainer.checked_in ? 'CHECK OUT' : 'CHECK IN'}
