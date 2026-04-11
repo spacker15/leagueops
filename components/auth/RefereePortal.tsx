@@ -8,8 +8,9 @@ import { CheckCircle, LogOut, ChevronLeft, AlertTriangle } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { format } from 'date-fns'
 import { EventDatePicker } from '@/components/ui/EventDatePicker'
+import { RulesReference } from '@/components/rules/RulesReference'
 
-type PortalTab = 'checkin' | 'games' | 'approvals' | 'availability'
+type PortalTab = 'checkin' | 'games' | 'approvals' | 'availability' | 'rules'
 
 const REF_POSITIONS = ['Lead', 'Wing 1', 'Wing 2']
 const VOL_POSITIONS = ['Line Judge', 'Timekeeper', 'Ball Retriever', 'Gate', 'General']
@@ -746,6 +747,7 @@ export function RefereePortal() {
             { id: 'games', label: `Games (${allGames.length})` },
             { id: 'approvals', label: 'Approvals' },
             { id: 'availability', label: 'Availability' },
+            { id: 'rules', label: 'Rules' },
           ].map((t) => (
             <button
               key={t.id}
@@ -1954,6 +1956,16 @@ function ApprovalsPanel({
               </div>
             )
           })}
+        </div>
+      )}
+
+      {/* ── RULES ── */}
+      {tab === 'rules' && (
+        <div className="p-4">
+          <div className="font-cond text-[13px] font-black tracking-wider text-white mb-3">
+            2026 USA LACROSSE BOYS YOUTH RULES
+          </div>
+          <RulesReference />
         </div>
       )}
     </div>

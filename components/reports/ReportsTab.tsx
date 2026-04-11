@@ -6,8 +6,9 @@ import { cn } from '@/lib/utils'
 import { createClient } from '@/supabase/client'
 import { getAllGamesByEvent } from '@/lib/db'
 import type { Game, Team, Referee, Incident, MedicalIncident } from '@/types'
+import { RulesReference } from '@/components/rules/RulesReference'
 
-type SubTab = 'results' | 'standings' | 'leaders' | 'matchups' | 'ref-schedule' | 'incidents'
+type SubTab = 'results' | 'standings' | 'leaders' | 'matchups' | 'ref-schedule' | 'incidents' | 'rules'
 
 const SUB_TABS: { id: SubTab; label: string }[] = [
   { id: 'results', label: 'RESULTS' },
@@ -16,6 +17,7 @@ const SUB_TABS: { id: SubTab; label: string }[] = [
   { id: 'matchups', label: 'MATCHUPS' },
   { id: 'ref-schedule', label: 'REF SCHEDULE' },
   { id: 'incidents', label: 'INCIDENTS' },
+  { id: 'rules', label: 'RULES' },
 ]
 
 function timeToMin(t: string): number {
@@ -159,6 +161,17 @@ export function ReportsTab() {
           eventDates={state.eventDates}
           fields={state.fields}
         />
+      )}
+      {sub === 'rules' && (
+        <div>
+          <div className="flex items-center gap-2 mb-4">
+            <div className="w-1 h-5 rounded-sm bg-red" />
+            <span className="font-cond text-[13px] font-black tracking-[.15em] text-white uppercase">
+              2026 USA Lacrosse Boys Youth Rules
+            </span>
+          </div>
+          <RulesReference selectedDivision={divFilter !== 'ALL' ? divFilter : undefined} />
+        </div>
       )}
     </div>
   )
