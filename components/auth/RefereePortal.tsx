@@ -1959,15 +1959,17 @@ function ApprovalsPanel({
         </div>
       )}
 
-      {/* ── RULES ── */}
-      {tab === 'rules' && (
-        <div className="p-4">
-          <div className="font-cond text-[13px] font-black tracking-wider text-white mb-3">
-            2026 USA LACROSSE BOYS YOUTH RULES
-          </div>
-          <RulesReference />
+          {/* ── RULES ── */}
+          {tab === 'rules' && (
+            <div>
+              <div className="font-cond text-[13px] font-black tracking-wider text-white mb-3">
+                2026 USA LACROSSE BOYS YOUTH RULES
+              </div>
+              <RulesReference />
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   )
 }
