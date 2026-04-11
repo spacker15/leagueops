@@ -280,7 +280,12 @@ export function DashboardTab() {
         {fields.map((field) => {
           const fieldGames = activeGames
             .filter((g) => g.field_id === field.id)
-            .sort((a, b) => timeToMin(a.scheduled_time) - timeToMin(b.scheduled_time))
+            .sort((a, b) => {
+              const aFinal = a.status === 'Final' ? 1 : 0
+              const bFinal = b.status === 'Final' ? 1 : 0
+              if (aFinal !== bFinal) return aFinal - bFinal
+              return timeToMin(a.scheduled_time) - timeToMin(b.scheduled_time)
+            })
           // Show the current/active game in the main card
           let activeGame: Game | undefined
           for (const p of priority) {
@@ -397,7 +402,12 @@ function CompletedGamesSection({
       {expanded && (
         <div className="grid grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-2">
           {games
-            .sort((a, b) => timeToMin(a.scheduled_time) - timeToMin(b.scheduled_time))
+            .sort((a, b) => {
+              const aFinal = a.status === 'Final' ? 1 : 0
+              const bFinal = b.status === 'Final' ? 1 : 0
+              if (aFinal !== bFinal) return aFinal - bFinal
+              return timeToMin(a.scheduled_time) - timeToMin(b.scheduled_time)
+            })
             .map((game) => (
               <button
                 key={game.id}

@@ -438,9 +438,12 @@ export function CommandCenter() {
           </div>
           <div className="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-4">
             {state.fields.map((field) => {
-              const fieldGames = (gamesByField[field.id] ?? []).sort((a: any, b: any) =>
-                timeToMin(a.scheduled_time ?? '') - timeToMin(b.scheduled_time ?? '')
-              )
+              const fieldGames = (gamesByField[field.id] ?? []).sort((a: any, b: any) => {
+                const aFinal = a.status === 'Final' ? 1 : 0
+                const bFinal = b.status === 'Final' ? 1 : 0
+                if (aFinal !== bFinal) return aFinal - bFinal
+                return timeToMin(a.scheduled_time ?? '') - timeToMin(b.scheduled_time ?? '')
+              })
               const liveGame = fieldGames.find((g: any) => ['Live', 'Halftime'].includes(g.status))
               const fieldAlerts = alerts.filter((a) => a.field_id === field.id && !a.resolved)
 

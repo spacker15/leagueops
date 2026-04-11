@@ -1303,6 +1303,9 @@ export function RefsTab() {
             if (m[3].toUpperCase() === 'AM' && h === 12) h = 0
             return h * 60 + min
           }
+          const aFinal = a.status === 'Final' ? 1 : 0
+          const bFinal = b.status === 'Final' ? 1 : 0
+          if (aFinal !== bFinal) return aFinal - bFinal
           return toMin(a.scheduled_time) - toMin(b.scheduled_time)
         }),
     }))
