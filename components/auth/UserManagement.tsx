@@ -212,26 +212,38 @@ export function UserManagement() {
     }
 
     // Create auth user via admin API (requires service role in API route)
-    const res = await fetch('/api/admin/create-user', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email: inviteEmail,
-        password: invitePassword,
-        role: inviteRole,
-        display_name: displayName,
-        referee_id: refId,
-        volunteer_id: volId,
-        program_id: inviteProgramId ? Number(inviteProgramId) : null,
-        coach_id: inviteCoachId ? Number(inviteCoachId) : null,
-        trainer_id: trainerId,
-        event_id: eventId,
-      }),
-    })
+    let data: any
+    try {
+      const res = await fetch('/api/admin/create-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: inviteEmail,
+          password: invitePassword,
+          role: inviteRole,
+          display_name: displayName,
+          referee_id: refId,
+          volunteer_id: volId,
+          program_id: inviteProgramId ? Number(inviteProgramId) : null,
+          coach_id: inviteCoachId ? Number(inviteCoachId) : null,
+          trainer_id: trainerId,
+          event_id: eventId,
+        }),
+      })
+      data = await res.json()
+    } catch (err) {
+      toast.error(`Network error: ${err instanceof Error ? err.message : 'unknown'}`)
+      setSending(false)
+      return
+    }
 
-    const data = await res.json()
     if (data.error) {
-      toast.error(typeof data.error === 'string' ? data.error : 'Failed to create user')
+      const msg = typeof data.error === 'string'
+        ? data.error
+        : typeof data.error === 'object' && data.error.formErrors?.length
+          ? data.error.formErrors.join(', ')
+          : JSON.stringify(data.error)
+      toast.error(msg)
     } else {
       toast.success(`User created: ${inviteEmail}`)
       // Send invite email for applicable roles
