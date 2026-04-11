@@ -10,6 +10,7 @@ import type {
   Game,
   Referee,
   Volunteer,
+  Trainer,
   Incident,
   MedicalIncident,
   WeatherAlert,
@@ -34,6 +35,7 @@ interface State {
   games: Game[]
   referees: Referee[]
   volunteers: Volunteer[]
+  trainers: Trainer[]
   incidents: Incident[]
   medicalIncidents: MedicalIncident[]
   weatherAlerts: WeatherAlert[]
@@ -57,6 +59,8 @@ type Action =
   | { type: 'UPDATE_REF'; payload: Referee }
   | { type: 'SET_VOLUNTEERS'; payload: Volunteer[] }
   | { type: 'UPDATE_VOL'; payload: Volunteer }
+  | { type: 'SET_TRAINERS'; payload: Trainer[] }
+  | { type: 'UPDATE_TRAINER'; payload: Trainer }
   | { type: 'SET_INCIDENTS'; payload: Incident[] }
   | { type: 'ADD_INCIDENT'; payload: Incident }
   | { type: 'SET_MEDICAL'; payload: MedicalIncident[] }
@@ -108,6 +112,13 @@ function reducer(state: State, action: Action): State {
       return {
         ...state,
         volunteers: state.volunteers.map((v) => (v.id === action.payload.id ? action.payload : v)),
+      }
+    case 'SET_TRAINERS':
+      return { ...state, trainers: action.payload }
+    case 'UPDATE_TRAINER':
+      return {
+        ...state,
+        trainers: state.trainers.map((t) => (t.id === action.payload.id ? action.payload : t)),
       }
     case 'SET_INCIDENTS':
       return { ...state, incidents: action.payload }
@@ -185,6 +196,7 @@ const initialState: State = {
   games: [],
   referees: [],
   volunteers: [],
+  trainers: [],
   incidents: [],
   medicalIncidents: [],
   weatherAlerts: [],
@@ -226,8 +238,10 @@ interface ContextValue {
   ) => Promise<void>
   addField: (name: string, number: string, division?: string, complexId?: number) => Promise<void>
   deleteField: (fieldId: number) => Promise<void>
+  toggleTrainerCheckin: (trainerId: number) => Promise<void>
   refreshRefs: () => Promise<void>
   refreshVols: () => Promise<void>
+  refreshTrainers: () => Promise<void>
   eventId: number
 }
 
@@ -255,6 +269,7 @@ export function AppProvider({
         teams,
         referees,
         volunteers,
+        trainers,
         incidents,
         medical,
         weather,
@@ -267,6 +282,7 @@ export function AppProvider({
         db.getTeams(eid),
         db.getReferees(eid),
         db.getVolunteers(eid),
+        db.getTrainers(eid),
         db.getIncidents(eid),
         db.getMedicalIncidents(eid),
         db.getWeatherAlerts(eid),
@@ -282,6 +298,7 @@ export function AppProvider({
           teams,
           referees,
           volunteers,
+          trainers,
           incidents,
           medicalIncidents: medical,
           weatherAlerts: weather,
@@ -545,6 +562,21 @@ export function AppProvider({
     [state.volunteers, addLog]
   )
 
+  const toggleTrainerCheckin = useCallback(
+    async (trainerId: number) => {
+      const trainer = state.trainers.find((t) => t.id === trainerId)
+      if (!trainer) return
+      const next = !trainer.checked_in
+      await db.toggleTrainerCheckin(trainerId, next)
+      dispatch({ type: 'UPDATE_TRAINER', payload: { ...trainer, checked_in: next } })
+      await addLog(
+        `Trainer ${next ? 'checked in' : 'checked out'}: ${trainer.name}`,
+        next ? 'ok' : 'info'
+      )
+    },
+    [state.trainers, addLog]
+  )
+
   const logIncident = useCallback(
     async (incident: Omit<Incident, 'id' | 'created_at' | 'field' | 'team' | 'game'>) => {
       const created = await db.insertIncident(incident)
@@ -682,6 +714,12 @@ export function AppProvider({
     dispatch({ type: 'SET_VOLUNTEERS', payload: vols })
   }, [eventId])
 
+  const refreshTrainers = useCallback(async () => {
+    if (!eventId) return
+    const t = await db.getTrainers(eventId)
+    dispatch({ type: 'SET_TRAINERS', payload: t })
+  }, [eventId])
+
   return (
     <Ctx.Provider
       value={{
@@ -708,8 +746,10 @@ export function AppProvider({
         updateFieldDetails,
         addField,
         deleteField,
+        toggleTrainerCheckin,
         refreshRefs,
         refreshVols,
+        refreshTrainers,
         eventId: eventId ?? 0,
       }}
     >

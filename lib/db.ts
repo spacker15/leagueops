@@ -660,6 +660,11 @@ export async function deleteTrainer(id: number) {
   await sb.from('trainers').delete().eq('id', id)
 }
 
+export async function toggleTrainerCheckin(trainerId: number, checkedIn: boolean): Promise<void> {
+  const sb = createClient()
+  await sb.from('trainers').update({ checked_in: checkedIn }).eq('id', trainerId)
+}
+
 export async function getTrainerAvailability(trainerId: number) {
   const sb = createClient()
   const { data } = await sb

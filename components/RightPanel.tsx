@@ -1,10 +1,12 @@
 'use client'
 
+import { useState } from 'react'
 import { useApp } from '@/lib/store'
 import type { TabName } from '@/components/AppShell'
 import { cn } from '@/lib/utils'
 import { format } from 'date-fns'
 import { createClient } from '@/supabase/client'
+import toast from 'react-hot-toast'
 
 interface Props {
   onNavigate: (tab: TabName) => void
@@ -27,6 +29,9 @@ export function RightPanel({ onNavigate }: Props) {
         alertCount={state.weatherAlerts.filter((a) => a.is_active).length}
         onNavigate={onNavigate}
       />
+
+      {/* Trainer on Duty */}
+      <TrainerOnDutyPanel fields={state.fields} />
 
       {/* Incident Monitor */}
       <Section title="INCIDENT MONITOR" action={() => onNavigate('incidents')} actionLabel="LOG">
@@ -93,6 +98,84 @@ function Section({
       </div>
       {children}
     </div>
+  )
+}
+
+// ─── Trainer On Duty ─────────────────────────────────────────
+function TrainerOnDutyPanel({ fields }: { fields: { id: number; name: string }[] }) {
+  const { state } = useApp()
+  const [dispatchingId, setDispatchingId] = useState<number | null>(null)
+
+  const onDuty = state.trainers.filter((t) => t.checked_in)
+  const offDuty = state.trainers.filter((t) => !t.checked_in)
+
+  async function dispatchToField(trainerId: number, fieldId: number) {
+    const trainer = state.trainers.find((t) => t.id === trainerId)
+    const field = fields.find((f) => f.id === fieldId)
+    if (!trainer || !field) return
+
+    const sb = createClient()
+    await sb.from('ops_log').insert({
+      event_id: state.event?.id,
+      message: `Trainer dispatched: ${trainer.name} → ${field.name}`,
+      log_type: 'alert',
+      occurred_at: new Date().toISOString(),
+    })
+    toast.success(`${trainer.name} dispatched to ${field.name}`)
+    setDispatchingId(null)
+  }
+
+  return (
+    <Section title="TRAINER ON DUTY">
+      {state.trainers.length === 0 ? (
+        <p className="text-[11px] text-muted">No trainers registered</p>
+      ) : onDuty.length === 0 ? (
+        <p className="text-[11px] text-red-400 font-cond font-bold">NO TRAINER ON DUTY</p>
+      ) : (
+        <div className="space-y-1.5">
+          {onDuty.map((t) => (
+            <div key={t.id}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+                  <span className="font-cond text-[11px] font-bold text-white">{t.name}</span>
+                </div>
+                <button
+                  onClick={() => setDispatchingId(dispatchingId === t.id ? null : t.id)}
+                  className="font-cond text-[9px] font-bold tracking-wider px-1.5 py-0.5 rounded bg-red/20 text-red-300 border border-red/40 hover:bg-red/30 transition-colors"
+                >
+                  DISPATCH
+                </button>
+              </div>
+              {dispatchingId === t.id && (
+                <div className="mt-1.5 ml-3.5 space-y-1">
+                  {fields.map((f) => (
+                    <button
+                      key={f.id}
+                      onClick={() => dispatchToField(t.id, f.id)}
+                      className="block w-full text-left font-cond text-[10px] px-2 py-1 rounded bg-surface border border-border text-muted hover:text-white hover:border-blue-400 transition-colors"
+                    >
+                      → {f.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+      {offDuty.length > 0 && (
+        <div className="mt-2 pt-1.5 border-t border-border/50">
+          <div className="font-cond text-[9px] text-muted tracking-wider mb-1">OFF DUTY</div>
+          {offDuty.map((t) => (
+            <div key={t.id} className="flex items-center gap-1.5 mb-0.5">
+              <div className="w-1.5 h-1.5 rounded-full bg-muted/40" />
+              <span className="font-cond text-[10px] text-muted">{t.name}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </Section>
   )
 }
 

@@ -1395,9 +1395,9 @@ export function RefsTab() {
             else setOverIds(new Set())
           }}
         >
-          <div className="flex gap-3 h-full" style={{ minHeight: 0 }}>
+          <div className="flex gap-3" style={{ height: 'calc(100vh - 180px)', minHeight: 0 }}>
             {/* Left panel: refs + volunteers */}
-            <div className="w-52 flex-shrink-0">
+            <div className="w-52 flex-shrink-0 overflow-y-auto">
               {/* Instructions */}
               <div className="bg-navy/40 border border-border rounded-md p-2.5 mb-3 text-[10px] text-muted font-cond leading-relaxed">
                 <div className="text-white font-bold mb-1">HOW TO ASSIGN</div>
@@ -1485,7 +1485,7 @@ export function RefsTab() {
             </div>
 
             {/* Field columns */}
-            <div className="flex-1 overflow-x-auto">
+            <div className="flex-1 overflow-auto">
               <div className="flex gap-3" style={{ minWidth: `${fieldColumns.length * 220}px` }}>
                 {fieldColumns.map(({ field, games }) => (
                   <div key={field.id} className="flex-shrink-0" style={{ width: 210 }}>
@@ -2008,7 +2008,11 @@ export function RefsTab() {
                     key={trainer.id}
                     className={cn(
                       'bg-surface-card border rounded-lg p-3',
-                      noAvail ? 'border-yellow-700/50' : 'border-border'
+                      trainer.checked_in
+                        ? 'border-green-800/40 bg-green-900/10'
+                        : noAvail
+                          ? 'border-yellow-700/50'
+                          : 'border-border'
                     )}
                   >
                     <div className="flex gap-2 items-start mb-2">
@@ -2027,6 +2031,13 @@ export function RefsTab() {
                         )}
                       </div>
                     </div>
+                    <div className="flex flex-wrap gap-1 mb-2">
+                      {trainer.checked_in ? (
+                        <Pill variant="green">ON DUTY</Pill>
+                      ) : (
+                        <Pill variant="yellow">OFF DUTY</Pill>
+                      )}
+                    </div>
                     {noAvail && (
                       <div className="flex items-center gap-1 mb-2 px-2 py-1 rounded bg-yellow-900/20 border border-yellow-700/30">
                         <AlertTriangle size={10} className="text-yellow-400 shrink-0" />
@@ -2037,11 +2048,25 @@ export function RefsTab() {
                     )}
                     <div className="flex gap-1 mt-2">
                       <button
+                        onClick={async () => {
+                          const sb = createClient()
+                          const next = !trainer.checked_in
+                          await sb.from('trainers').update({ checked_in: next }).eq('id', trainer.id)
+                          setTrainers((prev) =>
+                            prev.map((t) => (t.id === trainer.id ? { ...t, checked_in: next } : t))
+                          )
+                          toast.success(`${trainer.name} ${next ? 'checked in' : 'checked out'}`)
+                        }}
+                        className="flex-1 font-cond text-[10px] font-bold tracking-wider py-1 rounded bg-navy hover:bg-navy-light text-white transition-colors"
+                      >
+                        {trainer.checked_in ? 'CHECK OUT' : 'CHECK IN'}
+                      </button>
+                      <button
                         onClick={() => openTrainerAvailability(trainer)}
-                        className="flex-1 flex items-center justify-center gap-1 font-cond text-[10px] font-bold tracking-wider py-1 rounded bg-surface border border-border text-muted hover:text-white hover:border-blue-400 transition-colors"
+                        title="Availability"
+                        className="px-2 py-1 rounded bg-surface border border-border text-muted hover:text-white hover:border-blue-400 transition-colors"
                       >
                         <Calendar size={10} />
-                        AVAILABILITY
                       </button>
                       <button
                         onClick={() => deleteTrainer(trainer.id)}
