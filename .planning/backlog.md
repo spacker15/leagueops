@@ -26,7 +26,6 @@ These were built after v1.0 milestone and are live in production:
 
 - [ ] **Notification UAT gaps** — Phase 7 UAT showed 0 passed, 1 issue, 1 blocked. NOT-02, NOT-03, NOT-04 stubs were wired but need end-to-end validation
 - [ ] **Phase 4 anon RLS** — Public results site needs anon-role read policies on public tables (standings, games) for unauthenticated visitors to see live data
-- [ ] **CreeksideAD auth fix** — Supabase Auth broken for `ad@creeksideknights.com` (500 on login); needs user delete + recreate in Supabase dashboard + user_roles entry
 - [ ] **Payments — collection flow** — Collect button wired but end-to-end payment recording needs validation
 - [ ] **Weather alert dedup** — Engine-generated and NWS alerts may overlap; dedup logic was added but needs UAT under real conditions
 
