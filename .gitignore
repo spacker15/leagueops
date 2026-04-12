@@ -28,3 +28,7 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .env
+
+# Obsidian — keep app.json (vault config), ignore local state
+.obsidian/*
+!.obsidian/app.json
