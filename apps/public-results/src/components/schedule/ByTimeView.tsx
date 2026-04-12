@@ -1,9 +1,21 @@
 'use client'
 import type { PublicGame } from '@/lib/data'
-import { groupBy } from '@/lib/utils'
+import { groupBy, timeToMinutes } from '@/lib/utils'
+
+function teamLogo(
+  team: { logo_url?: string | null; programs?: unknown } | null | undefined
+): string | null {
+  if (!team) return null
+  if (team.logo_url) return team.logo_url
+  const prog = Array.isArray(team.programs)
+    ? (team.programs as { logo_url?: string | null }[])[0]
+    : (team.programs as { logo_url?: string | null } | null | undefined)
+  return prog?.logo_url ?? null
+}
 
 interface Props {
   games: PublicGame[]
+  hideScores?: boolean
 }
 
 function formatTime(time: string): string {
@@ -23,7 +35,7 @@ function statusColor(status: string): string {
   return 'text-blue-400'
 }
 
-export function ByTimeView({ games }: Props) {
+export function ByTimeView({ games, hideScores = false }: Props) {
   if (games.length === 0) {
     return (
       <div className="text-center py-20 border border-[#1a2d50] rounded-xl bg-[#081428]">
@@ -36,11 +48,7 @@ export function ByTimeView({ games }: Props) {
 
   const byTime = groupBy(games, (g) => g.scheduled_time ?? 'TBD')
   // Sort time slots chronologically
-  const timeSlots = Object.keys(byTime).sort((a, b) => {
-    if (a === 'TBD') return 1
-    if (b === 'TBD') return -1
-    return a.localeCompare(b)
-  })
+  const timeSlots = Object.keys(byTime).sort((a, b) => timeToMinutes(a) - timeToMinutes(b))
 
   return (
     <div className="space-y-6">
@@ -61,7 +69,7 @@ export function ByTimeView({ games }: Props) {
               {slotGames.map((game) => {
                 const isLive = game.status === 'Live' || game.status === 'Halftime'
                 const isFinal = game.status === 'Final'
-                const showScore = isFinal || isLive
+                const showScore = !hideScores && (isFinal || isLive)
 
                 return (
                   <div
@@ -73,9 +81,19 @@ export function ByTimeView({ games }: Props) {
                     {/* Teams + scores (two-line layout) */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
-                        <span className="font-cond font-bold text-[14px] text-white truncate min-w-0">
-                          {game.home_team?.name ?? 'TBD'}
-                        </span>
+                        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                          {teamLogo(game.home_team) && (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={teamLogo(game.home_team)!}
+                              alt=""
+                              className="w-5 h-5 rounded object-cover shrink-0"
+                            />
+                          )}
+                          <span className="font-cond font-bold text-[14px] text-white truncate">
+                            {game.home_team?.name ?? 'TBD'}
+                          </span>
+                        </div>
                         {showScore && (
                           <span className="font-mono font-bold text-[18px] text-white tabular-nums ml-2 shrink-0">
                             {game.home_score}
@@ -83,9 +101,19 @@ export function ByTimeView({ games }: Props) {
                         )}
                       </div>
                       <div className="flex items-center justify-between">
-                        <span className="font-cond font-bold text-[14px] text-white truncate min-w-0">
-                          {game.away_team?.name ?? 'TBD'}
-                        </span>
+                        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                          {teamLogo(game.away_team) && (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={teamLogo(game.away_team)!}
+                              alt=""
+                              className="w-5 h-5 rounded object-cover shrink-0"
+                            />
+                          )}
+                          <span className="font-cond font-bold text-[14px] text-white truncate">
+                            {game.away_team?.name ?? 'TBD'}
+                          </span>
+                        </div>
                         {showScore && (
                           <span className="font-mono font-bold text-[18px] text-white tabular-nums ml-2 shrink-0">
                             {game.away_score}

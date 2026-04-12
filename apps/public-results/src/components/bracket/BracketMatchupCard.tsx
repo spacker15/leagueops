@@ -1,6 +1,17 @@
 'use client'
 import type { BracketMatchup } from '@/lib/data'
 
+function teamLogo(
+  team: { logo_url?: string | null; programs?: unknown } | null | undefined
+): string | null {
+  if (!team) return null
+  if (team.logo_url) return team.logo_url
+  const prog = Array.isArray(team.programs)
+    ? (team.programs as { logo_url?: string | null }[])[0]
+    : (team.programs as { logo_url?: string | null } | null | undefined)
+  return prog?.logo_url ?? null
+}
+
 interface Props {
   matchup: BracketMatchup
   liveGameIds: Set<number>
@@ -43,11 +54,19 @@ export function BracketMatchupCard({ matchup, liveGameIds, liveScores, flashingI
           isTopWinner ? 'bg-[#0B3D91]/20' : ''
         }`}
       >
-        <div className="flex items-center min-w-0 flex-1">
+        <div className="flex items-center min-w-0 flex-1 gap-1">
           {matchup.seed_top !== null && (
-            <span className="font-cond text-[10px] text-[#5a6e9a] mr-1 shrink-0">
+            <span className="font-cond text-[10px] text-[#5a6e9a] shrink-0">
               #{matchup.seed_top}
             </span>
+          )}
+          {teamLogo(teamTop) && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={teamLogo(teamTop)!}
+              alt=""
+              className="w-4 h-4 rounded object-cover shrink-0"
+            />
           )}
           <span
             className={`font-cond text-[12px] font-bold truncate ${teamTop ? 'text-white' : 'text-[#5a6e9a]'}`}
@@ -70,11 +89,19 @@ export function BracketMatchupCard({ matchup, liveGameIds, liveScores, flashingI
           isBottomWinner ? 'bg-[#0B3D91]/20' : ''
         }`}
       >
-        <div className="flex items-center min-w-0 flex-1">
+        <div className="flex items-center min-w-0 flex-1 gap-1">
           {matchup.seed_bottom !== null && (
-            <span className="font-cond text-[10px] text-[#5a6e9a] mr-1 shrink-0">
+            <span className="font-cond text-[10px] text-[#5a6e9a] shrink-0">
               #{matchup.seed_bottom}
             </span>
+          )}
+          {teamLogo(teamBottom) && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={teamLogo(teamBottom)!}
+              alt=""
+              className="w-4 h-4 rounded object-cover shrink-0"
+            />
           )}
           <span
             className={`font-cond text-[12px] font-bold truncate ${teamBottom ? 'text-white' : 'text-[#5a6e9a]'}`}

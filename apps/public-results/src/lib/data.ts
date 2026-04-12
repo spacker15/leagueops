@@ -11,6 +11,7 @@ export interface PublicEvent {
   public_schedule?: boolean
   public_standings?: boolean
   public_results?: boolean
+  public_hide_scores?: boolean
   has_bracket?: boolean
 }
 
@@ -21,8 +22,18 @@ export interface PublicGame {
   status: string
   home_score: number
   away_score: number
-  home_team: { id: number; name: string } | null
-  away_team: { id: number; name: string } | null
+  home_team: {
+    id: number
+    name: string
+    logo_url?: string | null
+    programs?: { logo_url?: string | null } | null
+  } | null
+  away_team: {
+    id: number
+    name: string
+    logo_url?: string | null
+    programs?: { logo_url?: string | null } | null
+  } | null
   field: { name: string } | null
   event_date: { date: string; day_number: number } | null
 }
@@ -32,13 +43,22 @@ export interface PublicTeam {
   name: string
   division: string
   association: string | null
+  logo_url?: string | null
+  programs?: { name?: string | null; logo_url?: string | null } | null
+}
+
+export interface PublicWeatherAlert {
+  id: number
+  alert_type: string
+  description: string
+  complex?: { name: string } | null
 }
 
 export async function getPublicEvents(): Promise<PublicEvent[]> {
   const { data, error } = await supabase
     .from('events')
     .select(
-      'id, name, slug, location, start_date, end_date, logo_url, public_schedule, public_standings, public_results, has_bracket'
+      'id, name, slug, location, start_date, end_date, logo_url, public_schedule, public_standings, public_results, public_hide_scores, has_bracket'
     )
     .order('start_date', { ascending: false })
 
@@ -53,7 +73,7 @@ export async function getPublicEventBySlug(slug: string): Promise<PublicEvent | 
   const { data, error } = await supabase
     .from('events')
     .select(
-      'id, name, slug, location, start_date, end_date, logo_url, public_schedule, public_standings, public_results, has_bracket'
+      'id, name, slug, location, start_date, end_date, logo_url, public_schedule, public_standings, public_results, public_hide_scores, has_bracket'
     )
     .eq('slug', slug)
     .single()
@@ -71,8 +91,8 @@ export async function getPublicGames(eventId: number): Promise<PublicGame[]> {
     .select(
       `
       id, division, scheduled_time, status, home_score, away_score,
-      home_team:teams!games_home_team_id_fkey(id, name),
-      away_team:teams!games_away_team_id_fkey(id, name),
+      home_team:teams!games_home_team_id_fkey(id, name, logo_url, programs(logo_url)),
+      away_team:teams!games_away_team_id_fkey(id, name, logo_url, programs(logo_url)),
       field:fields(name),
       event_date:event_dates(date, day_number)
     `
@@ -87,7 +107,7 @@ export async function getPublicGames(eventId: number): Promise<PublicGame[]> {
 export async function getPublicTeams(eventId: number): Promise<PublicTeam[]> {
   const { data, error } = await supabase
     .from('teams')
-    .select('id, name, division, association')
+    .select('id, name, division, association, logo_url, programs(name, logo_url)')
     .eq('event_id', eventId)
     .order('division')
     .order('name')
@@ -199,8 +219,18 @@ export interface BracketMatchup {
   id: number
   seed_top: number | null
   seed_bottom: number | null
-  team_top: { id: number; name: string } | null
-  team_bottom: { id: number; name: string } | null
+  team_top: {
+    id: number
+    name: string
+    logo_url?: string | null
+    programs?: { logo_url?: string | null } | null
+  } | null
+  team_bottom: {
+    id: number
+    name: string
+    logo_url?: string | null
+    programs?: { logo_url?: string | null } | null
+  } | null
   game_id: number | null
   score_top: number
   score_bottom: number
@@ -268,8 +298,8 @@ export async function getPublicBracket(eventId: number): Promise<{
       id, format, bracket_side, round_number, round_label,
       matchups:bracket_matchups(
         id, seed_top, seed_bottom, score_top, score_bottom, winner_id, position, game_id,
-        team_top:teams!bracket_matchups_team_top_id_fkey(id, name),
-        team_bottom:teams!bracket_matchups_team_bottom_id_fkey(id, name)
+        team_top:teams!bracket_matchups_team_top_id_fkey(id, name, logo_url, programs(logo_url)),
+        team_bottom:teams!bracket_matchups_team_bottom_id_fkey(id, name, logo_url, programs(logo_url))
       )
     `
     )
@@ -279,4 +309,16 @@ export async function getPublicBracket(eventId: number): Promise<{
   if (error || !data?.length) return { format: null, rounds: [] }
   const format = (data[0] as unknown as BracketRound).format
   return { format, rounds: data as unknown as BracketRound[] }
+}
+
+export async function getPublicWeatherAlerts(eventId: number): Promise<PublicWeatherAlert[]> {
+  const { data, error } = await supabase
+    .from('weather_alerts')
+    .select('id, alert_type, description, complex:complexes(name)')
+    .eq('event_id', eventId)
+    .eq('is_active', true)
+    .order('created_at', { ascending: false })
+
+  if (error) return []
+  return (data ?? []) as unknown as PublicWeatherAlert[]
 }

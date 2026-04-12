@@ -4,8 +4,24 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { groupBy } from '@/lib/utils'
 
+type TeamWithLogo = {
+  id: number
+  name: string
+  division: string
+  logo_url?: string | null
+  programs?: unknown
+}
+
+function teamLogo(team: TeamWithLogo): string | null {
+  if (team.logo_url) return team.logo_url
+  const prog = Array.isArray(team.programs)
+    ? (team.programs as { logo_url?: string | null }[])[0]
+    : (team.programs as { logo_url?: string | null } | null | undefined)
+  return prog?.logo_url ?? null
+}
+
 interface Props {
-  teams: { id: number; name: string; division: string }[]
+  teams: TeamWithLogo[]
   slug: string
   activeDay: number
   divFilter: string
@@ -62,8 +78,16 @@ export function TeamSearchInput({ teams, slug, activeDay, divFilter }: Props) {
                   <Link
                     key={team.id}
                     href={`/e/${slug}?tab=schedule&view=team&team=${team.id}&day=${activeDay}&div=${divFilter}`}
-                    className="bg-[#081428] border border-[#1a2d50] rounded-lg px-3 py-3 font-cond text-[14px] font-bold text-white hover:border-[#0B3D91] transition-colors block"
+                    className="bg-[#081428] border border-[#1a2d50] rounded-lg px-3 py-3 font-cond text-[14px] font-bold text-white hover:border-[#0B3D91] transition-colors flex items-center gap-2"
                   >
+                    {teamLogo(team) && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={teamLogo(team)!}
+                        alt=""
+                        className="w-6 h-6 rounded object-cover shrink-0"
+                      />
+                    )}
                     {team.name}
                   </Link>
                 ))}
