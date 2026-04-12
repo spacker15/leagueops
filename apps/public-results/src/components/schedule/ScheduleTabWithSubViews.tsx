@@ -93,6 +93,7 @@ export function ScheduleTabWithSubViews({
           activeDay={activeDay}
           divFilter={divFilter}
           teamId={teamId}
+          hideScores={hideScores}
         />
       )}
       {activeView === 'team' && (
@@ -103,6 +104,7 @@ export function ScheduleTabWithSubViews({
           activeDay={activeDay}
           divFilter={divFilter}
           teamId={teamId}
+          hideScores={hideScores}
         />
       )}
       {activeView === 'field' && <ByFieldView games={filtered} hideScores={hideScores} />}

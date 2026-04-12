@@ -22,9 +22,10 @@ interface Props {
   activeDay: number
   divFilter: string
   teamId: number | null
+  hideScores?: boolean
 }
 
-function GameRow({ game }: { game: PublicGame }) {
+function GameRow({ game, hideScores = false }: { game: PublicGame; hideScores?: boolean }) {
   const isLive = game.status === 'Live' || game.status === 'Halftime'
   const isFinal = game.status === 'Final'
 
@@ -56,7 +57,7 @@ function GameRow({ game }: { game: PublicGame }) {
             </span>
           </div>
           <span className="font-mono font-bold text-[18px] text-white tabular-nums ml-2 shrink-0">
-            {isFinal || isLive ? game.home_score : ''}
+            {!hideScores && (isFinal || isLive) ? game.home_score : ''}
           </span>
         </div>
         <div className="flex items-center justify-between">
@@ -74,7 +75,7 @@ function GameRow({ game }: { game: PublicGame }) {
             </span>
           </div>
           <span className="font-mono font-bold text-[18px] text-white tabular-nums ml-2 shrink-0">
-            {isFinal || isLive ? game.away_score : ''}
+            {!hideScores && (isFinal || isLive) ? game.away_score : ''}
           </span>
         </div>
       </div>
@@ -92,7 +93,7 @@ function GameRow({ game }: { game: PublicGame }) {
   )
 }
 
-export function ByTeamView({ games, teams, slug, activeDay, divFilter, teamId }: Props) {
+export function ByTeamView({ games, teams, slug, activeDay, divFilter, teamId, hideScores = false }: Props) {
   // Single team mode
   if (teamId !== null) {
     const team = teams.find((t) => t.id === teamId)
@@ -132,7 +133,7 @@ export function ByTeamView({ games, teams, slug, activeDay, divFilter, teamId }:
         ) : (
           <div className="space-y-2">
             {sorted.map((game) => (
-              <GameRow key={game.id} game={game} />
+              <GameRow key={game.id} game={game} hideScores={hideScores} />
             ))}
           </div>
         )}

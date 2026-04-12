@@ -32,9 +32,10 @@ interface Props {
   activeDay: number
   divFilter: string
   teamId: number | null
+  hideScores?: boolean
 }
 
-function GameRow({ game }: { game: PublicGame }) {
+function GameRow({ game, hideScores = false }: { game: PublicGame; hideScores?: boolean }) {
   const isLive = game.status === 'Live' || game.status === 'Halftime'
   const isFinal = game.status === 'Final'
 
@@ -65,9 +66,11 @@ function GameRow({ game }: { game: PublicGame }) {
               {game.home_team?.name ?? 'TBD'}
             </span>
           </div>
-          <span className="font-mono font-bold text-[18px] text-white tabular-nums ml-2 shrink-0">
-            {isFinal || isLive ? game.home_score : ''}
-          </span>
+          {!hideScores && (isFinal || isLive) && (
+            <span className="font-mono font-bold text-[18px] text-white tabular-nums ml-2 shrink-0">
+              {game.home_score}
+            </span>
+          )}
         </div>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5 min-w-0 flex-1">
@@ -83,9 +86,11 @@ function GameRow({ game }: { game: PublicGame }) {
               {game.away_team?.name ?? 'TBD'}
             </span>
           </div>
-          <span className="font-mono font-bold text-[18px] text-white tabular-nums ml-2 shrink-0">
-            {isFinal || isLive ? game.away_score : ''}
-          </span>
+          {!hideScores && (isFinal || isLive) && (
+            <span className="font-mono font-bold text-[18px] text-white tabular-nums ml-2 shrink-0">
+              {game.away_score}
+            </span>
+          )}
         </div>
       </div>
       <div className="shrink-0 text-right">
@@ -102,7 +107,7 @@ function GameRow({ game }: { game: PublicGame }) {
   )
 }
 
-export function ByProgramView({ games, teams, slug, activeDay, divFilter, teamId }: Props) {
+export function ByProgramView({ games, teams, slug, activeDay, divFilter, teamId, hideScores = false }: Props) {
   // ── Single team mode ──
   if (teamId !== null) {
     const team = teams.find((t) => t.id === teamId)
@@ -139,7 +144,7 @@ export function ByProgramView({ games, teams, slug, activeDay, divFilter, teamId
         ) : (
           <div className="space-y-2">
             {sorted.map((game) => (
-              <GameRow key={game.id} game={game} />
+              <GameRow key={game.id} game={game} hideScores={hideScores} />
             ))}
           </div>
         )}
