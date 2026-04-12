@@ -20,11 +20,26 @@ These were built after v1.0 milestone and are live in production:
 - [x] **Duplicate prevention** — Ref/vol invite link deduplication
 - [x] **Trainer availability** — Manage trainer schedules from Refs tab
 
+### Additional shipped since 2026-04-09 (34 commits on main)
+
+- [x] **Trainer operations** — Check-in with on-duty indicator, auto-checkout after last game, dispatch to field, dispatch banner with resolve button, medical incident auto-create on dispatch
+- [x] **Push notifications** — Persistent until acknowledged, vibrate + ring on mobile
+- [x] **Command Center improvements** — Games sorted by time, first/last game times per field, Today's Schedule quick view in right panel
+- [x] **Portal defaults** — Ref/vol/program portals default to games/schedule view with date picker, mobile-friendly date picker in status bar
+- [x] **Field card** — First/last game times, Final games sort to bottom of columns, mobile status bar shows first/last + last game time
+- [x] **Incident monitor** — Shows today only, includes medical dispatches, shows all (not just first 4), scrollable Active Medical section
+- [x] **Incidents report page** — Dedicated report view + incident log scroll fix
+- [x] **Rules tab** — 2026 USA Lacrosse Boys Youth Rules reference, moved inside RefereePortal correctly
+- [x] **Reports > Matchups** — Date picker + date range slider (from/to), alphabetical team sort
+- [x] **Hide scores setting** — Score visibility toggle, field view shows upcoming games first
+- [x] **User management** — Role editing in user edit card, improved create-user error handling
+- [x] **Scoring fix** — Refs assigned via vol_assignments can now score games
+
 ---
 
 ## Known Open Items / Next Work
 
-- [ ] **Notification UAT gaps** — Phase 7 UAT showed 0 passed, 1 issue, 1 blocked. NOT-02, NOT-03, NOT-04 stubs were wired but need end-to-end validation
+- [ ] **Notification UAT gaps** — Phase 7 UAT showed 0 passed, 1 issue, 1 blocked. NOT-02, NOT-03, NOT-04 stubs wired but need end-to-end validation
 - [ ] **Phase 4 anon RLS** — Public results site needs anon-role read policies on public tables (standings, games) for unauthenticated visitors to see live data
 - [ ] **Payments — collection flow** — Collect button wired but end-to-end payment recording needs validation
 - [ ] **Weather alert dedup** — Engine-generated and NWS alerts may overlap; dedup logic was added but needs UAT under real conditions
