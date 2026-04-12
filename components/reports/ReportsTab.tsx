@@ -690,7 +690,7 @@ function MatchupsView({
 
 /** Renders a single matchup matrix table for a set of teams and games */
 function MatchupMatrix({
-  teams: matrixTeams,
+  teams: rawTeams,
   games,
   showDivisionOnRow,
 }: {
@@ -698,6 +698,10 @@ function MatchupMatrix({
   games: AllGame[]
   showDivisionOnRow: boolean
 }) {
+  const matrixTeams = useMemo(
+    () => [...rawTeams].sort((a, b) => a.name.localeCompare(b.name)),
+    [rawTeams]
+  )
   // Build matrix: matrix[rowTeamId][colTeamId] = count
   const matrix = useMemo(() => {
     const m: Record<number, Record<number, number>> = {}
