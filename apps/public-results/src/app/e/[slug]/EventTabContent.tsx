@@ -36,6 +36,7 @@ interface Props {
   viewStandings: ViewStanding[]
   bracket: { format: 'single' | 'double' | null; rounds: BracketRound[] }
   finalGames: PublicGame[]
+  hideScores: boolean
 }
 
 export function EventTabContent({
@@ -51,6 +52,7 @@ export function EventTabContent({
   viewStandings,
   bracket,
   finalGames,
+  hideScores,
 }: Props) {
   const { liveGames, flashingIds, liveGameIds, liveScores } = useLiveScores()
   const standingsByDivision = groupBy(viewStandings, (s) => s.division)
@@ -70,6 +72,7 @@ export function EventTabContent({
           activeDay={activeDay}
           teamId={teamId}
           divFilter={divFilter}
+          hideScores={hideScores}
         />
       )}
       {activeTab === 'results' && <ResultsSection games={finalGames} />}
@@ -198,7 +201,7 @@ function ResultsSection({ games }: { games: PublicGame[] }) {
             </div>
             <div className="space-y-2">
               {divGames.map((game) => (
-                <GameResultCard key={game.id} game={game} />
+                <GameResultCard key={game.id} game={game} hideScores={hideScores} />
               ))}
             </div>
           </div>
@@ -245,7 +248,7 @@ function LiveSectionEnhanced({
         </span>
       </div>
       {games.map((game) => (
-        <GameResultCard key={game.id} game={game} live flashingIds={flashingIds} />
+        <GameResultCard key={game.id} game={game} live flashingIds={flashingIds} hideScores={hideScores} />
       ))}
     </div>
   )
@@ -255,13 +258,15 @@ function GameResultCard({
   game,
   live = false,
   flashingIds,
+  hideScores = false,
 }: {
   game: PublicGame
   live?: boolean
   flashingIds?: Set<number>
+  hideScores?: boolean
 }) {
-  const homeWon = game.status === 'Final' && game.home_score > game.away_score
-  const awayWon = game.status === 'Final' && game.away_score > game.home_score
+  const homeWon = !hideScores && game.status === 'Final' && game.home_score > game.away_score
+  const awayWon = !hideScores && game.status === 'Final' && game.away_score > game.home_score
   const isFlashing = flashingIds?.has(game.id) ?? false
 
   return (
@@ -280,11 +285,13 @@ function GameResultCard({
             )}
             {game.home_team?.name ?? 'Home'}
           </span>
-          <span
-            className={`font-mono font-bold text-[18px] tabular-nums ${isFlashing ? 'score-flash' : ''} ${homeWon ? 'text-white' : live ? 'text-green-400' : 'text-[#5a6e9a]'}`}
-          >
-            {game.home_score}
-          </span>
+          {!hideScores && (
+            <span
+              className={`font-mono font-bold text-[18px] tabular-nums ${isFlashing ? 'score-flash' : ''} ${homeWon ? 'text-white' : live ? 'text-green-400' : 'text-[#5a6e9a]'}`}
+            >
+              {game.home_score}
+            </span>
+          )}
         </div>
         <div className="flex items-center justify-between gap-3">
           <span
@@ -295,11 +302,13 @@ function GameResultCard({
             )}
             {game.away_team?.name ?? 'Away'}
           </span>
-          <span
-            className={`font-mono font-bold text-[18px] tabular-nums ${isFlashing ? 'score-flash' : ''} ${awayWon ? 'text-white' : live ? 'text-green-400' : 'text-[#5a6e9a]'}`}
-          >
-            {game.away_score}
-          </span>
+          {!hideScores && (
+            <span
+              className={`font-mono font-bold text-[18px] tabular-nums ${isFlashing ? 'score-flash' : ''} ${awayWon ? 'text-white' : live ? 'text-green-400' : 'text-[#5a6e9a]'}`}
+            >
+              {game.away_score}
+            </span>
+          )}
         </div>
       </div>
       <div className="text-right shrink-0 space-y-0.5">

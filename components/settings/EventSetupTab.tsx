@@ -122,6 +122,7 @@ interface EventData {
   public_schedule: boolean
   public_standings: boolean
   public_results: boolean
+  public_hide_scores: boolean
   show_brackets: boolean
   show_team_list: boolean
   show_seeding: boolean
@@ -201,6 +202,7 @@ const DEFAULT_EVENT: Omit<EventData, 'id'> = {
   public_schedule: false,
   public_standings: true,
   public_results: true,
+  public_hide_scores: false,
   show_brackets: true,
   show_team_list: true,
   show_seeding: false,
@@ -780,6 +782,7 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
         public_schedule: d.public_schedule ?? false,
         public_standings: d.public_standings ?? true,
         public_results: d.public_results ?? true,
+        public_hide_scores: d.public_hide_scores ?? false,
         show_brackets: d.show_brackets ?? true,
         show_team_list: d.show_team_list ?? true,
         show_seeding: d.show_seeding ?? false,
@@ -1180,6 +1183,7 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
         public_schedule: event.public_schedule,
         public_standings: event.public_standings,
         public_results: event.public_results,
+        public_hide_scores: event.public_hide_scores,
         show_brackets: event.show_brackets,
         show_team_list: event.show_team_list,
         show_seeding: event.show_seeding,
@@ -2998,6 +3002,12 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                   help="Show results tab on public results page"
                   value={event.public_results}
                   onChange={(v) => set('public_results', v)}
+                />
+                <Toggle
+                  label="Hide Scores on Public Site"
+                  help="Hide all game scores from the public results page"
+                  value={event.public_hide_scores}
+                  onChange={(v) => set('public_hide_scores', v)}
                 />
                 <Toggle
                   label="Allow Public to Post Scores"

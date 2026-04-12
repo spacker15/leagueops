@@ -15,6 +15,7 @@ function teamLogo(
 
 interface Props {
   games: PublicGame[]
+  hideScores?: boolean
 }
 
 function formatTime(time: string): string {
@@ -34,7 +35,7 @@ function statusColor(status: string): string {
   return 'text-blue-400'
 }
 
-export function ByTimeView({ games }: Props) {
+export function ByTimeView({ games, hideScores = false }: Props) {
   if (games.length === 0) {
     return (
       <div className="text-center py-20 border border-[#1a2d50] rounded-xl bg-[#081428]">
@@ -68,7 +69,7 @@ export function ByTimeView({ games }: Props) {
               {slotGames.map((game) => {
                 const isLive = game.status === 'Live' || game.status === 'Halftime'
                 const isFinal = game.status === 'Final'
-                const showScore = isFinal || isLive
+                const showScore = !hideScores && (isFinal || isLive)
 
                 return (
                   <div

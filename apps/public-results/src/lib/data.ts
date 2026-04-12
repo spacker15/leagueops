@@ -11,6 +11,7 @@ export interface PublicEvent {
   public_schedule?: boolean
   public_standings?: boolean
   public_results?: boolean
+  public_hide_scores?: boolean
   has_bracket?: boolean
 }
 
@@ -57,7 +58,7 @@ export async function getPublicEvents(): Promise<PublicEvent[]> {
   const { data, error } = await supabase
     .from('events')
     .select(
-      'id, name, slug, location, start_date, end_date, logo_url, public_schedule, public_standings, public_results, has_bracket'
+      'id, name, slug, location, start_date, end_date, logo_url, public_schedule, public_standings, public_results, public_hide_scores, has_bracket'
     )
     .order('start_date', { ascending: false })
 
@@ -72,7 +73,7 @@ export async function getPublicEventBySlug(slug: string): Promise<PublicEvent | 
   const { data, error } = await supabase
     .from('events')
     .select(
-      'id, name, slug, location, start_date, end_date, logo_url, public_schedule, public_standings, public_results, has_bracket'
+      'id, name, slug, location, start_date, end_date, logo_url, public_schedule, public_standings, public_results, public_hide_scores, has_bracket'
     )
     .eq('slug', slug)
     .single()

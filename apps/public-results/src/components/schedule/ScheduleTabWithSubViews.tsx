@@ -15,6 +15,7 @@ interface Props {
   activeDay: number
   teamId: number | null
   divFilter: string
+  hideScores?: boolean
 }
 
 const SUB_VIEWS = [
@@ -33,6 +34,7 @@ export function ScheduleTabWithSubViews({
   activeDay,
   teamId,
   divFilter,
+  hideScores = false,
 }: Props) {
   const activeView = SUB_VIEWS.some((v) => v.id === view) ? view : 'program'
 
@@ -103,8 +105,8 @@ export function ScheduleTabWithSubViews({
           teamId={teamId}
         />
       )}
-      {activeView === 'field' && <ByFieldView games={filtered} />}
-      {activeView === 'time' && <ByTimeView games={filtered} />}
+      {activeView === 'field' && <ByFieldView games={filtered} hideScores={hideScores} />}
+      {activeView === 'time' && <ByTimeView games={filtered} hideScores={hideScores} />}
     </div>
   )
 }

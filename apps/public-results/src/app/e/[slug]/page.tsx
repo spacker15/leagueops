@@ -202,6 +202,7 @@ export default async function EventPage({ params, searchParams }: Props) {
           viewStandings={viewStandings}
           bracket={bracket}
           finalGames={finalGames}
+          hideScores={event.public_hide_scores ?? false}
         />
       </LiveScoresClient>
     </div>
