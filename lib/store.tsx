@@ -339,16 +339,6 @@ export function AppProvider({
           scheduleChangeRequests,
         },
       })
-
-      // Auto-select today's date or next upcoming date
-      const dates = eventDates ?? []
-      if (dates.length > 0) {
-        const today = new Date().toISOString().split('T')[0]
-        const todayIdx = dates.findIndex((d: EventDate) => d.date === today)
-        const upcomingIdx = dates.findIndex((d: EventDate) => d.date >= today)
-        const bestIdx = todayIdx !== -1 ? todayIdx : upcomingIdx !== -1 ? upcomingIdx : 0
-        dispatch({ type: 'SET_DATE', payload: bestIdx })
-      }
     }
     loadAll()
   }, [eventId])

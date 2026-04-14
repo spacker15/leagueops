@@ -12,17 +12,6 @@ function teamLogo(
   return prog?.logo_url ?? null
 }
 
-function teamLogo(
-  team: { logo_url?: string | null; programs?: unknown } | null | undefined
-): string | null {
-  if (!team) return null
-  if (team.logo_url) return team.logo_url
-  const prog = Array.isArray(team.programs)
-    ? (team.programs as { logo_url?: string | null }[])[0]
-    : (team.programs as { logo_url?: string | null } | null | undefined)
-  return prog?.logo_url ?? null
-}
-
 interface Props {
   matchup: BracketMatchup
   liveGameIds: Set<number>
