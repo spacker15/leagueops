@@ -75,7 +75,7 @@ export function EventTabContent({
           hideScores={hideScores}
         />
       )}
-      {activeTab === 'results' && <ResultsSection games={finalGames} />}
+      {activeTab === 'results' && <ResultsSection games={finalGames} hideScores={hideScores} />}
       {activeTab === 'live' && (
         <LiveSectionEnhanced games={liveGames} allGames={games} flashingIds={flashingIds} />
       )}
@@ -179,7 +179,7 @@ function StandingsSection({
   )
 }
 
-function ResultsSection({ games }: { games: PublicGame[] }) {
+function ResultsSection({ games, hideScores }: { games: PublicGame[]; hideScores: boolean }) {
   if (games.length === 0) return <Empty message="No completed games yet." />
 
   const sorted = [...games].sort((a, b) => {
