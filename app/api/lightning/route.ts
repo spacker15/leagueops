@@ -64,10 +64,7 @@ export async function POST(req: NextRequest) {
     const delayEnd = new Date(Date.now() + 30 * 60 * 1000)
 
     // Get fields at complex
-    const { data: fields } = await supabase
-      .from('fields')
-      .select('id')
-      .eq('complex_id', complex_id)
+    const { data: fields } = await supabase.from('fields').select('id').eq('complex_id', complex_id)
     const fieldIds = (fields ?? []).map((f: { id: number }) => f.id)
 
     // Delay all games

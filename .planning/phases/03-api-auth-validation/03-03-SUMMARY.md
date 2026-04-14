@@ -1,12 +1,23 @@
 ---
 phase: 03-api-auth-validation
-plan: "03"
+plan: '03'
 subsystem: api-rate-limiting
 tags: [security, rate-limiting, upstash, redis, sec-08]
 dependency_graph:
   requires: [03-01]
   provides: [SEC-08]
-  affects: [field-engine, referee-engine, schedule-engine, shift-handoff, unified-engine, weather-engine, join, checkins, auth/check-email]
+  affects:
+    [
+      field-engine,
+      referee-engine,
+      schedule-engine,
+      shift-handoff,
+      unified-engine,
+      weather-engine,
+      join,
+      checkins,
+      auth/check-email,
+    ]
 tech_stack:
   added: []
   patterns: [upstash-ratelimit, fixed-window, sliding-window, x-ratelimit-headers]
@@ -23,26 +34,26 @@ key_files:
     - app/api/checkins/route.ts
     - app/api/auth/check-email/route.ts
 decisions:
-  - "Engine-trigger route GET handlers excluded from rate limiting — only POST triggers expensive engine operations; GET serves cached data reads"
-  - "checkins DELETE handler gets rate limiting — although destructive, it is a public route with no auth guard and must be protected"
-  - "publicRatelimit shared across all 3 public routes — sliding window allows burst tolerance for real event-day usage"
+  - 'Engine-trigger route GET handlers excluded from rate limiting — only POST triggers expensive engine operations; GET serves cached data reads'
+  - 'checkins DELETE handler gets rate limiting — although destructive, it is a public route with no auth guard and must be protected'
+  - 'publicRatelimit shared across all 3 public routes — sliding window allows burst tolerance for real event-day usage'
 metrics:
-  duration: "2 min"
-  completed_date: "2026-03-23"
+  duration: '2 min'
+  completed_date: '2026-03-23'
   tasks_completed: 2
   files_modified: 9
 ---
 
 # Phase 03 Plan 03: Rate Limiting (SEC-08) Summary
 
-**One-liner:** Upstash rate limiting applied to 6 engine-trigger routes (10 req/60s fixed) and 3 public routes (30 req/60s sliding) with standard X-RateLimit-* headers on all 429 responses.
+**One-liner:** Upstash rate limiting applied to 6 engine-trigger routes (10 req/60s fixed) and 3 public routes (30 req/60s sliding) with standard X-RateLimit-\* headers on all 429 responses.
 
 ## Tasks Completed
 
-| Task | Name | Commit | Files |
-|------|------|--------|-------|
-| 1 | Add rate limiting to engine-trigger routes | 2eb94db | field-engine, referee-engine, schedule-engine, shift-handoff, unified-engine, weather-engine |
-| 2 | Add rate limiting to public-facing routes | 8c7b598 | join, checkins, auth/check-email |
+| Task | Name                                       | Commit  | Files                                                                                        |
+| ---- | ------------------------------------------ | ------- | -------------------------------------------------------------------------------------------- |
+| 1    | Add rate limiting to engine-trigger routes | 2eb94db | field-engine, referee-engine, schedule-engine, shift-handoff, unified-engine, weather-engine |
+| 2    | Add rate limiting to public-facing routes  | 8c7b598 | join, checkins, auth/check-email                                                             |
 
 ## What Was Built
 
@@ -118,6 +129,7 @@ None — all rate limiting is fully wired to the live `engineRatelimit` and `pub
 ## Self-Check: PASSED
 
 Files exist:
+
 - app/api/field-engine/route.ts: FOUND
 - app/api/referee-engine/route.ts: FOUND
 - app/api/schedule-engine/route.ts: FOUND
@@ -129,5 +141,6 @@ Files exist:
 - app/api/auth/check-email/route.ts: FOUND
 
 Commits exist:
+
 - 2eb94db: FOUND (engine-trigger rate limiting)
 - 8c7b598: FOUND (public route rate limiting)

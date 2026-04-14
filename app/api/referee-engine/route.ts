@@ -5,11 +5,8 @@ import { engineRatelimit } from '@/lib/ratelimit'
 
 export async function POST(req: NextRequest) {
   // Rate limit by IP (SEC-08)
-  const ip =
-    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
-    '127.0.0.1'
-  const { success, limit, remaining, reset, pending } =
-    await engineRatelimit.limit(ip)
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? '127.0.0.1'
+  const { success, limit, remaining, reset, pending } = await engineRatelimit.limit(ip)
   void pending
 
   if (!success) {
@@ -69,7 +66,14 @@ export async function GET(req: NextRequest) {
   const excludeIds = excludeRaw ? excludeRaw.split(',').map(Number) : []
 
   try {
-    const available = await findAvailableRefs(Number(eventDateId), gameTime, division, excludeIds, Number(eventId), sb)
+    const available = await findAvailableRefs(
+      Number(eventDateId),
+      gameTime,
+      division,
+      excludeIds,
+      Number(eventId),
+      sb
+    )
     return NextResponse.json(available)
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 })

@@ -34,12 +34,18 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: data.error_message || data.status }, { status: 502 })
   }
 
-  const predictions = (data.predictions ?? []).map((p: { place_id: string; description: string; structured_formatting?: { main_text?: string; secondary_text?: string } }) => ({
-    place_id: p.place_id,
-    description: p.description,
-    main_text: p.structured_formatting?.main_text ?? '',
-    secondary_text: p.structured_formatting?.secondary_text ?? '',
-  }))
+  const predictions = (data.predictions ?? []).map(
+    (p: {
+      place_id: string
+      description: string
+      structured_formatting?: { main_text?: string; secondary_text?: string }
+    }) => ({
+      place_id: p.place_id,
+      description: p.description,
+      main_text: p.structured_formatting?.main_text ?? '',
+      secondary_text: p.structured_formatting?.secondary_text ?? '',
+    })
+  )
 
   return NextResponse.json({ predictions })
 }

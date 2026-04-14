@@ -7,11 +7,11 @@ tags: [postgres, rls, row-level-security, supabase, security, multi-tenant]
 requires: []
 
 provides:
-  - "supabase/rls_migration.sql: complete RLS migration with user_event_ids() function, 51 DROP statements, and 206 CREATE POLICY statements covering 48 application tables"
-  - "user_event_ids() SECURITY DEFINER function that returns event IDs for the authenticated user"
-  - "Per-operation authenticated SELECT/INSERT/UPDATE/DELETE policies for all event-scoped tables"
-  - "Anon SELECT policies for 6 public tables (events, event_dates, fields, teams, games, registration_divisions)"
-  - "Commented ROLLBACK block to restore permissive policies if needed"
+  - 'supabase/rls_migration.sql: complete RLS migration with user_event_ids() function, 51 DROP statements, and 206 CREATE POLICY statements covering 48 application tables'
+  - 'user_event_ids() SECURITY DEFINER function that returns event IDs for the authenticated user'
+  - 'Per-operation authenticated SELECT/INSERT/UPDATE/DELETE policies for all event-scoped tables'
+  - 'Anon SELECT policies for 6 public tables (events, event_dates, fields, teams, games, registration_divisions)'
+  - 'Commented ROLLBACK block to restore permissive policies if needed'
 
 affects:
   - 04-02-PLAN (branch deployment and smoke testing)
@@ -20,10 +20,10 @@ affects:
 tech-stack:
   added: []
   patterns:
-    - "user_event_ids() SECURITY DEFINER pattern: central helper function reads user_roles, used in all event-scoped USING clauses"
-    - "Per-operation policy naming: auth_select_{table}, auth_insert_{table}, auth_update_{table}, auth_delete_{table}, anon_select_{table}"
-    - "EXISTS join pattern for indirect event scoping (ref_assignments -> games, referee_availability -> referees, registration_answers -> team_registrations)"
-    - "DROP POLICY IF EXISTS before CREATE POLICY for idempotent migrations"
+    - 'user_event_ids() SECURITY DEFINER pattern: central helper function reads user_roles, used in all event-scoped USING clauses'
+    - 'Per-operation policy naming: auth_select_{table}, auth_insert_{table}, auth_update_{table}, auth_delete_{table}, anon_select_{table}'
+    - 'EXISTS join pattern for indirect event scoping (ref_assignments -> games, referee_availability -> referees, registration_answers -> team_registrations)'
+    - 'DROP POLICY IF EXISTS before CREATE POLICY for idempotent migrations'
 
 key-files:
   created:
@@ -31,17 +31,17 @@ key-files:
   modified: []
 
 key-decisions:
-  - "division_timing table (from division_timing.sql) added to migration — not in RESEARCH.md inventory but found in file scan with Allow all on division_timing policy"
-  - "sports table (event_setup.sql) excluded — reference lookup table with no event_id and no sensitive data; RLS not needed"
-  - "payments tables (registration_fees, team_payments, payment_entries) excluded — already have proper service_role policies from payments.sql"
-  - "players uses direct event_id scoping (added by player_eligibility.sql) — not the indirect teams join originally listed"
-  - "field_blocks uses direct event_id scoping (added by phase4_migration.sql) — not the indirect fields join originally listed"
-  - "Rollback block included as commented SQL — restores exact original policy names per D-07"
+  - 'division_timing table (from division_timing.sql) added to migration — not in RESEARCH.md inventory but found in file scan with Allow all on division_timing policy'
+  - 'sports table (event_setup.sql) excluded — reference lookup table with no event_id and no sensitive data; RLS not needed'
+  - 'payments tables (registration_fees, team_payments, payment_entries) excluded — already have proper service_role policies from payments.sql'
+  - 'players uses direct event_id scoping (added by player_eligibility.sql) — not the indirect teams join originally listed'
+  - 'field_blocks uses direct event_id scoping (added by phase4_migration.sql) — not the indirect fields join originally listed'
+  - 'Rollback block included as commented SQL — restores exact original policy names per D-07'
 
 patterns-established:
-  - "user_event_ids() is the single source of truth for event access — call it in every USING/WITH CHECK clause"
-  - "INSERT policies use only WITH CHECK; UPDATE uses both USING and WITH CHECK; DELETE uses only USING"
-  - "Sensitive tables (ops_log, ops_alerts) get zero anon policies — Postgres deny-by-default returns empty rows"
+  - 'user_event_ids() is the single source of truth for event access — call it in every USING/WITH CHECK clause'
+  - 'INSERT policies use only WITH CHECK; UPDATE uses both USING and WITH CHECK; DELETE uses only USING'
+  - 'Sensitive tables (ops_log, ops_alerts) get zero anon policies — Postgres deny-by-default returns empty rows'
 
 requirements-completed:
   - SEC-01
@@ -91,6 +91,7 @@ completed: 2026-03-23
 ### Auto-fixed Issues
 
 **1. [Rule 2 - Missing Critical] Added division_timing table to migration**
+
 - **Found during:** Task 1 (reading all SQL files for exact policy names)
 - **Issue:** `division_timing` table (from division_timing.sql) has `"Allow all on division_timing"` policy but was not listed in RESEARCH.md's table inventory
 - **Fix:** Added DROP POLICY for `"Allow all on division_timing"` and 4 auth policies (SELECT/INSERT/UPDATE/DELETE) using direct event_id scoping
@@ -118,5 +119,6 @@ None — this plan creates the SQL file only. Deployment to Supabase branch is P
 - Key risk: players and field_blocks use direct event_id scoping — smoke tests should verify these are working (player_eligibility.sql adds event_id to players; phase4_migration.sql adds and backfills event_id on field_blocks for existing rows)
 
 ---
-*Phase: 04-rls-database-security*
-*Completed: 2026-03-23*
+
+_Phase: 04-rls-database-security_
+_Completed: 2026-03-23_

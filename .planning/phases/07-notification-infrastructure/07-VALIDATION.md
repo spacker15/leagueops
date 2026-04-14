@@ -15,13 +15,13 @@ created: 2026-03-24
 
 ## Test Infrastructure
 
-| Property | Value |
-|----------|-------|
-| **Framework** | vitest (existing project framework) |
-| **Config file** | `vitest.config.ts` or "none — Wave 0 installs" |
-| **Quick run command** | `npx vitest run --reporter=verbose` |
-| **Full suite command** | `npx vitest run` |
-| **Estimated runtime** | ~30 seconds |
+| Property               | Value                                          |
+| ---------------------- | ---------------------------------------------- |
+| **Framework**          | vitest (existing project framework)            |
+| **Config file**        | `vitest.config.ts` or "none — Wave 0 installs" |
+| **Quick run command**  | `npx vitest run --reporter=verbose`            |
+| **Full suite command** | `npx vitest run`                               |
+| **Estimated runtime**  | ~30 seconds                                    |
 
 ---
 
@@ -36,11 +36,11 @@ created: 2026-03-24
 
 ## Per-Task Verification Map
 
-| Task ID | Plan | Wave | Requirement | Test Type | Automated Command | File Exists | Status |
-|---------|------|------|-------------|-----------|-------------------|-------------|--------|
-| *Populated after plans are created* | | | | | | | |
+| Task ID                             | Plan | Wave | Requirement | Test Type | Automated Command | File Exists | Status |
+| ----------------------------------- | ---- | ---- | ----------- | --------- | ----------------- | ----------- | ------ |
+| _Populated after plans are created_ |      |      |             |           |                   |             |        |
 
-*Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
+_Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky_
 
 ---
 
@@ -51,20 +51,20 @@ created: 2026-03-24
 - [ ] Install `web-push` package for VAPID key generation and push sending
 - [ ] Create test stubs for notification queue, preferences, and delivery
 
-*If none: "Existing infrastructure covers all phase requirements."*
+_If none: "Existing infrastructure covers all phase requirements."_
 
 ---
 
 ## Manual-Only Verifications
 
-| Behavior | Requirement | Why Manual | Test Instructions |
-|----------|-------------|------------|-------------------|
-| Browser push notification appears | NOT-06 | Requires real browser with push permission | 1. Open app in Chrome, 2. Grant push permission, 3. Insert notification_queue row, 4. Verify push notification appears |
-| Email arrives in real inbox | NOT-05 | Requires Resend API key + verified domain | 1. Insert notification_queue row with email channel, 2. Check inbox within 30s |
-| Edge Function triggered by DB webhook | NOT-01 | Requires Supabase hosted environment | 1. Insert row into notification_queue, 2. Check notification_log for delivery record |
-| Service worker registered | NOT-06 | Requires HTTPS + browser | 1. Open app, 2. Check DevTools > Application > Service Workers |
+| Behavior                              | Requirement | Why Manual                                 | Test Instructions                                                                                                      |
+| ------------------------------------- | ----------- | ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
+| Browser push notification appears     | NOT-06      | Requires real browser with push permission | 1. Open app in Chrome, 2. Grant push permission, 3. Insert notification_queue row, 4. Verify push notification appears |
+| Email arrives in real inbox           | NOT-05      | Requires Resend API key + verified domain  | 1. Insert notification_queue row with email channel, 2. Check inbox within 30s                                         |
+| Edge Function triggered by DB webhook | NOT-01      | Requires Supabase hosted environment       | 1. Insert row into notification_queue, 2. Check notification_log for delivery record                                   |
+| Service worker registered             | NOT-06      | Requires HTTPS + browser                   | 1. Open app, 2. Check DevTools > Application > Service Workers                                                         |
 
-*If none: "All phase behaviors have automated verification."*
+_If none: "All phase behaviors have automated verification."_
 
 ---
 

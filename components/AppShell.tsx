@@ -28,6 +28,8 @@ import { QRCodesPanel } from '@/components/auth/QRCodesPanel'
 import { ReportsTab } from '@/components/reports/ReportsTab'
 import { PaymentsTab } from '@/components/payments/PaymentsTab'
 import { ScheduleChangeRequestsTab } from '@/components/requests/ScheduleChangeRequestsTab'
+import { NotificationBell } from '@/components/notifications/NotificationBell'
+import { WeatherBar } from '@/components/WeatherBar'
 
 export type TabName =
   | 'dashboard'
@@ -63,7 +65,7 @@ export function AppShell({
 }) {
   const [activeTab, setActiveTab] = useState<TabName>(initialTab ?? 'dashboard')
   const [drawerOpen, setDrawerOpen] = useState(false)
-  const [isLg, setIsLg] = useState(true) // default true for SSR/initial render
+  const [isLg, setIsLg] = useState(false) // default false; corrected on mount
 
   useEffect(() => {
     const mql = window.matchMedia('(min-width: 1024px)')
@@ -154,7 +156,19 @@ export function AppShell({
         onChangeEvent={onChangeEvent}
         onSwitchToProgram={onSwitchToProgram}
         pendingRequestCount={pendingRequestCount}
+        rightSlot={<NotificationBell />}
       />
+      <WeatherBar />
+      {state.lightningActive && (
+        <div
+          className="flex items-center justify-center gap-2 py-1.5 text-white font-cond font-black text-[12px] tracking-widest lightning-flash flex-shrink-0"
+          style={{ background: '#7a0000', borderBottom: '1px solid #ff3333' }}
+        >
+          ⚡ LIGHTNING DELAY ACTIVE — ALL FIELDS SUSPENDED ·{' '}
+          {Math.floor(state.lightningSecondsLeft / 60)}:
+          {(state.lightningSecondsLeft % 60).toString().padStart(2, '0')} REMAINING
+        </div>
+      )}
       <StatusRow />
       <div className="flex flex-1 overflow-hidden">
         <main className="flex-1 overflow-y-auto min-w-0 tab-content">

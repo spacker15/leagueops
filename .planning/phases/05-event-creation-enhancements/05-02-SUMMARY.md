@@ -16,12 +16,12 @@ key_files:
     - components/events/EventPicker.tsx
     - components/settings/EventSetupTab.tsx
 decisions:
-  - "handleVenueSelect() in EventPicker owns all venue state updates -- delegates to VenueAutocompleteInput for search/select UX"
+  - 'handleVenueSelect() in EventPicker owns all venue state updates -- delegates to VenueAutocompleteInput for search/select UX'
   - "Complex update in EventSetupTab uses .is('lat', null).limit(1) filter to avoid overwriting manually-set complex coordinates"
-  - "CheckCircle kept in EventPicker lucide imports -- still used for copy event code feedback"
+  - 'CheckCircle kept in EventPicker lucide imports -- still used for copy event code feedback'
 metrics:
   duration: 2 min
-  completed_date: "2026-03-23T16:40:00Z"
+  completed_date: '2026-03-23T16:40:00Z'
   tasks: 2
   files_modified: 2
 ---
@@ -32,14 +32,15 @@ Wire VenueAutocompleteInput component (built in Plan 01) into both event creatio
 
 ## Tasks Completed
 
-| Task | Name | Commit | Files |
-|------|------|--------|-------|
-| 1 | Wire VenueAutocompleteInput into EventPicker.tsx + fix lat/lng gap | 7d9c8c4 | components/events/EventPicker.tsx |
-| 2 | Wire VenueAutocompleteInput into EventSetupTab.tsx + complex update | c89474a | components/settings/EventSetupTab.tsx |
+| Task | Name                                                                | Commit  | Files                                 |
+| ---- | ------------------------------------------------------------------- | ------- | ------------------------------------- |
+| 1    | Wire VenueAutocompleteInput into EventPicker.tsx + fix lat/lng gap  | 7d9c8c4 | components/events/EventPicker.tsx     |
+| 2    | Wire VenueAutocompleteInput into EventSetupTab.tsx + complex update | c89474a | components/settings/EventSetupTab.tsx |
 
 ## What Was Built
 
 **Task 1 — EventPicker.tsx:**
+
 - Replaced 5 inline venue state variables (`venueQuery`, `venuePredictions`, `venueSearching`, `showVenueDropdown`) with 4 lean state vars: `selectedPlaceId`, `selectedLat`, `selectedLng`, `selectedVenueAddress`
 - Removed `searchVenue()` and `selectVenue()` inline async functions (logic now lives inside VenueAutocompleteInput)
 - Added `handleVenueSelect()` callback that sets all venue state and pre-fills complex name/address
@@ -47,6 +48,7 @@ Wire VenueAutocompleteInput component (built in Plan 01) into both event creatio
 - Replaced inline search UI (Search icon, input, dropdown, chip) with `<VenueAutocompleteInput>` component
 
 **Task 2 — EventSetupTab.tsx:**
+
 - Added import for `VenueAutocompleteInput` from `@/components/events/VenueAutocompleteInput`
 - Replaced wizard step 3 plain text location input with `VenueAutocompleteInput` (sets location + all venue fields via `set()`)
 - Replaced general settings tab plain text location input with `VenueAutocompleteInput` (same venue field updates + complex record update per D-03)
@@ -68,6 +70,7 @@ Wire VenueAutocompleteInput component (built in Plan 01) into both event creatio
 ### Auto-fixed Issues
 
 **1. [Rule 1 - Bug] CheckCircle still needed in EventPicker imports**
+
 - **Found during:** Task 1 TypeScript check
 - **Issue:** Plan said to remove CheckCircle from lucide-react imports, but it is still used on line 941 for the copy event code "Copied!" state (unrelated to venue)
 - **Fix:** Kept CheckCircle in imports; only removed Search (no longer used after VenueAutocompleteInput wiring)

@@ -46,7 +46,9 @@ export function AlertEmail({
             {alertType}
           </Text>
           <Text style={{ fontSize: '18px', fontWeight: 'bold', margin: '0 0 8px' }}>{summary}</Text>
-          <Text style={{ fontSize: '16px', color: '#c0c8d8', lineHeight: '1.5', margin: '0 0 16px' }}>
+          <Text
+            style={{ fontSize: '16px', color: '#c0c8d8', lineHeight: '1.5', margin: '0 0 16px' }}
+          >
             {detail}
           </Text>
           <Button

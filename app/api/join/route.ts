@@ -84,6 +84,20 @@ export async function POST(req: NextRequest) {
   if (!invite) return NextResponse.json({ error: 'Invalid or expired link' }, { status: 404 })
 
   const name = `${first_name.trim()} ${last_name.trim()}`
+  const table = invite.type === 'referee' ? 'referees' : 'volunteers'
+
+  // Check for existing registration by email to prevent duplicates
+  const { data: existing } = await sb
+    .from(table)
+    .select('id')
+    .eq('event_id', invite.event_id)
+    .ilike('email', email.trim())
+    .maybeSingle()
+
+  if (existing) {
+    // Already registered — treat as success so the user sees the confirmation screen
+    return NextResponse.json({ success: true, already_registered: true })
+  }
 
   if (invite.type === 'referee') {
     const { error } = await sb.from('referees').insert({

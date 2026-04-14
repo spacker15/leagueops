@@ -1,6 +1,6 @@
 ---
 phase: 05-event-creation-enhancements
-plan: "00"
+plan: '00'
 subsystem: testing
 tags: [test-stubs, vitest, wave-0, nyquist]
 dependency_graph:
@@ -16,11 +16,11 @@ key_files:
     - __tests__/components/SharingSection.test.tsx
   modified: []
 decisions:
-  - "Used it.todo() pattern for pending stubs — vitest treats todos as skipped (not failed), keeping suite green"
-  - "Created __tests__/components/ directory (did not previously exist) — follows existing __tests__/app/ and __tests__/lib/ pattern"
+  - 'Used it.todo() pattern for pending stubs — vitest treats todos as skipped (not failed), keeping suite green'
+  - 'Created __tests__/components/ directory (did not previously exist) — follows existing __tests__/app/ and __tests__/lib/ pattern'
 metrics:
-  duration: "1 min"
-  completed_date: "2026-03-23"
+  duration: '1 min'
+  completed_date: '2026-03-23'
   tasks_completed: 1
   files_created: 2
   files_modified: 0
@@ -43,10 +43,12 @@ Created the Wave 0 test stub files required by VALIDATION.md for Nyquist complia
 ### Files Created
 
 **`__tests__/components/VenueAutocompleteInput.test.tsx`**
+
 - 4 todo stubs for EVT-01: venue autocomplete API call behavior, debouncing, dropdown rendering
 - 4 todo stubs for EVT-02: prediction selection, onVenueSelect callback, freetext fallback, "Venue saved" chip
 
 **`__tests__/components/SharingSection.test.tsx`**
+
 - 3 todo stubs for EVT-04: registration URL construction, display, clipboard copy
 - 3 todo stubs for EVT-05: QRCodeSVG render, QRCodeCanvas for PNG, preview modal
 - 3 todo stubs for EVT-06: slug in URL, mailto href, sms href
@@ -54,9 +56,9 @@ Created the Wave 0 test stub files required by VALIDATION.md for Nyquist complia
 
 ## Task Summary
 
-| Task | Name | Commit | Files |
-|------|------|--------|-------|
-| 1 | Create Wave 0 test stub files | 2f9198a | __tests__/components/VenueAutocompleteInput.test.tsx, __tests__/components/SharingSection.test.tsx |
+| Task | Name                          | Commit  | Files                                                                                              |
+| ---- | ----------------------------- | ------- | -------------------------------------------------------------------------------------------------- |
+| 1    | Create Wave 0 test stub files | 2f9198a | **tests**/components/VenueAutocompleteInput.test.tsx, **tests**/components/SharingSection.test.tsx |
 
 ## Verification Results
 

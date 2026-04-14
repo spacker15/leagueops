@@ -47,10 +47,10 @@ key-files:
     - apps/public-results/src/lib/supabase.ts
 
 key-decisions:
-  - "Supabase client rewritten as lazy Proxy singleton to prevent build-time crash when NEXT_PUBLIC_SUPABASE_URL is absent — was a pre-existing bug that blocked npm run build"
-  - "EventCard moved inside EventSearchFilter (client component) to keep component tree consistent — server page.tsx no longer defines EventCard"
-  - "QR display: black-on-white (bgColor #FFFFFF, fgColor #000000) in white container for maximum scanner compatibility per plan spec (overrides UI-SPEC white-on-dark variant)"
-  - "StandingsSection columns changed to match ViewStanding schema (wins/losses/ties/points_for/points_against/goal_diff) removing GP and PTS from old computeStandings-based approach"
+  - 'Supabase client rewritten as lazy Proxy singleton to prevent build-time crash when NEXT_PUBLIC_SUPABASE_URL is absent — was a pre-existing bug that blocked npm run build'
+  - 'EventCard moved inside EventSearchFilter (client component) to keep component tree consistent — server page.tsx no longer defines EventCard'
+  - 'QR display: black-on-white (bgColor #FFFFFF, fgColor #000000) in white container for maximum scanner compatibility per plan spec (overrides UI-SPEC white-on-dark variant)'
+  - 'StandingsSection columns changed to match ViewStanding schema (wins/losses/ties/points_for/points_against/goal_diff) removing GP and PTS from old computeStandings-based approach'
 
 requirements-completed: [PUB-01, PUB-02, PUB-03, PUB-04, PUB-05, PUB-06]
 
@@ -77,6 +77,7 @@ completed: 2026-03-25
 ### Task 1: EventSearchFilter, EventQRCode, and loading skeleton (commit 985e6ad)
 
 Created `EventSearchFilter.tsx` (client component):
+
 - Inline `useState` for query string — no API calls, pure client-side filter
 - Filters `event.name` and `event.location` (case-insensitive substring)
 - Clear button (`×`) appears when query has text, `aria-label="Clear search"`
@@ -85,6 +86,7 @@ Created `EventSearchFilter.tsx` (client component):
 - `EventCard` component defined inside file with `aria-label="View results for {event.name}"`
 
 Created `EventQRCode.tsx` (client component):
+
 - `QRCodeSVG` from qrcode.react with `bgColor="#FFFFFF"` / `fgColor="#000000"` (black-on-white)
 - White container wrapper `bg-white rounded-lg p-2` for scanner contrast
 - Event URL: `{baseUrl}/e/{slug}` — team URL: `{baseUrl}/e/{slug}?tab=schedule&view=team&team={id}`
@@ -92,6 +94,7 @@ Created `EventQRCode.tsx` (client component):
 - Uses `NEXT_PUBLIC_PUBLIC_RESULTS_URL` env var with `window.location.origin` fallback
 
 Created `loading.tsx` (route segment skeleton):
+
 - Animated header skeleton with logo and text placeholders
 - Tab bar skeleton (4 items)
 - Content skeleton (4 rows at h-14)
@@ -100,6 +103,7 @@ Created `loading.tsx` (route segment skeleton):
 ### Task 2: Wire components into event detail page (commit 1b39c89)
 
 Major rewrite of `apps/public-results/src/app/e/[slug]/page.tsx`:
+
 - `export const revalidate = 30` preserved (D-16)
 - Extended `searchParams` to include `view`, `day`, `team`
 - Data fetching: `Promise.all` with `getPublicGames`, `getPublicTeams`, `getPublicEventDates`, `getPublicBracket`, `getPublicStandings`
@@ -116,12 +120,14 @@ Major rewrite of `apps/public-results/src/app/e/[slug]/page.tsx`:
 ### Task 3: Wire homepage + build verification (commit 737c751)
 
 Updated `apps/public-results/src/app/page.tsx`:
+
 - Replaced static event grid with `<EventSearchFilter events={events} />` client island
 - Removed `EventCard` function (now inside EventSearchFilter)
 - Removed `formatDateRange` (now inside EventSearchFilter)
 - `revalidate = 60` preserved
 
 **Deviation: Auto-fixed pre-existing build crash (Rule 1 - Bug)**
+
 - `apps/public-results/src/lib/supabase.ts` created client at module level with `createClient(url!, key!)`
 - Without env vars, `createClient` threw before Next.js ISR could run the `try/catch` in page.tsx
 - Fix: lazy Proxy singleton — client only created on first method call, not at module import time
@@ -133,6 +139,7 @@ Updated `apps/public-results/src/app/page.tsx`:
 ### Auto-fixed Issues
 
 **1. [Rule 1 - Bug] Lazy Supabase client initialization to fix build crash**
+
 - **Found during:** Task 3 build verification
 - **Issue:** `supabase.ts` called `createClient(url!, key!)` at module level. When `NEXT_PUBLIC_SUPABASE_URL` is undefined, this throws synchronously before any `try/catch` in page.tsx can catch it. Result: `npm run build` always failed with "supabaseUrl is required"
 - **Fix:** Rewrote `supabase.ts` to use a lazy Proxy singleton — client is created on first access, not import
@@ -142,6 +149,7 @@ Updated `apps/public-results/src/app/page.tsx`:
 ## Known Stubs
 
 None. All data sources are wired:
+
 - Standings: `getPublicStandings` → `standings_by_division` PostgreSQL view
 - Live scores: LiveScoresClient → Supabase Realtime subscription
 - Bracket: `getPublicBracket` → `bracket_rounds` + `bracket_matchups` tables
@@ -151,11 +159,13 @@ None. All data sources are wired:
 ## Self-Check
 
 ### Created files exist:
+
 - apps/public-results/src/components/EventSearchFilter.tsx: FOUND
 - apps/public-results/src/components/EventQRCode.tsx: FOUND
 - apps/public-results/src/app/e/[slug]/loading.tsx: FOUND
 
 ### Commits exist:
+
 - 985e6ad: Task 1 (EventSearchFilter, EventQRCode, loading skeleton)
 - 1b39c89: Task 2 (event page integration)
 - 737c751: Task 3 (homepage + build fix)

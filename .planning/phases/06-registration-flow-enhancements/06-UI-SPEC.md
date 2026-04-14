@@ -16,13 +16,13 @@ created: 2026-03-23
 
 ## Design System
 
-| Property | Value | Source |
-|----------|-------|--------|
-| Tool | none — manual Tailwind | Codebase (no components.json) |
-| Preset | not applicable | — |
-| Component library | Custom (components/ui/index.tsx: Btn, Modal, FormField, Input, Select, Card, Pill, Avatar, SectionHeader) | Codebase |
-| Icon library | lucide-react | Codebase (EventSetupTab.tsx, RegisterPage.tsx) |
-| Font | Barlow Condensed (`font-cond` class) + Barlow sans (`font-sans`) + Roboto Mono (`font-mono`) | tailwind.config.js |
+| Property          | Value                                                                                                     | Source                                         |
+| ----------------- | --------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| Tool              | none — manual Tailwind                                                                                    | Codebase (no components.json)                  |
+| Preset            | not applicable                                                                                            | —                                              |
+| Component library | Custom (components/ui/index.tsx: Btn, Modal, FormField, Input, Select, Card, Pill, Avatar, SectionHeader) | Codebase                                       |
+| Icon library      | lucide-react                                                                                              | Codebase (EventSetupTab.tsx, RegisterPage.tsx) |
+| Font              | Barlow Condensed (`font-cond` class) + Barlow sans (`font-sans`) + Roboto Mono (`font-mono`)              | tailwind.config.js                             |
 
 **shadcn Gate:** No components.json found. Stack is Next.js — shadcn is not used in this project. Phase 6 extends existing admin and public-facing UI. Proceeding without shadcn. Registry safety gate: not applicable.
 
@@ -32,36 +32,36 @@ created: 2026-03-23
 
 Declared values (multiples of 4 only):
 
-| Token | Value | Usage |
-|-------|-------|-------|
-| xs | 4px | Icon gaps (`gap-1`), inline icon padding |
-| sm | 8px | Compact element gaps (`gap-2`), badge padding, checkbox gaps |
-| md | 16px | Default input/field spacing (`px-4 py-2` = 16/8), step section spacing |
-| lg | 24px | Section padding (`mb-3`, wizard step content `p-3`) |
-| xl | 32px | Panel interior gap between wizard sections |
-| 2xl | 48px | Major section breaks in registration wizard steps |
-| 3xl | 64px | Page-level vertical centering (closed/expired registration pages) |
+| Token | Value | Usage                                                                  |
+| ----- | ----- | ---------------------------------------------------------------------- |
+| xs    | 4px   | Icon gaps (`gap-1`), inline icon padding                               |
+| sm    | 8px   | Compact element gaps (`gap-2`), badge padding, checkbox gaps           |
+| md    | 16px  | Default input/field spacing (`px-4 py-2` = 16/8), step section spacing |
+| lg    | 24px  | Section padding (`mb-3`, wizard step content `p-3`)                    |
+| xl    | 32px  | Panel interior gap between wizard sections                             |
+| 2xl   | 48px  | Major section breaks in registration wizard steps                      |
+| 3xl   | 64px  | Page-level vertical centering (closed/expired registration pages)      |
 
 Exceptions:
 
-| Value | Usage | Justification |
-|-------|-------|---------------|
-| 44px min-height | Touch targets on all action buttons | Accessibility minimum for mobile |
-| 80px × 80px | Coach invite QR thumbnail container | Matches Phase 5 QR thumbnail pattern (D-19) |
-| 256px × 256px | Coach invite QR preview in modal | Matches Phase 5 QR preview modal pattern |
-| 512px × 512px | Hidden canvas for PNG export of coach invite QR | Phase 5 established pattern — not visible |
-| 12px (`px-3 py-3`) | Multi-date picker day cells | Compact square cell — matches `ConflictsTab.tsx` conflict card `p-3` (12px uniform padding) as the established codebase precedent for compact 12px padding blocks |
+| Value              | Usage                                           | Justification                                                                                                                                                     |
+| ------------------ | ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 44px min-height    | Touch targets on all action buttons             | Accessibility minimum for mobile                                                                                                                                  |
+| 80px × 80px        | Coach invite QR thumbnail container             | Matches Phase 5 QR thumbnail pattern (D-19)                                                                                                                       |
+| 256px × 256px      | Coach invite QR preview in modal                | Matches Phase 5 QR preview modal pattern                                                                                                                          |
+| 512px × 512px      | Hidden canvas for PNG export of coach invite QR | Phase 5 established pattern — not visible                                                                                                                         |
+| 12px (`px-3 py-3`) | Multi-date picker day cells                     | Compact square cell — matches `ConflictsTab.tsx` conflict card `p-3` (12px uniform padding) as the established codebase precedent for compact 12px padding blocks |
 
 ---
 
 ## Typography
 
-| Role | Size | Weight | Line Height | Font | Source |
-|------|------|--------|-------------|------|--------|
-| Body / input text | 13px | 400 (regular) | 1.5 | Barlow (sans) | EventSetupTab `inp` variable + JoinClient.tsx `inp` |
-| Label | 10px | 900 (black) | 1.2 | Barlow Condensed | EventSetupTab `lbl` variable (`font-cond font-black tracking-[.12em]`) |
-| Section header / muted sublabels / compact indicators | 12px | 900 (black) for headers; 400 (regular) for muted text | 1.2 (headers) / 1.5 (muted) | Barlow Condensed | EventSetupTab `sectionHdr` variable; `text-[12px] text-[#5a6e9a] leading-relaxed` pattern from register page |
-| Wizard step headings / display headings | 18–24px | 900 (black) | 1.2 | Barlow Condensed | JoinClient.tsx `font-cond font-black text-[18px]` pattern; registration closed page `text-[24px]` at upper end of range |
+| Role                                                  | Size    | Weight                                                | Line Height                 | Font             | Source                                                                                                                  |
+| ----------------------------------------------------- | ------- | ----------------------------------------------------- | --------------------------- | ---------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Body / input text                                     | 13px    | 400 (regular)                                         | 1.5                         | Barlow (sans)    | EventSetupTab `inp` variable + JoinClient.tsx `inp`                                                                     |
+| Label                                                 | 10px    | 900 (black)                                           | 1.2                         | Barlow Condensed | EventSetupTab `lbl` variable (`font-cond font-black tracking-[.12em]`)                                                  |
+| Section header / muted sublabels / compact indicators | 12px    | 900 (black) for headers; 400 (regular) for muted text | 1.2 (headers) / 1.5 (muted) | Barlow Condensed | EventSetupTab `sectionHdr` variable; `text-[12px] text-[#5a6e9a] leading-relaxed` pattern from register page            |
+| Wizard step headings / display headings               | 18–24px | 900 (black)                                           | 1.2                         | Barlow Condensed | JoinClient.tsx `font-cond font-black text-[18px]` pattern; registration closed page `text-[24px]` at upper end of range |
 
 **Sizes declared for this phase: 10px, 12px, 13px, 18–24px (4 sizes). No 11px usages — all former `text-[11px]` elements use `text-[12px]`.**
 
@@ -71,25 +71,25 @@ Exceptions:
 
 ## Color
 
-| Role | Value | Usage | Source |
-|------|-------|-------|--------|
-| Dominant (60%) | `#020810` (`surface.DEFAULT`) | Page background — coach self-reg page, registration closed page | tailwind.config.js |
-| Secondary (30%) | `#081428` (`surface.card`) | Input backgrounds, wizard card shells, info box backgrounds | EventSetupTab `inp` + JoinClient.tsx (`bg-[#081428]`) |
-| Panel surface | `#030d20` (`surface.panel`) | Outer wizard container, coach invite page card chrome | tailwind.config.js |
-| Elevated surface | `#0a1a3a` (`surface.elevated`) | Hover states, expanded accordion sections | tailwind.config.js |
-| Border | `#1a2d50` | All input borders, card borders, dividers, checkbox borders | globals.css + existing `border-[#1a2d50]` |
-| Muted text | `#5a6e9a` | Labels, help text, secondary info, date picker day names | tailwind.config.js `muted` token |
-| Accent (10%) | `#0B3D91` (`navy.DEFAULT`) | Primary Btn background, "Add Coach" CTA, "Generate Invite Link" CTA, active date selection fill | tailwind.config.js |
-| Accent hover | `#1a52b8` (`navy.light`) | Btn hover state | tailwind.config.js |
-| Focus ring | `blue-400` (Tailwind `#60a5fa`) | Input focus border (`focus:border-blue-400`) | EventSetupTab `inp` pattern |
-| Destructive | `#D62828` (`red.DEFAULT`) | "Revoke Link" button, token expired error page accent bar | tailwind.config.js |
-| Destructive hover | `#a01e1e` (`red.dark`) | "Revoke Link" button hover | tailwind.config.js |
-| Success | `#22c55e` on `#052e14` | Registration open badge, availability saved confirmation, coach added chip | Existing badge-live pattern + Phase 5 |
-| Warning | `#facc15` on `#2a1f00` | Coach conflict warning badge in Command Center team rows | Existing CoverageBar yellow pattern |
-| QR background | `#ffffff` | Coach invite QR code bgColor — mandatory for scanner compatibility | CONTEXT.md D-19, ROADMAP Phase 6 scope |
-| QR foreground | `#000000` | Coach invite QR code fgColor — mandatory black-on-white | ROADMAP Phase 6 scope |
-| Registration open badge | `#22c55e` text on `#052e14` bg | "Registration Open" status badge in Sharing tab | D-17 |
-| Registration closed badge | `#f87171` text on `#2a0000` bg | "Registration Closed" status badge in Sharing tab | D-17 |
+| Role                      | Value                           | Usage                                                                                           | Source                                                |
+| ------------------------- | ------------------------------- | ----------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| Dominant (60%)            | `#020810` (`surface.DEFAULT`)   | Page background — coach self-reg page, registration closed page                                 | tailwind.config.js                                    |
+| Secondary (30%)           | `#081428` (`surface.card`)      | Input backgrounds, wizard card shells, info box backgrounds                                     | EventSetupTab `inp` + JoinClient.tsx (`bg-[#081428]`) |
+| Panel surface             | `#030d20` (`surface.panel`)     | Outer wizard container, coach invite page card chrome                                           | tailwind.config.js                                    |
+| Elevated surface          | `#0a1a3a` (`surface.elevated`)  | Hover states, expanded accordion sections                                                       | tailwind.config.js                                    |
+| Border                    | `#1a2d50`                       | All input borders, card borders, dividers, checkbox borders                                     | globals.css + existing `border-[#1a2d50]`             |
+| Muted text                | `#5a6e9a`                       | Labels, help text, secondary info, date picker day names                                        | tailwind.config.js `muted` token                      |
+| Accent (10%)              | `#0B3D91` (`navy.DEFAULT`)      | Primary Btn background, "Add Coach" CTA, "Generate Invite Link" CTA, active date selection fill | tailwind.config.js                                    |
+| Accent hover              | `#1a52b8` (`navy.light`)        | Btn hover state                                                                                 | tailwind.config.js                                    |
+| Focus ring                | `blue-400` (Tailwind `#60a5fa`) | Input focus border (`focus:border-blue-400`)                                                    | EventSetupTab `inp` pattern                           |
+| Destructive               | `#D62828` (`red.DEFAULT`)       | "Revoke Link" button, token expired error page accent bar                                       | tailwind.config.js                                    |
+| Destructive hover         | `#a01e1e` (`red.dark`)          | "Revoke Link" button hover                                                                      | tailwind.config.js                                    |
+| Success                   | `#22c55e` on `#052e14`          | Registration open badge, availability saved confirmation, coach added chip                      | Existing badge-live pattern + Phase 5                 |
+| Warning                   | `#facc15` on `#2a1f00`          | Coach conflict warning badge in Command Center team rows                                        | Existing CoverageBar yellow pattern                   |
+| QR background             | `#ffffff`                       | Coach invite QR code bgColor — mandatory for scanner compatibility                              | CONTEXT.md D-19, ROADMAP Phase 6 scope                |
+| QR foreground             | `#000000`                       | Coach invite QR code fgColor — mandatory black-on-white                                         | ROADMAP Phase 6 scope                                 |
+| Registration open badge   | `#22c55e` text on `#052e14` bg  | "Registration Open" status badge in Sharing tab                                                 | D-17                                                  |
+| Registration closed badge | `#f87171` text on `#2a0000` bg  | "Registration Closed" status badge in Sharing tab                                               | D-17                                                  |
 
 **Accent reserved for:** Primary CTA buttons (Add Coach, Generate Invite Link, Save Registration Dates, Register Team), selected/active date cells in multi-date picker, "Available All Dates" toggle active state. Do not use navy on text labels, borders, or passive elements.
 
@@ -103,26 +103,26 @@ Exceptions:
 
 Components needed for this phase (existing or new):
 
-| Component | Status | Location | Notes |
-|-----------|--------|----------|-------|
-| `MultiDatePicker` | NEW | `components/events/MultiDatePicker.tsx` | Admin selects event schedule dates in EventSetupTab General tab (D-11) |
-| Registration window fields | NEW (inline) | `components/settings/EventSetupTab.tsx` | `registration_opens_at`, `registration_closes_at` datetime inputs + `registration_open` toggle (D-13–D-15) |
-| Registration status badge | NEW (inline) | `components/settings/EventSetupTab.tsx` Sharing tab | Green/red Pill showing "Registration Open" / "Registration Closed" (D-17) |
-| Additional coaches section | NEW (inline) | `components/auth/RegisterPage.tsx` Step 3 | Per-team expandable section for assistant coaches (D-01) |
-| Date availability checkboxes | NEW (inline) | `components/auth/RegisterPage.tsx` Step 3 | "Available All Dates" toggle + individual date checkboxes per team (D-12) |
-| Team count indicator | NEW (inline) | `components/auth/RegisterPage.tsx` Step 3 | "Team N of M" label in step header (D-18) |
-| Copy from Team 1 button | NEW (inline) | `components/auth/RegisterPage.tsx` Step 3 | Ghost Btn for coach fields and availability across teams (D-18) |
-| Registration closed page | NEW (route update) | `app/e/[slug]/register/page.tsx` | Event-branded page when registration is closed by date or toggle (D-16) |
-| Coach self-registration form | NEW | `app/coach/[token]/page.tsx` + `CoachJoinClient.tsx` | Follows `app/join/[token]` pattern exactly (D-02, D-03) |
-| Expired/used invite page | NEW (inline state) | `app/coach/[token]/page.tsx` | Friendly error page — no form, contact info shown if available (D-04) |
-| Coach section in program dashboard | NEW (inline) | `components/programs/ProgramDashboard.tsx` | Per-team coach list, count, "Generate Invite Link" button with copyable link + QR (D-19) |
-| Coach invite QR | NEW (inline) | `components/programs/ProgramDashboard.tsx` | Reuses `QRCodeSVG` from qrcode.react — black-on-white (D-19) |
-| Coach conflict warning badge | NEW (inline) | Admin team management view (Command Center or ProgramApprovals) | Warning Pill variant="yellow" with conflict details (D-09) |
-| `Btn` | EXISTING | `components/ui/index.tsx` | variants: primary, danger, success, ghost, outline |
-| `Modal` | EXISTING | `components/ui/index.tsx` | Reuse for QR preview, revoke confirmation |
-| `Pill` | EXISTING | `components/ui/index.tsx` | variants: blue, green, red, yellow, gray |
-| `Card` | EXISTING | `components/ui/index.tsx` | Coach section card wrappers |
-| `SectionHeader` | EXISTING | `components/ui/index.tsx` | Section dividers within wizard steps |
+| Component                          | Status             | Location                                                        | Notes                                                                                                      |
+| ---------------------------------- | ------------------ | --------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `MultiDatePicker`                  | NEW                | `components/events/MultiDatePicker.tsx`                         | Admin selects event schedule dates in EventSetupTab General tab (D-11)                                     |
+| Registration window fields         | NEW (inline)       | `components/settings/EventSetupTab.tsx`                         | `registration_opens_at`, `registration_closes_at` datetime inputs + `registration_open` toggle (D-13–D-15) |
+| Registration status badge          | NEW (inline)       | `components/settings/EventSetupTab.tsx` Sharing tab             | Green/red Pill showing "Registration Open" / "Registration Closed" (D-17)                                  |
+| Additional coaches section         | NEW (inline)       | `components/auth/RegisterPage.tsx` Step 3                       | Per-team expandable section for assistant coaches (D-01)                                                   |
+| Date availability checkboxes       | NEW (inline)       | `components/auth/RegisterPage.tsx` Step 3                       | "Available All Dates" toggle + individual date checkboxes per team (D-12)                                  |
+| Team count indicator               | NEW (inline)       | `components/auth/RegisterPage.tsx` Step 3                       | "Team N of M" label in step header (D-18)                                                                  |
+| Copy from Team 1 button            | NEW (inline)       | `components/auth/RegisterPage.tsx` Step 3                       | Ghost Btn for coach fields and availability across teams (D-18)                                            |
+| Registration closed page           | NEW (route update) | `app/e/[slug]/register/page.tsx`                                | Event-branded page when registration is closed by date or toggle (D-16)                                    |
+| Coach self-registration form       | NEW                | `app/coach/[token]/page.tsx` + `CoachJoinClient.tsx`            | Follows `app/join/[token]` pattern exactly (D-02, D-03)                                                    |
+| Expired/used invite page           | NEW (inline state) | `app/coach/[token]/page.tsx`                                    | Friendly error page — no form, contact info shown if available (D-04)                                      |
+| Coach section in program dashboard | NEW (inline)       | `components/programs/ProgramDashboard.tsx`                      | Per-team coach list, count, "Generate Invite Link" button with copyable link + QR (D-19)                   |
+| Coach invite QR                    | NEW (inline)       | `components/programs/ProgramDashboard.tsx`                      | Reuses `QRCodeSVG` from qrcode.react — black-on-white (D-19)                                               |
+| Coach conflict warning badge       | NEW (inline)       | Admin team management view (Command Center or ProgramApprovals) | Warning Pill variant="yellow" with conflict details (D-09)                                                 |
+| `Btn`                              | EXISTING           | `components/ui/index.tsx`                                       | variants: primary, danger, success, ghost, outline                                                         |
+| `Modal`                            | EXISTING           | `components/ui/index.tsx`                                       | Reuse for QR preview, revoke confirmation                                                                  |
+| `Pill`                             | EXISTING           | `components/ui/index.tsx`                                       | variants: blue, green, red, yellow, gray                                                                   |
+| `Card`                             | EXISTING           | `components/ui/index.tsx`                                       | Coach section card wrappers                                                                                |
+| `SectionHeader`                    | EXISTING           | `components/ui/index.tsx`                                       | Section dividers within wizard steps                                                                       |
 
 ---
 
@@ -130,30 +130,30 @@ Components needed for this phase (existing or new):
 
 ### Registration Window — EventSetupTab General Tab
 
-| State | Visual | Behavior |
-|-------|--------|----------|
-| No dates set, toggle OFF | Empty datetime inputs, toggle in OFF position (gray) | No enforcement — registration always accessible |
-| Dates set, toggle AUTO | Two filled datetime inputs, toggle in AUTO position (navy) | System enforces window automatically |
-| Toggle manually ON | Toggle in ON position (green), "Override: Open" label | Overrides dates — always open regardless of date |
-| Toggle manually OFF | Toggle in OFF position (red), "Override: Closed" label | Overrides dates — always closed regardless of date |
-| Save | Btn variant="primary" "SAVE REGISTRATION SETTINGS" — spinner during save, `toast.success('Registration settings saved')` on success | PATCH `/api/events/[id]` |
+| State                    | Visual                                                                                                                              | Behavior                                           |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| No dates set, toggle OFF | Empty datetime inputs, toggle in OFF position (gray)                                                                                | No enforcement — registration always accessible    |
+| Dates set, toggle AUTO   | Two filled datetime inputs, toggle in AUTO position (navy)                                                                          | System enforces window automatically               |
+| Toggle manually ON       | Toggle in ON position (green), "Override: Open" label                                                                               | Overrides dates — always open regardless of date   |
+| Toggle manually OFF      | Toggle in OFF position (red), "Override: Closed" label                                                                              | Overrides dates — always closed regardless of date |
+| Save                     | Btn variant="primary" "SAVE REGISTRATION SETTINGS" — spinner during save, `toast.success('Registration settings saved')` on success | PATCH `/api/events/[id]`                           |
 
 ### Registration Status Badge — Sharing Tab
 
-| Condition | Badge | Copy |
-|-----------|-------|------|
-| `registration_open = true` OR within window | Pill variant="green" | "Registration Open" |
-| `registration_open = false` OR past close date | Pill variant="red" | "Registration Closed" |
-| No dates set AND no manual toggle | Pill variant="gray" | "Registration Window Not Set" |
+| Condition                                      | Badge                | Copy                          |
+| ---------------------------------------------- | -------------------- | ----------------------------- |
+| `registration_open = true` OR within window    | Pill variant="green" | "Registration Open"           |
+| `registration_open = false` OR past close date | Pill variant="red"   | "Registration Closed"         |
+| No dates set AND no manual toggle              | Pill variant="gray"  | "Registration Window Not Set" |
 
 ### MultiDatePicker — EventSetupTab General Tab
 
-| State | Visual | Behavior |
-|-------|--------|----------|
-| No dates selected | Calendar grid with muted day numbers, no highlights | Click a day to select it |
-| Date selected | Day cell filled with `bg-[#0B3D91]` (navy), white text | Click again to deselect; multiple selections supported |
-| Date removed | Cell returns to default muted state | Deselect triggers save of updated `event_dates` array |
-| Saved | Toast `toast.success('Schedule dates saved')` | POST/DELETE to `event_dates` table entries |
+| State             | Visual                                                 | Behavior                                               |
+| ----------------- | ------------------------------------------------------ | ------------------------------------------------------ |
+| No dates selected | Calendar grid with muted day numbers, no highlights    | Click a day to select it                               |
+| Date selected     | Day cell filled with `bg-[#0B3D91]` (navy), white text | Click again to deselect; multiple selections supported |
+| Date removed      | Cell returns to default muted state                    | Deselect triggers save of updated `event_dates` array  |
+| Saved             | Toast `toast.success('Schedule dates saved')`          | POST/DELETE to `event_dates` table entries             |
 
 **Implementation note:** Custom component — no external date picker library. Renders a month calendar with clickable day cells. Must support multi-month view for tournaments spanning adjacent months.
 
@@ -161,39 +161,39 @@ Components needed for this phase (existing or new):
 
 **Available Dates subsection:**
 
-| State | Visual | Behavior |
-|-------|--------|----------|
-| No event dates configured | Hidden — do not render checkbox list | Availability selection requires admin to have set event dates first |
-| Event dates exist, "Available All Dates" ON (default) | Toggle in active (navy) state; individual date checkboxes hidden | `available_date_ids` = null (means all dates) |
-| "Available All Dates" toggled OFF | Toggle inactive; individual date checkboxes appear for each `event_date` record | Program leader checks specific dates |
-| Date checked | Checkbox with navy fill, white checkmark | Date ID added to `available_date_ids` array |
-| No dates selected after unchecking all | Inline warning: `text-[#f87171] text-[12px]` "Select at least one date or toggle 'Available All Dates'" | Prevents form submission with empty availability |
+| State                                                 | Visual                                                                                                  | Behavior                                                            |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| No event dates configured                             | Hidden — do not render checkbox list                                                                    | Availability selection requires admin to have set event dates first |
+| Event dates exist, "Available All Dates" ON (default) | Toggle in active (navy) state; individual date checkboxes hidden                                        | `available_date_ids` = null (means all dates)                       |
+| "Available All Dates" toggled OFF                     | Toggle inactive; individual date checkboxes appear for each `event_date` record                         | Program leader checks specific dates                                |
+| Date checked                                          | Checkbox with navy fill, white checkmark                                                                | Date ID added to `available_date_ids` array                         |
+| No dates selected after unchecking all                | Inline warning: `text-[#f87171] text-[12px]` "Select at least one date or toggle 'Available All Dates'" | Prevents form submission with empty availability                    |
 
 **Additional Coaches subsection (per team):**
 
-| State | Visual | Behavior |
-|-------|--------|----------|
-| Collapsed (default) | Section header "ADDITIONAL COACHES" with count chip "(0)" + ChevronDown icon | Click to expand |
-| Expanded, no coaches | Ghost Btn "ADD COACH" with Plus icon — no rows | Click adds first coach row |
-| Coach row | Four inputs in a 2-col grid: Name, Email, Phone, Certifications (full width) | Each row has a Trash2 delete icon at top-right |
-| Multiple coaches | Stacked rows with sm gap between them | No limit enforced in UI — backend validates |
-| Deleting a coach | Row removed immediately (optimistic), no confirmation modal | Not destructive enough to warrant confirmation |
+| State                | Visual                                                                       | Behavior                                       |
+| -------------------- | ---------------------------------------------------------------------------- | ---------------------------------------------- |
+| Collapsed (default)  | Section header "ADDITIONAL COACHES" with count chip "(0)" + ChevronDown icon | Click to expand                                |
+| Expanded, no coaches | Ghost Btn "ADD COACH" with Plus icon — no rows                               | Click adds first coach row                     |
+| Coach row            | Four inputs in a 2-col grid: Name, Email, Phone, Certifications (full width) | Each row has a Trash2 delete icon at top-right |
+| Multiple coaches     | Stacked rows with sm gap between them                                        | No limit enforced in UI — backend validates    |
+| Deleting a coach     | Row removed immediately (optimistic), no confirmation modal                  | Not destructive enough to warrant confirmation |
 
 **Copy from Team 1 button:**
 
-| Condition | Visual | Behavior |
-|-----------|--------|----------|
-| On teams 2+ only | Ghost Btn "COPY FROM TEAM 1" above coach and dates sections | Copies head coach name/email/phone from team 1 into current team's head coach fields; copies availability dates selection |
-| Team count indicator | `font-cond text-[12px] text-muted` "Team 3 of 5" shown in team section header | Updates as teams are added/removed |
+| Condition            | Visual                                                                        | Behavior                                                                                                                  |
+| -------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| On teams 2+ only     | Ghost Btn "COPY FROM TEAM 1" above coach and dates sections                   | Copies head coach name/email/phone from team 1 into current team's head coach fields; copies availability dates selection |
+| Team count indicator | `font-cond text-[12px] text-muted` "Team 3 of 5" shown in team section header | Updates as teams are added/removed                                                                                        |
 
 ### Registration Closed / Window Enforcement — `/e/[slug]/register`
 
-| Condition | Page Shows | Copy |
-|-----------|------------|------|
-| Before `registration_opens_at` | Event logo + name + closed message card | "Registration opens [formatted date]" |
-| After `registration_closes_at` | Event logo + name + closed message card | "Registration closed on [formatted date]" |
+| Condition                            | Page Shows                              | Copy                                                                         |
+| ------------------------------------ | --------------------------------------- | ---------------------------------------------------------------------------- |
+| Before `registration_opens_at`       | Event logo + name + closed message card | "Registration opens [formatted date]"                                        |
+| After `registration_closes_at`       | Event logo + name + closed message card | "Registration closed on [formatted date]"                                    |
 | `registration_open = false` (manual) | Event logo + name + closed message card | "Registration is currently closed. Contact the event organizer for details." |
-| Within window OR no enforcement | Full registration wizard renders | (existing RegisterPage.tsx flow) |
+| Within window OR no enforcement      | Full registration wizard renders        | (existing RegisterPage.tsx flow)                                             |
 
 Page background: `#060e1e` (matching existing register page). Card: `border border-[#1a2d50] bg-[#081428] rounded-xl p-8`. No form fields visible when closed.
 
@@ -201,96 +201,96 @@ Page background: `#060e1e` (matching existing register page). Card: `border bord
 
 **Valid token state:**
 
-| Element | Specification |
-|---------|--------------|
-| Page background | `#020810` (`surface.DEFAULT`) |
-| Card | `bg-[#081428] border border-[#1a2d50] rounded-b-2xl p-8` with `h-1.5` navy accent bar at top (same as JoinClient.tsx pattern) |
-| Event branding | Logo (if available) + event name (18px font-black condensed) + "Coach Registration" subtitle (12px, navy, uppercase tracking) |
-| Form fields | Name (2-col: first/last), Email, Phone, Certifications (textarea), Team (Select — pre-filtered to program's teams) |
-| Submit button | Btn variant="primary" size="lg" "COMPLETE REGISTRATION" |
-| Submitting state | Button disabled + spinner icon, copy: "REGISTERING..." |
-| Success state | Full-card confirmation — CheckCircle (48px, green-400), "YOU'RE REGISTERED!" heading (22px, font-black), confirmation text (13px, muted) |
+| Element          | Specification                                                                                                                            |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Page background  | `#020810` (`surface.DEFAULT`)                                                                                                            |
+| Card             | `bg-[#081428] border border-[#1a2d50] rounded-b-2xl p-8` with `h-1.5` navy accent bar at top (same as JoinClient.tsx pattern)            |
+| Event branding   | Logo (if available) + event name (18px font-black condensed) + "Coach Registration" subtitle (12px, navy, uppercase tracking)            |
+| Form fields      | Name (2-col: first/last), Email, Phone, Certifications (textarea), Team (Select — pre-filtered to program's teams)                       |
+| Submit button    | Btn variant="primary" size="lg" "COMPLETE REGISTRATION"                                                                                  |
+| Submitting state | Button disabled + spinner icon, copy: "REGISTERING..."                                                                                   |
+| Success state    | Full-card confirmation — CheckCircle (48px, green-400), "YOU'RE REGISTERED!" heading (22px, font-black), confirmation text (13px, muted) |
 
 **Expired/used token state:**
 
-| Element | Specification |
-|---------|--------------|
-| Card accent bar | `#D62828` (red) instead of navy — signals error state |
-| Icon | `Clock` or `X` icon (24px, `text-red-400`) centered |
-| Heading | "This invite link has expired" or "This link has already been used" (18px, font-black, white) |
-| Body | "Please contact your program leader for a new invite link." (13px, muted) |
-| Contact info | If available: program leader name + email shown in muted text (12px) |
-| No form | No inputs, no submit button rendered |
+| Element         | Specification                                                                                 |
+| --------------- | --------------------------------------------------------------------------------------------- |
+| Card accent bar | `#D62828` (red) instead of navy — signals error state                                         |
+| Icon            | `Clock` or `X` icon (24px, `text-red-400`) centered                                           |
+| Heading         | "This invite link has expired" or "This link has already been used" (18px, font-black, white) |
+| Body            | "Please contact your program leader for a new invite link." (13px, muted)                     |
+| Contact info    | If available: program leader name + email shown in muted text (12px)                          |
+| No form         | No inputs, no submit button rendered                                                          |
 
 ### Coach Invite Link — Program Leader Dashboard
 
-| Element | Specification |
-|---------|--------------|
-| Coach section per team | Collapsible section within each team card in `ProgramDashboard` |
-| Coach list | Avatar + name + email + certifications per coach, Pill variant="blue" for each |
-| Coach count | `font-cond text-[12px] text-muted` "N Coaches" |
-| "Generate Invite Link" | Btn variant="ghost" size="sm" with `Link` icon |
-| Generated link display | Read-only input (`inp` class + `cursor-default select-all`) + "COPY" ghost Btn + QR icon Btn that opens QR modal |
-| QR modal for coach invite | Same pattern as Phase 5 QR modal — 256px, black-on-white, download SVG/PNG |
-| QR filename | `{event-slug}-coach-invite-{program-id}.svg` |
-| "Revoke Link" | Btn variant="danger" size="sm" with `X` icon — opens Modal for confirmation |
-| Revoke confirmation | Modal with title "Revoke Coach Invite Link?", body: "This will invalidate the current link. You can generate a new one after revoking.", footer: Btn danger "REVOKE LINK" + Btn ghost "CANCEL" |
+| Element                   | Specification                                                                                                                                                                                  |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Coach section per team    | Collapsible section within each team card in `ProgramDashboard`                                                                                                                                |
+| Coach list                | Avatar + name + email + certifications per coach, Pill variant="blue" for each                                                                                                                 |
+| Coach count               | `font-cond text-[12px] text-muted` "N Coaches"                                                                                                                                                 |
+| "Generate Invite Link"    | Btn variant="ghost" size="sm" with `Link` icon                                                                                                                                                 |
+| Generated link display    | Read-only input (`inp` class + `cursor-default select-all`) + "COPY" ghost Btn + QR icon Btn that opens QR modal                                                                               |
+| QR modal for coach invite | Same pattern as Phase 5 QR modal — 256px, black-on-white, download SVG/PNG                                                                                                                     |
+| QR filename               | `{event-slug}-coach-invite-{program-id}.svg`                                                                                                                                                   |
+| "Revoke Link"             | Btn variant="danger" size="sm" with `X` icon — opens Modal for confirmation                                                                                                                    |
+| Revoke confirmation       | Modal with title "Revoke Coach Invite Link?", body: "This will invalidate the current link. You can generate a new one after revoking.", footer: Btn danger "REVOKE LINK" + Btn ghost "CANCEL" |
 
 ### Coach Conflict Warning — Command Center / Admin Team View
 
-| State | Visual | Location |
-|-------|--------|----------|
-| Conflict detected | Pill variant="yellow" "COACH CONFLICT" beside affected team row | Admin team management view (ProgramApprovals or dedicated admin teams table) |
-| Hover/expand | Tooltip or inline expanded text: "Coach [Name] is also assigned to [Team Name]" (12px, muted) | Same row, toggled display |
-| No conflicts | No badge rendered | — |
+| State             | Visual                                                                                        | Location                                                                     |
+| ----------------- | --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| Conflict detected | Pill variant="yellow" "COACH CONFLICT" beside affected team row                               | Admin team management view (ProgramApprovals or dedicated admin teams table) |
+| Hover/expand      | Tooltip or inline expanded text: "Coach [Name] is also assigned to [Team Name]" (12px, muted) | Same row, toggled display                                                    |
+| No conflicts      | No badge rendered                                                                             | —                                                                            |
 
 ---
 
 ## Copywriting Contract
 
-| Element | Copy | Source |
-|---------|------|--------|
-| Primary CTA — registration wizard | "COMPLETE REGISTRATION" | D-08 / REG-08 |
-| Primary CTA — add coach in wizard | "ADD COACH" | D-01 |
-| Primary CTA — generate invite link | "GENERATE INVITE LINK" | D-05 |
-| Primary CTA — coach self-reg submit | "COMPLETE REGISTRATION" | D-02 |
-| Primary CTA — save registration dates | "SAVE REGISTRATION SETTINGS" | D-13–D-15 |
-| Secondary CTA — copy invite link | "COPY LINK" | D-19 |
-| Secondary CTA — copy from team 1 | "COPY FROM TEAM 1" | D-18 |
-| Secondary CTA — revoke invite link | "REVOKE LINK" | D-06 |
-| Registration status badge — open | "Registration Open" | D-17 |
-| Registration status badge — closed | "Registration Closed" | D-17 |
-| Registration status badge — not set | "Registration Window Not Set" | default |
-| Registration closed page — before window | "Registration opens [date]" | D-16 |
-| Registration closed page — after window | "Registration closed on [date]" | D-16 |
-| Registration closed page — manual override | "Registration is currently closed. Contact the event organizer for details." | D-16 |
-| Coach self-reg page subtitle | "Coach Registration" | D-02 |
-| Coach self-reg success heading | "YOU'RE REGISTERED!" | JoinClient.tsx pattern |
-| Coach self-reg success body | "Thanks, [Name]! You've been added as a coach for [Event Name]." | JoinClient.tsx pattern |
-| Expired invite heading | "This invite link has expired" | D-04 |
-| Used invite heading | "This link has already been used" | D-04 |
-| Expired invite body | "Please contact your program leader for a new invite link." | D-04 |
-| Available all dates toggle label | "Available All Dates" | D-12 |
-| No dates selected warning | "Select at least one date or enable 'Available All Dates'" | default |
-| Coach conflict badge | "COACH CONFLICT" | D-09 |
-| Coach conflict tooltip | "Coach [Name] is also assigned to [Team Name]" | D-09 |
-| Team count indicator | "Team [N] of [M]" | D-18 |
-| Additional coaches section label | "ADDITIONAL COACHES" | D-01 |
-| Revoke confirmation modal title | "Revoke Coach Invite Link?" | D-06 |
-| Revoke confirmation modal body | "This will invalidate the current link. You can generate a new one after revoking." | D-06 |
-| Save success toast | "Registration settings saved" | default |
-| Coach added toast | "Coach added" | default |
-| Link copied toast | "Link copied" | Phase 5 pattern |
-| Link revoked toast | "Invite link revoked" | D-06 |
-| Schedule dates saved toast | "Schedule dates saved" | default |
-| Error state — form validation | "Please fill in all required fields." | JoinClient.tsx existing pattern |
-| Error state — token validation | "This invite link is invalid. Please check the URL and try again." | D-04 |
-| Error state — network | "Something went wrong. Please try again." | JoinClient.tsx existing pattern |
+| Element                                    | Copy                                                                                | Source                          |
+| ------------------------------------------ | ----------------------------------------------------------------------------------- | ------------------------------- |
+| Primary CTA — registration wizard          | "COMPLETE REGISTRATION"                                                             | D-08 / REG-08                   |
+| Primary CTA — add coach in wizard          | "ADD COACH"                                                                         | D-01                            |
+| Primary CTA — generate invite link         | "GENERATE INVITE LINK"                                                              | D-05                            |
+| Primary CTA — coach self-reg submit        | "COMPLETE REGISTRATION"                                                             | D-02                            |
+| Primary CTA — save registration dates      | "SAVE REGISTRATION SETTINGS"                                                        | D-13–D-15                       |
+| Secondary CTA — copy invite link           | "COPY LINK"                                                                         | D-19                            |
+| Secondary CTA — copy from team 1           | "COPY FROM TEAM 1"                                                                  | D-18                            |
+| Secondary CTA — revoke invite link         | "REVOKE LINK"                                                                       | D-06                            |
+| Registration status badge — open           | "Registration Open"                                                                 | D-17                            |
+| Registration status badge — closed         | "Registration Closed"                                                               | D-17                            |
+| Registration status badge — not set        | "Registration Window Not Set"                                                       | default                         |
+| Registration closed page — before window   | "Registration opens [date]"                                                         | D-16                            |
+| Registration closed page — after window    | "Registration closed on [date]"                                                     | D-16                            |
+| Registration closed page — manual override | "Registration is currently closed. Contact the event organizer for details."        | D-16                            |
+| Coach self-reg page subtitle               | "Coach Registration"                                                                | D-02                            |
+| Coach self-reg success heading             | "YOU'RE REGISTERED!"                                                                | JoinClient.tsx pattern          |
+| Coach self-reg success body                | "Thanks, [Name]! You've been added as a coach for [Event Name]."                    | JoinClient.tsx pattern          |
+| Expired invite heading                     | "This invite link has expired"                                                      | D-04                            |
+| Used invite heading                        | "This link has already been used"                                                   | D-04                            |
+| Expired invite body                        | "Please contact your program leader for a new invite link."                         | D-04                            |
+| Available all dates toggle label           | "Available All Dates"                                                               | D-12                            |
+| No dates selected warning                  | "Select at least one date or enable 'Available All Dates'"                          | default                         |
+| Coach conflict badge                       | "COACH CONFLICT"                                                                    | D-09                            |
+| Coach conflict tooltip                     | "Coach [Name] is also assigned to [Team Name]"                                      | D-09                            |
+| Team count indicator                       | "Team [N] of [M]"                                                                   | D-18                            |
+| Additional coaches section label           | "ADDITIONAL COACHES"                                                                | D-01                            |
+| Revoke confirmation modal title            | "Revoke Coach Invite Link?"                                                         | D-06                            |
+| Revoke confirmation modal body             | "This will invalidate the current link. You can generate a new one after revoking." | D-06                            |
+| Save success toast                         | "Registration settings saved"                                                       | default                         |
+| Coach added toast                          | "Coach added"                                                                       | default                         |
+| Link copied toast                          | "Link copied"                                                                       | Phase 5 pattern                 |
+| Link revoked toast                         | "Invite link revoked"                                                               | D-06                            |
+| Schedule dates saved toast                 | "Schedule dates saved"                                                              | default                         |
+| Error state — form validation              | "Please fill in all required fields."                                               | JoinClient.tsx existing pattern |
+| Error state — token validation             | "This invite link is invalid. Please check the URL and try again."                  | D-04                            |
+| Error state — network                      | "Something went wrong. Please try again."                                           | JoinClient.tsx existing pattern |
 
 **Destructive actions in this phase:**
 
-| Action | Trigger | Confirmation |
-|--------|---------|--------------|
+| Action                   | Trigger                                                 | Confirmation                                                    |
+| ------------------------ | ------------------------------------------------------- | --------------------------------------------------------------- |
 | Revoke coach invite link | Btn variant="danger" "REVOKE LINK" in program dashboard | Modal with explicit copy (see above) + Btn danger "REVOKE LINK" |
 
 No other destructive actions. Removing a coach row in the wizard (Trash2 icon) is not considered destructive — it is pre-submission data entry, no confirmation needed.
@@ -299,10 +299,10 @@ No other destructive actions. Removing a coach row in the wizard (Trash2 icon) i
 
 ## Registry Safety
 
-| Registry | Blocks Used | Safety Gate |
-|----------|-------------|-------------|
-| shadcn official | none | not applicable — shadcn not initialized |
-| Third-party | none declared | not applicable |
+| Registry        | Blocks Used   | Safety Gate                             |
+| --------------- | ------------- | --------------------------------------- |
+| shadcn official | none          | not applicable — shadcn not initialized |
+| Third-party     | none declared | not applicable                          |
 
 No third-party component registries are used in this phase. `qrcode.react` is an npm package (already installed in Phase 5) — not a registry block. No vetting gate required.
 
@@ -310,33 +310,33 @@ No third-party component registries are used in this phase. `qrcode.react` is an
 
 ## Accessibility
 
-| Requirement | Implementation |
-|-------------|---------------|
-| Date picker keyboard nav | Day cells reachable via Tab; Enter/Space toggles selection; Escape closes if in overlay |
-| Coach form keyboard nav | Standard form tab order; Trash2 delete button has `aria-label="Remove coach"` |
-| Available dates checkboxes | Standard HTML checkboxes with explicit `<label>` elements linked via `htmlFor` |
-| Toggle switch | Use `role="switch" aria-checked={value}` on custom toggle elements |
-| Coach conflict badge | `aria-label="Coach conflict: [Name] also assigned to [Team Name]"` on warning Pill |
-| Touch targets | All buttons minimum 44px height |
-| QR alt text | `<QRCodeSVG aria-label="Coach invite QR code for [Program Name]" />` |
-| Registration closed page | Page title must reflect closed state for screen readers |
-| Expired invite page | Heading announces error clearly — do not rely on color alone (icon + text) |
-| Color contrast | All muted text (`#5a6e9a`) on `#081428` background — requires bold weight at 10px to meet AA |
+| Requirement                | Implementation                                                                               |
+| -------------------------- | -------------------------------------------------------------------------------------------- |
+| Date picker keyboard nav   | Day cells reachable via Tab; Enter/Space toggles selection; Escape closes if in overlay      |
+| Coach form keyboard nav    | Standard form tab order; Trash2 delete button has `aria-label="Remove coach"`                |
+| Available dates checkboxes | Standard HTML checkboxes with explicit `<label>` elements linked via `htmlFor`               |
+| Toggle switch              | Use `role="switch" aria-checked={value}` on custom toggle elements                           |
+| Coach conflict badge       | `aria-label="Coach conflict: [Name] also assigned to [Team Name]"` on warning Pill           |
+| Touch targets              | All buttons minimum 44px height                                                              |
+| QR alt text                | `<QRCodeSVG aria-label="Coach invite QR code for [Program Name]" />`                         |
+| Registration closed page   | Page title must reflect closed state for screen readers                                      |
+| Expired invite page        | Heading announces error clearly — do not rely on color alone (icon + text)                   |
+| Color contrast             | All muted text (`#5a6e9a`) on `#081428` background — requires bold weight at 10px to meet AA |
 
 ---
 
 ## Constraints Carried from Phase 5 / CLAUDE.md
 
-| Constraint | Impact on Phase 6 UI |
-|------------|---------------------|
+| Constraint                                      | Impact on Phase 6 UI                                                                                                            |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
 | Dark theme (navy/red palette, Barlow Condensed) | All new UI uses `inp`/`lbl`/`sectionHdr` patterns; registration closed page matches existing `app/e/[slug]/register` dark shell |
-| `Select` must use `bg-[#040e24]` | Team dropdown in coach self-reg form uses `Select` component from `components/ui/index.tsx` |
-| QR must be black-on-white | `bgColor="#ffffff" fgColor="#000000"` mandatory on all coach invite QR codes — never invert |
-| Hooks before guards in components | `CoachJoinClient.tsx` must declare all `useState`/`useRef` before any conditional returns |
-| Vercel build: prefer-const, no unused vars | All variables `const`; remove unused imports before commit |
-| Token pattern follows `app/join/[token]` | `app/coach/[token]/page.tsx` is a server component; `CoachJoinClient.tsx` is the client form — same split as JoinClient.tsx |
-| react-hot-toast for feedback | `toast.success()` / `toast.error()` for all save/action confirmations — do not build custom toast |
-| `cn()` utility for conditional classes | Use `cn()` from `@/lib/utils` for all className conditionals — no template literals for multi-condition classes |
+| `Select` must use `bg-[#040e24]`                | Team dropdown in coach self-reg form uses `Select` component from `components/ui/index.tsx`                                     |
+| QR must be black-on-white                       | `bgColor="#ffffff" fgColor="#000000"` mandatory on all coach invite QR codes — never invert                                     |
+| Hooks before guards in components               | `CoachJoinClient.tsx` must declare all `useState`/`useRef` before any conditional returns                                       |
+| Vercel build: prefer-const, no unused vars      | All variables `const`; remove unused imports before commit                                                                      |
+| Token pattern follows `app/join/[token]`        | `app/coach/[token]/page.tsx` is a server component; `CoachJoinClient.tsx` is the client form — same split as JoinClient.tsx     |
+| react-hot-toast for feedback                    | `toast.success()` / `toast.error()` for all save/action confirmations — do not build custom toast                               |
+| `cn()` utility for conditional classes          | Use `cn()` from `@/lib/utils` for all className conditionals — no template literals for multi-condition classes                 |
 
 ---
 

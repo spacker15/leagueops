@@ -1,6 +1,6 @@
 # Features Research
 
-*Researched: 2026-03-22 | Based on knowledge of TourneyMachine, GameChanger, SportsEngine, TeamSnap, and general tournament operations patterns as of mid-2025.*
+_Researched: 2026-03-22 | Based on knowledge of TourneyMachine, GameChanger, SportsEngine, TeamSnap, and general tournament operations patterns as of mid-2025._
 
 ---
 
@@ -79,6 +79,7 @@ The planned workflow (coach submits → admin reviews → system suggests → ad
 ### LeagueOps Implementation Notes (NOT-01 through NOT-06)
 
 Priority order given budget and impact:
+
 1. Email (NOT-04) — use Resend, which has a 3,000 email/month free tier and a simple REST API callable from Supabase Edge Functions. This is the delivery workhorse.
 2. Browser push via PWA (NOT-06) — requires a service worker and Web Push API. Works without a native app. Best for tournament-day alerts.
 3. SMS (NOT-05) — use Twilio with pay-per-message (~$0.0075/SMS). For a typical tournament sending 200 SMS messages, that's $1.50/event. Acceptable cost but adds complexity; defer until email + push are stable.
@@ -124,6 +125,7 @@ The weather alert chain (NOT-01) is the highest-value notification to build firs
 ### LeagueOps Implementation Notes (PUB-01 through PUB-06)
 
 The `apps/public-results` skeleton already exists. The right architecture:
+
 - Supabase Realtime subscription scoped to the event (fixes SEC-05 when that's done)
 - Static generation for the event shell (schedule structure doesn't change often), dynamic for scores
 - Three route segments: `/[event-slug]/schedule`, `/[event-slug]/standings`, `/[event-slug]/bracket`
@@ -173,6 +175,7 @@ The real-time scores (PUB-06) is the highest-value feature to ship first because
 ### LeagueOps Implementation Notes (REG-01 through REG-06, EVT-01, EVT-02)
 
 The existing 3-step wizard (account → program → teams) is a strong foundation. The additions are:
+
 - **REG-02** (availability selection): add a step after team creation where the program leader checks off event dates. Store as a `team_availability` join table. Feed into schedule engine.
 - **REG-04/REG-03** (coach registration links): generate a JWT-scoped invite link per team. When a coach hits the link, they land on a registration form pre-bound to that team. Their account is created with `role = program_leader` scoped to that team only.
 - **REG-05** (conflict detection): run on registration submission and on approval. Query: for each coach email/name on this submission, find any other team in this event with the same coach. Flag if found. Surface in the admin approval view as a warning badge, not a hard block (admin decides whether it's a real conflict).
@@ -217,18 +220,18 @@ The existing 3-step wizard (account → program → teams) is a strong foundatio
 
 ### What to Build First (Highest Impact vs. Effort)
 
-| Feature | Impact | Effort | Priority |
-|---|---|---|---|
-| Public results site with real-time scores (PUB-01, PUB-06) | Very High — visible to every parent at every event | Low-Medium — skeleton exists, Realtime already works | **1** |
-| Weather-triggered notifications via email (NOT-01, NOT-04) | Very High — safety-critical, no human latency | Medium — needs Resend + Edge Function + notification dispatch chain | **2** |
-| Schedule change request workflow (SCH-01 through SCH-06) | High — eliminates the biggest admin pain point | Medium-High — new DB tables + UI for coach and admin | **3** |
-| Coach self-registration links (REG-04) | High — eliminates data entry burden | Medium — JWT invite links + scoped account creation | **4** |
-| Registration QR code + shareable link (EVT-02) | Medium — marketing/distribution convenience | Very Low — `qrcode` package, one component | **5** |
-| Google Maps venue integration (EVT-01) | Medium — quality of life for event setup | Low — Places Autocomplete API, one form field change | **6** |
-| Availability selection at registration (REG-02) | High — reduces schedule change requests downstream | Medium — new registration step + engine constraint feeding | **7** |
-| Conflict detection at registration (REG-05) | Medium — catches problems early | Low-Medium — query extension on existing conflict engine | **8** |
-| Browser push notifications via PWA (NOT-06) | Medium — better than email for tournament-day | High — service worker, manifest, subscription management | **9** |
-| SMS notifications (NOT-05) | Medium — reaches coaches who ignore email | Medium — Twilio integration + opt-in management | **10** |
+| Feature                                                    | Impact                                             | Effort                                                              | Priority |
+| ---------------------------------------------------------- | -------------------------------------------------- | ------------------------------------------------------------------- | -------- |
+| Public results site with real-time scores (PUB-01, PUB-06) | Very High — visible to every parent at every event | Low-Medium — skeleton exists, Realtime already works                | **1**    |
+| Weather-triggered notifications via email (NOT-01, NOT-04) | Very High — safety-critical, no human latency      | Medium — needs Resend + Edge Function + notification dispatch chain | **2**    |
+| Schedule change request workflow (SCH-01 through SCH-06)   | High — eliminates the biggest admin pain point     | Medium-High — new DB tables + UI for coach and admin                | **3**    |
+| Coach self-registration links (REG-04)                     | High — eliminates data entry burden                | Medium — JWT invite links + scoped account creation                 | **4**    |
+| Registration QR code + shareable link (EVT-02)             | Medium — marketing/distribution convenience        | Very Low — `qrcode` package, one component                          | **5**    |
+| Google Maps venue integration (EVT-01)                     | Medium — quality of life for event setup           | Low — Places Autocomplete API, one form field change                | **6**    |
+| Availability selection at registration (REG-02)            | High — reduces schedule change requests downstream | Medium — new registration step + engine constraint feeding          | **7**    |
+| Conflict detection at registration (REG-05)                | Medium — catches problems early                    | Low-Medium — query extension on existing conflict engine            | **8**    |
+| Browser push notifications via PWA (NOT-06)                | Medium — better than email for tournament-day      | High — service worker, manifest, subscription management            | **9**    |
+| SMS notifications (NOT-05)                                 | Medium — reaches coaches who ignore email          | Medium — Twilio integration + opt-in management                     | **10**   |
 
 ### Table Stakes Summary (build these or coaches/parents will reject the platform)
 
@@ -266,4 +269,4 @@ The clearest competitive gap is: **TourneyMachine is the incumbent for tournamen
 
 ---
 
-*Note: WebSearch and WebFetch were unavailable during this research session. This document reflects knowledge of TourneyMachine, GameChanger, SportsEngine, TeamSnap, GotSoccer, Demosphere, and ArbiterSports as of mid-2025, cross-referenced against the specific features defined in PROJECT.md. Competitive feature claims should be spot-checked against current platform documentation before using them in external communications.*
+_Note: WebSearch and WebFetch were unavailable during this research session. This document reflects knowledge of TourneyMachine, GameChanger, SportsEngine, TeamSnap, GotSoccer, Demosphere, and ArbiterSports as of mid-2025, cross-referenced against the specific features defined in PROJECT.md. Competitive feature claims should be spot-checked against current platform documentation before using them in external communications._

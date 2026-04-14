@@ -1,25 +1,25 @@
 # Research Summary
 
-*Synthesized: 2026-03-22. Source documents: STACK.md, FEATURES.md, ARCHITECTURE.md, PITFALLS.md.*
+_Synthesized: 2026-03-22. Source documents: STACK.md, FEATURES.md, ARCHITECTURE.md, PITFALLS.md._
 
 ---
 
 ## Key Stack Decisions
 
-| Concern | Decision | Rationale |
-|---|---|---|
-| Email | `resend ^3.5.0` | Best DX, 3,000 emails/month free, native Vercel integration |
-| Email templates | `@react-email/components` + `react-email ^3.x` | Maintainable TSX templates, consistent rendering across clients |
-| SMS | Twilio free trial → Telnyx production | Telnyx ~$0.004/SMS vs Twilio ~$0.0079; use plain `fetch`, no SDK |
-| Browser push | `web-push ^3.6.x` in Edge Function + native `PushManager` | No third-party dependency, no app install required |
-| Maps | `@vis.gl/react-google-maps ^1.4.0` | Official Google-backed wrapper; use server-side proxy to protect API key |
-| Input validation | `zod ^3.23.x` | Schema-first, TypeScript inference, composable; covers 40+ unvalidated routes |
-| Rate limiting | `@upstash/ratelimit ^2.x` + `@upstash/redis ^1.x` | 10k req/day free, Vercel one-click integration |
-| QR codes | `qrcode.react ^3.x` | Lightweight SVG output; used in both public results and coach invite flows |
-| Bracket visualization | Custom Tailwind CSS | 8–16 team bracket is ~60 lines JSX; avoid abandoned library dependencies |
-| Responsive design | Tailwind responsive prefixes (existing 3.4.4) | No new library needed; `@dnd-kit` already supports `TouchSensor` |
-| Public site real-time | Supabase Realtime (existing `^2.99.2`) | Already in main app; free, no additional library |
-| Notification orchestration | Supabase Edge Functions + Database Webhooks | Credentials stay in Supabase secrets; event-driven, no cold-start latency |
+| Concern                    | Decision                                                  | Rationale                                                                     |
+| -------------------------- | --------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Email                      | `resend ^3.5.0`                                           | Best DX, 3,000 emails/month free, native Vercel integration                   |
+| Email templates            | `@react-email/components` + `react-email ^3.x`            | Maintainable TSX templates, consistent rendering across clients               |
+| SMS                        | Twilio free trial → Telnyx production                     | Telnyx ~$0.004/SMS vs Twilio ~$0.0079; use plain `fetch`, no SDK              |
+| Browser push               | `web-push ^3.6.x` in Edge Function + native `PushManager` | No third-party dependency, no app install required                            |
+| Maps                       | `@vis.gl/react-google-maps ^1.4.0`                        | Official Google-backed wrapper; use server-side proxy to protect API key      |
+| Input validation           | `zod ^3.23.x`                                             | Schema-first, TypeScript inference, composable; covers 40+ unvalidated routes |
+| Rate limiting              | `@upstash/ratelimit ^2.x` + `@upstash/redis ^1.x`         | 10k req/day free, Vercel one-click integration                                |
+| QR codes                   | `qrcode.react ^3.x`                                       | Lightweight SVG output; used in both public results and coach invite flows    |
+| Bracket visualization      | Custom Tailwind CSS                                       | 8–16 team bracket is ~60 lines JSX; avoid abandoned library dependencies      |
+| Responsive design          | Tailwind responsive prefixes (existing 3.4.4)             | No new library needed; `@dnd-kit` already supports `TouchSensor`              |
+| Public site real-time      | Supabase Realtime (existing `^2.99.2`)                    | Already in main app; free, no additional library                              |
+| Notification orchestration | Supabase Edge Functions + Database Webhooks               | Credentials stay in Supabase secrets; event-driven, no cold-start latency     |
 
 **Do not add**: SendGrid (100 email/day limit), FCM (overkill for web push), OneSignal (third-party data sharing), Mapbox (not free at scale), Radix UI / Headless UI (creates parallel component system), Framer Motion (60 KB for animations achievable in 4 Tailwind lines), Turborepo/Nx (not justified for 2 apps), Stripe (out of scope).
 
@@ -60,21 +60,27 @@ What makes LeagueOps worth choosing over TourneyMachine (the incumbent):
 ## Architecture Highlights
 
 ### Notification System: Database-First Fan-Out
+
 All notifications originate as rows in a `notification_queue` table. A Supabase Edge Function (`process-notifications`) triggered by a Database Webhook resolves recipients, reads preferences, fans out to email/SMS/push, and writes to `notification_log`. API routes and engines write to `notification_queue` and return immediately — no synchronous notification calls. Three supporting tables: `notification_queue`, `notification_preferences`, `notification_log`.
 
 ### Public Results Site: Hybrid ISR + Selective Realtime
+
 Server-render the page skeleton with ISR (`revalidate = 30` for standings, `revalidate = 60` for completed results). A thin `LiveScoresClient.tsx` client component attaches a Supabase Realtime subscription scoped to `event_id=eq.{current}` for in-progress game updates only. Do not open a per-visitor WebSocket for the full page — Supabase free tier caps at 200 concurrent Realtime connections. Use SSE or polling for standings; reserve Realtime for live game scores.
 
 ### Schedule Change Request: Single-Route State Machine
+
 States: `pending → under_review → approved → rescheduled` (or `denied`). All transitions go through a single `PATCH /api/schedule-change-requests/[id]/route.ts` that validates legal moves by role. Slot assignment (SCH-05) must be an atomic Supabase RPC (PostgreSQL transaction) — multi-step API calls will cause double-bookings under concurrent use.
 
 ### RLS: Event-Scoped Isolation via Helper Function
+
 A `SECURITY DEFINER` function `user_event_ids()` returns the set of `event_id` values the calling user has a role in. All event-owned table policies use `event_id IN (SELECT user_event_ids())`. Public-results anon reads are granted via a separate `FOR SELECT TO anon` policy scoped to public data only (`events`, `games`, `teams`, `fields`). Sensitive tables (`ops_alerts`, `ops_log`, `user_roles`) have no anon policy.
 
 ### Google Maps: Server-Side API Proxy
+
 The Maps API key must be server-only. All geocoding and autocomplete calls go through proxy routes (`/api/maps/autocomplete`, `/api/maps/geocode`). The client component `GooglePlacesInput.tsx` calls these proxies with 300ms debounce. This prevents key exposure via `NEXT_PUBLIC_*` variables.
 
 ### Multi-App Deployment: Two Vercel Projects, One Repo
+
 Admin app and `apps/public-results/` are deployed as separate Vercel projects pointing to the same GitHub repo with different "Root Directory" settings. No Turborepo or Nx needed. No shared code between apps — both read Supabase directly.
 
 ---
@@ -102,22 +108,26 @@ Admin app and `apps/public-results/` are deployed as separate Vercel projects po
 ## Recommended Build Order
 
 ### Phase 0 — Security Foundation (blocks everything else)
+
 1. **SEC-03**: Refactor all engine modules to accept a Supabase client as a parameter (removes browser-client imports from server context).
 2. **SEC-04**: Remove all `event_id = 1` hardcodes; fix `loadAll` dependency array; replace `?? 1` fallbacks with loading guards.
 3. **SEC-02**: Add `auth.getUser()` to all write routes and engine trigger routes (categorize first; keep token-gated and public routes unauthenticated).
 4. **SEC-01**: Deploy `user_event_ids()` helper, then replace "Allow all" RLS policies in layers (authenticated read first, then write restrictions, then event-scoping). Test in a Supabase branch before applying to production.
 
 ### Phase 1 — Event Creation Enhancements (no blockers; start in parallel with Phase 0)
+
 - Google Maps server-side proxy routes + `GooglePlacesInput` component + venue columns migration.
 - EVT-02: Shareable registration QR code in `EventSetupTab` (uses `qrcode.react`, no backend).
 
 ### Phase 2 — Registration Flow Enhancements (requires SEC-04)
+
 1. DB migrations: `coaches`, `coach_teams`, `coach_invites`; `available_date_ids` on `team_registrations`; `registration_opens_at`/`closes_at` on `events`.
 2. `lib/engines/coach-conflicts.ts` (pure engine, no UI dependency).
 3. Coach invite API routes + `app/coach/[token]/page.tsx` (mirrors existing `app/join/[token]/` pattern).
 4. `ProgramDashboard.tsx` enhancements: coaches section, availability selection, multi-team registration flow.
 
 ### Phase 3 — Schedule Change Request Workflow (requires SEC-04 + field engine bug fix)
+
 1. `schedule_change_requests` table migration.
 2. `lib/engines/schedule-change.ts` slot suggestion engine (pure TypeScript).
 3. API routes: POST/GET for requests; PATCH for state transitions (single route); GET slots.
@@ -125,6 +135,7 @@ Admin app and `apps/public-results/` are deployed as separate Vercel projects po
 5. Stub notification queue writes (wire fully in Phase 4).
 
 ### Phase 4 — Notification Service (requires SEC-03 + Phase 2/3 tables)
+
 1. DB migrations: `notification_queue`, `notification_preferences`, `notification_log`.
 2. VAPID key generation + `public/sw.js` service worker + `public/manifest.json`.
 3. Edge Function `process-notifications` + Database Webhook configuration.
@@ -132,6 +143,7 @@ Admin app and `apps/public-results/` are deployed as separate Vercel projects po
 5. Wire queue writes into: lightning route, game PATCH, weather engine, schedule change state transitions.
 
 ### Phase 5 — Public Results Site Enhancements (requires SEC-01 for anon RLS verification)
+
 1. `LiveScoresClient.tsx` with scoped Realtime subscription (use SSE/polling for standings).
 2. `/e/[slug]/schedule` and `/e/[slug]/team/[teamId]` routes.
 3. `/e/[slug]/bracket` (custom Tailwind CSS, defer if needed).
@@ -140,6 +152,7 @@ Admin app and `apps/public-results/` are deployed as separate Vercel projects po
 6. Verify anon key can read `events`, `games`, `teams`, `fields` but NOT `ops_alerts`, `user_roles`, `ops_log`.
 
 ### Immediately startable (no blockers today)
+
 - Phase 0 SEC-03 and SEC-04 (pure refactors).
 - Phase 1 entirely (Maps proxy, QR code).
 - `notification_queue` table migration (schema only, no functionality required yet).
@@ -152,22 +165,22 @@ Admin app and `apps/public-results/` are deployed as separate Vercel projects po
 
 Deliberately do not build:
 
-| Anti-Feature | Reason |
-|---|---|
-| Payment processing | PCI scope, refund workflows, disputes; correctly out of scope |
-| In-platform parent/coach chat or messaging threads | Scope creep; becomes a support burden; not a tournament operations tool |
-| Custom registration form builder | 3-month project serving 5% of use cases; use a fixed well-designed form |
-| Player/roster data on the public results page | COPPA and youth privacy risk; show team names and scores only |
-| Auto-resolving schedule conflicts | Suggest only; admin confirms all changes; auto-resolution causes unintended cascading conflicts |
-| Coach-initiated time proposals in change requests | Creates negotiation loops; coaches state conflict + reason, the system and admin find the time |
-| Native mobile app | PWA is sufficient for tournament-day use; two codebases not justified at this scale |
-| Waitlist management | Spreadsheet-level complexity; not platform-level for current tournament sizes |
-| Stat leaders and advanced analytics on the public page | Adds visual complexity without improving operations; defer to a separate analytics view |
-| Read receipts on admin alerts | Creates false accountability claims and generates support tickets |
-| Multi-step approval chains | One admin approval is sufficient for a weekend tournament; chains belong in season-long league tools |
-| Open comment threads on schedule change requests | Message threads on requests become arguments; accept text reason + admin notes only |
-| Parent account creation requirement | Any friction between a parent and seeing their kid's schedule generates complaints to the director |
+| Anti-Feature                                           | Reason                                                                                               |
+| ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| Payment processing                                     | PCI scope, refund workflows, disputes; correctly out of scope                                        |
+| In-platform parent/coach chat or messaging threads     | Scope creep; becomes a support burden; not a tournament operations tool                              |
+| Custom registration form builder                       | 3-month project serving 5% of use cases; use a fixed well-designed form                              |
+| Player/roster data on the public results page          | COPPA and youth privacy risk; show team names and scores only                                        |
+| Auto-resolving schedule conflicts                      | Suggest only; admin confirms all changes; auto-resolution causes unintended cascading conflicts      |
+| Coach-initiated time proposals in change requests      | Creates negotiation loops; coaches state conflict + reason, the system and admin find the time       |
+| Native mobile app                                      | PWA is sufficient for tournament-day use; two codebases not justified at this scale                  |
+| Waitlist management                                    | Spreadsheet-level complexity; not platform-level for current tournament sizes                        |
+| Stat leaders and advanced analytics on the public page | Adds visual complexity without improving operations; defer to a separate analytics view              |
+| Read receipts on admin alerts                          | Creates false accountability claims and generates support tickets                                    |
+| Multi-step approval chains                             | One admin approval is sufficient for a weekend tournament; chains belong in season-long league tools |
+| Open comment threads on schedule change requests       | Message threads on requests become arguments; accept text reason + admin notes only                  |
+| Parent account creation requirement                    | Any friction between a parent and seeing their kid's schedule generates complaints to the director   |
 
 ---
 
-*This document feeds into requirements and roadmap creation. All file references are relative to the LeagueOps monorepo root.*
+_This document feeds into requirements and roadmap creation. All file references are relative to the LeagueOps monorepo root._

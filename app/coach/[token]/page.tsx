@@ -21,7 +21,9 @@ export default async function CoachPage({ params }: { params: { token: string } 
   // 2. Validate: missing, inactive, expired, or registration closed
   const now = new Date()
   const isExpired = invite?.expires_at ? new Date(invite.expires_at) < now : false
-  const regManualClosed = invite?.events ? (invite.events as any).registration_open === false : false
+  const regManualClosed = invite?.events
+    ? (invite.events as any).registration_open === false
+    : false
   const regDateClosed = invite?.events
     ? ((invite.events as any).registration_opens_at &&
         new Date((invite.events as any).registration_opens_at) > now) ||

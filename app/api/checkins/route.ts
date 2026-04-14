@@ -7,11 +7,8 @@ import { publicRatelimit } from '@/lib/ratelimit'
 
 export async function GET(req: NextRequest) {
   // Rate limit by IP (SEC-08)
-  const ip =
-    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
-    '127.0.0.1'
-  const { success, limit, remaining, reset, pending } =
-    await publicRatelimit.limit(ip)
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? '127.0.0.1'
+  const { success, limit, remaining, reset, pending } = await publicRatelimit.limit(ip)
   void pending
 
   if (!success) {
@@ -44,11 +41,8 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   // Rate limit by IP (SEC-08)
-  const ip =
-    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
-    '127.0.0.1'
-  const { success, limit, remaining, reset, pending } =
-    await publicRatelimit.limit(ip)
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? '127.0.0.1'
+  const { success, limit, remaining, reset, pending } = await publicRatelimit.limit(ip)
   void pending
 
   if (!success) {
@@ -80,11 +74,8 @@ export async function POST(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   // Rate limit by IP (SEC-08)
-  const ip =
-    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
-    '127.0.0.1'
-  const { success, limit, remaining, reset, pending } =
-    await publicRatelimit.limit(ip)
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? '127.0.0.1'
+  const { success, limit, remaining, reset, pending } = await publicRatelimit.limit(ip)
   void pending
 
   if (!success) {

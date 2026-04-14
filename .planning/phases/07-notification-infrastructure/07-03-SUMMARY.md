@@ -1,6 +1,6 @@
 ---
 phase: 07-notification-infrastructure
-plan: "03"
+plan: '03'
 subsystem: notifications
 tags: [push-notifications, service-worker, web-push, api-routes, client-helpers]
 dependency_graph:
@@ -27,12 +27,12 @@ key_files:
     - lib/push.ts
   modified: []
 decisions:
-  - "urlBase64ToUint8Array returns ArrayBuffer (not Uint8Array) to satisfy TypeScript strict PushSubscriptionOptionsInit.applicationServerKey type"
-  - "sw.js uses recentPushTimestamps array for in-memory 60s window tracking — service worker scope persists across push events"
-  - "subscribeToPush checks Notification.permission === denied before prompting per D-09 to never re-prompt denied users"
+  - 'urlBase64ToUint8Array returns ArrayBuffer (not Uint8Array) to satisfy TypeScript strict PushSubscriptionOptionsInit.applicationServerKey type'
+  - 'sw.js uses recentPushTimestamps array for in-memory 60s window tracking — service worker scope persists across push events'
+  - 'subscribeToPush checks Notification.permission === denied before prompting per D-09 to never re-prompt denied users'
 metrics:
   duration: 2 min
-  completed: "2026-03-24T12:49:20Z"
+  completed: '2026-03-24T12:49:20Z'
   tasks_completed: 2
   files_created: 4
   files_modified: 0
@@ -44,10 +44,10 @@ metrics:
 
 ## Tasks Completed
 
-| # | Task | Commit | Key Files |
-|---|------|--------|-----------|
-| 1 | Service worker and push API routes | 5f3c345 | public/sw.js, app/api/push/subscribe/route.ts, app/api/push/unsubscribe/route.ts |
-| 2 | Client-side push subscription helper | 621f623 + 9bd6206 | lib/push.ts |
+| #   | Task                                 | Commit            | Key Files                                                                        |
+| --- | ------------------------------------ | ----------------- | -------------------------------------------------------------------------------- |
+| 1   | Service worker and push API routes   | 5f3c345           | public/sw.js, app/api/push/subscribe/route.ts, app/api/push/unsubscribe/route.ts |
+| 2   | Client-side push subscription helper | 621f623 + 9bd6206 | lib/push.ts                                                                      |
 
 ## What Was Built
 
@@ -63,6 +63,7 @@ Plain JavaScript service worker (not TypeScript — service workers run in brows
 ### Subscribe API Route (`app/api/push/subscribe/route.ts`)
 
 POST endpoint:
+
 - Auth guards via `supabase.auth.getUser()` — returns 401 if unauthenticated
 - Validates `endpoint`, `keys.p256dh`, `keys.auth` in request body — returns 400 if invalid
 - Upserts to `push_subscriptions` table with `onConflict: 'user_id,endpoint'` — prevents duplicates per Plan 01 schema
@@ -71,6 +72,7 @@ POST endpoint:
 ### Unsubscribe API Route (`app/api/push/unsubscribe/route.ts`)
 
 POST endpoint:
+
 - Auth guards via `supabase.auth.getUser()` — returns 401 if unauthenticated
 - Validates `endpoint` in request body — returns 400 if missing
 - Deletes matching row from `push_subscriptions` scoped to `user_id` + `endpoint`
@@ -89,6 +91,7 @@ POST endpoint:
 ## Verification
 
 All acceptance criteria passed:
+
 - `public/sw.js` contains `self.addEventListener('push'` handler
 - `public/sw.js` contains `recentPushTimestamps` array
 - `public/sw.js` contains collapse check `recentPushTimestamps.length >= 3`
@@ -110,6 +113,7 @@ All acceptance criteria passed:
 ### Auto-fixed Issues
 
 **1. [Rule 1 - Bug] Fixed urlBase64ToUint8Array return type**
+
 - **Found during:** Task 2 post-implementation type check
 - **Issue:** `Uint8Array<ArrayBufferLike>` not assignable to `applicationServerKey` (`string | BufferSource | null | undefined`) — TypeScript strict error TS2322
 - **Fix:** Changed return type from `Uint8Array` to `ArrayBuffer`, added `.buffer as ArrayBuffer` cast
@@ -123,12 +127,14 @@ None — all exports are fully implemented. `subscribeToPush` and `unsubscribeFr
 ## Self-Check
 
 Verified files exist:
+
 - `public/sw.js` — created
 - `app/api/push/subscribe/route.ts` — created
 - `app/api/push/unsubscribe/route.ts` — created
 - `lib/push.ts` — created
 
 Verified commits exist:
+
 - 5f3c345 — feat(07-03): service worker push handler and push subscribe/unsubscribe API routes
 - 621f623 — feat(07-03): client-side push subscription helper
 - 9bd6206 — fix(07-03): fix urlBase64ToUint8Array return type for TypeScript strict compat

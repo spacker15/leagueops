@@ -11,6 +11,7 @@ export type GameStatus =
   | 'Delayed'
   | 'Cancelled'
   | 'Unscheduled'
+  | 'No Show'
 export type Division = 'U10' | 'U12' | 'U14' | 'U16' | 'U18' | 'U12B' | 'U14B' | 'U16B' | 'Open'
 export type IncidentType =
   | 'Player Injury'
@@ -124,6 +125,7 @@ export interface Game {
   away_team_id: number
   division: string
   scheduled_time: string
+  sort_order?: number | null
   status: GameStatus
   home_score: number
   away_score: number
@@ -317,6 +319,7 @@ export interface Complex {
   weather_provider: string
   notes: string | null
   created_at: string
+  last_weather_fetch: string | null
   fields?: Field[]
 }
 

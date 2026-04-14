@@ -32,13 +32,13 @@ key-files:
   modified: []
 
 key-decisions:
-  - "Connector lines implemented as w-4 border-t divs after each matchup card — simplest reliable approach; justify-around handles vertical distribution"
-  - "DoubleEliminationBracket delegates to SingleEliminationBracket for winners/losers sections rather than reimplementing column layout"
-  - "All four components are server components — live state flows in via props from parent (LiveScoresClient pattern established in Plan 03)"
+  - 'Connector lines implemented as w-4 border-t divs after each matchup card — simplest reliable approach; justify-around handles vertical distribution'
+  - 'DoubleEliminationBracket delegates to SingleEliminationBracket for winners/losers sections rather than reimplementing column layout'
+  - 'All four components are server components — live state flows in via props from parent (LiveScoresClient pattern established in Plan 03)'
 
 patterns-established:
-  - "Bracket layout: flex items-start gap-0 outer, flex flex-col justify-around flex-1 per round column"
-  - "Live state prop threading: liveGameIds (Set<number>), liveScores (Map), flashingIds (Set) passed down component tree"
+  - 'Bracket layout: flex items-start gap-0 outer, flex flex-col justify-around flex-1 per round column'
+  - 'Live state prop threading: liveGameIds (Set<number>), liveScores (Map), flashingIds (Set) passed down component tree'
 
 requirements-completed: [PUB-04]
 
@@ -64,6 +64,7 @@ completed: 2026-03-25
 ### Task 1: BracketMatchupCard and SingleEliminationBracket (commit 53f2866)
 
 Created `BracketMatchupCard`:
+
 - Fixed `w-40` width per UI-SPEC
 - Two team slots with seed numbers, team names (TBD fallback), and scores
 - Winner highlight via `bg-[#0B3D91]/20` on winning team row
@@ -73,6 +74,7 @@ Created `BracketMatchupCard`:
 - Score override from `liveScores` map when game is live
 
 Created `SingleEliminationBracket`:
+
 - `min-w-[640px]` outer container forcing horizontal scroll on mobile
 - Rounds rendered as flexbox columns (`flex-1`, `minWidth: 176px`)
 - Rounds sorted by `round_number` ascending (left = early rounds, right = final)
@@ -83,6 +85,7 @@ Created `SingleEliminationBracket`:
 ### Task 2: DoubleEliminationBracket and BracketTab (commit cd4ba48)
 
 Created `DoubleEliminationBracket`:
+
 - Splits rounds into winners, losers, grand_final groups
 - Stacks vertically: Winners Bracket → separator → Losers Bracket → separator → Grand Final
 - Separators: `mt-8 pt-8 border-t border-[#1a2d50]`
@@ -91,6 +94,7 @@ Created `DoubleEliminationBracket`:
 - `min-w-[820px]` outer container
 
 Created `BracketTab`:
+
 - Returns `null` when `bracket.format === null || bracket.rounds.length === 0`
 - Format label: "Single Elimination" or "Double Elimination" in muted uppercase 10px
 - Mobile scroll wrapper: `overflow-x-auto -mx-4 px-4`

@@ -26,18 +26,18 @@ key-files:
   modified: []
 
 key-decisions:
-  - "Token is NOT marked used on POST — per-program link allows multiple coaches to self-register (D-05). is_active is revocation flag only."
-  - "lib/supabase/server (async createClient) used for server component; @/supabase/server (sync) used for existing join/page.tsx but new coach pages follow async pattern per Phase 3"
-  - "Conflict detection failure is non-fatal — coach registration succeeds, conflict upsert wrapped in try/catch to avoid blocking registration on DB errors"
+  - 'Token is NOT marked used on POST — per-program link allows multiple coaches to self-register (D-05). is_active is revocation flag only.'
+  - 'lib/supabase/server (async createClient) used for server component; @/supabase/server (sync) used for existing join/page.tsx but new coach pages follow async pattern per Phase 3'
+  - 'Conflict detection failure is non-fatal — coach registration succeeds, conflict upsert wrapped in try/catch to avoid blocking registration on DB errors'
 
 patterns-established:
-  - "Coach token server page mirrors join/[token] pattern: server validates token + registration window, passes context to client component"
-  - "Select elements always use bg-[#040e24] per CLAUDE.md gotcha #2 to prevent white-on-white options"
+  - 'Coach token server page mirrors join/[token] pattern: server validates token + registration window, passes context to client component'
+  - 'Select elements always use bg-[#040e24] per CLAUDE.md gotcha #2 to prevent white-on-white options'
 
 requirements-completed: [REG-04, REG-05]
 
 duration: 8min
-completed: "2026-03-24"
+completed: '2026-03-24'
 ---
 
 # Phase 6 Plan 04: Coach Self-Registration Token Flow Summary
@@ -92,5 +92,6 @@ A pre-existing type error in `components/auth/RegisterPage.tsx` (from a parallel
 - `coach_conflicts` table will be populated automatically when coaches register on overlapping teams
 
 ---
-*Phase: 06-registration-flow-enhancements*
-*Completed: 2026-03-24*
+
+_Phase: 06-registration-flow-enhancements_
+_Completed: 2026-03-24_

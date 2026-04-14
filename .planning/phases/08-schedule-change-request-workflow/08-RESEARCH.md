@@ -7,6 +7,7 @@
 ---
 
 <user_constraints>
+
 ## User Constraints (from CONTEXT.md)
 
 ### Locked Decisions
@@ -55,23 +56,25 @@
 - Referee availability check in slot suggestions
 - Bulk approve/deny actions for multiple requests
 - Request analytics/reporting dashboard
-</user_constraints>
+  </user_constraints>
 
 ---
 
 <phase_requirements>
+
 ## Phase Requirements
 
-| ID | Description | Research Support |
-|----|-------------|------------------|
-| SCR-01 | Coach/program leader can submit a schedule change request selecting affected game(s), reason, preferred alternative, and cancel vs reschedule | ScheduleChangeRequestModal + API POST /api/schedule-change-requests |
-| SCR-02 | System notifies admin (in-app + email) when a new schedule change request is submitted | insertNotification() with 'schedule_change' alert_type + admin scope |
-| SCR-03 | Admin can review, approve, or deny schedule change requests | ScheduleChangeRequestsTab + PATCH /api/schedule-change-requests/[id] state transitions |
-| SCR-04 | When admin approves a request, system auto-suggests available alternative time slots considering field, team, and referee availability | lib/engines/schedule-change.ts slot suggestion engine |
-| SCR-05 | Admin selects from suggested slots and confirms the reschedule | Admin selects from inline slot list, triggers POST /api/schedule-change-requests/[id]/reschedule |
-| SCR-06 | Rescheduled game updated atomically (database transaction) to prevent double-bookings | Supabase RPC (PostgreSQL function) |
-| SCR-07 | All affected teams notified of schedule changes via notification system | insertNotification() wired to Phase 7 infrastructure at reschedule/cancel time |
-| SCR-08 | Schedule change request has state machine: pending → under_review → approved → rescheduled (or denied) | PATCH route validates legal transitions by role; 400 on illegal |
+| ID     | Description                                                                                                                                   | Research Support                                                                                 |
+| ------ | --------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| SCR-01 | Coach/program leader can submit a schedule change request selecting affected game(s), reason, preferred alternative, and cancel vs reschedule | ScheduleChangeRequestModal + API POST /api/schedule-change-requests                              |
+| SCR-02 | System notifies admin (in-app + email) when a new schedule change request is submitted                                                        | insertNotification() with 'schedule_change' alert_type + admin scope                             |
+| SCR-03 | Admin can review, approve, or deny schedule change requests                                                                                   | ScheduleChangeRequestsTab + PATCH /api/schedule-change-requests/[id] state transitions           |
+| SCR-04 | When admin approves a request, system auto-suggests available alternative time slots considering field, team, and referee availability        | lib/engines/schedule-change.ts slot suggestion engine                                            |
+| SCR-05 | Admin selects from suggested slots and confirms the reschedule                                                                                | Admin selects from inline slot list, triggers POST /api/schedule-change-requests/[id]/reschedule |
+| SCR-06 | Rescheduled game updated atomically (database transaction) to prevent double-bookings                                                         | Supabase RPC (PostgreSQL function)                                                               |
+| SCR-07 | All affected teams notified of schedule changes via notification system                                                                       | insertNotification() wired to Phase 7 infrastructure at reschedule/cancel time                   |
+| SCR-08 | Schedule change request has state machine: pending → under_review → approved → rescheduled (or denied)                                        | PATCH route validates legal transitions by role; 400 on illegal                                  |
+
 </phase_requirements>
 
 ---
@@ -116,16 +119,16 @@ These directives are authoritative and the planner must verify all tasks comply:
 
 ### Core (existing — no new installs)
 
-| Library | Version | Purpose | Why Standard |
-|---------|---------|---------|--------------|
-| Next.js App Router | 14.2.4 | API routes + React components | Project-locked |
-| Supabase JS | existing | DB queries, auth, realtime | Project-locked |
-| Zod | existing | API route validation | Project convention (SEC-07) |
-| react-hot-toast | 2.4.1 | Success/error feedback on mutations | Project convention |
-| lucide-react | existing | Icons (e.g. ChevronDown, Clock, Calendar) | Project convention |
-| Tailwind CSS | 3.4.4 | Styling | Project convention |
-| date-fns | 3.6.0 | Date arithmetic for slot suggestion engine | Already installed |
-| Vitest | 4.1.0 | Unit tests for schedule-change.ts engine | Already configured |
+| Library            | Version  | Purpose                                    | Why Standard                |
+| ------------------ | -------- | ------------------------------------------ | --------------------------- |
+| Next.js App Router | 14.2.4   | API routes + React components              | Project-locked              |
+| Supabase JS        | existing | DB queries, auth, realtime                 | Project-locked              |
+| Zod                | existing | API route validation                       | Project convention (SEC-07) |
+| react-hot-toast    | 2.4.1    | Success/error feedback on mutations        | Project convention          |
+| lucide-react       | existing | Icons (e.g. ChevronDown, Clock, Calendar)  | Project convention          |
+| Tailwind CSS       | 3.4.4    | Styling                                    | Project convention          |
+| date-fns           | 3.6.0    | Date arithmetic for slot suggestion engine | Already installed           |
+| Vitest             | 4.1.0    | Unit tests for schedule-change.ts engine   | Already configured          |
 
 ### No New Dependencies Required
 
@@ -222,6 +225,7 @@ CREATE INDEX IF NOT EXISTS idx_scrg_game ON schedule_change_request_games(game_i
 **What:** `games.scheduled_time` is currently `TEXT`. Slot suggestion overlap math requires `TIMESTAMPTZ` for reliable comparison. This is the one breaking schema change.
 
 **Migration approach:**
+
 ```sql
 -- In phase8_schedule_change.sql
 
@@ -246,26 +250,32 @@ ALTER TABLE games ADD COLUMN scheduled_time_new TIMESTAMPTZ;
 
 **Legal transitions matrix:**
 
-| From | To | Who |
-|------|-----|-----|
-| pending | under_review | admin |
-| pending | denied | admin |
-| under_review | approved | admin |
-| under_review | denied | admin |
-| approved | (per-game rescheduling happens via slots route) | admin |
+| From         | To                                              | Who   |
+| ------------ | ----------------------------------------------- | ----- |
+| pending      | under_review                                    | admin |
+| pending      | denied                                          | admin |
+| under_review | approved                                        | admin |
+| under_review | denied                                          | admin |
+| approved     | (per-game rescheduling happens via slots route) | admin |
 
 **Pattern (mirrors existing `app/api/games/[id]/route.ts`):**
+
 ```typescript
 // Source: existing app/api/games/[id]/route.ts pattern
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const supabase = await createClient()
-  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser()
   if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   // Validate Zod
   let body: unknown
-  try { body = await req.json() } catch {
+  try {
+    body = await req.json()
+  } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
   const result = updateScheduleChangeRequestSchema.safeParse(body)
@@ -273,7 +283,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   // Fetch current request + user role
   const { data: current } = await supabase
-    .from('schedule_change_requests').select('status, submitted_by').eq('id', params.id).single()
+    .from('schedule_change_requests')
+    .select('status, submitted_by')
+    .eq('id', params.id)
+    .single()
   // ... role check + legal transition check → 400 on illegal
   // ... update + return
 }
@@ -332,6 +345,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 ```
 
 **Calling from Next.js API route:**
+
 ```typescript
 const { data, error } = await supabase.rpc('reschedule_game', {
   p_game_id: gameId,
@@ -347,16 +361,17 @@ const { data, error } = await supabase.rpc('reschedule_game', {
 **What:** Pure TypeScript function. No DB param needed — takes pre-fetched data.
 
 **Engine signature (Claude's discretion):**
+
 ```typescript
 export interface SlotSuggestion {
-  date: string                // ISO date e.g. "2026-06-15"
-  label: string               // e.g. "Saturday, Jun 15"
+  date: string // ISO date e.g. "2026-06-15"
+  label: string // e.g. "Saturday, Jun 15"
   fieldId: number
   fieldName: string
-  scheduledTime: string       // ISO timestamptz
+  scheduledTime: string // ISO timestamptz
   homeTeamAvailable: boolean
   awayTeamAvailable: boolean
-  score: number               // ranking score (higher = better)
+  score: number // ranking score (higher = better)
 }
 
 export function generateSlotSuggestions(
@@ -364,12 +379,13 @@ export function generateSlotSuggestions(
   allGames: Game[],
   fields: Field[],
   eventDates: EventDate[],
-  teamAvailability: Record<number, number[]>,  // teamId -> available event_date_ids
+  teamAvailability: Record<number, number[]>, // teamId -> available event_date_ids
   gameDurationMin: number
 ): SlotSuggestion[]
 ```
 
 **Ranking algorithm (Claude's discretion — per D-18 green/yellow/red logic):**
+
 1. Filter: only future event dates (not dates in the past)
 2. Filter: field is not double-booked at the candidate slot
 3. Filter: neither team has another game within `gameDurationMin + buffer`
@@ -395,9 +411,10 @@ export type TabName =
 ```
 
 **Pending count badge (D-09 — Claude's discretion):**
+
 ```typescript
 // In AppShell, derive count from scheduleChangeRequests state
-const pendingCount = state.scheduleChangeRequests?.filter(r => r.status === 'pending').length ?? 0
+const pendingCount = state.scheduleChangeRequests?.filter((r) => r.status === 'pending').length ?? 0
 // Render inline: "Requests" + {pendingCount > 0 && <span>{pendingCount}</span>}
 ```
 
@@ -408,12 +425,14 @@ const pendingCount = state.scheduleChangeRequests?.filter(r => r.status === 'pen
 **Two-phase approach:**
 
 Phase 8a (migration): Add `TIMESTAMPTZ` column, keep TEXT column during transition.
+
 ```sql
 -- Add new column (nullable initially)
 ALTER TABLE games ADD COLUMN IF NOT EXISTS scheduled_time_ts TIMESTAMPTZ;
 ```
 
 Phase 8b (code): Update all time parsing to handle TIMESTAMPTZ. The engines will need to extract time from TIMESTAMPTZ:
+
 ```typescript
 // Instead of parsing "9:00 AM" strings, extract hours/minutes from Date
 function timeToMinutes(scheduledTime: string | Date): number {
@@ -429,6 +448,7 @@ function timeToMinutes(scheduledTime: string | Date): number {
 ### Pattern 8: Real-Time Subscription for Requests Tab
 
 Following the existing store pattern:
+
 ```typescript
 // lib/store.tsx — add to State + Action + subscriptions
 
@@ -488,15 +508,15 @@ await insertNotification(eventId, 'schedule_change', 'team', teamId, { ... })
 
 ## Don't Hand-Roll
 
-| Problem | Don't Build | Use Instead | Why |
-|---------|-------------|-------------|-----|
-| Notification delivery | Custom email/push logic | `insertNotification()` from `lib/notifications.ts` | Phase 7 already handles dedup, retries, email via Resend, push via Web Push |
-| Modal UI | Custom overlay | `Modal` from `components/ui/index.tsx` | Consistent dark theme, backdrop, close behavior |
-| Form inputs | Custom inputs | `FormField`, `Input`, `Select`, `Textarea` from UI kit | Known dark theme gotchas (Select transparency) already solved |
-| Status display | Custom pill component | `StatusBadge` + new `RequestStatusBadge` | `StatusBadge` is game status only — create a separate badge for request status |
-| Date arithmetic | Custom calendar math | `date-fns` (already installed) | Timezone-safe; `isAfter`, `addDays`, `formatDistanceToNow` are exactly what slot ranking needs |
-| Atomic DB transactions | Sequential API calls | Supabase RPC (PostgreSQL function) | Only way to guarantee no double-booking under concurrent use |
-| Field conflict check in slot engine | Re-implement overlap logic | Borrow `timeToMinutes` pattern from `lib/engines/field.ts` | Overlap logic is already battle-tested; extract utility function |
+| Problem                             | Don't Build                | Use Instead                                                | Why                                                                                            |
+| ----------------------------------- | -------------------------- | ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Notification delivery               | Custom email/push logic    | `insertNotification()` from `lib/notifications.ts`         | Phase 7 already handles dedup, retries, email via Resend, push via Web Push                    |
+| Modal UI                            | Custom overlay             | `Modal` from `components/ui/index.tsx`                     | Consistent dark theme, backdrop, close behavior                                                |
+| Form inputs                         | Custom inputs              | `FormField`, `Input`, `Select`, `Textarea` from UI kit     | Known dark theme gotchas (Select transparency) already solved                                  |
+| Status display                      | Custom pill component      | `StatusBadge` + new `RequestStatusBadge`                   | `StatusBadge` is game status only — create a separate badge for request status                 |
+| Date arithmetic                     | Custom calendar math       | `date-fns` (already installed)                             | Timezone-safe; `isAfter`, `addDays`, `formatDistanceToNow` are exactly what slot ranking needs |
+| Atomic DB transactions              | Sequential API calls       | Supabase RPC (PostgreSQL function)                         | Only way to guarantee no double-booking under concurrent use                                   |
+| Field conflict check in slot engine | Re-implement overlap logic | Borrow `timeToMinutes` pattern from `lib/engines/field.ts` | Overlap logic is already battle-tested; extract utility function                               |
 
 **Key insight:** The notification infrastructure, UI components, and field overlap logic are already production-quality. This phase wires them together — it does not re-implement them.
 
@@ -505,42 +525,49 @@ await insertNotification(eventId, 'schedule_change', 'team', teamId, { ... })
 ## Common Pitfalls
 
 ### Pitfall 1: `scheduled_time` Type Mismatch
+
 **What goes wrong:** Slot suggestion engine does date comparison on `TEXT` "9:00 AM" values — arithmetic silently fails or returns nonsense results.
 **Why it happens:** `games.scheduled_time` is `TEXT` in schema.sql (line 84), not `TIMESTAMPTZ`.
 **How to avoid:** The Wave 0 migration (`phase8_schedule_change.sql`) MUST migrate `scheduled_time` to `TIMESTAMPTZ`. The slot suggestion engine should use `new Date(scheduledTime)` not string parsing.
 **Warning signs:** Slot suggestions returning all games as available regardless of actual times.
 
 ### Pitfall 2: `GameStatus` Union Missing `'Cancelled'`
+
 **What goes wrong:** TypeScript compile error when setting `game.status = 'Cancelled'`. Vercel build fails.
 **Why it happens:** `types/index.ts` line 5 — `GameStatus` does not include `'Cancelled'`. The `StatusBadge` component's `STATUS_CLASS` map also doesn't handle it.
 **How to avoid:** Wave 0 must add `'Cancelled'` to `GameStatus` union AND add `badge-cancelled` CSS class AND update the SQL `CHECK` constraint.
 **Warning signs:** TypeScript errors on assignment; `StatusBadge` receiving unknown status.
 
 ### Pitfall 3: Supabase Joined Filters Silently Fail
+
 **What goes wrong:** A query like `.eq('teams.event_id', eventId)` returns unexpected results without error.
 **Why it happens:** Known Supabase behavior — joined table filters don't work (documented in CLAUDE.md gotcha #1).
 **How to avoid:** When filtering by joined table columns, fetch IDs first, then use `.in('team_id', ids)`.
 **Warning signs:** Queries returning too many or too few rows with no error reported.
 
 ### Pitfall 4: State Machine Not Enforced Server-Side
+
 **What goes wrong:** Client sends `status: 'rescheduled'` directly in PATCH body, skipping `approved` step.
 **Why it happens:** Client-side state is easily manipulated.
 **How to avoid:** PATCH route must: (1) fetch current status from DB, (2) validate the requested transition against the legal matrix, (3) validate the user's role has permission for that transition.
 **Warning signs:** Requests jumping from `pending` to `rescheduled` without going through `approved`.
 
 ### Pitfall 5: Double-Booking Under Concurrency
+
 **What goes wrong:** Two admins simultaneously approve different requests for the same slot. Both see it as available. Both confirm. One game is double-booked.
 **Why it happens:** TOCTOU — Time Of Check To Time Of Use gap between "check availability" (GET /slots) and "confirm reschedule" (POST /reschedule).
 **How to avoid:** The reschedule MUST happen inside the PostgreSQL RPC which re-checks availability within the transaction. The GET /slots endpoint is advisory only.
 **Warning signs:** Two games on same field at same time after concurrent approvals.
 
 ### Pitfall 6: Notification Dedup Key Collision
+
 **What goes wrong:** Admin gets only one notification for a multi-game request because all games share the same dedup key.
 **Why it happens:** Phase 7's dedup_key = `alert_type::scope::scope_id::event_id` — same for all games in same event.
 **How to avoid:** This is actually correct behavior for the admin notification (one notification per request is sufficient). For team notifications, send to `scope='team'` with `scope_id=teamId` — the dedup key will differ per team.
 **Warning signs:** Admin not notified at all, or only one team notified.
 
 ### Pitfall 7: `ScheduleChangeRequestsTab` Hook-Before-Guard Pattern
+
 **What goes wrong:** Vercel build fails: "React Hook called conditionally".
 **Why it happens:** Common pattern violation when devs add `if (!eventId) return null` before hooks in complex components.
 **How to avoid:** All `useState`, `useEffect`, `useCallback` calls must appear before any conditional early returns.
@@ -551,6 +578,7 @@ await insertNotification(eventId, 'schedule_change', 'team', teamId, { ... })
 ## Code Examples
 
 ### Slot Suggestion Engine Skeleton
+
 ```typescript
 // Source: Claude's Discretion — lib/engines/schedule-change.ts
 // Pure TypeScript — no Supabase client parameter needed
@@ -563,7 +591,7 @@ export interface SlotSuggestion {
   dateLabel: string
   fieldId: number
   fieldName: string
-  scheduledTime: string  // ISO 8601
+  scheduledTime: string // ISO 8601
   homeTeamAvailable: boolean
   awayTeamAvailable: boolean
   score: number
@@ -593,26 +621,32 @@ export function generateSlotSuggestions(params: {
         if (candidateTs.getTime() === originalDate.getTime() && field.id === game.field_id) continue
 
         // Check field availability
-        const fieldConflict = allGames.some(g =>
-          g.id !== game.id &&
-          g.field_id === field.id &&
-          g.status !== 'Final' && g.status !== 'Cancelled' &&
-          overlaps(new Date(g.scheduled_time), candidateTs, gameDurationMin)
+        const fieldConflict = allGames.some(
+          (g) =>
+            g.id !== game.id &&
+            g.field_id === field.id &&
+            g.status !== 'Final' &&
+            g.status !== 'Cancelled' &&
+            overlaps(new Date(g.scheduled_time), candidateTs, gameDurationMin)
         )
         if (fieldConflict) continue
 
         // Check team availability
-        const homeOccupied = allGames.some(g =>
-          g.id !== game.id &&
-          (g.home_team_id === game.home_team_id || g.away_team_id === game.home_team_id) &&
-          g.status !== 'Final' && g.status !== 'Cancelled' &&
-          overlaps(new Date(g.scheduled_time), candidateTs, gameDurationMin)
+        const homeOccupied = allGames.some(
+          (g) =>
+            g.id !== game.id &&
+            (g.home_team_id === game.home_team_id || g.away_team_id === game.home_team_id) &&
+            g.status !== 'Final' &&
+            g.status !== 'Cancelled' &&
+            overlaps(new Date(g.scheduled_time), candidateTs, gameDurationMin)
         )
-        const awayOccupied = allGames.some(g =>
-          g.id !== game.id &&
-          (g.home_team_id === game.away_team_id || g.away_team_id === game.away_team_id) &&
-          g.status !== 'Final' && g.status !== 'Cancelled' &&
-          overlaps(new Date(g.scheduled_time), candidateTs, gameDurationMin)
+        const awayOccupied = allGames.some(
+          (g) =>
+            g.id !== game.id &&
+            (g.home_team_id === game.away_team_id || g.away_team_id === game.away_team_id) &&
+            g.status !== 'Final' &&
+            g.status !== 'Cancelled' &&
+            overlaps(new Date(g.scheduled_time), candidateTs, gameDurationMin)
         )
 
         // Scoring
@@ -642,9 +676,7 @@ export function generateSlotSuggestions(params: {
     }
   }
 
-  return suggestions
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 5)
+  return suggestions.sort((a, b) => b.score - a.score).slice(0, 5)
 }
 
 function overlaps(a: Date, b: Date, durationMin: number): boolean {
@@ -664,21 +696,23 @@ function getCandidateTimes(eventDate: EventDate, gameDurationMin: number): strin
 ```
 
 ### Request Status Badge (separate from GameStatus StatusBadge)
+
 ```typescript
 // New component — RequestStatusBadge
 // 'pending' | 'under_review' | 'approved' | 'denied' | 'partially_complete' | 'completed'
 
 const REQUEST_STATUS_CLASS: Record<string, string> = {
-  pending: 'badge-scheduled',        // blue
-  under_review: 'badge-starting',    // orange
-  approved: 'badge-live',            // green
+  pending: 'badge-scheduled', // blue
+  under_review: 'badge-starting', // orange
+  approved: 'badge-live', // green
   denied: 'bg-red/20 text-red-400 ...', // red
   partially_complete: 'badge-halftime', // yellow
-  completed: 'badge-final',          // gray
+  completed: 'badge-final', // gray
 }
 ```
 
 ### `lib/db.ts` — New Functions Pattern
+
 ```typescript
 // Follows existing get/insert/update naming convention
 export async function getScheduleChangeRequests(eventId: number): Promise<ScheduleChangeRequest[]> {
@@ -701,9 +735,9 @@ export async function insertScheduleChangeRequest(
   // does not have concurrency risk like rescheduling does)
   const { data: req } = await sb.from('schedule_change_requests').insert(request).select().single()
   if (!req) return null
-  await sb.from('schedule_change_request_games').insert(
-    gameIds.map(gid => ({ request_id: req.id, game_id: gid, status: 'pending' }))
-  )
+  await sb
+    .from('schedule_change_request_games')
+    .insert(gameIds.map((gid) => ({ request_id: req.id, game_id: gid, status: 'pending' })))
   return req as ScheduleChangeRequest
 }
 ```
@@ -712,13 +746,14 @@ export async function insertScheduleChangeRequest(
 
 ## State of the Art
 
-| Old Approach | Current Approach | When Changed | Impact |
-|--------------|------------------|--------------|--------|
-| Multi-step API for complex mutations | PostgreSQL RPC (single transaction) | Supabase has supported RPCs since early versions | Prevents TOCTOU double-booking |
-| JSONB arrays for related records | Junction tables with individual row status | Phase 8 design decision | Enables per-game status (D-14), FK integrity |
-| TEXT for scheduled_time | TIMESTAMPTZ | This migration (SCR-06) | Reliable overlap arithmetic |
+| Old Approach                         | Current Approach                           | When Changed                                     | Impact                                       |
+| ------------------------------------ | ------------------------------------------ | ------------------------------------------------ | -------------------------------------------- |
+| Multi-step API for complex mutations | PostgreSQL RPC (single transaction)        | Supabase has supported RPCs since early versions | Prevents TOCTOU double-booking               |
+| JSONB arrays for related records     | Junction tables with individual row status | Phase 8 design decision                          | Enables per-game status (D-14), FK integrity |
+| TEXT for scheduled_time              | TIMESTAMPTZ                                | This migration (SCR-06)                          | Reliable overlap arithmetic                  |
 
 **Deprecated/outdated:**
+
 - `TEXT` scheduled_time strings parsed with regex: replaced by TIMESTAMPTZ after migration. The `timeToMinutes()` helper in `field.ts` and `schedule.ts` will need to handle both during transition.
 
 ---
@@ -751,28 +786,30 @@ Step 2.6: SKIPPED — Phase 8 is code + SQL changes only. No new external servic
 ## Validation Architecture
 
 ### Test Framework
-| Property | Value |
-|----------|-------|
-| Framework | Vitest 4.1.0 |
-| Config file | `vitest.config.ts` (project root) |
-| Quick run command | `npm run test -- --reporter=verbose __tests__/lib/engines/schedule-change.test.ts` |
-| Full suite command | `npm run test` |
+
+| Property           | Value                                                                              |
+| ------------------ | ---------------------------------------------------------------------------------- |
+| Framework          | Vitest 4.1.0                                                                       |
+| Config file        | `vitest.config.ts` (project root)                                                  |
+| Quick run command  | `npm run test -- --reporter=verbose __tests__/lib/engines/schedule-change.test.ts` |
+| Full suite command | `npm run test`                                                                     |
 
 ### Phase Requirements → Test Map
 
-| Req ID | Behavior | Test Type | Automated Command | File Exists? |
-|--------|----------|-----------|-------------------|-------------|
-| SCR-01 | Modal creates request with correct fields | unit (component smoke) | `npm run test -- __tests__/components/ScheduleChangeRequestModal.test.tsx` | Wave 0 |
-| SCR-04 | Slot suggestion engine returns ranked suggestions | unit | `npm run test -- __tests__/lib/engines/schedule-change.test.ts` | Wave 0 |
-| SCR-04 | Engine returns empty array when no valid slots | unit | same | Wave 0 |
-| SCR-04 | Engine correctly filters field double-bookings | unit | same | Wave 0 |
-| SCR-04 | Engine correctly filters team double-bookings | unit | same | Wave 0 |
-| SCR-06 | RPC function rejects conflicting slot | manual (Supabase SQL editor) | n/a — SQL transaction test | n/a |
-| SCR-08 | PATCH route rejects illegal state transitions (pending → rescheduled) | unit | `npm run test -- __tests__/app/api/schedule-change-requests.test.ts` | Wave 0 |
-| SCR-08 | PATCH route rejects transition by wrong role | unit | same | Wave 0 |
-| SCR-02/07 | insertNotification called on submit + reschedule | unit (mock) | in schedule-change-requests.test.ts | Wave 0 |
+| Req ID    | Behavior                                                              | Test Type                    | Automated Command                                                          | File Exists? |
+| --------- | --------------------------------------------------------------------- | ---------------------------- | -------------------------------------------------------------------------- | ------------ |
+| SCR-01    | Modal creates request with correct fields                             | unit (component smoke)       | `npm run test -- __tests__/components/ScheduleChangeRequestModal.test.tsx` | Wave 0       |
+| SCR-04    | Slot suggestion engine returns ranked suggestions                     | unit                         | `npm run test -- __tests__/lib/engines/schedule-change.test.ts`            | Wave 0       |
+| SCR-04    | Engine returns empty array when no valid slots                        | unit                         | same                                                                       | Wave 0       |
+| SCR-04    | Engine correctly filters field double-bookings                        | unit                         | same                                                                       | Wave 0       |
+| SCR-04    | Engine correctly filters team double-bookings                         | unit                         | same                                                                       | Wave 0       |
+| SCR-06    | RPC function rejects conflicting slot                                 | manual (Supabase SQL editor) | n/a — SQL transaction test                                                 | n/a          |
+| SCR-08    | PATCH route rejects illegal state transitions (pending → rescheduled) | unit                         | `npm run test -- __tests__/app/api/schedule-change-requests.test.ts`       | Wave 0       |
+| SCR-08    | PATCH route rejects transition by wrong role                          | unit                         | same                                                                       | Wave 0       |
+| SCR-02/07 | insertNotification called on submit + reschedule                      | unit (mock)                  | in schedule-change-requests.test.ts                                        | Wave 0       |
 
 ### Sampling Rate
+
 - **Per task commit:** `npm run test -- __tests__/lib/engines/schedule-change.test.ts`
 - **Per wave merge:** `npm run test`
 - **Phase gate:** Full suite green before `/gsd:verify-work`
@@ -789,14 +826,17 @@ Step 2.6: SKIPPED — Phase 8 is code + SQL changes only. No new external servic
 ## Sources
 
 ### Primary (HIGH confidence)
+
 - Direct codebase read — `supabase/schema.sql`, `types/index.ts`, `lib/notifications.ts`, `lib/engines/field.ts`, `lib/engines/schedule.ts`, `lib/auth.tsx`, `lib/store.tsx`, `components/ui/index.tsx`, `components/AppShell.tsx`, `app/api/games/[id]/route.ts`, `schemas/games.ts`, `supabase/phase7_notifications.sql`, `CLAUDE.md`
 - Phase 8 CONTEXT.md (08-CONTEXT.md) — all decisions (D-01 through D-23)
 
 ### Secondary (MEDIUM confidence)
+
 - Supabase RPC pattern — derived from Supabase official docs pattern for PostgreSQL functions called via `.rpc()`. Standard approach verified against project's existing Supabase usage.
 - `date-fns` slot arithmetic — `isAfter`, `isSameDay`, `addDays` are stable APIs in date-fns 3.x (already installed at 3.6.0).
 
 ### Tertiary (LOW confidence)
+
 - None — all claims are derived from direct codebase inspection or established patterns.
 
 ---
@@ -804,6 +844,7 @@ Step 2.6: SKIPPED — Phase 8 is code + SQL changes only. No new external servic
 ## Metadata
 
 **Confidence breakdown:**
+
 - Standard stack: HIGH — project-locked stack, no new dependencies
 - Architecture: HIGH — derived from direct inspection of existing patterns (games API route, field engine, notification infrastructure)
 - `scheduled_time` migration: HIGH — column type is directly observable in schema.sql line 84 as TEXT

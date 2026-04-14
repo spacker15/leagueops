@@ -1619,7 +1619,9 @@ function RegisterPageInner() {
                             )}
                           />
                         </button>
-                        <span className="font-cond text-[12px] text-white">Available All Dates</span>
+                        <span className="font-cond text-[12px] text-white">
+                          Available All Dates
+                        </span>
                       </div>
 
                       {/* Individual date checkboxes (when toggle is OFF) */}

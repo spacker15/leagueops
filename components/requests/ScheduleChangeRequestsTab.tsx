@@ -77,11 +77,15 @@ export function ScheduleChangeRequestsTab() {
       )}
 
       {/* Empty sections message when all are empty */}
-      {pendingRequests.length === 0 && underReviewRequests.length === 0 && completedRequests.length === 0 && (
-        <div className="min-h-[120px] flex items-center justify-center">
-          <span className="font-cond text-[13px] text-muted">No schedule change requests yet.</span>
-        </div>
-      )}
+      {pendingRequests.length === 0 &&
+        underReviewRequests.length === 0 &&
+        completedRequests.length === 0 && (
+          <div className="min-h-[120px] flex items-center justify-center">
+            <span className="font-cond text-[13px] text-muted">
+              No schedule change requests yet.
+            </span>
+          </div>
+        )}
     </div>
   )
 }

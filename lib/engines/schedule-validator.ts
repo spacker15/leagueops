@@ -90,7 +90,7 @@ export async function validateSchedule(
     .eq('event_id', eventId)
 
   const teamMap = new Map<number, { name: string; division: string }>()
-  for (const t of (teams ?? [])) {
+  for (const t of teams ?? []) {
     teamMap.set(t.id, { name: t.name, division: t.division })
   }
 
@@ -297,7 +297,7 @@ export async function validateSchedule(
   for (const [teamId, info] of teamMap) {
     const gameCount = teamGameCounts.get(teamId) ?? 0
     const opps = teamOpponents.get(teamId) ?? new Set()
-    const oppNames = [...opps].map(id => teamMap.get(id)?.name ?? `Team ${id}`)
+    const oppNames = [...opps].map((id) => teamMap.get(id)?.name ?? `Team ${id}`)
 
     // Find repeat opponents
     const repeatOpps: string[] = []

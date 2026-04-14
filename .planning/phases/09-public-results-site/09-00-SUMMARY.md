@@ -59,6 +59,7 @@ completed: 2026-03-25
 - **Files modified:** 8
 
 ## Accomplishments
+
 - Vitest 4.1.0 installed and configured in apps/public-results with node environment and @/ path alias
 - groupBy utility created in utils.ts (pure function extracted from page.tsx inline function)
 - 5 test files with 16 total tests all passing — covers standings computation, schedule filtering, bracket shape, QR URL construction, and groupBy
@@ -71,6 +72,7 @@ Each task was committed atomically:
 2. **Task 2: Create 5 test stubs** - `9bd5b82` (test)
 
 ## Files Created/Modified
+
 - `apps/public-results/vitest.config.ts` - Vitest config with node environment and @/ alias
 - `apps/public-results/src/lib/utils.ts` - groupBy utility for reuse across plans
 - `apps/public-results/src/__tests__/lib/utils.test.ts` - 3 groupBy tests
@@ -81,6 +83,7 @@ Each task was committed atomically:
 - `apps/public-results/package.json` - Added vitest + testing-library dev dependencies
 
 ## Decisions Made
+
 - vi.mock for supabase module required in standings.test.ts because the supabase singleton initializes at import time and throws "supabaseUrl is required" without env vars
 - BracketRound type defined inline in bracket-shape.test.ts (Plan 01 will add to data.ts) to avoid cross-wave dependency
 - Adapted standings test to use actual Standing interface field names (w/l/t/gf/ga/gd) rather than verbose names from plan spec
@@ -90,10 +93,11 @@ Each task was committed atomically:
 ### Auto-fixed Issues
 
 **1. [Rule 1 - Bug] Added vi.mock for supabase to prevent singleton init error in standings test**
+
 - **Found during:** Task 2 (Create test stubs)
 - **Issue:** standings.test.ts imports from `@/lib/data` which imports `@/lib/supabase` which creates a Supabase client at module load — throws "supabaseUrl is required" in test environment
 - **Fix:** Added `vi.mock('@/lib/supabase', () => ({ supabase: {} }))` at top of standings.test.ts before import
-- **Files modified:** apps/public-results/src/__tests__/lib/standings.test.ts
+- **Files modified:** apps/public-results/src/**tests**/lib/standings.test.ts
 - **Verification:** All 16 tests pass including the 4 standings tests
 - **Committed in:** 9bd5b82 (Task 2 commit)
 
@@ -103,16 +107,20 @@ Each task was committed atomically:
 **Impact on plan:** Essential for test correctness. No scope creep.
 
 ## Issues Encountered
+
 - Standing interface uses abbreviated field names (w/l/t/gf/ga/gd/pts) in data.ts, not the verbose names (wins/losses/ties/points_for/points_against/goal_diff) in the plan spec — tests adapted to actual implementation
 
 ## User Setup Required
+
 None - no external service configuration required.
 
 ## Next Phase Readiness
+
 - Test infrastructure ready for all Phase 9 plans to use `cd apps/public-results && npx vitest run` in their verify steps
 - groupBy utility available for import from `@/lib/utils` in all subsequent plans
 - Supabase mock pattern established for any tests importing from `@/lib/data`
 
 ---
-*Phase: 09-public-results-site*
-*Completed: 2026-03-25*
+
+_Phase: 09-public-results-site_
+_Completed: 2026-03-25_

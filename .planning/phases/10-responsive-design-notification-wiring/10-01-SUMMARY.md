@@ -1,6 +1,6 @@
 ---
 phase: 10-responsive-design-notification-wiring
-plan: "01"
+plan: '01'
 subsystem: responsive-layout
 tags: [mobile, responsive, navigation, drawer, modal]
 requirements: [MOB-02, MOB-04]
@@ -36,8 +36,8 @@ decisions:
   - Mobile right bar shows only NotificationBell + sign-out (not full user info) to prevent overflow at 375px
 
 metrics:
-  duration: "8 min"
-  completed: "2026-03-25"
+  duration: '8 min'
+  completed: '2026-03-25'
   tasks_completed: 2
   files_modified: 3
 ---
@@ -48,10 +48,10 @@ Mobile hamburger navigation in TopBar with slide-out drawer, conditional RightPa
 
 ## Tasks Completed
 
-| Task | Name | Commit | Files |
-|------|------|--------|-------|
-| 1 | TopBar hamburger menu + mobile slide-out drawer | f6c99a8 | components/TopBar.tsx |
-| 2 | AppShell RightPanel bottom drawer + Modal full-screen mobile | 732c99c | components/AppShell.tsx, components/ui/index.tsx |
+| Task | Name                                                         | Commit  | Files                                            |
+| ---- | ------------------------------------------------------------ | ------- | ------------------------------------------------ |
+| 1    | TopBar hamburger menu + mobile slide-out drawer              | f6c99a8 | components/TopBar.tsx                            |
+| 2    | AppShell RightPanel bottom drawer + Modal full-screen mobile | 732c99c | components/AppShell.tsx, components/ui/index.tsx |
 
 ## What Was Built
 

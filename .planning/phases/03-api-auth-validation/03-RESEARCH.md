@@ -19,13 +19,15 @@ Zod validation uses `schema.safeParse(await req.json())` — `safeParse` never t
 ---
 
 <phase_requirements>
+
 ## Phase Requirements
 
-| ID | Description | Research Support |
-|----|-------------|-----------------|
-| SEC-02 | Every write route (POST/PATCH/DELETE) must call `auth.getUser()` and return `401` for unauthenticated requests. Intentionally public routes explicitly excluded and documented. | Supabase SSR `getUser()` pattern, `@supabase/ssr` Route Handler client setup, null-check + 401 return pattern. |
-| SEC-07 | All request bodies parsed with Zod schemas. Malformed requests return `400` with machine-readable error, not 500. | `zod` `safeParse` + `error.flatten()` pattern; `req.json()` failure handling. |
-| SEC-08 | Weather-engine, referee-engine trigger routes, and all public-results API endpoints have Upstash rate limiting. Expired/invalid JWT returns consistent `401`. | `@upstash/ratelimit ^2.x` + `@upstash/redis ^1.x` `slidingWindow` pattern, IP extraction from `x-forwarded-for`, `limit()` response shape, 429 with headers. |
+| ID     | Description                                                                                                                                                                     | Research Support                                                                                                                                             |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| SEC-02 | Every write route (POST/PATCH/DELETE) must call `auth.getUser()` and return `401` for unauthenticated requests. Intentionally public routes explicitly excluded and documented. | Supabase SSR `getUser()` pattern, `@supabase/ssr` Route Handler client setup, null-check + 401 return pattern.                                               |
+| SEC-07 | All request bodies parsed with Zod schemas. Malformed requests return `400` with machine-readable error, not 500.                                                               | `zod` `safeParse` + `error.flatten()` pattern; `req.json()` failure handling.                                                                                |
+| SEC-08 | Weather-engine, referee-engine trigger routes, and all public-results API endpoints have Upstash rate limiting. Expired/invalid JWT returns consistent `401`.                   | `@upstash/ratelimit ^2.x` + `@upstash/redis ^1.x` `slidingWindow` pattern, IP extraction from `x-forwarded-for`, `limit()` response shape, 429 with headers. |
+
 </phase_requirements>
 
 ---
@@ -34,28 +36,28 @@ Zod validation uses `schema.safeParse(await req.json())` — `safeParse` never t
 
 ### Core
 
-| Library | Version | Purpose | Why Standard |
-|---------|---------|---------|--------------|
-| `@supabase/ssr` | 0.9.0 (current) | Server-side Supabase client with cookie handling | Official Supabase package for App Router; replaces deprecated auth-helpers |
-| `@supabase/supabase-js` | 2.100.0 (current) | Supabase JS client — provides `auth.getUser()` | Required peer dependency for @supabase/ssr |
-| `zod` | 4.3.6 (current) | Runtime schema validation for request bodies | Supabase-project-standard; TypeScript-first; `safeParse` never throws |
-| `@upstash/ratelimit` | 2.0.8 (current) | Serverless rate limiting with Redis backend | Approved in phase scope notes; v2.x API is stable |
-| `@upstash/redis` | 1.37.0 (current) | Upstash Redis REST client — backend for ratelimit | Required peer; `Redis.fromEnv()` for zero-config initialization |
+| Library                 | Version           | Purpose                                           | Why Standard                                                               |
+| ----------------------- | ----------------- | ------------------------------------------------- | -------------------------------------------------------------------------- |
+| `@supabase/ssr`         | 0.9.0 (current)   | Server-side Supabase client with cookie handling  | Official Supabase package for App Router; replaces deprecated auth-helpers |
+| `@supabase/supabase-js` | 2.100.0 (current) | Supabase JS client — provides `auth.getUser()`    | Required peer dependency for @supabase/ssr                                 |
+| `zod`                   | 4.3.6 (current)   | Runtime schema validation for request bodies      | Supabase-project-standard; TypeScript-first; `safeParse` never throws      |
+| `@upstash/ratelimit`    | 2.0.8 (current)   | Serverless rate limiting with Redis backend       | Approved in phase scope notes; v2.x API is stable                          |
+| `@upstash/redis`        | 1.37.0 (current)  | Upstash Redis REST client — backend for ratelimit | Required peer; `Redis.fromEnv()` for zero-config initialization            |
 
 ### Supporting
 
-| Library | Version | Purpose | When to Use |
-|---------|---------|---------|-------------|
-| `next/headers` (built-in) | Next.js built-in | Async `cookies()` access in Route Handlers | Required for `createServerClient` cookie reading in server context |
-| `@vercel/functions` | optional | `waitUntil(pending)` for Upstash analytics | Use only if deploying to Vercel and want analytics flush before cold-start termination |
+| Library                   | Version          | Purpose                                    | When to Use                                                                            |
+| ------------------------- | ---------------- | ------------------------------------------ | -------------------------------------------------------------------------------------- |
+| `next/headers` (built-in) | Next.js built-in | Async `cookies()` access in Route Handlers | Required for `createServerClient` cookie reading in server context                     |
+| `@vercel/functions`       | optional         | `waitUntil(pending)` for Upstash analytics | Use only if deploying to Vercel and want analytics flush before cold-start termination |
 
 ### Alternatives Considered
 
-| Instead of | Could Use | Tradeoff |
-|------------|-----------|----------|
-| `@upstash/ratelimit` | `lru-cache` in-memory | In-memory doesn't survive serverless cold starts; not viable |
-| `zod.safeParse` + `flatten()` | `zod-error` package | `zod-error` adds a dep; flatten() is built-in and sufficient |
-| `auth.getUser()` | `auth.getSession()` or `auth.getClaims()` | `getSession()` is insecure on server (no auth-server revalidation); never use it in Route Handlers |
+| Instead of                    | Could Use                                 | Tradeoff                                                                                           |
+| ----------------------------- | ----------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `@upstash/ratelimit`          | `lru-cache` in-memory                     | In-memory doesn't survive serverless cold starts; not viable                                       |
+| `zod.safeParse` + `flatten()` | `zod-error` package                       | `zod-error` adds a dep; flatten() is built-in and sufficient                                       |
+| `auth.getUser()`              | `auth.getSession()` or `auth.getClaims()` | `getSession()` is insecure on server (no auth-server revalidation); never use it in Route Handlers |
 
 **Installation (if not already present):**
 
@@ -152,13 +154,13 @@ import { createClient } from '@/lib/supabase/server'
 
 export async function POST(request: Request) {
   const supabase = await createClient()
-  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser()
 
   if (authError || !user) {
-    return NextResponse.json(
-      { error: 'Unauthorized' },
-      { status: 401 }
-    )
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   // ... rest of handler
@@ -209,19 +211,13 @@ export async function POST(request: Request) {
   try {
     body = await request.json()
   } catch {
-    return NextResponse.json(
-      { success: false, error: 'Invalid JSON body' },
-      { status: 400 }
-    )
+    return NextResponse.json({ success: false, error: 'Invalid JSON body' }, { status: 400 })
   }
 
   // Zod validation — safeParse never throws
   const result = createScheduleSchema.safeParse(body)
   if (!result.success) {
-    return NextResponse.json(
-      { success: false, error: result.error.flatten() },
-      { status: 400 }
-    )
+    return NextResponse.json({ success: false, error: result.error.flatten() }, { status: 400 })
   }
 
   const { leagueId, startDate, rounds } = result.data
@@ -283,12 +279,9 @@ import { NextResponse } from 'next/server'
 import { engineRatelimit } from '@/lib/ratelimit'
 
 export async function POST(request: Request) {
-  const ip =
-    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
-    '127.0.0.1'
+  const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? '127.0.0.1'
 
-  const { success, limit, remaining, pending, reset } =
-    await engineRatelimit.limit(ip)
+  const { success, limit, remaining, pending, reset } = await engineRatelimit.limit(ip)
 
   // Flush analytics without blocking response (Vercel edge)
   // In non-Vercel: pending is a no-op promise, safe to ignore
@@ -325,13 +318,13 @@ export async function POST(request: Request) {
 
 ## Don't Hand-Roll
 
-| Problem | Don't Build | Use Instead | Why |
-|---------|-------------|-------------|-----|
-| JWT validation and session revalidation | Custom JWT decode + expiry check | `supabase.auth.getUser()` | Requires auth-server round-trip; local decode can't detect revocation |
-| Request body schema enforcement | Manual `if (!body.field)` checks | `zod.safeParse()` with typed schema | Manual checks miss type coercion, nested validation, union types, and produce inconsistent errors |
-| Serverless rate limiting | In-memory Map or LRU cache | `@upstash/ratelimit` + `@upstash/redis` | In-memory state is lost on each cold start; Redis provides consistent counts across all instances |
-| IP extraction from forwarded headers | Custom header parsing | `request.headers.get('x-forwarded-for')?.split(',')[0]` one-liner | Simple enough to inline; no library needed |
-| 429 response headers | Custom counter tracking | Use `limit`, `remaining`, `reset` from `ratelimit.limit()` response | Upstash computes these server-side accurately |
+| Problem                                 | Don't Build                      | Use Instead                                                         | Why                                                                                               |
+| --------------------------------------- | -------------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| JWT validation and session revalidation | Custom JWT decode + expiry check | `supabase.auth.getUser()`                                           | Requires auth-server round-trip; local decode can't detect revocation                             |
+| Request body schema enforcement         | Manual `if (!body.field)` checks | `zod.safeParse()` with typed schema                                 | Manual checks miss type coercion, nested validation, union types, and produce inconsistent errors |
+| Serverless rate limiting                | In-memory Map or LRU cache       | `@upstash/ratelimit` + `@upstash/redis`                             | In-memory state is lost on each cold start; Redis provides consistent counts across all instances |
+| IP extraction from forwarded headers    | Custom header parsing            | `request.headers.get('x-forwarded-for')?.split(',')[0]` one-liner   | Simple enough to inline; no library needed                                                        |
+| 429 response headers                    | Custom counter tracking          | Use `limit`, `remaining`, `reset` from `ratelimit.limit()` response | Upstash computes these server-side accurately                                                     |
 
 **Key insight:** In a serverless environment, any solution that stores rate-limit state in-process is silently broken across multiple concurrent instances.
 
@@ -346,12 +339,16 @@ export async function POST(request: Request) {
 **Why it happens:** A known bug in `@supabase/ssr` (tracked in issue #107) where a background `initialize()` call in the `createServerClient` constructor races with session loading in Route Handlers. Also triggered in Next.js 14.2+/15 by calling `cookies()` without `await`.
 
 **How to avoid:**
+
 1. Always `await cookies()` when constructing the server client.
 2. If the error persists, upgrade to `@supabase/ssr@0.9.0` which contains the fix (race condition resolved via `skipAutoInitialize`).
 3. Treat `authError !== null` as equivalent to "not logged in" — catch this error gracefully and return `401` rather than letting it surface as a 500.
 
 ```typescript
-const { data: { user }, error: authError } = await supabase.auth.getUser()
+const {
+  data: { user },
+  error: authError,
+} = await supabase.auth.getUser()
 if (authError || !user) {
   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 }
@@ -424,7 +421,10 @@ import { createScheduleSchema } from '@/schemas/schedule'
 export async function POST(request: Request) {
   // 1. Auth guard (SEC-02)
   const supabase = await createClient()
-  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser()
 
   if (authError || !user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -435,19 +435,13 @@ export async function POST(request: Request) {
   try {
     body = await request.json()
   } catch {
-    return NextResponse.json(
-      { success: false, error: 'Invalid JSON body' },
-      { status: 400 }
-    )
+    return NextResponse.json({ success: false, error: 'Invalid JSON body' }, { status: 400 })
   }
 
   // 3. Zod validation (SEC-07)
   const result = createScheduleSchema.safeParse(body)
   if (!result.success) {
-    return NextResponse.json(
-      { success: false, error: result.error.flatten() },
-      { status: 400 }
-    )
+    return NextResponse.json({ success: false, error: result.error.flatten() }, { status: 400 })
   }
 
   // 4. Business logic with typed data
@@ -467,16 +461,10 @@ export async function POST(request: Request) {
 import { NextResponse } from 'next/server'
 import { publicRatelimit } from '@/lib/ratelimit'
 
-export async function GET(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
+export async function GET(request: Request, { params }: { params: { id: string } }) {
   // Rate limit by IP (SEC-08)
-  const ip =
-    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
-    '127.0.0.1'
-  const { success, limit, remaining, reset, pending } =
-    await publicRatelimit.limit(ip)
+  const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? '127.0.0.1'
+  const { success, limit, remaining, reset, pending } = await publicRatelimit.limit(ip)
   void pending
 
   if (!success) {
@@ -502,15 +490,16 @@ export async function GET(
 
 ## State of the Art
 
-| Old Approach | Current Approach | When Changed | Impact |
-|--------------|------------------|--------------|--------|
-| `@supabase/auth-helpers-nextjs` | `@supabase/ssr` | 2023–2024 | auth-helpers is deprecated; all new projects use @supabase/ssr |
-| `auth.getSession()` on server | `auth.getUser()` on server | 2024 | `getSession()` is now explicitly documented as insecure on server |
-| `cookies()` called synchronously | `await cookies()` | Next.js 15 | cookies() became async; sync call returns a Promise instead of CookieStore |
-| `zod.parse()` in API routes | `zod.safeParse()` | Long-standing | `parse()` throws; `safeParse()` returns structured result without throwing |
-| `error.format()` for Zod errors | `error.flatten()` (or `z.treeifyError()`) | Zod v4 | `error.format()` deprecated in Zod v4 in favor of `flatten()` and `treeifyError()` |
+| Old Approach                     | Current Approach                          | When Changed  | Impact                                                                             |
+| -------------------------------- | ----------------------------------------- | ------------- | ---------------------------------------------------------------------------------- |
+| `@supabase/auth-helpers-nextjs`  | `@supabase/ssr`                           | 2023–2024     | auth-helpers is deprecated; all new projects use @supabase/ssr                     |
+| `auth.getSession()` on server    | `auth.getUser()` on server                | 2024          | `getSession()` is now explicitly documented as insecure on server                  |
+| `cookies()` called synchronously | `await cookies()`                         | Next.js 15    | cookies() became async; sync call returns a Promise instead of CookieStore         |
+| `zod.parse()` in API routes      | `zod.safeParse()`                         | Long-standing | `parse()` throws; `safeParse()` returns structured result without throwing         |
+| `error.format()` for Zod errors  | `error.flatten()` (or `z.treeifyError()`) | Zod v4        | `error.format()` deprecated in Zod v4 in favor of `flatten()` and `treeifyError()` |
 
 **Deprecated/outdated:**
+
 - `@supabase/auth-helpers-nextjs`: Replaced by `@supabase/ssr`; do not install or use.
 - `auth.getSession()` in server context: Documented as insecure; always use `auth.getUser()` on the server.
 - `zod.error.format()`: Deprecated in Zod v4; use `error.flatten()` for flat schemas.
@@ -538,20 +527,22 @@ export async function GET(
 
 ## Environment Availability
 
-| Dependency | Required By | Available | Version | Fallback |
-|------------|------------|-----------|---------|----------|
-| Node.js | All — runtime | Yes | v24.14.0 | — |
-| npm | Package install | Yes | 11.9.0 | — |
-| `@upstash/ratelimit` | SEC-08 | To install | — | None — must install |
-| `@upstash/redis` | SEC-08 | To install | — | None — must install |
-| Upstash Redis REST API | SEC-08 runtime | Unknown | — | No fallback — must provision if absent |
-| `@supabase/ssr` | SEC-02 | To install (if not from Phase 2) | — | None — must install |
-| `zod` | SEC-07 | To install (if not present) | — | None — must install |
+| Dependency             | Required By     | Available                        | Version  | Fallback                               |
+| ---------------------- | --------------- | -------------------------------- | -------- | -------------------------------------- |
+| Node.js                | All — runtime   | Yes                              | v24.14.0 | —                                      |
+| npm                    | Package install | Yes                              | 11.9.0   | —                                      |
+| `@upstash/ratelimit`   | SEC-08          | To install                       | —        | None — must install                    |
+| `@upstash/redis`       | SEC-08          | To install                       | —        | None — must install                    |
+| Upstash Redis REST API | SEC-08 runtime  | Unknown                          | —        | No fallback — must provision if absent |
+| `@supabase/ssr`        | SEC-02          | To install (if not from Phase 2) | —        | None — must install                    |
+| `zod`                  | SEC-07          | To install (if not present)      | —        | None — must install                    |
 
 **Missing dependencies with no fallback:**
+
 - Upstash Redis database credentials (`UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`) — must be created in Upstash Console before rate limiting tasks run.
 
 **Missing dependencies with fallback:**
+
 - None.
 
 ---
@@ -562,24 +553,24 @@ export async function GET(
 
 The phase has no existing test infrastructure discovered (no test config files in the working directory). Wave 0 must establish the baseline.
 
-| Property | Value |
-|----------|-------|
-| Framework | Vitest (recommended for Next.js App Router) or Jest |
-| Config file | `vitest.config.ts` — Wave 0 gap |
-| Quick run command | `npx vitest run --reporter=verbose` |
-| Full suite command | `npx vitest run` |
+| Property           | Value                                               |
+| ------------------ | --------------------------------------------------- |
+| Framework          | Vitest (recommended for Next.js App Router) or Jest |
+| Config file        | `vitest.config.ts` — Wave 0 gap                     |
+| Quick run command  | `npx vitest run --reporter=verbose`                 |
+| Full suite command | `npx vitest run`                                    |
 
 ### Phase Requirements to Test Map
 
-| Req ID | Behavior | Test Type | Automated Command | File Exists? |
-|--------|----------|-----------|-------------------|-------------|
-| SEC-02 | Unauthenticated POST returns 401 | unit (mock Supabase) | `npx vitest run tests/api/auth-guard.test.ts` | Wave 0 gap |
-| SEC-02 | Public routes return 2xx without auth header | unit | `npx vitest run tests/api/public-routes.test.ts` | Wave 0 gap |
-| SEC-07 | Malformed body returns 400 with `fieldErrors` | unit | `npx vitest run tests/api/zod-validation.test.ts` | Wave 0 gap |
-| SEC-07 | Valid body returns 2xx (no validation error) | unit | `npx vitest run tests/api/zod-validation.test.ts` | Wave 0 gap |
-| SEC-08 | Rate-limited route returns 429 after N requests | integration (mock Redis) | `npx vitest run tests/api/rate-limit.test.ts` | Wave 0 gap |
-| SEC-08 | 429 response includes X-RateLimit-* headers | integration | `npx vitest run tests/api/rate-limit.test.ts` | Wave 0 gap |
-| SEC-08 | Expired JWT returns 401 (not empty/silent) | unit | `npx vitest run tests/api/auth-guard.test.ts` | Wave 0 gap |
+| Req ID | Behavior                                        | Test Type                | Automated Command                                 | File Exists? |
+| ------ | ----------------------------------------------- | ------------------------ | ------------------------------------------------- | ------------ |
+| SEC-02 | Unauthenticated POST returns 401                | unit (mock Supabase)     | `npx vitest run tests/api/auth-guard.test.ts`     | Wave 0 gap   |
+| SEC-02 | Public routes return 2xx without auth header    | unit                     | `npx vitest run tests/api/public-routes.test.ts`  | Wave 0 gap   |
+| SEC-07 | Malformed body returns 400 with `fieldErrors`   | unit                     | `npx vitest run tests/api/zod-validation.test.ts` | Wave 0 gap   |
+| SEC-07 | Valid body returns 2xx (no validation error)    | unit                     | `npx vitest run tests/api/zod-validation.test.ts` | Wave 0 gap   |
+| SEC-08 | Rate-limited route returns 429 after N requests | integration (mock Redis) | `npx vitest run tests/api/rate-limit.test.ts`     | Wave 0 gap   |
+| SEC-08 | 429 response includes X-RateLimit-\* headers    | integration              | `npx vitest run tests/api/rate-limit.test.ts`     | Wave 0 gap   |
+| SEC-08 | Expired JWT returns 401 (not empty/silent)      | unit                     | `npx vitest run tests/api/auth-guard.test.ts`     | Wave 0 gap   |
 
 ### Sampling Rate
 
@@ -624,6 +615,7 @@ The phase has no existing test infrastructure discovered (no test config files i
 ## Metadata
 
 **Confidence breakdown:**
+
 - Standard stack: HIGH — all versions verified against npm registry on 2026-03-23
 - Architecture patterns: HIGH — verified against official Supabase SSR docs and Upstash ratelimit-js docs
 - Pitfalls: HIGH — AuthSessionMissingError verified against open GitHub issue; others verified through official docs

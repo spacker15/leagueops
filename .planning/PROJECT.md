@@ -47,6 +47,7 @@ Tournament day operations must work reliably in real time — live scoring, fiel
 ### Active
 
 **Security & Multi-Event Hardening**
+
 - [ ] SEC-01: Lock down RLS policies on all core tables (replace "Allow all" with proper row-level security)
 - [ ] SEC-02: Add authentication checks to all 40+ API routes (currently only 2 routes check auth)
 - [ ] SEC-03: Fix engine modules to use server-side Supabase client instead of browser client in API routes
@@ -55,10 +56,12 @@ Tournament day operations must work reliably in real time — live scoring, fiel
 - [ ] SEC-06: Move OpenWeather API key from NEXT_PUBLIC to server-only environment variable
 
 **Event Creation Enhancements**
+
 - [ ] EVT-01: Google Maps integration for complex lookup — search, save lat/lng, address, place ID when creating events
 - [ ] EVT-02: Generate shareable registration link + QR code per event for social media/email distribution
 
 **Registration Flow Enhancements** ✓ Completed in Phase 6
+
 - [x] REG-01: Admin defines event schedule/dates before registration opens
 - [x] REG-02: Program leader selects team availability during registration (all dates or specific dates per team)
 - [x] REG-03: Program leader can add coaches directly with contact info (name, email, phone, certifications)
@@ -67,6 +70,7 @@ Tournament day operations must work reliably in real time — live scoring, fiel
 - [x] REG-06: Program leaders can register one or many teams in a single session
 
 **Schedule Change Request Workflow**
+
 - [ ] SCH-01: Coaches/program leaders can submit schedule conflict requests (select games, reason, preferred alternative, cancel vs reschedule)
 - [ ] SCH-02: System notifies admin of incoming schedule change requests
 - [ ] SCH-03: Admin reviews and approves/denies conflict requests
@@ -75,6 +79,7 @@ Tournament day operations must work reliably in real time — live scoring, fiel
 - [ ] SCH-06: Notifications sent to all affected teams when schedule changes
 
 **Public Results Site**
+
 - [ ] PUB-01: Live scores visible to parents/spectators without login (apps/public-results)
 - [ ] PUB-02: Game schedules viewable by team/field/time
 - [ ] PUB-03: Division standings with win/loss records
@@ -83,6 +88,7 @@ Tournament day operations must work reliably in real time — live scoring, fiel
 - [ ] PUB-06: Real-time updates via Supabase Realtime
 
 **Notifications**
+
 - [ ] NOT-01: Weather alert notifications (lightning delays, field closures, game suspensions)
 - [ ] NOT-02: Schedule change notifications (game time/field changes, cancellations)
 - [ ] NOT-03: Admin alert notifications (referee no-shows, registration deadlines, ops issues)
@@ -91,6 +97,7 @@ Tournament day operations must work reliably in real time — live scoring, fiel
 - [ ] NOT-06: Browser push notifications (PWA-compatible)
 
 **Responsive Design**
+
 - [ ] MOB-01: Make existing admin app fully responsive for phone/tablet use at fields
 
 ### Out of Scope
@@ -107,6 +114,7 @@ Tournament day operations must work reliably in real time — live scoring, fiel
 **Current state:** App is live with multi-event support, RLS security, authenticated API routes, and full registration flow. Phase 6 added coach management (direct add + self-registration links), team availability selection, registration window enforcement, coach conflict detection as schedule engine constraints, and multi-team registration UX improvements.
 
 **Technical debt highlights:**
+
 - `event_id = 1` hardcoded in ~60 places across engines, components, and API routes
 - All RLS policies set to "Allow all" (explicitly noted as temporary in schema)
 - 40+ API routes with no auth checks
@@ -116,6 +124,7 @@ Tournament day operations must work reliably in real time — live scoring, fiel
 - Lightning detection uses coarse weather codes, not actual strike radius data
 
 **Existing infrastructure:**
+
 - Supabase project: rzzzwrqbubptnlwfesjv
 - Vercel auto-deploy on push to main
 - apps/public-results skeleton exists (separate Next.js app on port 3001)
@@ -131,20 +140,21 @@ Tournament day operations must work reliably in real time — live scoring, fiel
 
 ## Key Decisions
 
-| Decision | Rationale | Outcome |
-|----------|-----------|---------|
-| Security before features | Event is live, open RLS and no auth on routes is a risk | — Pending |
-| Responsive web over native app | Simpler, faster, one codebase — sufficient for field-side use | — Pending |
-| Free/cheap notification providers | Budget constraint — Supabase Edge Functions, free SMS tiers | — Pending |
-| Google Maps for complex lookup | Standard solution, reliable geocoding, familiar UX | — Pending |
-| Coach self-registration links | Reduces admin burden, coaches provide own info + certifications | — Pending |
-| Schedule change request workflow | Coaches submit → admin approves → system suggests → admin confirms | — Pending |
+| Decision                          | Rationale                                                          | Outcome   |
+| --------------------------------- | ------------------------------------------------------------------ | --------- |
+| Security before features          | Event is live, open RLS and no auth on routes is a risk            | — Pending |
+| Responsive web over native app    | Simpler, faster, one codebase — sufficient for field-side use      | — Pending |
+| Free/cheap notification providers | Budget constraint — Supabase Edge Functions, free SMS tiers        | — Pending |
+| Google Maps for complex lookup    | Standard solution, reliable geocoding, familiar UX                 | — Pending |
+| Coach self-registration links     | Reduces admin burden, coaches provide own info + certifications    | — Pending |
+| Schedule change request workflow  | Coaches submit → admin approves → system suggests → admin confirms | — Pending |
 
 ## Evolution
 
 This document evolves at phase transitions and milestone boundaries.
 
 **After each phase transition** (via `/gsd:transition`):
+
 1. Requirements invalidated? → Move to Out of Scope with reason
 2. Requirements validated? → Move to Validated with phase reference
 3. New requirements emerged? → Add to Active
@@ -152,10 +162,12 @@ This document evolves at phase transitions and milestone boundaries.
 5. "What This Is" still accurate? → Update if drifted
 
 **After each milestone** (via `/gsd:complete-milestone`):
+
 1. Full review of all sections
 2. Core Value check — still the right priority?
 3. Audit Out of Scope — reasons still valid?
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-24 after Phase 6 completion*
+
+_Last updated: 2026-03-24 after Phase 6 completion_

@@ -76,7 +76,7 @@ export function ProgramLeaderDashboard() {
     if (portalEventId && programId) {
       loadData()
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [portalEventId, programId])
 
   if (!portalEventId || !programId) return null
@@ -102,7 +102,10 @@ export function ProgramLeaderDashboard() {
       const { data: coachRows } = await sb
         .from('coach_teams')
         .select('id, role, team_registration_id, coaches(name, email, certifications)')
-        .in('team_registration_id', regList.map(t => t.id))
+        .in(
+          'team_registration_id',
+          regList.map((t) => t.id)
+        )
         .eq('event_id', portalEventId!)
 
       for (const row of (coachRows ?? []) as any[]) {
@@ -157,7 +160,9 @@ export function ProgramLeaderDashboard() {
       // Load games for program's teams
       const { data: gamesData } = await sb
         .from('games')
-        .select('*, home_team:teams!games_home_team_id_fkey(id, name), away_team:teams!games_away_team_id_fkey(id, name), field:fields(id, name)')
+        .select(
+          '*, home_team:teams!games_home_team_id_fkey(id, name), away_team:teams!games_away_team_id_fkey(id, name), field:fields(id, name)'
+        )
         .eq('event_id', portalEventId!)
         .or(`home_team_id.in.(${teamIds.join(',')}),away_team_id.in.(${teamIds.join(',')})`)
         .order('scheduled_time')
@@ -261,8 +266,8 @@ export function ProgramLeaderDashboard() {
       return 'Available all dates'
     }
     const labels = team.available_date_ids
-      .map(id => {
-        const d = eventDates.find(ed => ed.id === id)
+      .map((id) => {
+        const d = eventDates.find((ed) => ed.id === id)
         return d?.label ?? d?.date ?? String(id)
       })
       .join(', ')
@@ -283,7 +288,6 @@ export function ProgramLeaderDashboard() {
   return (
     <div className="min-h-screen bg-surface p-4">
       <div className="max-w-3xl mx-auto space-y-6">
-
         {/* Coach Invite Section */}
         <div className="bg-[#081428] border border-[#1a2d50] rounded-xl p-5">
           <div className="font-cond text-[12px] font-black tracking-[.12em] text-white uppercase mb-4">
@@ -308,7 +312,7 @@ export function ProgramLeaderDashboard() {
                     readOnly
                     value={invite.url}
                     className={inp + ' cursor-default select-all'}
-                    onFocus={e => e.target.select()}
+                    onFocus={(e) => e.target.select()}
                   />
                 </div>
               </div>
@@ -348,18 +352,19 @@ export function ProgramLeaderDashboard() {
         </div>
 
         {/* Teams with Coaches Section */}
-        {teamRegs.map(team => {
+        {teamRegs.map((team) => {
           const coaches = coachesByTeam.get(team.id) ?? []
           return (
-            <div
-              key={team.id}
-              className="bg-[#081428] border border-[#1a2d50] rounded-xl p-5"
-            >
+            <div key={team.id} className="bg-[#081428] border border-[#1a2d50] rounded-xl p-5">
               {/* Team header */}
               <div className="flex items-center justify-between mb-3">
                 <div>
-                  <div className="font-cond text-[15px] font-black text-white">{team.team_name}</div>
-                  <div className="font-cond text-[11px] text-[#5a6e9a] uppercase">{team.division}</div>
+                  <div className="font-cond text-[15px] font-black text-white">
+                    {team.team_name}
+                  </div>
+                  <div className="font-cond text-[11px] text-[#5a6e9a] uppercase">
+                    {team.division}
+                  </div>
                 </div>
                 <Pill variant={team.status === 'approved' ? 'green' : 'yellow'}>
                   {team.status.toUpperCase()}
@@ -370,13 +375,15 @@ export function ProgramLeaderDashboard() {
               <div className="mb-3">
                 <div className="font-cond text-[10px] font-black tracking-[.12em] text-[#5a6e9a] uppercase mb-2 flex items-center gap-2">
                   COACHES
-                  <span className="font-cond text-[11px] text-[#5a6e9a]">{coaches.length} Coach{coaches.length !== 1 ? 'es' : ''}</span>
+                  <span className="font-cond text-[11px] text-[#5a6e9a]">
+                    {coaches.length} Coach{coaches.length !== 1 ? 'es' : ''}
+                  </span>
                 </div>
                 {coaches.length === 0 ? (
                   <div className="text-[12px] text-[#5a6e9a] italic">No coaches assigned yet.</div>
                 ) : (
                   <div className="space-y-2">
-                    {coaches.map(ct => (
+                    {coaches.map((ct) => (
                       <div key={ct.id} className="flex items-center gap-2 flex-wrap">
                         <div className="w-7 h-7 rounded-full bg-[#1a2d50] flex items-center justify-center flex-shrink-0">
                           <span className="font-cond text-[10px] font-black text-white">
@@ -384,15 +391,17 @@ export function ProgramLeaderDashboard() {
                           </span>
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="font-cond text-[13px] font-bold text-white">{ct.coaches?.name ?? '—'}</div>
-                          <div className="text-[11px] text-[#5a6e9a]">{ct.coaches?.email ?? ''}</div>
+                          <div className="font-cond text-[13px] font-bold text-white">
+                            {ct.coaches?.name ?? '—'}
+                          </div>
+                          <div className="text-[11px] text-[#5a6e9a]">
+                            {ct.coaches?.email ?? ''}
+                          </div>
                         </div>
                         {ct.coaches?.certifications && (
                           <Pill variant="blue">{ct.coaches.certifications}</Pill>
                         )}
-                        {ct.role && (
-                          <Pill variant="gray">{ct.role}</Pill>
-                        )}
+                        {ct.role && <Pill variant="gray">{ct.role}</Pill>}
                       </div>
                     ))}
                   </div>
@@ -404,9 +413,7 @@ export function ProgramLeaderDashboard() {
                 <div className="font-cond text-[10px] font-black tracking-[.12em] text-[#5a6e9a] uppercase mb-1">
                   AVAILABLE DATES
                 </div>
-                <div className="text-[12px] text-white">
-                  {getAvailabilityLabel(team)}
-                </div>
+                <div className="text-[12px] text-white">{getAvailabilityLabel(team)}</div>
               </div>
 
               {/* Games section with Request Change buttons */}
@@ -430,15 +437,17 @@ export function ProgramLeaderDashboard() {
                         const isCancelled = game.status === 'Cancelled'
                         const opponent =
                           game.home_team_id === matchedTeam.id
-                            ? (game.away_team as any)?.name ?? `Team #${game.away_team_id}`
-                            : (game.home_team as any)?.name ?? `Team #${game.home_team_id}`
+                            ? ((game.away_team as any)?.name ?? `Team #${game.away_team_id}`)
+                            : ((game.home_team as any)?.name ?? `Team #${game.home_team_id}`)
                         return (
                           <div
                             key={game.id}
                             className={`flex items-center justify-between gap-2 rounded-lg px-2.5 py-2 bg-[#040e24] border border-[#1e3060] ${isCancelled ? 'opacity-50' : ''}`}
                           >
                             <div className="flex items-center gap-2 flex-1 min-w-0">
-                              <span className={`font-mono text-[11px] text-[#5a6e9a] whitespace-nowrap ${isCancelled ? 'line-through' : ''}`}>
+                              <span
+                                className={`font-mono text-[11px] text-[#5a6e9a] whitespace-nowrap ${isCancelled ? 'line-through' : ''}`}
+                              >
                                 {game.scheduled_time}
                               </span>
                               <span className="font-cond text-[12px] text-white font-black truncate">
@@ -487,14 +496,23 @@ export function ProgramLeaderDashboard() {
         title="Coach Invite QR Code"
         footer={
           <>
-            <Btn variant="ghost" size="sm" onClick={handleDownloadSVG}>Download SVG</Btn>
-            <Btn variant="ghost" size="sm" onClick={handleDownloadPNG}>Download PNG</Btn>
-            <Btn variant="ghost" size="sm" onClick={() => setShowQRModal(false)}>Close</Btn>
+            <Btn variant="ghost" size="sm" onClick={handleDownloadSVG}>
+              Download SVG
+            </Btn>
+            <Btn variant="ghost" size="sm" onClick={handleDownloadPNG}>
+              Download PNG
+            </Btn>
+            <Btn variant="ghost" size="sm" onClick={() => setShowQRModal(false)}>
+              Close
+            </Btn>
           </>
         }
       >
         {invite.url && (
-          <div className="flex flex-col items-center gap-3 p-6 bg-white rounded-lg mx-auto" style={{ maxWidth: 300 }}>
+          <div
+            className="flex flex-col items-center gap-3 p-6 bg-white rounded-lg mx-auto"
+            style={{ maxWidth: 300 }}
+          >
             <QRCodeSVG
               ref={svgRef}
               value={invite.url}
@@ -530,12 +548,7 @@ export function ProgramLeaderDashboard() {
             <Btn variant="ghost" size="sm" onClick={() => setShowRevokeModal(false)}>
               CANCEL
             </Btn>
-            <Btn
-              variant="danger"
-              size="sm"
-              onClick={handleRevokeInvite}
-              disabled={revokingInvite}
-            >
+            <Btn variant="danger" size="sm" onClick={handleRevokeInvite} disabled={revokingInvite}>
               REVOKE LINK
             </Btn>
           </>

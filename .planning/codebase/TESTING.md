@@ -6,14 +6,14 @@
 
 Key dependencies (from `package.json`):
 
-| Package | Version | Role |
-|---|---|---|
-| `vitest` | `^4.1.0` | Test runner |
-| `@testing-library/react` | `^16.3.2` | React component testing utilities |
-| `@testing-library/jest-dom` | `^6.9.1` | Custom DOM matchers |
-| `@testing-library/user-event` | `^14.6.1` | User interaction simulation |
-| `@vitejs/plugin-react` | `^6.0.1` | JSX/React support in Vite |
-| `jsdom` | `^29.0.0` | Browser environment simulation |
+| Package                       | Version   | Role                              |
+| ----------------------------- | --------- | --------------------------------- |
+| `vitest`                      | `^4.1.0`  | Test runner                       |
+| `@testing-library/react`      | `^16.3.2` | React component testing utilities |
+| `@testing-library/jest-dom`   | `^6.9.1`  | Custom DOM matchers               |
+| `@testing-library/user-event` | `^14.6.1` | User interaction simulation       |
+| `@vitejs/plugin-react`        | `^6.0.1`  | JSX/React support in Vite         |
+| `jsdom`                       | `^29.0.0` | Browser environment simulation    |
 
 ---
 
@@ -61,6 +61,7 @@ import '@testing-library/jest-dom'
 ```
 
 A single import that extends Vitest's `expect` with jest-dom matchers such as:
+
 - `toBeInTheDocument()`
 - `toHaveTextContent()`
 - `toBeVisible()`

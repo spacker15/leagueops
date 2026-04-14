@@ -7,6 +7,7 @@
 ---
 
 <user_constraints>
+
 ## User Constraints (from CONTEXT.md)
 
 ### Locked Decisions
@@ -37,11 +38,13 @@ None — discussion stayed within phase scope.
 ---
 
 <phase_requirements>
+
 ## Phase Requirements
 
-| ID | Description | Research Support |
-|----|-------------|------------------|
+| ID     | Description                                                                                                                         | Research Support                                                                                                                                         |
+| ------ | ----------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | SEC-01 | All core database tables have proper RLS policies replacing "Allow all" — scoped by event_id via `user_event_ids()` helper function | Full table inventory (47 tables across all migrations), helper function design (D-03/D-04/D-05), layered migration strategy (D-06), rollback plan (D-07) |
+
 </phase_requirements>
 
 ---
@@ -62,20 +65,20 @@ The `user_roles` table already has proper non-permissive policies from `auth_mig
 
 ### Core
 
-| Library/Tool | Purpose | Why Standard |
-|--------------|---------|--------------|
-| PostgreSQL RLS (`CREATE POLICY`) | Row-level access control | Native Supabase/Postgres feature, zero latency overhead |
-| `SECURITY DEFINER` functions | Elevated-privilege helper for policy expressions | Required when the helper must bypass the caller's own RLS context |
-| `auth.uid()` | Get current user UUID inside policies | Supabase built-in, available in all policy expressions |
-| Supabase MCP `create_branch` | Create isolated branch for migration staging | Available in project per CONTEXT.md |
-| Supabase MCP `apply_migration` | Apply SQL migration to a branch or production | Available in project per CONTEXT.md |
+| Library/Tool                     | Purpose                                          | Why Standard                                                      |
+| -------------------------------- | ------------------------------------------------ | ----------------------------------------------------------------- |
+| PostgreSQL RLS (`CREATE POLICY`) | Row-level access control                         | Native Supabase/Postgres feature, zero latency overhead           |
+| `SECURITY DEFINER` functions     | Elevated-privilege helper for policy expressions | Required when the helper must bypass the caller's own RLS context |
+| `auth.uid()`                     | Get current user UUID inside policies            | Supabase built-in, available in all policy expressions            |
+| Supabase MCP `create_branch`     | Create isolated branch for migration staging     | Available in project per CONTEXT.md                               |
+| Supabase MCP `apply_migration`   | Apply SQL migration to a branch or production    | Available in project per CONTEXT.md                               |
 
 ### Alternatives Considered
 
-| Instead of | Could Use | Tradeoff |
-|------------|-----------|----------|
+| Instead of                | Could Use                             | Tradeoff                                                                              |
+| ------------------------- | ------------------------------------- | ------------------------------------------------------------------------------------- |
 | SECURITY DEFINER function | Inline subquery in every USING clause | Function is DRY and allows caching; inline subquery is verbose and harder to maintain |
-| Per-operation policies | Single `FOR ALL` policy | `FOR ALL` cannot give anon SELECT + authenticated CRUD without two separate policies |
+| Per-operation policies    | Single `FOR ALL` policy               | `FOR ALL` cannot give anon SELECT + authenticated CRUD without two separate policies  |
 
 ---
 
@@ -87,68 +90,68 @@ This is the definitive list of all tables requiring RLS policy replacement. Deri
 
 These tables contain no PII or ops data. Per D-08/D-09, anon can SELECT all rows (no event filter).
 
-| Table | event_id column | Direct? | Notes |
-|-------|----------------|---------|-------|
-| `events` | `id` (IS the event) | n/a — anon sees all | Public: event metadata, no sensitive cols |
-| `event_dates` | `event_id` | direct | Public: schedule dates |
-| `fields` | `event_id` | direct | Public: field names/locations |
-| `teams` | `event_id` | direct | Public: team names, division, association, color |
-| `games` | `event_id` | direct | Public: schedule and scores |
-| `registration_divisions` | `event_id` | direct | Public: available divisions per event |
+| Table                    | event_id column     | Direct?             | Notes                                            |
+| ------------------------ | ------------------- | ------------------- | ------------------------------------------------ |
+| `events`                 | `id` (IS the event) | n/a — anon sees all | Public: event metadata, no sensitive cols        |
+| `event_dates`            | `event_id`          | direct              | Public: schedule dates                           |
+| `fields`                 | `event_id`          | direct              | Public: field names/locations                    |
+| `teams`                  | `event_id`          | direct              | Public: team names, division, association, color |
+| `games`                  | `event_id`          | direct              | Public: schedule and scores                      |
+| `registration_divisions` | `event_id`          | direct              | Public: available divisions per event            |
 
 ### Group B: Authenticated Event-Scoped Tables — no anon access
 
 These tables have a direct `event_id` column. USING clause: `event_id IN (SELECT user_event_ids())`.
 
-| Table | event_id column | Source SQL |
-|-------|----------------|------------|
-| `referees` | `event_id` | schema.sql |
-| `volunteers` | `event_id` | schema.sql |
-| `incidents` | `event_id` | schema.sql |
-| `medical_incidents` | `event_id` | schema.sql |
-| `weather_alerts` | `event_id` | schema.sql |
-| `ops_log` | `event_id` | schema.sql + phase5 |
-| `complexes` | `event_id` | phase1_migration.sql |
-| `operational_conflicts` | `event_id` | phase1_migration.sql |
-| `weather_readings` | `event_id` | phase3_migration.sql |
-| `lightning_events` | `event_id` | phase3_migration.sql |
-| `heat_events` | `event_id` | phase3_migration.sql |
-| `event_rules` | `event_id` | phase3b_rules.sql |
-| `rule_changes` | `event_id` | phase3b_rules.sql |
-| `schedule_snapshots` | `event_id` | phase4_migration.sql |
-| `conflict_engine_runs` | `event_id` | phase4_migration.sql |
-| `ops_alerts` | `event_id` | phase5_command_center.sql |
-| `shift_handoffs` | `event_id` | phase5_command_center.sql |
-| `schedule_rules` | `event_id` | schedule_rules_system.sql |
-| `weekly_overrides` | `event_id` | schedule_rules_system.sql |
-| `schedule_audit_log` | `event_id` | schedule_rules_system.sql |
-| `division_hierarchy` | `event_id` | player_eligibility.sql |
-| `eligibility_violations` | `event_id` | player_eligibility.sql |
-| `multi_game_approvals` | `event_id` | player_eligibility.sql |
-| `registration_questions` | `event_id` | registration_config.sql |
-| `season_game_days` | `event_id` | season_game_days.sql |
-| `field_divisions` | `event_id` | division_color_field_divisions.sql |
-| `event_admins` | `event_id` | multi_event.sql |
-| `player_qr_tokens` | `event_id` | auth_migration.sql |
-| `qr_checkin_log` | `event_id` | auth_migration.sql |
-| `portal_checkins` | `event_id` | auth_migration.sql |
-| `registration_invites` | `event_id` | registration_invites.sql |
+| Table                    | event_id column | Source SQL                         |
+| ------------------------ | --------------- | ---------------------------------- |
+| `referees`               | `event_id`      | schema.sql                         |
+| `volunteers`             | `event_id`      | schema.sql                         |
+| `incidents`              | `event_id`      | schema.sql                         |
+| `medical_incidents`      | `event_id`      | schema.sql                         |
+| `weather_alerts`         | `event_id`      | schema.sql                         |
+| `ops_log`                | `event_id`      | schema.sql + phase5                |
+| `complexes`              | `event_id`      | phase1_migration.sql               |
+| `operational_conflicts`  | `event_id`      | phase1_migration.sql               |
+| `weather_readings`       | `event_id`      | phase3_migration.sql               |
+| `lightning_events`       | `event_id`      | phase3_migration.sql               |
+| `heat_events`            | `event_id`      | phase3_migration.sql               |
+| `event_rules`            | `event_id`      | phase3b_rules.sql                  |
+| `rule_changes`           | `event_id`      | phase3b_rules.sql                  |
+| `schedule_snapshots`     | `event_id`      | phase4_migration.sql               |
+| `conflict_engine_runs`   | `event_id`      | phase4_migration.sql               |
+| `ops_alerts`             | `event_id`      | phase5_command_center.sql          |
+| `shift_handoffs`         | `event_id`      | phase5_command_center.sql          |
+| `schedule_rules`         | `event_id`      | schedule_rules_system.sql          |
+| `weekly_overrides`       | `event_id`      | schedule_rules_system.sql          |
+| `schedule_audit_log`     | `event_id`      | schedule_rules_system.sql          |
+| `division_hierarchy`     | `event_id`      | player_eligibility.sql             |
+| `eligibility_violations` | `event_id`      | player_eligibility.sql             |
+| `multi_game_approvals`   | `event_id`      | player_eligibility.sql             |
+| `registration_questions` | `event_id`      | registration_config.sql            |
+| `season_game_days`       | `event_id`      | season_game_days.sql               |
+| `field_divisions`        | `event_id`      | division_color_field_divisions.sql |
+| `event_admins`           | `event_id`      | multi_event.sql                    |
+| `player_qr_tokens`       | `event_id`      | auth_migration.sql                 |
+| `qr_checkin_log`         | `event_id`      | auth_migration.sql                 |
+| `portal_checkins`        | `event_id`      | auth_migration.sql                 |
+| `registration_invites`   | `event_id`      | registration_invites.sql           |
 
 ### Group C: Indirectly Event-Scoped Tables — event_id through parent join
 
 These tables have no direct `event_id` column; they join through a parent that does.
 
-| Table | Indirect path | Source SQL |
-|-------|--------------|------------|
-| `players` | `teams.event_id` | schema.sql (has `event_id` column added later in player_eligibility.sql — can use direct) |
-| `ref_assignments` | `games.event_id` via `game_id` | schema.sql |
-| `vol_assignments` | `games.event_id` via `game_id` | schema.sql |
-| `player_checkins` | `games.event_id` via `game_id` | schema.sql |
-| `referee_availability` | `referees.event_id` via `referee_id` | phase1_migration.sql |
-| `field_blocks` | `fields.event_id` via `field_id` (also has direct `event_id` from phase4_migration.sql) | phase1_migration.sql |
-| `program_teams` | `event_id` | program_registration.sql (direct — belongs in Group B) |
-| `team_registrations` | `event_id` | program_registration.sql (direct — belongs in Group B) |
-| `registration_answers` | `team_registrations.event_id` via `team_reg_id` | registration_config.sql |
+| Table                  | Indirect path                                                                           | Source SQL                                                                                |
+| ---------------------- | --------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `players`              | `teams.event_id`                                                                        | schema.sql (has `event_id` column added later in player_eligibility.sql — can use direct) |
+| `ref_assignments`      | `games.event_id` via `game_id`                                                          | schema.sql                                                                                |
+| `vol_assignments`      | `games.event_id` via `game_id`                                                          | schema.sql                                                                                |
+| `player_checkins`      | `games.event_id` via `game_id`                                                          | schema.sql                                                                                |
+| `referee_availability` | `referees.event_id` via `referee_id`                                                    | phase1_migration.sql                                                                      |
+| `field_blocks`         | `fields.event_id` via `field_id` (also has direct `event_id` from phase4_migration.sql) | phase1_migration.sql                                                                      |
+| `program_teams`        | `event_id`                                                                              | program_registration.sql (direct — belongs in Group B)                                    |
+| `team_registrations`   | `event_id`                                                                              | program_registration.sql (direct — belongs in Group B)                                    |
+| `registration_answers` | `team_registrations.event_id` via `team_reg_id`                                         | registration_config.sql                                                                   |
 
 **Note on `players`:** `player_eligibility.sql` added `event_id` column to `players` — can scope directly. Use `event_id IN (SELECT user_event_ids())` rather than the join.
 
@@ -156,24 +159,24 @@ These tables have no direct `event_id` column; they join through a parent that d
 
 ### Group D: Sensitive Tables — zero anon policies (D-02)
 
-| Table | Sensitivity | Current State |
-|-------|-------------|---------------|
-| `ops_alerts` | Internal engine alerts, ops intelligence | "Allow all" — must be locked |
-| `ops_log` | Operations log messages | "Allow all" — must be locked |
-| `user_roles` | Auth/role system | Already has proper policies — DO NOT REPLACE |
+| Table        | Sensitivity                              | Current State                                |
+| ------------ | ---------------------------------------- | -------------------------------------------- |
+| `ops_alerts` | Internal engine alerts, ops intelligence | "Allow all" — must be locked                 |
+| `ops_log`    | Operations log messages                  | "Allow all" — must be locked                 |
+| `user_roles` | Auth/role system                         | Already has proper policies — DO NOT REPLACE |
 
 ### Group E: Event-Agnostic Tables — no event_id, need design decision
 
-| Table | Description | Recommended Policy |
-|-------|-------------|-------------------|
-| `programs` | Organizations independent of events | Authenticated can SELECT all; INSERT/UPDATE scoped to their own program (via program_leaders); admin can manage all |
-| `program_leaders` | User→Program links | Users can SELECT own rows; admin can SELECT all |
-| `seasons` | League seasons — no event_id, no user link | Authenticated can SELECT; admin-only for writes |
+| Table             | Description                                | Recommended Policy                                                                                                  |
+| ----------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------- |
+| `programs`        | Organizations independent of events        | Authenticated can SELECT all; INSERT/UPDATE scoped to their own program (via program_leaders); admin can manage all |
+| `program_leaders` | User→Program links                         | Users can SELECT own rows; admin can SELECT all                                                                     |
+| `seasons`         | League seasons — no event_id, no user link | Authenticated can SELECT; admin-only for writes                                                                     |
 
 ### Group F: Already Has Proper Policies — DO NOT TOUCH
 
-| Table | Existing Policies |
-|-------|-------------------|
+| Table        | Existing Policies                                                                         |
+| ------------ | ----------------------------------------------------------------------------------------- |
 | `user_roles` | "Users can read own role" (SELECT WHERE user_id = auth.uid()) + "Admins can manage roles" |
 
 ---
@@ -200,6 +203,7 @@ $$;
 ```
 
 **Key properties:**
+
 - `STABLE` — tells Postgres the function returns the same result within a query, enabling plan optimization
 - `SECURITY DEFINER` — runs as the function owner (postgres/service role), bypasses caller's RLS on `user_roles`
 - `SET search_path = public` — security best practice to prevent search_path injection
@@ -330,12 +334,12 @@ supabase/
 
 ## Don't Hand-Roll
 
-| Problem | Don't Build | Use Instead | Why |
-|---------|-------------|-------------|-----|
-| Event-scoped access checking | Per-policy subquery repeated 47x | `user_event_ids()` SECURITY DEFINER function | DRY, cacheable per query, single source of truth |
-| Branch testing | Manual SQL apply to production | Supabase MCP `create_branch` + `apply_migration` | Isolated, reversible, smoke-testable without prod risk |
-| Policy existence checks | Custom migration scripts | `DROP POLICY IF EXISTS` before each `CREATE POLICY` | Idempotent, safe to re-run |
-| Anon blocking on sensitive tables | Custom middleware checks | Absence of anon policy (RLS default deny) | When RLS is enabled and no policy matches, Postgres returns zero rows — this IS the secure default |
+| Problem                           | Don't Build                      | Use Instead                                         | Why                                                                                                |
+| --------------------------------- | -------------------------------- | --------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Event-scoped access checking      | Per-policy subquery repeated 47x | `user_event_ids()` SECURITY DEFINER function        | DRY, cacheable per query, single source of truth                                                   |
+| Branch testing                    | Manual SQL apply to production   | Supabase MCP `create_branch` + `apply_migration`    | Isolated, reversible, smoke-testable without prod risk                                             |
+| Policy existence checks           | Custom migration scripts         | `DROP POLICY IF EXISTS` before each `CREATE POLICY` | Idempotent, safe to re-run                                                                         |
+| Anon blocking on sensitive tables | Custom middleware checks         | Absence of anon policy (RLS default deny)           | When RLS is enabled and no policy matches, Postgres returns zero rows — this IS the secure default |
 
 **Key insight:** With RLS enabled and no matching policy, Postgres returns zero rows — it does NOT error. This is the "deny by default" behavior. Sensitive tables require no anon policy at all; simply don't create one.
 
@@ -536,11 +540,11 @@ DROP POLICY IF EXISTS "Allow all on field_divisions" ON field_divisions;
 
 ## Environment Availability
 
-| Dependency | Required By | Available | Notes |
-|------------|------------|-----------|-------|
-| Supabase MCP `create_branch` | D-06 branch testing | Per CONTEXT.md | Available as MCP tool per project setup |
-| Supabase MCP `apply_migration` | D-06 branch testing | Per CONTEXT.md | Available as MCP tool per project setup |
-| `supabase/` SQL files | Migration source | Confirmed present | 28 files inventoried |
+| Dependency                     | Required By         | Available         | Notes                                   |
+| ------------------------------ | ------------------- | ----------------- | --------------------------------------- |
+| Supabase MCP `create_branch`   | D-06 branch testing | Per CONTEXT.md    | Available as MCP tool per project setup |
+| Supabase MCP `apply_migration` | D-06 branch testing | Per CONTEXT.md    | Available as MCP tool per project setup |
+| `supabase/` SQL files          | Migration source    | Confirmed present | 28 files inventoried                    |
 
 No missing dependencies. This phase is database-only — no npm installs, no runtime services required beyond the existing Supabase project.
 
@@ -550,22 +554,22 @@ No missing dependencies. This phase is database-only — no npm installs, no run
 
 ### Test Framework
 
-| Property | Value |
-|----------|-------|
-| Framework | Vitest 4.1.0 |
-| Config file | `vitest.config.ts` (root) |
-| Quick run command | `npm run test` |
-| Full suite command | `npm run test:coverage` |
+| Property           | Value                     |
+| ------------------ | ------------------------- |
+| Framework          | Vitest 4.1.0              |
+| Config file        | `vitest.config.ts` (root) |
+| Quick run command  | `npm run test`            |
+| Full suite command | `npm run test:coverage`   |
 
 ### Phase Requirements → Test Map
 
-| Req ID | Behavior | Test Type | Automated Command | Notes |
-|--------|----------|-----------|-------------------|-------|
-| SEC-01 | `user_event_ids()` returns correct event IDs per user | manual-only | — | Requires live Supabase branch; no unit test viable for SECURITY DEFINER DB function |
-| SEC-01 | Authenticated user sees only their event's rows | manual-only | — | Requires two live user accounts on branch; smoke test SQL above |
-| SEC-01 | Anon gets zero rows from sensitive tables | manual-only | — | Requires branch with anon key test |
-| SEC-01 | Anon SELECT works on public tables | manual-only | — | Requires branch with anon key test |
-| SEC-01 | Realtime subscriptions still deliver events post-RLS | manual-only | — | Launch app, verify AppProvider store receives realtime updates |
+| Req ID | Behavior                                              | Test Type   | Automated Command | Notes                                                                               |
+| ------ | ----------------------------------------------------- | ----------- | ----------------- | ----------------------------------------------------------------------------------- |
+| SEC-01 | `user_event_ids()` returns correct event IDs per user | manual-only | —                 | Requires live Supabase branch; no unit test viable for SECURITY DEFINER DB function |
+| SEC-01 | Authenticated user sees only their event's rows       | manual-only | —                 | Requires two live user accounts on branch; smoke test SQL above                     |
+| SEC-01 | Anon gets zero rows from sensitive tables             | manual-only | —                 | Requires branch with anon key test                                                  |
+| SEC-01 | Anon SELECT works on public tables                    | manual-only | —                 | Requires branch with anon key test                                                  |
+| SEC-01 | Realtime subscriptions still deliver events post-RLS  | manual-only | —                 | Launch app, verify AppProvider store receives realtime updates                      |
 
 **Justification for manual-only:** All SEC-01 behaviors require a live Supabase database with real auth sessions and real RLS enforcement. Vitest unit tests mock the Supabase client and cannot exercise actual row-level security policies. The smoke tests defined above (run on the branch before production promotion) ARE the test suite for this phase.
 
@@ -577,14 +581,14 @@ None — no new test files needed. Validation is via branch smoke tests, not aut
 
 ## Project Constraints (from CLAUDE.md)
 
-| Constraint | Impact on This Phase |
-|------------|---------------------|
-| Stack locked: Next.js 14 + Supabase + Vercel | Database-only phase — no stack impact |
-| Auth via Supabase Auth with `user_roles` table | Confirmed: `user_event_ids()` reads from `user_roles` directly |
-| Every DB query must be scoped with `.eq('event_id', eventId)` | App-layer scoping already in place; RLS adds DB-layer enforcement |
-| Keep third-party services free/cheap | Supabase branches are a paid feature — confirm project tier supports branches before wave 1 |
-| Auto-approve all program and team registrations | No impact on RLS policy design; `team_registrations` still needs event-scoped policies |
-| Supabase Project ID: `rzzzwrqbubptnlwfesjv` | Use when calling MCP tools |
+| Constraint                                                    | Impact on This Phase                                                                        |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Stack locked: Next.js 14 + Supabase + Vercel                  | Database-only phase — no stack impact                                                       |
+| Auth via Supabase Auth with `user_roles` table                | Confirmed: `user_event_ids()` reads from `user_roles` directly                              |
+| Every DB query must be scoped with `.eq('event_id', eventId)` | App-layer scoping already in place; RLS adds DB-layer enforcement                           |
+| Keep third-party services free/cheap                          | Supabase branches are a paid feature — confirm project tier supports branches before wave 1 |
+| Auto-approve all program and team registrations               | No impact on RLS policy design; `team_registrations` still needs event-scoped policies      |
+| Supabase Project ID: `rzzzwrqbubptnlwfesjv`                   | Use when calling MCP tools                                                                  |
 
 **Supabase branch availability:** The CONTEXT.md says MCP tools are available, but Supabase branches are a Supabase Pro feature. If the project is on the free tier, D-06 cannot be followed exactly. The rollback strategy (D-07) still applies, and the smoke tests can be run by applying the migration to a local Supabase instance or by accepting production risk with the rollback script ready. This should be confirmed before execution.
 
@@ -592,12 +596,13 @@ None — no new test files needed. Validation is via branch smoke tests, not aut
 
 ## State of the Art
 
-| Old Approach | Current Approach | Impact |
-|--------------|------------------|--------|
+| Old Approach                                | Current Approach                                 | Impact                                                      |
+| ------------------------------------------- | ------------------------------------------------ | ----------------------------------------------------------- |
 | `FOR ALL USING (true)` — permissive default | Per-operation policies with role-specific grants | Blocks anon writes, allows anon reads on public tables only |
-| No helper function — inline per-policy | Shared `user_event_ids()` SECURITY DEFINER | DRY, cacheable, single change point for access logic |
+| No helper function — inline per-policy      | Shared `user_event_ids()` SECURITY DEFINER       | DRY, cacheable, single change point for access logic        |
 
 **Deprecated in this phase:**
+
 - All "Allow all" policies (15 in schema.sql + ~32 in migrations) — replaced by scoped per-operation policies
 
 ---
@@ -644,6 +649,7 @@ None — no new test files needed. Validation is via branch smoke tests, not aut
 ## Metadata
 
 **Confidence breakdown:**
+
 - Table inventory: HIGH — derived from direct file reads of all SQL migrations
 - Helper function design: HIGH — matches locked decisions and standard Postgres SECURITY DEFINER patterns
 - Policy SQL syntax: HIGH — standard Postgres RLS syntax unchanged for years

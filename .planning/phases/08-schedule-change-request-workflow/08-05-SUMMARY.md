@@ -1,15 +1,15 @@
 ---
 phase: 08-schedule-change-request-workflow
-plan: "05"
+plan: '05'
 subsystem: requests-ui
 tags: [admin-ui, requests, schedule-change, workflow]
 dependency_graph:
-  requires: ["08-03", "08-04"]
-  provides: ["admin-requests-tab", "request-card-review-workflow"]
-  affects: ["AppShell", "TopBar"]
+  requires: ['08-03', '08-04']
+  provides: ['admin-requests-tab', 'request-card-review-workflow']
+  affects: ['AppShell', 'TopBar']
 tech_stack:
   added: []
-  patterns: ["inline-expand card pattern", "status-grouped list", "radiogroup slot selection"]
+  patterns: ['inline-expand card pattern', 'status-grouped list', 'radiogroup slot selection']
 key_files:
   created:
     - components/requests/RequestCard.tsx
@@ -19,11 +19,11 @@ key_files:
     - components/TopBar.tsx
     - app/page.tsx
 decisions:
-  - "TopBar NAV_GROUPS updated to add requests under ADMIN group — badge count passed as prop from AppShell"
-  - "Deep link support via useEffect reading ?tab= query param in page.tsx — supports notification CTAs per D-23"
-  - "completedCollapsed defaults to true when > 5 completed requests per D-13"
+  - 'TopBar NAV_GROUPS updated to add requests under ADMIN group — badge count passed as prop from AppShell'
+  - 'Deep link support via useEffect reading ?tab= query param in page.tsx — supports notification CTAs per D-23'
+  - 'completedCollapsed defaults to true when > 5 completed requests per D-13'
 metrics:
-  duration: "4 min"
+  duration: '4 min'
   completed: 2026-03-24
   tasks_completed: 2
   files_changed: 5
@@ -58,12 +58,14 @@ Created `components/requests/RequestCard.tsx` — the core admin review card wit
 ### Task 2: ScheduleChangeRequestsTab and AppShell integration (f2740bc)
 
 Created `components/requests/ScheduleChangeRequestsTab.tsx`:
+
 - Three status sections: PENDING, UNDER REVIEW, COMPLETED / DENIED
 - Completed section collapsed by default if > 5 items
 - Empty state: "No schedule change requests yet."
 - Guards: `if (!eventId) return null`, `if (!isAdmin) return null`
 
 Updated `components/AppShell.tsx`:
+
 - Added `'requests'` to `TabName` union
 - Added `{ id: 'requests', label: 'Requests', adminOnly: true }` to `ALL_TABS`
 - `pendingRequestCount` computed from `state.scheduleChangeRequests`
@@ -71,11 +73,13 @@ Updated `components/AppShell.tsx`:
 - Tab content: `{activeTab === 'requests' && <ScheduleChangeRequestsTab />}`
 
 Updated `components/TopBar.tsx`:
+
 - Added `'requests'` to ADMIN group's items (at top)
 - New `pendingRequestCount?: number` prop
 - Badge rendered inline on "REQUESTS" item in ADMIN dropdown when count > 0
 
 Updated `app/page.tsx`:
+
 - Added `useEffect` to read `?tab=` URL query param for deep links from notifications
 
 ## Checkpoint Status
@@ -85,6 +89,7 @@ Updated `app/page.tsx`:
 ## Deviations from Plan
 
 **1. [Rule 2 - Enhancement] Deep link URL param reading added to page.tsx**
+
 - **Found during:** Task 2 review of deep link requirement (D-23)
 - **Issue:** Plan required verifying `?tab=requests` deep link support — page.tsx had no URL param reading
 - **Fix:** Added `useEffect` to read `window.location.search` for `?tab=` param, stored in `deepLinkTab` state, passed as `initialTab` to AppShell
@@ -92,6 +97,7 @@ Updated `app/page.tsx`:
 - **Commit:** f2740bc
 
 **2. [Rule 2 - Enhancement] TopBar receives pendingRequestCount as prop (not inline in AppShell)**
+
 - **Found during:** Task 2 — TopBar uses static NAV_GROUPS, not the `tabs` prop for rendering
 - **Issue:** The plan showed badge code in AppShell tab rendering, but the actual tab nav is in TopBar's static NAV_GROUPS
 - **Fix:** Added `pendingRequestCount` prop to TopBar, added 'requests' to ADMIN dropdown items, rendered badge inline in dropdown item label
@@ -100,15 +106,18 @@ Updated `app/page.tsx`:
 ## Self-Check
 
 **Created files:**
+
 - [x] components/requests/RequestCard.tsx
 - [x] components/requests/ScheduleChangeRequestsTab.tsx
 
 **Modified files:**
+
 - [x] components/AppShell.tsx
 - [x] components/TopBar.tsx
 - [x] app/page.tsx
 
 **Commits:**
+
 - [x] 4b6ed63 — Task 1 RequestCard
 - [x] f2740bc — Task 2 ScheduleChangeRequestsTab + AppShell integration
 

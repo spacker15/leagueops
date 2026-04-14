@@ -59,6 +59,7 @@ LeagueOps is a real-time tournament operations management system built on **Next
 **`app/layout.tsx`** — Root layout. Wraps all pages in `AuthProvider` (from `lib/auth.tsx`) and renders the global `Toaster`. Loads three Google Fonts as CSS variables: `--font-barlow`, `--font-barlow-condensed`, `--font-roboto-mono`.
 
 **`app/page.tsx`** — Root page (client component). Acts as the application router. Logic:
+
 1. Shows loading spinner while `useAuth()` resolves
 2. Unauthenticated → renders `<LoginPage />`
 3. Role `referee` → renders `<RefereePortal />`
@@ -78,6 +79,7 @@ LeagueOps is a real-time tournament operations management system built on **Next
 ### Public Results App (`apps/public-results/`)
 
 A separate Next.js application at `apps/public-results/`. Entry points:
+
 - `apps/public-results/src/app/layout.tsx` — root layout
 - `apps/public-results/src/app/page.tsx` — event listing page
 - `apps/public-results/src/app/e/[slug]/page.tsx` — per-event standings/results page (server component, `revalidate = 30`)
@@ -87,29 +89,30 @@ A separate Next.js application at `apps/public-results/`. Entry points:
 ## Routing Structure
 
 ### Main App (Client-side tab routing)
+
 The main operator shell does **not** use URL-based routing. Navigation is managed by `activeTab` state in `AppShell`. The `TabName` union type defines all valid tabs:
 
-| Tab ID | Component | Admin Only |
-|--------|-----------|-----------|
-| `dashboard` | `DashboardTab` | No |
-| `schedule` | `ScheduleTab` | No |
-| `checkin` | `CheckInTab` | No |
-| `rosters` | `RostersTab` | No |
-| `refs` | `RefsTab` | No |
-| `conflicts` | `ConflictsTab` | No |
-| `incidents` | `IncidentsTab` | No |
-| `weather` | `WeatherTab` | No |
-| `parkmap` | `ParkMapTab` | No |
-| `fields` | `FieldsTab` | Yes |
-| `command` | `CommandCenter` | No |
-| `engine` | `EngineTab` | No |
-| `rules` | `RulesTab` | Yes |
-| `users` | `UserManagement` | Yes |
-| `programs` | `ProgramApprovals` | Yes |
-| `payments` | `PaymentsTab` | Yes |
-| `settings` | `EventSetupTab` | Yes |
-| `reports` | `ReportsTab` | No |
-| `qrcodes` | `QRCodesPanel` | Yes |
+| Tab ID      | Component          | Admin Only |
+| ----------- | ------------------ | ---------- |
+| `dashboard` | `DashboardTab`     | No         |
+| `schedule`  | `ScheduleTab`      | No         |
+| `checkin`   | `CheckInTab`       | No         |
+| `rosters`   | `RostersTab`       | No         |
+| `refs`      | `RefsTab`          | No         |
+| `conflicts` | `ConflictsTab`     | No         |
+| `incidents` | `IncidentsTab`     | No         |
+| `weather`   | `WeatherTab`       | No         |
+| `parkmap`   | `ParkMapTab`       | No         |
+| `fields`    | `FieldsTab`        | Yes        |
+| `command`   | `CommandCenter`    | No         |
+| `engine`    | `EngineTab`        | No         |
+| `rules`     | `RulesTab`         | Yes        |
+| `users`     | `UserManagement`   | Yes        |
+| `programs`  | `ProgramApprovals` | Yes        |
+| `payments`  | `PaymentsTab`      | Yes        |
+| `settings`  | `EventSetupTab`    | Yes        |
+| `reports`   | `ReportsTab`       | No         |
+| `qrcodes`   | `QRCodesPanel`     | Yes        |
 
 Tab visibility is filtered by the user's role and by the event's `role_permissions` JSON field. Admin-only tabs require `isAdmin === true`.
 
@@ -117,46 +120,46 @@ Tab visibility is filtered by the user's role and by the event's `role_permissio
 
 All routes under `app/api/` use the **server-side** Supabase client (`supabase/server.ts`).
 
-| Route | Methods | Purpose |
-|-------|---------|---------|
-| `app/api/games/route.ts` | GET, POST | List games by event/date; create game |
-| `app/api/games/[id]/route.ts` | PATCH, DELETE | Update/delete specific game |
-| `app/api/fields/route.ts` | GET, POST | List/create fields |
-| `app/api/fields/[id]/route.ts` | PATCH, DELETE | Update/delete field |
-| `app/api/referees/route.ts` | GET, POST | List/create referees |
-| `app/api/referees/[id]/route.ts` | PATCH | Update referee |
-| `app/api/volunteers/route.ts` | GET, POST | List/create volunteers |
-| `app/api/volunteers/[id]/route.ts` | PATCH | Update volunteer |
-| `app/api/teams/route.ts` | GET, POST | List/create teams |
-| `app/api/players/route.ts` | GET, POST | List/create players |
-| `app/api/assignments/route.ts` | POST, DELETE | Ref/vol game assignments |
-| `app/api/checkins/route.ts` | POST, DELETE | Player check-in/out |
-| `app/api/incidents/route.ts` | GET, POST | Incident log |
-| `app/api/medical/route.ts` | GET, POST, PATCH | Medical/trainer incidents |
-| `app/api/conflicts/route.ts` | GET | Open operational conflicts |
-| `app/api/ops-log/route.ts` | GET, POST | Operations log entries |
-| `app/api/weather/route.ts` | GET | Weather alerts |
-| `app/api/lightning/route.ts` | POST | Trigger/lift lightning delay |
-| `app/api/rules/route.ts` | GET | Event rules |
-| `app/api/rules/changes/route.ts` | GET | Rule change audit log |
-| `app/api/payments/` | — | Payment tracking |
-| `app/api/registration-fees/` | — | Fee configuration |
-| `app/api/team-payments/` | — | Per-team payment records |
-| `app/api/payment-entries/route.ts` | — | Payment entry records |
-| `app/api/referee-engine/route.ts` | POST, GET | Run referee conflict engine; find available refs |
-| `app/api/field-engine/route.ts` | POST | Run field conflict engine |
-| `app/api/weather-engine/route.ts` | POST | Run weather engine for a complex |
-| `app/api/eligibility/route.ts` | POST | Check player eligibility |
-| `app/api/join/route.ts` | POST | Referee/volunteer self-registration via invite |
-| `app/api/auth/check-email/route.ts` | GET | Check if email already registered |
-| `app/api/auth/program-prefill/route.ts` | GET | Program data for registration prefill |
-| `app/api/admin/create-user/route.ts` | POST | Admin user creation |
+| Route                                   | Methods          | Purpose                                          |
+| --------------------------------------- | ---------------- | ------------------------------------------------ |
+| `app/api/games/route.ts`                | GET, POST        | List games by event/date; create game            |
+| `app/api/games/[id]/route.ts`           | PATCH, DELETE    | Update/delete specific game                      |
+| `app/api/fields/route.ts`               | GET, POST        | List/create fields                               |
+| `app/api/fields/[id]/route.ts`          | PATCH, DELETE    | Update/delete field                              |
+| `app/api/referees/route.ts`             | GET, POST        | List/create referees                             |
+| `app/api/referees/[id]/route.ts`        | PATCH            | Update referee                                   |
+| `app/api/volunteers/route.ts`           | GET, POST        | List/create volunteers                           |
+| `app/api/volunteers/[id]/route.ts`      | PATCH            | Update volunteer                                 |
+| `app/api/teams/route.ts`                | GET, POST        | List/create teams                                |
+| `app/api/players/route.ts`              | GET, POST        | List/create players                              |
+| `app/api/assignments/route.ts`          | POST, DELETE     | Ref/vol game assignments                         |
+| `app/api/checkins/route.ts`             | POST, DELETE     | Player check-in/out                              |
+| `app/api/incidents/route.ts`            | GET, POST        | Incident log                                     |
+| `app/api/medical/route.ts`              | GET, POST, PATCH | Medical/trainer incidents                        |
+| `app/api/conflicts/route.ts`            | GET              | Open operational conflicts                       |
+| `app/api/ops-log/route.ts`              | GET, POST        | Operations log entries                           |
+| `app/api/weather/route.ts`              | GET              | Weather alerts                                   |
+| `app/api/lightning/route.ts`            | POST             | Trigger/lift lightning delay                     |
+| `app/api/rules/route.ts`                | GET              | Event rules                                      |
+| `app/api/rules/changes/route.ts`        | GET              | Rule change audit log                            |
+| `app/api/payments/`                     | —                | Payment tracking                                 |
+| `app/api/registration-fees/`            | —                | Fee configuration                                |
+| `app/api/team-payments/`                | —                | Per-team payment records                         |
+| `app/api/payment-entries/route.ts`      | —                | Payment entry records                            |
+| `app/api/referee-engine/route.ts`       | POST, GET        | Run referee conflict engine; find available refs |
+| `app/api/field-engine/route.ts`         | POST             | Run field conflict engine                        |
+| `app/api/weather-engine/route.ts`       | POST             | Run weather engine for a complex                 |
+| `app/api/eligibility/route.ts`          | POST             | Check player eligibility                         |
+| `app/api/join/route.ts`                 | POST             | Referee/volunteer self-registration via invite   |
+| `app/api/auth/check-email/route.ts`     | GET              | Check if email already registered                |
+| `app/api/auth/program-prefill/route.ts` | GET              | Program data for registration prefill            |
+| `app/api/admin/create-user/route.ts`    | POST             | Admin user creation                              |
 
 ### Public Results Routes
 
-| Route | Type | Purpose |
-|-------|------|---------|
-| `/` | Server Component | List all public events |
+| Route       | Type             | Purpose                               |
+| ----------- | ---------------- | ------------------------------------- |
+| `/`         | Server Component | List all public events                |
 | `/e/[slug]` | Server Component | Event standings, results, live scores |
 
 ---
@@ -200,10 +203,10 @@ Wraps `AppShell` after an event is selected (in `app/page.tsx`). Receives `event
 interface State {
   event: Event | null
   eventDates: EventDate[]
-  currentDateIdx: number       // index into eventDates
+  currentDateIdx: number // index into eventDates
   fields: Field[]
   teams: Team[]
-  games: Game[]                // games for currentDate only
+  games: Game[] // games for currentDate only
   referees: Referee[]
   volunteers: Volunteer[]
   incidents: Incident[]
@@ -223,6 +226,7 @@ On mount, `AppProvider` fires `Promise.all()` over 10 parallel DB queries (event
 ### Real-time Subscriptions
 
 `AppProvider` opens a single Supabase Realtime channel (`'leagueops-realtime'`) subscribed to `postgres_changes` on four tables:
+
 - `ops_log` → dispatches `ADD_OPS_LOG`
 - `incidents` → re-fetches and dispatches `SET_INCIDENTS`
 - `games` → re-fetches by current date and dispatches `SET_GAMES`
@@ -238,27 +242,27 @@ When `lightningActive` is true, a `setInterval` fires `TICK_LIGHTNING` every sec
 
 All actions are `useCallback`-memoized. They follow the pattern: call `lib/db.ts`, dispatch an optimistic update, optionally call `addLog`.
 
-| Action | Description |
-|--------|-------------|
-| `changeDate(idx)` | Switch the active event date index |
-| `refreshGames()` | Re-fetch games from DB for current date |
-| `updateGameStatus(gameId, status)` | Update game status + log |
-| `updateGameScore(gameId, home, away)` | Update scores optimistically |
-| `addGame(game)` | Insert game, refresh, log |
-| `toggleRefCheckin(refId)` | Toggle referee check-in |
-| `toggleVolCheckin(volId)` | Toggle volunteer check-in |
-| `logIncident(incident)` | Insert incident, dispatch, log |
-| `dispatchTrainer(incident)` | Insert medical incident, dispatch, log |
-| `updateMedicalStatus(id, status)` | Update medical incident status |
-| `triggerLightning()` | Activate lightning delay (suspends all games, creates weather alert) |
-| `liftLightning()` | Clear lightning delay (resumes games, resolves alerts) |
-| `addLog(message, type)` | Write to ops_log |
-| `updateFieldMap(fieldId, x, y)` | Optimistic field position update |
-| `updateFieldFull(fieldId, props)` | Optimistic multi-property field update |
-| `updateFieldName(fieldId, name)` | Update field name |
-| `updateFieldDetails(fieldId, props)` | Update field metadata |
-| `addField(name, number, division?, complexId?)` | Create new field |
-| `deleteField(fieldId)` | Delete field |
+| Action                                          | Description                                                          |
+| ----------------------------------------------- | -------------------------------------------------------------------- |
+| `changeDate(idx)`                               | Switch the active event date index                                   |
+| `refreshGames()`                                | Re-fetch games from DB for current date                              |
+| `updateGameStatus(gameId, status)`              | Update game status + log                                             |
+| `updateGameScore(gameId, home, away)`           | Update scores optimistically                                         |
+| `addGame(game)`                                 | Insert game, refresh, log                                            |
+| `toggleRefCheckin(refId)`                       | Toggle referee check-in                                              |
+| `toggleVolCheckin(volId)`                       | Toggle volunteer check-in                                            |
+| `logIncident(incident)`                         | Insert incident, dispatch, log                                       |
+| `dispatchTrainer(incident)`                     | Insert medical incident, dispatch, log                               |
+| `updateMedicalStatus(id, status)`               | Update medical incident status                                       |
+| `triggerLightning()`                            | Activate lightning delay (suspends all games, creates weather alert) |
+| `liftLightning()`                               | Clear lightning delay (resumes games, resolves alerts)               |
+| `addLog(message, type)`                         | Write to ops_log                                                     |
+| `updateFieldMap(fieldId, x, y)`                 | Optimistic field position update                                     |
+| `updateFieldFull(fieldId, props)`               | Optimistic multi-property field update                               |
+| `updateFieldName(fieldId, name)`                | Update field name                                                    |
+| `updateFieldDetails(fieldId, props)`            | Update field metadata                                                |
+| `addField(name, number, division?, complexId?)` | Create new field                                                     |
+| `deleteField(fieldId)`                          | Delete field                                                         |
 
 ---
 
@@ -273,6 +277,7 @@ Loads `event_rules` rows from Supabase. Uses a 30-second in-memory module-level 
 ### Referee Engine (`lib/engines/referee.ts`)
 
 Exposed via `POST /api/referee-engine`. Detects four conflict types by analyzing all ref assignments for an `event_date_id`:
+
 1. `missing_referee` — game with no ref assigned
 2. `ref_double_booked` — ref assigned to overlapping games (true overlap) or insufficient travel buffer
 3. `ref_unavailable` — assigned outside declared availability window
@@ -283,6 +288,7 @@ Writes results to `operational_conflicts` (clears stale first). Also exposes `fi
 ### Field Conflict Engine (`lib/engines/field.ts`)
 
 Exposed via `POST /api/field-engine`. Detects four conflict types by scanning all field/game combinations:
+
 1. `field_overlap` — two games on same field overlapping in time
 2. `field_blocked` — game scheduled during a `field_blocks` record
 3. `schedule_cascade` — live/halftime game about to delay the next game
@@ -293,6 +299,7 @@ Pulls `game_duration_min` and `buffer_min` from the rules engine. Logs runs to `
 ### Weather Engine (`lib/engines/weather.ts`)
 
 Exposed via `POST /api/weather-engine`. Per-complex monitoring using OpenWeatherMap API (or mock data when no API key). Evaluates:
+
 - Lightning: `conditions_code` 200–232 or `lightning_detected` within radius
 - Heat: advisory (95°F HI), warning (103°F), emergency (113°F) using Rothfusz equation
 - Wind: advisory (25 mph), suspension (40 mph)
@@ -303,6 +310,7 @@ Auto-triggers game delays and creates `lightning_events` records. Results stored
 ### Eligibility Engine (`lib/engines/eligibility.ts`)
 
 Exposed via `POST /api/eligibility`. Two rules enforced:
+
 1. **Play-down prevention** — player's registered division sets the floor (age and gender checked)
 2. **Multi-game approval** — playing a 2nd+ game per day requires opposing coach approval
 
@@ -411,6 +419,7 @@ When the full application renders (admin/league_admin, event selected):
 ### Typography
 
 Three font families loaded as CSS variables in `app/layout.tsx`:
+
 - `--font-barlow` → used as `font-sans` (body text)
 - `--font-barlow-condensed` → used as `font-cond` (labels, badges, UI chrome)
 - `--font-roboto-mono` → used as `font-mono` (scores, times, data)
@@ -418,6 +427,7 @@ Three font families loaded as CSS variables in `app/layout.tsx`:
 ### Color Tokens (Tailwind config)
 
 Custom colors defined in `tailwind.config.js`:
+
 - `surface` — deep navy `#020810` (page background)
 - `surface-card` — card background
 - `surface-panel` — sidebar background
@@ -429,6 +439,7 @@ Custom colors defined in `tailwind.config.js`:
 ### Shared UI Components (`components/ui/index.tsx`)
 
 Primitive components exported from a single index:
+
 - `StatusBadge` — game status with CSS class mapping
 - `Btn` — button with `variant` (primary/danger/success/ghost/outline) and `size` (sm/md/lg)
 - `FormField`, `Input`, `Select`, `Textarea` — form primitives

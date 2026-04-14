@@ -77,6 +77,7 @@ interface Props {
   onChangeEvent?: () => void // ← ADD THIS LINE
   onSwitchToProgram?: () => void
   pendingRequestCount?: number
+  rightSlot?: React.ReactNode
 }
 
 export function TopBar({
@@ -89,6 +90,7 @@ export function TopBar({
   isAdmin,
   onChangeEvent,
   pendingRequestCount = 0,
+  rightSlot,
 }: Props) {
   const [openGroup, setOpenGroup] = useState<string | null>(null)
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -141,9 +143,9 @@ export function TopBar({
         </span>
       </div>
 
-      {/* Hamburger button — mobile only */}
+      {/* Hamburger button — mobile/tablet only (below lg) */}
       <button
-        className="md:hidden flex items-center px-4 h-full text-white"
+        className="lg:hidden flex items-center px-4 h-full text-white"
         onClick={() => setMobileOpen(true)}
         aria-label="Open navigation menu"
       >
@@ -151,7 +153,7 @@ export function TopBar({
       </button>
 
       {/* Grouped nav */}
-      <nav ref={navRef} className="hidden md:flex flex-1">
+      <nav ref={navRef} className="hidden lg:flex flex-1">
         {visibleGroups.map((group) => {
           const active = groupIsActive(group)
           const subLabel = activeSubLabel(group)
@@ -274,8 +276,8 @@ export function TopBar({
         })}
       </nav>
 
-      {/* Right — mobile: bell + sign-out only */}
-      <div className="flex sm:hidden items-center gap-2 px-3 flex-shrink-0 ml-auto">
+      {/* Right — mobile/tablet: bell + sign-out only */}
+      <div className="flex lg:hidden items-center gap-2 px-3 flex-shrink-0 ml-auto">
         <NotificationBell />
         {onSignOut && (
           <button
@@ -288,9 +290,9 @@ export function TopBar({
         )}
       </div>
 
-      {/* Right — live + user (desktop) */}
+      {/* Right — live + user (desktop, lg+) */}
       <div
-        className="hidden sm:flex items-center gap-4 px-5 flex-shrink-0"
+        className="hidden lg:flex items-center gap-4 px-5 flex-shrink-0"
         style={{ borderLeft: '1px solid #1a2d50' }}
       >
         <div className="flex items-center gap-2">
@@ -301,7 +303,7 @@ export function TopBar({
           <span className="font-cond text-[11px] font-black tracking-[.15em] text-red">LIVE</span>
         </div>
 
-        <NotificationBell />
+        {rightSlot}
 
         {userRole && (
           <div
@@ -349,7 +351,7 @@ export function TopBar({
       </div>
       {/* Mobile slide-out drawer */}
       {mobileOpen && (
-        <div className="md:hidden fixed inset-0 z-50">
+        <div className="lg:hidden fixed inset-0 z-50">
           {/* Backdrop */}
           <div className="absolute inset-0 bg-black/60" onClick={() => setMobileOpen(false)} />
           {/* Drawer panel */}

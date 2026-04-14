@@ -352,29 +352,29 @@ Test stack: **Vitest** + **@testing-library/react** + **@testing-library/jest-do
 
 ## Key File Locations Quick Reference
 
-| Purpose | File |
-|---------|------|
-| Application entry point | `app/page.tsx` |
-| Root layout + providers | `app/layout.tsx` |
-| Auth context | `lib/auth.tsx` |
-| Global app state | `lib/store.tsx` |
-| All Supabase queries | `lib/db.ts` |
-| Shared types | `types/index.ts` |
-| Shared UI primitives | `components/ui/index.tsx` |
-| Main shell | `components/AppShell.tsx` |
-| Top navigation | `components/TopBar.tsx` |
-| Right sidebar | `components/RightPanel.tsx` |
-| Rules engine | `lib/engines/rules.ts` |
-| Referee conflict engine | `lib/engines/referee.ts` |
-| Field conflict engine | `lib/engines/field.ts` |
-| Weather engine | `lib/engines/weather.ts` |
-| Player eligibility engine | `lib/engines/eligibility.ts` |
-| Unified engine | `lib/engines/unified.ts` |
-| Browser Supabase client | `supabase/client.ts` |
-| Server Supabase client | `supabase/server.ts` |
-| DB schema | `supabase/schema.sql` |
-| Tailwind config + tokens | `tailwind.config.js` |
-| TypeScript path aliases | `tsconfig.json` (`@/` → root) |
+| Purpose                   | File                          |
+| ------------------------- | ----------------------------- |
+| Application entry point   | `app/page.tsx`                |
+| Root layout + providers   | `app/layout.tsx`              |
+| Auth context              | `lib/auth.tsx`                |
+| Global app state          | `lib/store.tsx`               |
+| All Supabase queries      | `lib/db.ts`                   |
+| Shared types              | `types/index.ts`              |
+| Shared UI primitives      | `components/ui/index.tsx`     |
+| Main shell                | `components/AppShell.tsx`     |
+| Top navigation            | `components/TopBar.tsx`       |
+| Right sidebar             | `components/RightPanel.tsx`   |
+| Rules engine              | `lib/engines/rules.ts`        |
+| Referee conflict engine   | `lib/engines/referee.ts`      |
+| Field conflict engine     | `lib/engines/field.ts`        |
+| Weather engine            | `lib/engines/weather.ts`      |
+| Player eligibility engine | `lib/engines/eligibility.ts`  |
+| Unified engine            | `lib/engines/unified.ts`      |
+| Browser Supabase client   | `supabase/client.ts`          |
+| Server Supabase client    | `supabase/server.ts`          |
+| DB schema                 | `supabase/schema.sql`         |
+| Tailwind config + tokens  | `tailwind.config.js`          |
+| TypeScript path aliases   | `tsconfig.json` (`@/` → root) |
 
 ---
 

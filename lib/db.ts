@@ -213,6 +213,7 @@ export async function getGamesByDate(eventId: number, eventDateId: number): Prom
     )
     .eq('event_id', eventId)
     .eq('event_date_id', eventDateId)
+    .order('sort_order')
     .order('scheduled_time')
   return (data as Game[]) ?? []
 }
@@ -231,6 +232,7 @@ export async function getAllGamesByEvent(eventId: number): Promise<Game[]> {
     `
     )
     .eq('event_id', eventId)
+    .order('sort_order')
     .order('scheduled_time')
   return (data as Game[]) ?? []
 }
@@ -436,6 +438,21 @@ export async function insertIncident(
   const sb = createClient()
   const { data } = await sb.from('incidents').insert(incident).select().single()
   return data
+}
+
+export async function updateIncident(
+  id: number,
+  fields: Partial<
+    Pick<Incident, 'type' | 'description' | 'person_involved' | 'field_id' | 'team_id' | 'game_id'>
+  >
+): Promise<void> {
+  const sb = createClient()
+  await sb.from('incidents').update(fields).eq('id', id)
+}
+
+export async function deleteIncident(id: number): Promise<void> {
+  const sb = createClient()
+  await sb.from('incidents').delete().eq('id', id)
 }
 
 // ---- Medical ----

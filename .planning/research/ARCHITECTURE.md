@@ -102,6 +102,7 @@ Environment variables: `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_N
 ### Push Channel: Web Push (VAPID)
 
 Browser push requires no third-party service cost. The stack:
+
 - Generate VAPID key pair once (store public key in `NEXT_PUBLIC_VAPID_KEY`, private key in `VAPID_PRIVATE_KEY` as a Supabase secret)
 - Browser calls `serviceWorker.pushManager.subscribe()` in a client component — the resulting `PushSubscription` JSON is saved to `notification_preferences.push_subscription`
 - Edge Function calls the Web Push protocol (`POST` to the subscription endpoint) using the `web-push` Deno library or raw VAPID JWT construction
@@ -113,13 +114,13 @@ For PWA compatibility, the main app needs `public/manifest.json` (already implie
 
 The notification system is a **subscriber to engine outputs**, not a replacement for them. The integration hooks are:
 
-| Existing Engine | Trigger Event | Notification Type |
-|---|---|---|
-| `lib/engines/weather.ts` | Lightning detected (sets `lightning_events` record) | `weather_alert` to all coaches/admins |
-| `lib/engines/weather.ts` | Heat index threshold exceeded | `weather_alert` to admins |
-| `lib/engines/unified.ts` | `ops_alerts` INSERT (severity = critical) | `admin_alert` to admins |
-| `app/api/games/[id]/route.ts` | Game `scheduled_time` or `field_id` PATCH | `schedule_change` to affected team coaches |
-| Schedule change request workflow | Request status changes to `approved` | `schedule_change` to coaches of both teams |
+| Existing Engine                  | Trigger Event                                       | Notification Type                          |
+| -------------------------------- | --------------------------------------------------- | ------------------------------------------ |
+| `lib/engines/weather.ts`         | Lightning detected (sets `lightning_events` record) | `weather_alert` to all coaches/admins      |
+| `lib/engines/weather.ts`         | Heat index threshold exceeded                       | `weather_alert` to admins                  |
+| `lib/engines/unified.ts`         | `ops_alerts` INSERT (severity = critical)           | `admin_alert` to admins                    |
+| `app/api/games/[id]/route.ts`    | Game `scheduled_time` or `field_id` PATCH           | `schedule_change` to affected team coaches |
+| Schedule change request workflow | Request status changes to `approved`                | `schedule_change` to coaches of both teams |
 
 The practical integration is: after the engine writes its result (a `lightning_events` row, an `ops_alerts` row, or a game PATCH), the API route handler also writes a row to `notification_queue`. The Edge Function then handles delivery asynchronously. **Do not call the Edge Function synchronously from the API route** — write to the queue and return immediately.
 
@@ -133,7 +134,7 @@ await sb.from('notification_queue').insert({
   body: 'All games have been suspended. Lightning detected in the area.',
   recipient_scope: 'all_teams',
   channels: ['email', 'push'],
-});
+})
 ```
 
 ### Component Boundary Summary
@@ -154,6 +155,7 @@ await sb.from('notification_queue').insert({
 ### What Stays: Separate `apps/public-results` App
 
 The separate-app approach is correct and should be kept. Reasons:
+
 - No auth context — the admin app's `AuthProvider` should never run on public pages
 - Different Vercel deployment URL (can be `results.leagueops.app` vs `leagueops.vercel.app`)
 - Different caching strategy: ISR with short revalidation vs always-fresh for admin
@@ -193,16 +195,22 @@ export function LiveScoresClient({ eventId }: { eventId: number }) {
   useEffect(() => {
     const channel = supabase
       .channel(`public-results-${eventId}`)
-      .on('postgres_changes', {
-        event: 'UPDATE',
-        schema: 'public',
-        table: 'games',
-        filter: `event_id=eq.${eventId}`,
-      }, (payload) => {
-        setLiveGames(prev => prev.map(g => g.id === payload.new.id ? payload.new : g))
-      })
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'games',
+          filter: `event_id=eq.${eventId}`,
+        },
+        (payload) => {
+          setLiveGames((prev) => prev.map((g) => (g.id === payload.new.id ? payload.new : g)))
+        }
+      )
       .subscribe()
-    return () => { supabase.removeChannel(channel) }
+    return () => {
+      supabase.removeChannel(channel)
+    }
   }, [eventId])
 }
 ```
@@ -216,11 +224,11 @@ Recommendation: Option A for live game scores only (it's a thin client component
 
 The existing `[slug]/page.tsx` handles standings, results, and live scores. New pages needed:
 
-| Requirement | Route | Implementation |
-|---|---|---|
-| PUB-02: Schedule by team/field/time | `/e/[slug]/schedule` | Server component, reads `games` joined with teams/fields/event_dates |
-| PUB-04: Bracket visualization | `/e/[slug]/bracket` | Client component — bracket rendering is interactive |
-| PUB-05: Team search / QR | `/e/[slug]/team/[teamId]` | Server component, renders team schedule and roster |
+| Requirement                         | Route                     | Implementation                                                       |
+| ----------------------------------- | ------------------------- | -------------------------------------------------------------------- |
+| PUB-02: Schedule by team/field/time | `/e/[slug]/schedule`      | Server component, reads `games` joined with teams/fields/event_dates |
+| PUB-04: Bracket visualization       | `/e/[slug]/bracket`       | Client component — bracket rendering is interactive                  |
+| PUB-05: Team search / QR            | `/e/[slug]/team/[teamId]` | Server component, renders team schedule and roster                   |
 
 PUB-05 (QR code for parents to find team) integrates with EVT-02 (shareable registration link). The QR code encodes `https://results.leagueops.app/e/{slug}/team/{teamId}`. No new infrastructure needed — existing `player_qr_tokens` tokens can redirect to the public results team page.
 
@@ -293,12 +301,12 @@ All state transitions go through a single `PATCH /api/schedule-change-requests/[
 // admin: pending → under_review, under_review → approved, under_review → denied, approved → rescheduled
 ```
 
-| Method | Route | Purpose |
-|---|---|---|
-| POST | `app/api/schedule-change-requests/route.ts` | Coach submits new request |
-| GET | `app/api/schedule-change-requests/route.ts` | Admin lists all for event; coach sees own |
-| PATCH | `app/api/schedule-change-requests/[id]/route.ts` | State transition + admin actions |
-| GET | `app/api/schedule-change-requests/[id]/slots/route.ts` | Returns auto-suggested slots for an approved request |
+| Method | Route                                                  | Purpose                                              |
+| ------ | ------------------------------------------------------ | ---------------------------------------------------- |
+| POST   | `app/api/schedule-change-requests/route.ts`            | Coach submits new request                            |
+| GET    | `app/api/schedule-change-requests/route.ts`            | Admin lists all for event; coach sees own            |
+| PATCH  | `app/api/schedule-change-requests/[id]/route.ts`       | State transition + admin actions                     |
+| GET    | `app/api/schedule-change-requests/[id]/slots/route.ts` | Returns auto-suggested slots for an approved request |
 
 ### Slot Suggestion Engine (SCH-04)
 
@@ -315,6 +323,7 @@ This logic belongs in `lib/engines/schedule-change.ts` — a new engine module f
 ### Notification Integration
 
 Each state transition writes to `notification_queue`:
+
 - `pending` → created: notify admin (admin_alert, `recipient_scope: 'admins'`)
 - `approved` → slots generated: notify requesting coach (schedule_change, `recipient_scope: 'team:{program_id}'`)
 - `denied`: notify requesting coach with denial reason
@@ -441,13 +450,13 @@ CREATE POLICY "admin_read" ON ops_alerts
 
 #### Multi-Tenant Event Isolation Summary
 
-| Access Pattern | Enforcement Mechanism |
-|---|---|
-| Admin reads event data | RLS `event_id IN (user_event_ids())` — only events in their `user_roles` |
-| Program leader reads team data | RLS via `program_leaders` join |
-| Public reads event list/results | Anon key + public policy on `events`, `games`, `teams` (read-only subset) |
-| Engine writes (server-side) | Service role key bypasses RLS — engines run in API routes or Edge Functions |
-| Cross-event data access | Impossible — `user_event_ids()` only returns events the user has a role in |
+| Access Pattern                  | Enforcement Mechanism                                                       |
+| ------------------------------- | --------------------------------------------------------------------------- |
+| Admin reads event data          | RLS `event_id IN (user_event_ids())` — only events in their `user_roles`    |
+| Program leader reads team data  | RLS via `program_leaders` join                                              |
+| Public reads event list/results | Anon key + public policy on `events`, `games`, `teams` (read-only subset)   |
+| Engine writes (server-side)     | Service role key bypasses RLS — engines run in API routes or Edge Functions |
+| Cross-event data access         | Impossible — `user_event_ids()` only returns events the user has a role in  |
 
 #### API Route Auth Hardening (SEC-02)
 
@@ -569,6 +578,7 @@ This logic belongs in `lib/engines/coach-conflicts.ts` following the same engine
 #### Shareable Registration Link + QR Code (EVT-02)
 
 Each event already has a `slug`. The registration entry URL is:
+
 ```
 https://leagueops.vercel.app/register?event={slug}
 ```
@@ -601,6 +611,7 @@ ALTER TABLE events
 The `complexes` table already has `lat` and `lng` columns used by the weather engine. For the initial implementation, populating `events.venue_lat/lng` and copying those values to the primary complex record on event creation is sufficient. For multi-complex events, the park map editor (`ParkMapTab`) is the right place to set per-complex coordinates.
 
 **EVT-01 Build Steps**:
+
 1. Add `app/api/maps/autocomplete/route.ts` (server proxy)
 2. Add `app/api/maps/geocode/route.ts` (server proxy)
 3. Add `GooglePlacesInput.tsx` to `components/settings/`

@@ -41,9 +41,7 @@ export default async function RegisterPage({ params }: Props) {
               className="w-16 h-16 object-contain rounded mx-auto mb-4"
             />
           )}
-          <h1 className="font-cond text-[24px] font-black text-white mb-2">
-            {event.name}
-          </h1>
+          <h1 className="font-cond text-[24px] font-black text-white mb-2">{event.name}</h1>
           <div className="border border-[#1a2d50] bg-[#081428] rounded-xl p-8 mb-6">
             <div className="font-cond text-[14px] font-black text-white mb-3">
               Registration is Open
@@ -72,13 +70,9 @@ export default async function RegisterPage({ params }: Props) {
             className="w-16 h-16 object-contain rounded mx-auto mb-4"
           />
         )}
-        <h1 className="font-cond text-[24px] font-black text-white mb-2">
-          {event.name}
-        </h1>
+        <h1 className="font-cond text-[24px] font-black text-white mb-2">{event.name}</h1>
         {event.location && (
-          <div className="font-cond text-[13px] text-[#5a6e9a] mb-6">
-            {event.location}
-          </div>
+          <div className="font-cond text-[13px] text-[#5a6e9a] mb-6">{event.location}</div>
         )}
 
         <div className="border border-[#1a2d50] bg-[#081428] rounded-xl p-8 mb-6">

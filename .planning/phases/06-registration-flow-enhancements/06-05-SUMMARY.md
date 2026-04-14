@@ -37,21 +37,23 @@ metrics:
 
 ## Tasks Completed
 
-| # | Task | Commit | Files |
-|---|------|--------|-------|
-| 1 | Program leader portal coach section + invite API | c1d0f56 | app/api/coach-invite/route.ts, components/programs/ProgramLeaderDashboard.tsx |
-| 2 | Registration window enforcement + schedule engine coach conflict wiring | 9918541 | app/e/[slug]/register/page.tsx, lib/engines/schedule.ts |
-| 3 | Coach conflict badges in admin view + final wiring | a392444 | components/programs/ProgramApprovals.tsx |
+| #   | Task                                                                    | Commit  | Files                                                                         |
+| --- | ----------------------------------------------------------------------- | ------- | ----------------------------------------------------------------------------- |
+| 1   | Program leader portal coach section + invite API                        | c1d0f56 | app/api/coach-invite/route.ts, components/programs/ProgramLeaderDashboard.tsx |
+| 2   | Registration window enforcement + schedule engine coach conflict wiring | 9918541 | app/e/[slug]/register/page.tsx, lib/engines/schedule.ts                       |
+| 3   | Coach conflict badges in admin view + final wiring                      | a392444 | components/programs/ProgramApprovals.tsx                                      |
 
 ## What Was Built
 
 ### Task 1: Coach Invite API + Program Leader Dashboard
 
 **`app/api/coach-invite/route.ts`** — Authenticated REST API:
+
 - `POST` — Generates or regenerates coach invite link via upsert on `(program_id, event_id)`. Verifies user is program_leader for the given program. Sets `expires_at` from event's `registration_closes_at`. Returns `{ token, inviteUrl }`.
 - `DELETE` — Revokes by setting `is_active = false` (no delete). Same auth check.
 
 **`components/programs/ProgramLeaderDashboard.tsx`** — New portal dashboard component:
+
 - Fetches team registrations, coaches (via `coach_teams`), event dates, invite status
 - GENERATE INVITE LINK button + invite display with copy + QR thumbnail (80x80)
 - QR modal with `QRCodeSVG bgColor="#FFFFFF" fgColor="#000000"` per Phase 5 black-on-white pattern
@@ -63,6 +65,7 @@ metrics:
 ### Task 2: Registration Window Enforcement + Schedule Engine
 
 **`app/e/[slug]/register/page.tsx`** — Full window enforcement:
+
 - Fetches `registration_opens_at`, `registration_closes_at`, `registration_open`
 - Closed manual: "Registration is currently closed. Contact the event organizer for details."
 - Before window: "Registration opens {MMMM d, yyyy}"
@@ -71,6 +74,7 @@ metrics:
 - Card uses `bg-[#081428]` background per UI-SPEC
 
 **`lib/engines/schedule.ts`** — Coach conflict slot-level constraints:
+
 - Imports `getConflictingTeamPairs` from `./coach-conflicts`
 - Loads `coachConflictPairs` Set before slot assignment loop
 - `teamsShareCoach(teamA, teamB)` helper using min/max key pattern
@@ -80,6 +84,7 @@ metrics:
 ### Task 3: Coach Conflict Badges in Admin View
 
 **`components/programs/ProgramApprovals.tsx`** — Admin program management:
+
 - Added `conflictsByTeam` state (`Map<teamId, {coachName, otherTeamIds}[]>`)
 - Fetches `coach_conflicts` where `resolved=false` in parallel with other data
 - Builds lookup map from conflict rows
@@ -89,12 +94,12 @@ metrics:
 
 ## Decisions Made
 
-| Decision | Rationale |
-|----------|-----------|
-| upsert with `onConflict: 'program_id,event_id'` | Updates token in-place; UNIQUE constraint means one invite per program per event per Pitfall 5 |
-| Coach conflicts at slot-level only | Two teams sharing a coach can still play each other — constraint only prevents simultaneous scheduling per Pitfall 1 / RESEARCH |
-| `registration_open=false` checked first | Manual admin override takes precedence over date-based window |
-| ProgramLeaderDashboard separate from ProgramDashboard | Different role/scope — keeps components focused and avoids bloating existing dashboard |
+| Decision                                              | Rationale                                                                                                                       |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| upsert with `onConflict: 'program_id,event_id'`       | Updates token in-place; UNIQUE constraint means one invite per program per event per Pitfall 5                                  |
+| Coach conflicts at slot-level only                    | Two teams sharing a coach can still play each other — constraint only prevents simultaneous scheduling per Pitfall 1 / RESEARCH |
+| `registration_open=false` checked first               | Manual admin override takes precedence over date-based window                                                                   |
+| ProgramLeaderDashboard separate from ProgramDashboard | Different role/scope — keeps components focused and avoids bloating existing dashboard                                          |
 
 ## Deviations from Plan
 

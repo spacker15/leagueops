@@ -17,7 +17,16 @@ export type CreateGameInput = z.infer<typeof createGameSchema>
 // PATCH /api/games/[id] — update a game (partial)
 export const updateGameSchema = z.object({
   status: z
-    .enum(['Scheduled', 'Starting', 'Live', 'Halftime', 'Final', 'Delayed', 'Suspended', 'Cancelled'])
+    .enum([
+      'Scheduled',
+      'Starting',
+      'Live',
+      'Halftime',
+      'Final',
+      'Delayed',
+      'Suspended',
+      'Cancelled',
+    ])
     .optional(),
   home_score: z.number().int().min(0).optional(),
   away_score: z.number().int().min(0).optional(),

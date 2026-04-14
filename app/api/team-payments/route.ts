@@ -54,11 +54,7 @@ export async function POST(req: NextRequest) {
   }
 
   // 4. Business logic
-  const { data, error } = await supabase
-    .from('team_payments')
-    .insert(result.data)
-    .select()
-    .single()
+  const { data, error } = await supabase.from('team_payments').insert(result.data).select().single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data, { status: 201 })
 }

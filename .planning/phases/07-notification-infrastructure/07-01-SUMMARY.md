@@ -52,10 +52,10 @@ metrics:
 
 ## Tasks Completed
 
-| # | Task | Commit | Key Files |
-|---|------|--------|-----------|
-| 1 | Install packages and create database migration | f4fe1c0 | supabase/phase7_notifications.sql, package.json |
-| 2 | TypeScript types, notification helper lib, and email template | 70b9e07 | types/index.ts, lib/notifications.ts, emails/AlertEmail.tsx, emails/components/EventHeader.tsx |
+| #   | Task                                                          | Commit  | Key Files                                                                                      |
+| --- | ------------------------------------------------------------- | ------- | ---------------------------------------------------------------------------------------------- |
+| 1   | Install packages and create database migration                | f4fe1c0 | supabase/phase7_notifications.sql, package.json                                                |
+| 2   | TypeScript types, notification helper lib, and email template | 70b9e07 | types/index.ts, lib/notifications.ts, emails/AlertEmail.tsx, emails/components/EventHeader.tsx |
 
 ## What Was Built
 
@@ -74,12 +74,14 @@ Four tables with full RLS and indexes:
 ### TypeScript Types (`types/index.ts`)
 
 Appended 4 interfaces and 4 type aliases matching the DB schema exactly:
+
 - `AlertType`, `NotificationScope`, `NotificationChannel`, `NotificationStatus` union types
 - `NotificationQueueRow`, `NotificationPreference`, `NotificationLogEntry`, `PushSubscriptionRow` interfaces
 
 ### Notification Helper (`lib/notifications.ts`)
 
 Server-only module (`'use server'`) providing:
+
 - `ALERT_TYPES` — display metadata for all 4 alert types
 - `ALERT_TYPE_ROLES` — role-based visibility map (D-03)
 - `STORM_CAP = 50` — max notifications per event per hour (D-14)
@@ -94,6 +96,7 @@ Server-only module (`'use server'`) providing:
 ## Verification
 
 All acceptance criteria passed:
+
 - 4 CREATE TABLE statements in migration SQL
 - 4 ENABLE ROW LEVEL SECURITY statements
 - `dedup_key TEXT GENERATED ALWAYS AS` present
@@ -114,6 +117,7 @@ None — all exports are fully implemented. `insertNotification()` calls Supabas
 ## Self-Check
 
 Verified files exist:
+
 - `supabase/phase7_notifications.sql` — created
 - `lib/notifications.ts` — created
 - `emails/AlertEmail.tsx` — created
@@ -121,5 +125,6 @@ Verified files exist:
 - `types/index.ts` — modified (NotificationQueueRow appended)
 
 Verified commits exist:
+
 - f4fe1c0 — feat(07-01): install notification packages and create DB migration
 - 70b9e07 — feat(07-01): add notification types, helpers, and email templates

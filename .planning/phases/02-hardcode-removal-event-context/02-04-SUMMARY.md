@@ -32,15 +32,15 @@ key_files:
     - components/settings/LeagueSettingsTab.tsx
     - components/weather/WeatherTab.tsx
 decisions:
-  - "AppShell does NOT return null when eventId undefined -- stays visible per D-01; passes eventId to children"
-  - "RegisterPage uses inner-component pattern: RegisterPageInner uses useSearchParams, exported RegisterPage wraps in Suspense"
-  - "Portal components (Referee, Volunteer, ProgramDashboard) use userRole.event_id as portalEventId"
-  - "CommandCenter guards on both eventId and currentDate -- uses currentDate.id directly (D-02)"
-  - "eventSlug D-05 fix not applicable -- CheckInTab QR URLs already use token-based path /checkin/${token}, not event-ID-based path"
-  - "Pre-existing referee-engine integration test failures confirmed pre-existing before this plan"
+  - 'AppShell does NOT return null when eventId undefined -- stays visible per D-01; passes eventId to children'
+  - 'RegisterPage uses inner-component pattern: RegisterPageInner uses useSearchParams, exported RegisterPage wraps in Suspense'
+  - 'Portal components (Referee, Volunteer, ProgramDashboard) use userRole.event_id as portalEventId'
+  - 'CommandCenter guards on both eventId and currentDate -- uses currentDate.id directly (D-02)'
+  - 'eventSlug D-05 fix not applicable -- CheckInTab QR URLs already use token-based path /checkin/${token}, not event-ID-based path'
+  - 'Pre-existing referee-engine integration test failures confirmed pre-existing before this plan'
 metrics:
   duration: 45 min
-  completed_date: "2026-03-22"
+  completed_date: '2026-03-22'
   tasks_completed: 3
   tasks_total: 3
   files_modified: 18
@@ -114,6 +114,7 @@ All 4 patterns return zero matches across production code:
 ### Auto-fixed Issues
 
 **1. [Rule 1 - Bug] eventId not in scope for FieldCard and GameRow inner components**
+
 - **Found during:** Type-check after Task 2
 - **Issue:** CommandCenter's `FieldCard` and `GameRow` are standalone functions outside the main component scope. `eventId` from `useApp()` was not accessible.
 - **Fix:** Passed `eventId` as explicit prop through `FieldCard` (which passes to `GameRow`).
@@ -121,6 +122,7 @@ All 4 patterns return zero matches across production code:
 - **Commit:** `b41a9f9`
 
 **2. [Rule 1 - Bug] QuickRescheduleBtn in ScheduleTab needed its own eventId destructuring**
+
 - **Found during:** Type-check after Task 2
 - **Issue:** `QuickRescheduleBtn` is a standalone function that uses `useApp()` but didn't destructure `eventId`.
 - **Fix:** Added `eventId` to destructuring in `QuickRescheduleBtn`.
@@ -128,6 +130,7 @@ All 4 patterns return zero matches across production code:
 - **Commit:** `b41a9f9`
 
 **3. [Scope] D-05 QR URL slug fix not applicable**
+
 - **Issue:** Plan specified changing QR URLs from `/checkin/1/${token}` to `/checkin/${eventSlug}/${token}`. Actual code already uses pure token-based URLs: `/checkin/${token}`. No numeric event ID in QR URL path. Also, `Event` interface has no `slug` field.
 - **Fix:** `event_id: 1` in `ensureTokens()` upsert was replaced with `eventId` (the real fix). QR URL path unchanged as it's already dynamic.
 - **Impact:** QR URLs are correct -- no event_id hardcode in them. The eventSlug requirement was based on incorrect assumption about the URL structure.

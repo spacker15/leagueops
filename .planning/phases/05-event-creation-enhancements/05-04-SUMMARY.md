@@ -1,6 +1,6 @@
 ---
 phase: 05-event-creation-enhancements
-plan: "04"
+plan: '04'
 subsystem: ui
 tags: [next.js, public-results, routing, placeholder]
 
@@ -21,9 +21,9 @@ affects:
 tech-stack:
   added: []
   patterns:
-    - "Server component async page following sibling /e/[slug]/page.tsx pattern"
-    - "ISR with revalidate = 30 for public-results pages"
-    - "notFound() for invalid slug 404 handling"
+    - 'Server component async page following sibling /e/[slug]/page.tsx pattern'
+    - 'ISR with revalidate = 30 for public-results pages'
+    - 'notFound() for invalid slug 404 handling'
 
 key-files:
   created:
@@ -31,13 +31,13 @@ key-files:
   modified: []
 
 key-decisions:
-  - "Server component (async) matching the sibling event page pattern — no client-side state needed"
+  - 'Server component (async) matching the sibling event page pattern — no client-side state needed'
   - "revalidate = 30 matching the sibling page's ISR strategy"
-  - "getPublicEventBySlug used to verify slug validity before rendering — invalid slugs return notFound()"
-  - "Placeholder messaging defers full registration to Phase 6 Registration Flow Enhancements"
+  - 'getPublicEventBySlug used to verify slug validity before rendering — invalid slugs return notFound()'
+  - 'Placeholder messaging defers full registration to Phase 6 Registration Flow Enhancements'
 
 patterns-established:
-  - "Placeholder registration route: lookup slug → 404 if missing → render coming-soon UI"
+  - 'Placeholder registration route: lookup slug → 404 if missing → render coming-soon UI'
 
 requirements-completed: [EVT-04, EVT-06]
 
@@ -59,6 +59,7 @@ completed: 2026-03-23
 - **Files modified:** 1
 
 ## Accomplishments
+
 - Created /e/[slug]/register route that resolves to a page instead of 404 for valid event slugs
 - Invalid slugs correctly return a 404 via notFound()
 - Page displays event name, location, optional logo, and "Registration Coming Soon" message
@@ -73,9 +74,11 @@ Each task was committed atomically:
 **Plan metadata:** (docs commit — see below)
 
 ## Files Created/Modified
+
 - `apps/public-results/src/app/e/[slug]/register/page.tsx` - Registration route placeholder; server component with ISR revalidate=30, notFound() on invalid slug, "Registration Coming Soon" message
 
 ## Decisions Made
+
 - Server component (async) matching the sibling event page pattern — no client-side state needed for this placeholder
 - revalidate = 30 matching the sibling /e/[slug]/page.tsx ISR strategy
 - Uses getPublicEventBySlug to verify slug validity — invalid slugs return notFound() (404)
@@ -94,9 +97,11 @@ None.
 None - no external service configuration required.
 
 ## Next Phase Readiness
+
 - EVT-04 and EVT-06 requirements are now satisfied: registration URLs from the Sharing tab QR codes resolve to a real page
 - Phase 6 (Registration Flow Enhancements) can replace this placeholder with the full registration wizard at the same route
 
 ---
-*Phase: 05-event-creation-enhancements*
-*Completed: 2026-03-23*
+
+_Phase: 05-event-creation-enhancements_
+_Completed: 2026-03-23_

@@ -41,14 +41,14 @@ key-files:
     - package.json
 
 key-decisions:
-  - "VenueAutocompleteInput uses onLocationChange + onVenueSelect callbacks so parent owns state"
-  - "slug and status added as optional fields to Event interface -- needed by Plan 03 Sharing tab"
-  - "Debounce via useRef(setTimeout) instead of lodash.debounce -- no new dependency needed"
-  - "Component silently fails on details fetch error -- no toast dependency, caller handles UX"
+  - 'VenueAutocompleteInput uses onLocationChange + onVenueSelect callbacks so parent owns state'
+  - 'slug and status added as optional fields to Event interface -- needed by Plan 03 Sharing tab'
+  - 'Debounce via useRef(setTimeout) instead of lodash.debounce -- no new dependency needed'
+  - 'Component silently fails on details fetch error -- no toast dependency, caller handles UX'
 
 patterns-established:
-  - "VenueAutocompleteInput pattern: value prop + onLocationChange + onVenueSelect for controlled usage"
-  - "Venue selection returns structured {name, address, lat, lng, place_id} object"
+  - 'VenueAutocompleteInput pattern: value prop + onLocationChange + onVenueSelect for controlled usage'
+  - 'Venue selection returns structured {name, address, lat, lng, place_id} object'
 
 requirements-completed: [EVT-02, EVT-03]
 
@@ -131,5 +131,6 @@ None - no external service configuration required (GOOGLE_MAPS_API_KEY env var w
 - FOUND: commit 4c95655 (Task 2)
 
 ---
-*Phase: 05-event-creation-enhancements*
-*Completed: 2026-03-23*
+
+_Phase: 05-event-creation-enhancements_
+_Completed: 2026-03-23_

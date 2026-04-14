@@ -102,10 +102,8 @@ export function generateSlotSuggestions(params: {
         const homeAvailDates = teamAvailability[game.home_team_id] ?? []
         const awayAvailDates = teamAvailability[game.away_team_id] ?? []
 
-        const homeHasDate =
-          homeAvailDates.length === 0 || homeAvailDates.includes(eventDate.id)
-        const awayHasDate =
-          awayAvailDates.length === 0 || awayAvailDates.includes(eventDate.id)
+        const homeHasDate = homeAvailDates.length === 0 || homeAvailDates.includes(eventDate.id)
+        const awayHasDate = awayAvailDates.length === 0 || awayAvailDates.includes(eventDate.id)
 
         const homeTeamAvailable = !homeConflict && homeHasDate
         const awayTeamAvailable = !awayConflict && awayHasDate

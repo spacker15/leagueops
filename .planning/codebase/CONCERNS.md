@@ -122,6 +122,7 @@ import { createClient } from '@/supabase/client'
 The engine is called from server-side API routes (`app/api/weather-engine/route.ts`, `app/api/lightning/route.ts`). The browser client uses `createBrowserClient` which is designed for client-side use and depends on browser session cookies. Running it server-side means it cannot authenticate as the current user and will behave as the anonymous role.
 
 The same issue affects:
+
 - `lib/engines/field.ts` line 16 — `import { createClient } from '@/supabase/client'`
 - `lib/engines/referee.ts` line 14 — `import { createClient } from '@/supabase/client'`
 - `lib/engines/eligibility.ts` line 11 — `import { createClient } from '@/supabase/client'`
@@ -380,22 +381,22 @@ With `@supabase/ssr`, `persistSession: false` means the server client will not a
 
 ## Summary of Priority Areas
 
-| Priority | Concern |
-|----------|---------|
-| P0 | Permissive RLS `"Allow all"` policies on all tables (schema.sql) |
-| P0 | 40+ API routes have no authentication check |
-| P1 | Hardcoded `event_id = 1` breaks multi-event support in engines and components |
-| P1 | All engines import browser Supabase client — wrong context for server-side calls |
-| P1 | Weather API key exposed via `NEXT_PUBLIC_OPENWEATHER_KEY` |
-| P1 | Payment recording has a race condition (no transaction) |
-| P2 | `field-engine` GET `resolved` filter always evaluates to `false` |
-| P2 | Unified engine hardcodes `complex_id: 1` for weather — safety risk |
-| P2 | Lightning detection uses coarse condition codes, not actual strike radius data |
-| P2 | No rate limiting on any API route |
-| P2 | Email enumeration via unauthenticated `check-email` endpoint |
-| P3 | Missing `eventId` in `loadAll` effect dependency array |
-| P3 | Real-time subscriptions not scoped to current event |
-| P3 | 80+ `as any` casts — type system broadly bypassed |
-| P3 | No tests for any business-critical engine logic |
-| P3 | Time parsing in engines has no timezone handling |
-| P3 | State list in registration limited to 10 southeast states |
+| Priority | Concern                                                                          |
+| -------- | -------------------------------------------------------------------------------- |
+| P0       | Permissive RLS `"Allow all"` policies on all tables (schema.sql)                 |
+| P0       | 40+ API routes have no authentication check                                      |
+| P1       | Hardcoded `event_id = 1` breaks multi-event support in engines and components    |
+| P1       | All engines import browser Supabase client — wrong context for server-side calls |
+| P1       | Weather API key exposed via `NEXT_PUBLIC_OPENWEATHER_KEY`                        |
+| P1       | Payment recording has a race condition (no transaction)                          |
+| P2       | `field-engine` GET `resolved` filter always evaluates to `false`                 |
+| P2       | Unified engine hardcodes `complex_id: 1` for weather — safety risk               |
+| P2       | Lightning detection uses coarse condition codes, not actual strike radius data   |
+| P2       | No rate limiting on any API route                                                |
+| P2       | Email enumeration via unauthenticated `check-email` endpoint                     |
+| P3       | Missing `eventId` in `loadAll` effect dependency array                           |
+| P3       | Real-time subscriptions not scoped to current event                              |
+| P3       | 80+ `as any` casts — type system broadly bypassed                                |
+| P3       | No tests for any business-critical engine logic                                  |
+| P3       | Time parsing in engines has no timezone handling                                 |
+| P3       | State list in registration limited to 10 southeast states                        |

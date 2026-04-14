@@ -20,9 +20,9 @@ affects:
 tech-stack:
   added: []
   patterns:
-    - "Mobile-first responsive: grid-cols-1 sm:grid-cols-[auto-fill] pattern for card grids"
-    - "Sticky first column: sticky left-0 z-10 bg-[color] on table td/th for horizontal scroll tables"
-    - "Touch DnD: useSensors(MouseSensor, TouchSensor) with 200ms delay + 5px tolerance"
+    - 'Mobile-first responsive: grid-cols-1 sm:grid-cols-[auto-fill] pattern for card grids'
+    - 'Sticky first column: sticky left-0 z-10 bg-[color] on table td/th for horizontal scroll tables'
+    - 'Touch DnD: useSensors(MouseSensor, TouchSensor) with 200ms delay + 5px tolerance'
 
 key-files:
   created: []
@@ -33,14 +33,14 @@ key-files:
     - components/refs/RefsTab.tsx
 
 key-decisions:
-  - "Schedule table sticky column uses bg-[#020810] (surface color) on data cells to maintain visual consistency on scroll"
-  - "Schedule table scroll container uses -mx-4 px-4 to extend full-width on mobile without affecting desktop layout"
-  - "TouchSensor activation delay of 200ms + tolerance 5px prevents accidental drags while scrolling on touch devices"
+  - 'Schedule table sticky column uses bg-[#020810] (surface color) on data cells to maintain visual consistency on scroll'
+  - 'Schedule table scroll container uses -mx-4 px-4 to extend full-width on mobile without affecting desktop layout'
+  - 'TouchSensor activation delay of 200ms + tolerance 5px prevents accidental drags while scrolling on touch devices'
 
 patterns-established:
-  - "Responsive card grids: always prefix auto-fill patterns with grid-cols-1 sm: for mobile fallback"
-  - "Horizontal scroll tables: wrap in overflow-x-auto, add sticky left-0 z-10 bg-[surface] to first column cells"
-  - "Touch DnD: always pair MouseSensor with TouchSensor in useSensors() for @dnd-kit components"
+  - 'Responsive card grids: always prefix auto-fill patterns with grid-cols-1 sm: for mobile fallback'
+  - 'Horizontal scroll tables: wrap in overflow-x-auto, add sticky left-0 z-10 bg-[surface] to first column cells'
+  - 'Touch DnD: always pair MouseSensor with TouchSensor in useSensors() for @dnd-kit components'
 
 requirements-completed: [MOB-01, MOB-03]
 
@@ -111,5 +111,6 @@ None - no external service configuration required.
 - Plans 10-03+ can proceed with notification wiring (NOT-02, NOT-03, NOT-04)
 
 ---
-*Phase: 10-responsive-design-notification-wiring*
-*Completed: 2026-03-25*
+
+_Phase: 10-responsive-design-notification-wiring_
+_Completed: 2026-03-25_

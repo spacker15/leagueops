@@ -24,6 +24,7 @@ export function statusColor(status: GameStatus): string {
     Delayed: 'text-red-400',
     Cancelled: 'text-muted',
     Unscheduled: 'text-slate-400',
+    'No Show': 'text-amber-400',
   }
   return map[status] ?? 'text-muted'
 }
@@ -38,6 +39,7 @@ export function statusBg(status: GameStatus): string {
     Delayed: 'bg-red-900/30 text-red-400',
     Cancelled: 'bg-gray-800/50 text-gray-400',
     Unscheduled: 'bg-slate-800/50 text-slate-400',
+    'No Show': 'bg-amber-900/30 text-amber-400',
   }
   return map[status] ?? 'bg-gray-700 text-gray-300'
 }

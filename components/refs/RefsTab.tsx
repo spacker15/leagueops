@@ -16,7 +16,6 @@ import {
 } from '@dnd-kit/core'
 import { useApp } from '@/lib/store'
 import { Avatar, Pill, Modal, Btn, FormField } from '@/components/ui'
-import { EventDatePicker } from '@/components/ui/EventDatePicker'
 import { cn, findCsvMismatches, type CsvMismatch } from '@/lib/utils'
 import toast from 'react-hot-toast'
 import type {
@@ -73,16 +72,6 @@ interface BlockAssignment {
 }
 
 // ─── Draggable person chip ───────────────────────────────────
-function timeToMin(t: string): number {
-  const m = t.match(/(\d+):(\d+)\s*(AM|PM)/i)
-  if (!m) return 0
-  let h = parseInt(m[1])
-  const min = parseInt(m[2])
-  if (m[3].toUpperCase() === 'PM' && h !== 12) h += 12
-  if (m[3].toUpperCase() === 'AM' && h === 12) h = 0
-  return h * 60 + min
-}
-
 function DraggablePerson({
   id,
   name,
@@ -151,13 +140,11 @@ function DroppableGameCard({
   assignments,
   onRemove,
   isOver,
-  teamLogoMap,
 }: {
   game: Game
   assignments: Assignment[]
   onRemove: (a: Assignment) => void
   isOver: boolean
-  teamLogoMap: Record<number, string | null>
 }) {
   const { setNodeRef } = useDroppable({ id: `game-${game.id}` })
   const refs = assignments.filter((a) => a.person_type === 'ref')
@@ -218,29 +205,9 @@ function DroppableGameCard({
       {/* Matchup */}
       <div className="px-2.5 py-1.5">
         <div className="font-cond font-black text-[12px] text-white leading-tight mb-1.5">
-          <div className="flex items-center gap-1 mb-0.5">
-            {teamLogoMap[game.home_team_id] && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={teamLogoMap[game.home_team_id]!}
-                alt=""
-                className="w-3.5 h-3.5 rounded object-cover flex-shrink-0"
-              />
-            )}
-            {game.home_team?.name ?? '?'}
-          </div>
-          <div className="font-cond text-[9px] text-muted font-normal pl-4">vs</div>
-          <div className="flex items-center gap-1">
-            {teamLogoMap[game.away_team_id] && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={teamLogoMap[game.away_team_id]!}
-                alt=""
-                className="w-3.5 h-3.5 rounded object-cover flex-shrink-0"
-              />
-            )}
-            {game.away_team?.name ?? '?'}
-          </div>
+          {game.home_team?.name ?? '?'}{' '}
+          <span className="text-muted font-normal text-[10px]">vs</span>{' '}
+          {game.away_team?.name ?? '?'}
         </div>
 
         {/* Drop zone hint */}
@@ -347,17 +314,12 @@ export function RefsTab() {
     state,
     toggleRefCheckin,
     toggleVolCheckin,
-    toggleTrainerCheckin,
     refreshRefs,
     refreshVols,
-    refreshTrainers,
     currentDate,
-    changeDate,
     eventId,
+    addLog,
   } = useApp()
-  const teamLogoMap = Object.fromEntries(
-    (state.teams ?? []).map((t) => [t.id, t.logo_url ?? (t as any).programs?.logo_url ?? null])
-  )
   const [subTab, setSubTab] = useState<SubTab>('board')
   const [assignments, setAssignments] = useState<Assignment[]>([])
   const [blockAssignments, setBlockAssignments] = useState<BlockAssignment[]>([])
@@ -415,8 +377,8 @@ export function RefsTab() {
   const [newVolEmail, setNewVolEmail] = useState('')
   const [addingSaving, setAddingSaving] = useState(false)
 
-  // Trainers — use global state.trainers, keep availability counts local
-  const trainers = state.trainers
+  // Trainers
+  const [trainers, setTrainers] = useState<Trainer[]>([])
   const [trainerAvailCounts, setTrainerAvailCounts] = useState<Record<number, number>>({})
   const [addTrainerOpen, setAddTrainerOpen] = useState(false)
   const [newTrainerName, setNewTrainerName] = useState('')
@@ -426,23 +388,32 @@ export function RefsTab() {
   const [selectedTrainer, setSelectedTrainer] = useState<Trainer | null>(null)
   const [trainerAvailability, setTrainerAvailability] = useState<TrainerAvailability[]>([])
 
-  const loadTrainerAvailCounts = useCallback(async () => {
-    if (!eventId || trainers.length === 0) return
+  const loadTrainers = useCallback(async () => {
+    if (!eventId) return
     const sb = createClient()
-    const { data: avail } = await sb
-      .from('trainer_availability')
-      .select('trainer_id')
-      .in('trainer_id', trainers.map((t) => t.id))
-    const counts: Record<number, number> = {}
-    for (const row of avail ?? []) {
-      counts[row.trainer_id] = (counts[row.trainer_id] ?? 0) + 1
+    const { data } = await sb.from('trainers').select('*').eq('event_id', eventId).order('name')
+    const list = (data as Trainer[]) ?? []
+    setTrainers(list)
+    // Load availability counts for all trainers
+    if (list.length > 0) {
+      const { data: avail } = await sb
+        .from('trainer_availability')
+        .select('trainer_id')
+        .in(
+          'trainer_id',
+          list.map((t) => t.id)
+        )
+      const counts: Record<number, number> = {}
+      for (const row of avail ?? []) {
+        counts[row.trainer_id] = (counts[row.trainer_id] ?? 0) + 1
+      }
+      setTrainerAvailCounts(counts)
     }
-    setTrainerAvailCounts(counts)
-  }, [eventId, trainers])
+  }, [eventId])
 
   useEffect(() => {
-    loadTrainerAvailCounts()
-  }, [loadTrainerAvailCounts])
+    loadTrainers()
+  }, [loadTrainers])
 
   async function saveNewTrainer() {
     if (!newTrainerName.trim()) {
@@ -470,13 +441,13 @@ export function RefsTab() {
     setNewTrainerEmail('')
     setAddTrainerOpen(false)
     setAddingSaving(false)
-    await refreshTrainers()
+    await loadTrainers()
   }
 
   async function deleteTrainer(id: number) {
     const sb = createClient()
     await sb.from('trainers').delete().eq('id', id)
-    await refreshTrainers()
+    setTrainers((prev) => prev.filter((t) => t.id !== id))
     toast.success('Trainer removed')
   }
 
@@ -613,11 +584,7 @@ export function RefsTab() {
 
   // Load all assignments for today's games
   const loadAssignments = useCallback(async () => {
-    if (!state.games.length) {
-      setAssignments([])
-      setBlockAssignments([])
-      return
-    }
+    if (!state.games.length) return
     const sb = createClient()
     const gameIds = state.games.map((g) => g.id)
 
@@ -851,7 +818,7 @@ export function RefsTab() {
       // Block assignment — assign to N games on this field
       const fieldGames = state.games
         .filter((g) => g.field_id === targetId && g.status !== 'Final')
-        .sort((a, b) => timeToMin(a.scheduled_time) - timeToMin(b.scheduled_time))
+        .sort((a, b) => (a.sort_order ?? 9999) - (b.sort_order ?? 9999))
         .slice(0, blockGames > 0 ? blockGames : undefined)
 
       let count = 0
@@ -961,6 +928,7 @@ export function RefsTab() {
     }
     setAssignments((prev) => prev.filter((x) => x.id !== a.id))
     toast(`${a.person_name} removed`, { icon: '↩' })
+    await addLog(`${a.person_name} unassigned from Game #${a.game_id}`, 'info')
   }
 
   async function removeBlockAssignment(block: BlockAssignment) {
@@ -1303,9 +1271,6 @@ export function RefsTab() {
             if (m[3].toUpperCase() === 'AM' && h === 12) h = 0
             return h * 60 + min
           }
-          const aFinal = a.status === 'Final' ? 1 : 0
-          const bFinal = b.status === 'Final' ? 1 : 0
-          if (aFinal !== bFinal) return aFinal - bFinal
           return toMin(a.scheduled_time) - toMin(b.scheduled_time)
         }),
     }))
@@ -1359,28 +1324,6 @@ export function RefsTab() {
 
       {/* ═══ ASSIGNMENT BOARD ════════════════════════════════════ */}
       {subTab === 'board' && (
-        <>
-          {/* Date / week picker */}
-          <EventDatePicker
-            dates={state.eventDates}
-            selectedId={
-              state.currentDateIdx === -1
-                ? null
-                : (state.eventDates[state.currentDateIdx]?.id ?? null)
-            }
-            onChange={(id) => {
-              if (id === null) {
-                changeDate(-1)
-              } else {
-                const idx = state.eventDates.findIndex((d) => d.id === id)
-                if (idx !== -1) changeDate(idx)
-              }
-            }}
-            className="mb-3"
-          />
-        </>
-      )}
-      {subTab === 'board' && (
         <DndContext
           sensors={sensors}
           collisionDetection={pointerWithin}
@@ -1391,9 +1334,9 @@ export function RefsTab() {
             else setOverIds(new Set())
           }}
         >
-          <div className="flex gap-3" style={{ height: 'calc(100vh - 180px)', minHeight: 0 }}>
+          <div className="flex gap-3 h-full" style={{ minHeight: 0 }}>
             {/* Left panel: refs + volunteers */}
-            <div className="w-52 flex-shrink-0 overflow-y-auto">
+            <div className="w-52 flex-shrink-0">
               {/* Instructions */}
               <div className="bg-navy/40 border border-border rounded-md p-2.5 mb-3 text-[10px] text-muted font-cond leading-relaxed">
                 <div className="text-white font-bold mb-1">HOW TO ASSIGN</div>
@@ -1481,7 +1424,7 @@ export function RefsTab() {
             </div>
 
             {/* Field columns */}
-            <div className="flex-1 overflow-auto">
+            <div className="flex-1 overflow-x-auto">
               <div className="flex gap-3" style={{ minWidth: `${fieldColumns.length * 220}px` }}>
                 {fieldColumns.map(({ field, games }) => (
                   <div key={field.id} className="flex-shrink-0" style={{ width: 210 }}>
@@ -1501,7 +1444,6 @@ export function RefsTab() {
                           assignments={assignments.filter((a) => a.game_id === game.id)}
                           onRemove={removeAssignment}
                           isOver={overIds.has(`game-${game.id}`)}
-                          teamLogoMap={teamLogoMap}
                         />
                       ))}
                     </div>
@@ -1647,28 +1589,10 @@ export function RefsTab() {
                     <Avatar name={ref.name} variant="red" />
                     <div className="min-w-0 flex-1">
                       <div className="font-cond font-black text-[13px] truncate">{ref.name}</div>
+                      <div className="font-cond text-[10px] text-muted">{ref.grade_level}</div>
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-1 mb-2">
-                    <button
-                      onClick={async () => {
-                        const isYouth = ref.grade_level?.toLowerCase().includes('youth')
-                        const newGrade = isYouth ? 'Adult' : 'Youth'
-                        const sb = createClient()
-                        await sb.from('referees').update({ grade_level: newGrade }).eq('id', ref.id)
-                        await refreshRefs()
-                        toast.success(`${ref.name} set to ${newGrade}`)
-                      }}
-                      className={cn(
-                        'font-cond text-[10px] font-bold px-2 py-0.5 rounded cursor-pointer transition-colors',
-                        ref.grade_level?.toLowerCase().includes('youth')
-                          ? 'bg-green-900/30 text-green-400 hover:bg-green-900/50'
-                          : 'bg-blue-900/30 text-blue-300 hover:bg-blue-900/50'
-                      )}
-                      title="Click to toggle Adult/Youth"
-                    >
-                      {ref.grade_level?.toLowerCase().includes('youth') ? 'YOUTH' : 'ADULT'}
-                    </button>
                     {ref.checked_in ? (
                       <Pill variant="green">CHECKED IN</Pill>
                     ) : (
@@ -2004,11 +1928,7 @@ export function RefsTab() {
                     key={trainer.id}
                     className={cn(
                       'bg-surface-card border rounded-lg p-3',
-                      trainer.checked_in
-                        ? 'border-green-800/40 bg-green-900/10'
-                        : noAvail
-                          ? 'border-yellow-700/50'
-                          : 'border-border'
+                      noAvail ? 'border-yellow-700/50' : 'border-border'
                     )}
                   >
                     <div className="flex gap-2 items-start mb-2">
@@ -2027,13 +1947,6 @@ export function RefsTab() {
                         )}
                       </div>
                     </div>
-                    <div className="flex flex-wrap gap-1 mb-2">
-                      {trainer.checked_in ? (
-                        <Pill variant="green">ON DUTY</Pill>
-                      ) : (
-                        <Pill variant="yellow">OFF DUTY</Pill>
-                      )}
-                    </div>
                     {noAvail && (
                       <div className="flex items-center gap-1 mb-2 px-2 py-1 rounded bg-yellow-900/20 border border-yellow-700/30">
                         <AlertTriangle size={10} className="text-yellow-400 shrink-0" />
@@ -2044,17 +1957,11 @@ export function RefsTab() {
                     )}
                     <div className="flex gap-1 mt-2">
                       <button
-                        onClick={() => toggleTrainerCheckin(trainer.id)}
-                        className="flex-1 font-cond text-[10px] font-bold tracking-wider py-1 rounded bg-navy hover:bg-navy-light text-white transition-colors"
-                      >
-                        {trainer.checked_in ? 'CHECK OUT' : 'CHECK IN'}
-                      </button>
-                      <button
                         onClick={() => openTrainerAvailability(trainer)}
-                        title="Availability"
-                        className="px-2 py-1 rounded bg-surface border border-border text-muted hover:text-white hover:border-blue-400 transition-colors"
+                        className="flex-1 flex items-center justify-center gap-1 font-cond text-[10px] font-bold tracking-wider py-1 rounded bg-surface border border-border text-muted hover:text-white hover:border-blue-400 transition-colors"
                       >
                         <Calendar size={10} />
+                        AVAILABILITY
                       </button>
                       <button
                         onClick={() => deleteTrainer(trainer.id)}

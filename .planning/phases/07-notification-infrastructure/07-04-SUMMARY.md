@@ -1,6 +1,6 @@
 ---
 phase: 07-notification-infrastructure
-plan: "04"
+plan: '04'
 subsystem: notifications
 tags: [notification-ui, bell-icon, realtime, supabase-realtime, push-modal, accessibility]
 dependency_graph:
@@ -35,12 +35,12 @@ key_files:
     - lib/db.ts (NotificationLogEntry import + 4 notification helper functions)
 decisions:
   - "NotificationSettingsPanel imports ALERT_TYPES/ALERT_TYPE_ROLES from lib/notifications.ts which is 'use server' — Next.js 14 allows importing non-async server module constants into client components as tree-shaken data; build passes with no errors"
-  - "userRoleNames cast to string[] for ALERT_TYPE_ROLES includes() comparison — ALERT_TYPE_ROLES values are string[], not AppRole[] — cast avoids TS2345 type error"
-  - "NotificationDropdown uses inline <style> keyframe for fadeSlideDown animation — avoids global CSS dependency while meeting the 150ms ease-out animation contract"
-  - "PushPermissionModal early-returns null if permission already granted/denied — double-check per D-09 Pitfall 4 even though parent should also check"
+  - 'userRoleNames cast to string[] for ALERT_TYPE_ROLES includes() comparison — ALERT_TYPE_ROLES values are string[], not AppRole[] — cast avoids TS2345 type error'
+  - 'NotificationDropdown uses inline <style> keyframe for fadeSlideDown animation — avoids global CSS dependency while meeting the 150ms ease-out animation contract'
+  - 'PushPermissionModal early-returns null if permission already granted/denied — double-check per D-09 Pitfall 4 even though parent should also check'
 metrics:
   duration: 5 min
-  completed: "2026-03-24T12:57:00Z"
+  completed: '2026-03-24T12:57:00Z'
   tasks_completed: 2
   files_created: 5
   files_modified: 2
@@ -52,16 +52,17 @@ metrics:
 
 ## Tasks Completed
 
-| # | Task | Commit | Key Files |
-|---|------|--------|-----------|
-| 1 | NotificationBell, NotificationDropdown, and TopBar wiring | ee42527 | components/notifications/NotificationBell.tsx, components/notifications/NotificationDropdown.tsx, components/TopBar.tsx, lib/db.ts |
-| 2 | NotificationSettingsPanel, NotificationToggleRow, and PushPermissionModal | 5ec193f | components/notifications/NotificationSettingsPanel.tsx, components/notifications/NotificationToggleRow.tsx, components/notifications/PushPermissionModal.tsx |
+| #   | Task                                                                      | Commit  | Key Files                                                                                                                                                    |
+| --- | ------------------------------------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | NotificationBell, NotificationDropdown, and TopBar wiring                 | ee42527 | components/notifications/NotificationBell.tsx, components/notifications/NotificationDropdown.tsx, components/TopBar.tsx, lib/db.ts                           |
+| 2   | NotificationSettingsPanel, NotificationToggleRow, and PushPermissionModal | 5ec193f | components/notifications/NotificationSettingsPanel.tsx, components/notifications/NotificationToggleRow.tsx, components/notifications/PushPermissionModal.tsx |
 
 ## What Was Built
 
 ### Notification DB Helpers (`lib/db.ts`)
 
 Four functions appended at end of file (Phase 7 section):
+
 - `getUnreadNotificationCount(userId)` — count query with `head: true` for efficiency, filters `status='delivered'` and `read_at IS NULL`
 - `getRecentNotifications(userId)` — last 20 delivered notifications ordered by `delivered_at DESC`
 - `markAllNotificationsRead(userId)` — bulk update `read_at` for all unread
@@ -72,6 +73,7 @@ Four functions appended at end of file (Phase 7 section):
 ### NotificationBell (`components/notifications/NotificationBell.tsx`)
 
 `'use client'` component with full accessibility and realtime support:
+
 - **Hooks first** — `useState`, `useEffect` (×3), `useRef` (×2), `useCallback` before `if (!user) return null` guard
 - **Initial load** — fetches unread count via `db.getUnreadNotificationCount(user.id)` on mount
 - **Realtime subscription** — `postgres_changes INSERT` on `notification_log` filtered by `user_id=eq.${user.id}` increments count without re-fetch
@@ -85,6 +87,7 @@ Four functions appended at end of file (Phase 7 section):
 ### NotificationDropdown (`components/notifications/NotificationDropdown.tsx`)
 
 `'use client'` dropdown with notification list:
+
 - **Dimensions** — `w-80 max-h-[400px] overflow-y-auto` per UI-SPEC
 - **Colors** — `bg-[#061428] border border-[#1a2d50] rounded-b-xl shadow-2xl z-50`
 - **Animation** — `fadeSlideDown` keyframe (opacity 0→1, translateY -4px→0) over 150ms ease-out
@@ -101,6 +104,7 @@ Four functions appended at end of file (Phase 7 section):
 ### NotificationToggleRow (`components/notifications/NotificationToggleRow.tsx`)
 
 Accessible toggle switch row for a single alert type:
+
 - **Layout** — flex row: left = label (`font-cond text-[13px] font-black text-white`) + description (`text-[12px] text-muted`), right = Email toggle + Push toggle stacked with labels
 - **Toggle switch** — `w-10 h-5 rounded-full` background (`bg-navy` on, `bg-[#1a2d50]` off), `w-4 h-4 rounded-full bg-white` thumb, `translate-x-[22px]` / `translate-x-0.5`
 - **Animation** — `transition-transform duration-150 motion-reduce:transition-none`
@@ -109,6 +113,7 @@ Accessible toggle switch row for a single alert type:
 ### NotificationSettingsPanel (`components/notifications/NotificationSettingsPanel.tsx`)
 
 Role-filtered preferences panel:
+
 - **Hooks first** — `useState` (prefs, saving), `useEffect` (load prefs) before `if (!user) return null`
 - **Role filtering** — `ALERT_TYPE_ROLES` map from `lib/notifications.ts` filters `ALERT_TYPES` to only types where user's roles match
 - **Load** — fetches `notification_preferences` for current user on mount, builds `Map<AlertType, {email_on, push_on}>`
@@ -118,6 +123,7 @@ Role-filtered preferences panel:
 ### PushPermissionModal (`components/notifications/PushPermissionModal.tsx`)
 
 Push permission prompt per D-09:
+
 - **Controlled** — `isOpen` prop from parent (parent decides when to show, not this component)
 - **Double-check** — early returns null if `getPushPermission()` is already 'granted' or 'denied'
 - **Event name** — uses `state.event?.name || 'your event'` from `useApp()`
@@ -128,6 +134,7 @@ Push permission prompt per D-09:
 ## Verification
 
 All acceptance criteria passed:
+
 - NotificationBell exports named `NotificationBell` with `'use client'`
 - All hooks before early return guard (CLAUDE.md compliance)
 - `aria-label`, `aria-haspopup`, `aria-expanded` on bell button
@@ -147,6 +154,7 @@ All acceptance criteria passed:
 ### Auto-fixed Issues
 
 **1. [Rule 1 - Bug] Fixed TypeScript TS2345 type error in NotificationSettingsPanel**
+
 - **Found during:** TypeScript check after Task 2 implementation
 - **Issue:** `ALERT_TYPE_ROLES[at.value]` is `string[]` but `userRoleNames` is `AppRole[]` — `Array<AppRole>.includes(string)` causes TS2345
 - **Fix:** Cast `userRoleNames` elements to `string` via `.map((r) => r.role as string)`
@@ -156,6 +164,7 @@ All acceptance criteria passed:
 ## Known Stubs
 
 None — all components are fully implemented with real data sources:
+
 - `NotificationBell` reads from `notification_log` via realtime subscription
 - `NotificationDropdown` fetches real notifications from DB
 - `NotificationSettingsPanel` loads and saves real preferences to `notification_preferences`
@@ -164,6 +173,7 @@ None — all components are fully implemented with real data sources:
 ## Self-Check: PASSED
 
 Verified files exist:
+
 - `components/notifications/NotificationBell.tsx` — created
 - `components/notifications/NotificationDropdown.tsx` — created
 - `components/notifications/NotificationSettingsPanel.tsx` — created
@@ -173,5 +183,6 @@ Verified files exist:
 - `lib/db.ts` — modified (notification helpers added)
 
 Verified commits exist:
+
 - ee42527 — feat(07-04): NotificationBell, NotificationDropdown, TopBar wiring, and db notification helpers
 - 5ec193f — feat(07-04): NotificationSettingsPanel, NotificationToggleRow, and PushPermissionModal

@@ -5,11 +5,8 @@ import { engineRatelimit } from '@/lib/ratelimit'
 
 export async function POST(request: Request) {
   // Rate limit by IP (SEC-08)
-  const ip =
-    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
-    '127.0.0.1'
-  const { success, limit, remaining, reset, pending } =
-    await engineRatelimit.limit(ip)
+  const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? '127.0.0.1'
+  const { success, limit, remaining, reset, pending } = await engineRatelimit.limit(ip)
   void pending
 
   if (!success) {

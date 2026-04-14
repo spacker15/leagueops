@@ -4,31 +4,44 @@ plan: 05
 subsystem: engine-tests
 tags: [testing, vitest, engines, mocking, integration]
 dependency_graph:
-  requires: ["01-01"]
-  provides: ["engine-unit-test-coverage"]
-  affects: ["lib/engines/rules.ts", "lib/engines/referee.ts", "lib/engines/field.ts", "lib/engines/weather.ts", "lib/engines/eligibility.ts", "lib/engines/unified.ts"]
+  requires: ['01-01']
+  provides: ['engine-unit-test-coverage']
+  affects:
+    [
+      'lib/engines/rules.ts',
+      'lib/engines/referee.ts',
+      'lib/engines/field.ts',
+      'lib/engines/weather.ts',
+      'lib/engines/eligibility.ts',
+      'lib/engines/unified.ts',
+    ]
 tech_stack:
   added: []
-  patterns: ["vi.mock() for module isolation", "makeChain() chainable query mock", "vitest hoisting-safe mock pattern"]
+  patterns:
+    [
+      'vi.mock() for module isolation',
+      'makeChain() chainable query mock',
+      'vitest hoisting-safe mock pattern',
+    ]
 key_files:
   created:
-    - "__tests__/lib/engines/_mockSb.ts"
-    - "__tests__/lib/engines/rules.test.ts"
-    - "__tests__/lib/engines/referee.test.ts"
-    - "__tests__/lib/engines/field.test.ts"
-    - "__tests__/lib/engines/weather.test.ts"
-    - "__tests__/lib/engines/eligibility.test.ts"
-    - "__tests__/lib/engines/unified.test.ts"
-    - "__tests__/app/api/referee-engine.integration.test.ts"
+    - '__tests__/lib/engines/_mockSb.ts'
+    - '__tests__/lib/engines/rules.test.ts'
+    - '__tests__/lib/engines/referee.test.ts'
+    - '__tests__/lib/engines/field.test.ts'
+    - '__tests__/lib/engines/weather.test.ts'
+    - '__tests__/lib/engines/eligibility.test.ts'
+    - '__tests__/lib/engines/unified.test.ts'
+    - '__tests__/app/api/referee-engine.integration.test.ts'
   modified:
-    - "vitest.config.ts"
+    - 'vitest.config.ts'
 decisions:
-  - "Shared _mockSb.ts helper placed in __tests__/lib/engines/ — excluded from vitest include via _mock*.ts glob to avoid no-suite error"
-  - "Integration test uses vi.mock() factory with inline vi.fn() to avoid Vitest hoisting-before-initialization error"
-  - "vitest.config.ts exclude pattern updated to suppress _mock*.ts files from test discovery"
+  - 'Shared _mockSb.ts helper placed in __tests__/lib/engines/ — excluded from vitest include via _mock*.ts glob to avoid no-suite error'
+  - 'Integration test uses vi.mock() factory with inline vi.fn() to avoid Vitest hoisting-before-initialization error'
+  - 'vitest.config.ts exclude pattern updated to suppress _mock*.ts files from test discovery'
 metrics:
-  duration: "7 min"
-  completed_date: "2026-03-22"
+  duration: '7 min'
+  completed_date: '2026-03-22'
   tasks: 7
   files: 9
 ---
@@ -45,15 +58,15 @@ A comprehensive test suite for all 6 refactored engine modules, plus one integra
 
 ### Task Breakdown
 
-| Task | Description | Tests | Commit |
-|------|-------------|-------|--------|
-| 1 | Shared mock Supabase client helper | — | a4a9643 |
-| 2 | rules.ts unit tests | 6 | 01f311f |
-| 3 | referee.ts unit tests | 6 | 277527c |
-| 4 | field.ts + weather.ts unit tests | 28 | 2e4e5f9 |
-| 5 | eligibility.ts unit tests | 6 | dfd72a4 |
-| 6 | unified.ts unit tests | 6 | 044ca6e |
-| 7 | referee-engine integration test + vitest fix | 3 | 9f77d9c |
+| Task | Description                                  | Tests | Commit  |
+| ---- | -------------------------------------------- | ----- | ------- |
+| 1    | Shared mock Supabase client helper           | —     | a4a9643 |
+| 2    | rules.ts unit tests                          | 6     | 01f311f |
+| 3    | referee.ts unit tests                        | 6     | 277527c |
+| 4    | field.ts + weather.ts unit tests             | 28    | 2e4e5f9 |
+| 5    | eligibility.ts unit tests                    | 6     | dfd72a4 |
+| 6    | unified.ts unit tests                        | 6     | 044ca6e |
+| 7    | referee-engine integration test + vitest fix | 3     | 9f77d9c |
 
 **Total: 68 tests, all passing**
 
@@ -71,7 +84,7 @@ A comprehensive test suite for all 6 refactored engine modules, plus one integra
 
 ### Auto-fixed Issues
 
-**1. [Rule 3 - Blocking] vitest.config.ts exclude pattern for _mockSb.ts**
+**1. [Rule 3 - Blocking] vitest.config.ts exclude pattern for \_mockSb.ts**
 
 - **Found during:** Running full test suite after all tasks
 - **Issue:** `_mockSb.ts` matched the `**/__tests__/**/*.{ts,tsx}` include pattern, causing Vitest to report "No test suite found" error
@@ -102,6 +115,7 @@ None — all test cases test actual engine behavior. No placeholder or TODO test
 ## Self-Check: PASSED
 
 Files created:
+
 - `__tests__/lib/engines/_mockSb.ts` — FOUND
 - `__tests__/lib/engines/rules.test.ts` — FOUND
 - `__tests__/lib/engines/referee.test.ts` — FOUND
@@ -112,6 +126,7 @@ Files created:
 - `__tests__/app/api/referee-engine.integration.test.ts` — FOUND
 
 Commits verified:
+
 - a4a9643, 01f311f, 277527c, 2e4e5f9, dfd72a4, 044ca6e, 9f77d9c — all exist
 
 Test run: 68 tests across 8 files — ALL PASSING
