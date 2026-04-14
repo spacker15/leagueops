@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { groupBy } from '@/lib/utils'
+import { groupBy } from '@/lib/public-results/utils'
 
 type TeamWithLogo = {
   id: number
@@ -77,7 +77,7 @@ export function TeamSearchInput({ teams, slug, activeDay, divFilter }: Props) {
                 {grouped[div].map((team) => (
                   <Link
                     key={team.id}
-                    href={`/e/${slug}?tab=schedule&view=team&team=${team.id}&day=${activeDay}&div=${divFilter}`}
+                    href={`/results/e/${slug}?tab=schedule&view=team&team=${team.id}&day=${activeDay}&div=${divFilter}`}
                     className="bg-[#081428] border border-[#1a2d50] rounded-lg px-3 py-3 font-cond text-[14px] font-bold text-white hover:border-[#0B3D91] transition-colors flex items-center gap-2"
                   >
                     {teamLogo(team) && (

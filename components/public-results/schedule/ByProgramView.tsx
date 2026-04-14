@@ -1,8 +1,8 @@
 'use client'
 import { useState } from 'react'
 import Link from 'next/link'
-import type { PublicGame, PublicTeam } from '@/lib/data'
-import { timeToMinutes } from '@/lib/utils'
+import type { PublicGame, PublicTeam } from '@/lib/public-results/data'
+import { timeToMinutes } from '@/lib/public-results/utils'
 
 function teamLogo(
   team: { logo_url?: string | null; programs?: unknown } | null | undefined
@@ -127,7 +127,7 @@ export function ByProgramView({
     return (
       <div>
         <Link
-          href={`/e/${slug}?tab=schedule&view=program&day=${activeDay}&div=${divFilter}`}
+          href={`/results/e/${slug}?tab=schedule&view=program&day=${activeDay}&div=${divFilter}`}
           className="font-cond text-[12px] font-bold text-[#5a6e9a] hover:text-white transition-colors mb-3 inline-block"
         >
           ← All Programs
@@ -264,7 +264,7 @@ function ProgramList({
                       {divTeams.map((team) => (
                         <Link
                           key={team.id}
-                          href={`/e/${slug}?tab=schedule&view=program&team=${team.id}&day=${activeDay}&div=${divFilter}`}
+                          href={`/results/e/${slug}?tab=schedule&view=program&team=${team.id}&day=${activeDay}&div=${divFilter}`}
                           className="border border-[#1a2d50] rounded-lg px-3 py-2.5 font-cond text-[13px] font-bold text-white hover:border-[#0B3D91] hover:bg-[#0d1f3c] transition-colors flex items-center gap-2"
                         >
                           {teamLogo(team) && (

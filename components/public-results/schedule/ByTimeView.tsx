@@ -1,6 +1,6 @@
 'use client'
-import type { PublicGame } from '@/lib/data'
-import { groupBy, timeToMinutes } from '@/lib/utils'
+import type { PublicGame } from '@/lib/public-results/data'
+import { groupBy, timeToMinutes } from '@/lib/public-results/utils'
 
 function teamLogo(
   team: { logo_url?: string | null; programs?: unknown } | null | undefined

@@ -1,8 +1,8 @@
 'use client'
 import Link from 'next/link'
-import type { PublicGame, PublicTeam } from '@/lib/data'
+import type { PublicGame, PublicTeam } from '@/lib/public-results/data'
 import { TeamSearchInput } from './TeamSearchInput'
-import { timeToMinutes } from '@/lib/utils'
+import { timeToMinutes } from '@/lib/public-results/utils'
 
 function teamLogo(
   team: { logo_url?: string | null; programs?: unknown } | null | undefined
@@ -114,7 +114,7 @@ export function ByTeamView({
       <div>
         {/* Back link */}
         <Link
-          href={`/e/${slug}?tab=schedule&view=team&day=${activeDay}&div=${divFilter}`}
+          href={`/results/e/${slug}?tab=schedule&view=team&day=${activeDay}&div=${divFilter}`}
           className="font-cond text-[12px] font-bold text-[#5a6e9a] hover:text-white transition-colors mb-3 inline-block"
         >
           ← All Teams
