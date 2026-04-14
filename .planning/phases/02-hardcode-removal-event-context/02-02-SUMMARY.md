@@ -1,6 +1,6 @@
 ---
 phase: 02-hardcode-removal-event-context
-plan: "02"
+plan: '02'
 subsystem: api-routes
 tags: [hardcode-removal, event-id, security, rules-cache]
 dependency_graph:
@@ -32,12 +32,12 @@ key_files:
     - app/api/weather/route.ts
 decisions:
   - "Engine routes (referee, weather, unified) were already updated in Plan 01 -- only field-engine GET needed the ?? '1' fix"
-  - "eligibility GET guards are path-scoped: allPending path requires event_id, gameId path does not"
-  - "invalidateRulesCache called in 3 locations: PATCH (update), POST reset_one, POST reset_all"
-  - "admin/create-user: event_id is now required -- callers must pass event_id explicitly; no default to event 1"
+  - 'eligibility GET guards are path-scoped: allPending path requires event_id, gameId path does not'
+  - 'invalidateRulesCache called in 3 locations: PATCH (update), POST reset_one, POST reset_all'
+  - 'admin/create-user: event_id is now required -- callers must pass event_id explicitly; no default to event 1'
 metrics:
-  duration: "3 min"
-  completed_date: "2026-03-22"
+  duration: '3 min'
+  completed_date: '2026-03-22'
   tasks_completed: 2
   files_modified: 17
 requirements_addressed: [SEC-04]
@@ -49,10 +49,10 @@ All `?? '1'` and `?? 1` event_id fallbacks eliminated from 17 API route files; r
 
 ## Tasks Completed
 
-| Task | Name | Commit | Files |
-|------|------|--------|-------|
-| 1 | Fix engine API routes (4 routes) | 4a3b3b6 | app/api/field-engine/route.ts |
-| 2 | Fix data API routes (16 routes), wire invalidateRulesCache | 5d78d5a | 16 data route files |
+| Task | Name                                                       | Commit  | Files                         |
+| ---- | ---------------------------------------------------------- | ------- | ----------------------------- |
+| 1    | Fix engine API routes (4 routes)                           | 4a3b3b6 | app/api/field-engine/route.ts |
+| 2    | Fix data API routes (16 routes), wire invalidateRulesCache | 5d78d5a | 16 data route files           |
 
 ## What Was Built
 
@@ -65,6 +65,7 @@ Fixed: `field-engine` GET handler replaced `searchParams.get('event_id') ?? '1'`
 ### Task 2: Data API Routes
 
 **Pattern A (12 GET routes with searchParams):** Replaced `searchParams.get('event_id') ?? '1'` with required guard returning 400 in:
+
 - conflicts, fields, incidents, medical, ops-log, referees, registration-fees, team-payments, teams, volunteers, weather, rules/changes
 
 **Pattern B (3 routes with body params and multiple locations):**
@@ -76,6 +77,7 @@ Fixed: `field-engine` GET handler replaced `searchParams.get('event_id') ?? '1'`
 **Review fix #4 (MEDIUM):** `invalidateRulesCache` was imported but never called -- now called in 3 mutation paths (PATCH update, POST reset_one, POST reset_all). Ensures 30-second TTL cache is evicted after admin rule edits.
 
 **Review fix #5 (MEDIUM):** Verified previously-unchecked routes have no hardcoded event_id fallbacks:
+
 - games/route.ts -- clean
 - games/[id]/route.ts -- clean
 - players/route.ts -- clean
@@ -92,12 +94,14 @@ None.
 ### Plan Adjustments
 
 **1. Engine routes already updated**
+
 - Found during: Task 1
 - Issue: Plan 01 already updated referee-engine, weather-engine, and unified-engine POST handlers with event_id guards and updated signatures. Only field-engine GET was outstanding.
 - Resolution: Only field-engine GET modified in Task 1 (1 file instead of 4)
 - Impact: Same outcome, fewer changes needed
 
 **2. eligibility GET uses scoped guards instead of single top-level guard**
+
 - Found during: Task 2
 - Issue: eligibility GET has three paths -- allPending (needs eventId), gameId (does not need eventId), default (returns []). A single top-level guard would break the gameId path.
 - Resolution: Applied scoped guards -- allPending path requires event_id; gameId path passes without it; default path requires event_id to avoid empty scattershot query

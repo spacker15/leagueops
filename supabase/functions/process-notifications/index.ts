@@ -13,8 +13,7 @@ if (vapidPublicKey && vapidPrivateKey) {
   webpush.setVapidDetails('mailto:alerts@leagueops.app', vapidPublicKey, vapidPrivateKey)
 }
 
-const RESEND_FROM_EMAIL =
-  Deno.env.get('RESEND_FROM_EMAIL') ?? 'LeagueOps <onboarding@resend.dev>'
+const RESEND_FROM_EMAIL = Deno.env.get('RESEND_FROM_EMAIL') ?? 'LeagueOps <onboarding@resend.dev>'
 
 /**
  * Build an HTML email string using the email template contract values.
@@ -91,7 +90,7 @@ async function resolveRecipients(
   eventId: number,
   alertType: string,
   scope: string,
-  scopeId: number | null,
+  scopeId: number | null
 ): Promise<string[]> {
   const recipientSet = new Set<string>()
 
@@ -214,7 +213,7 @@ Deno.serve(async (req: Request) => {
     // Initialize Supabase client with service role key (bypasses RLS)
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     )
 
     // ------------------------------------------------------------------
@@ -368,8 +367,7 @@ Deno.serve(async (req: Request) => {
 
       try {
         // Fetch user email from auth.users via admin API
-        const { data: userData, error: userError } =
-          await supabase.auth.admin.getUserById(userId)
+        const { data: userData, error: userError } = await supabase.auth.admin.getUserById(userId)
         if (userError || !userData?.user?.email) {
           throw new Error(userError?.message ?? 'No email found for user')
         }
@@ -554,14 +552,14 @@ Deno.serve(async (req: Request) => {
         logEntries: logEntries.length,
         anyFailed,
       }),
-      { headers: { 'Content-Type': 'application/json' } },
+      { headers: { 'Content-Type': 'application/json' } }
     )
   } catch (err) {
     // Wrap entire handler in try/catch — return 200 to prevent webhook retry storm
     console.error('[process-notifications] Unhandled error:', err)
     return new Response(
       JSON.stringify({ ok: false, error: err instanceof Error ? err.message : String(err) }),
-      { status: 200, headers: { 'Content-Type': 'application/json' } },
+      { status: 200, headers: { 'Content-Type': 'application/json' } }
     )
   }
 })

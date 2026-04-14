@@ -6,60 +6,60 @@ tags: [supabase, upstash, redis, ratelimit, zod, validation, schemas]
 
 requires: []
 provides:
-  - "lib/supabase/server.ts — async createClient() for Route Handlers (Next.js 15 compatible)"
-  - "lib/ratelimit.ts — engineRatelimit (fixedWindow 10/60s) and publicRatelimit (slidingWindow 30/60s)"
-  - "schemas/ — 11 domain schema files with Zod validation + TypeScript types for all write routes"
-  - "schemas/index.ts — barrel file exporting all schemas"
-  - "ROUTE-INVENTORY.md — 42 routes categorized as write/read-authenticated/public/engine-trigger"
-  - "@upstash/ratelimit, @upstash/redis, zod installed"
+  - 'lib/supabase/server.ts — async createClient() for Route Handlers (Next.js 15 compatible)'
+  - 'lib/ratelimit.ts — engineRatelimit (fixedWindow 10/60s) and publicRatelimit (slidingWindow 30/60s)'
+  - 'schemas/ — 11 domain schema files with Zod validation + TypeScript types for all write routes'
+  - 'schemas/index.ts — barrel file exporting all schemas'
+  - 'ROUTE-INVENTORY.md — 42 routes categorized as write/read-authenticated/public/engine-trigger'
+  - '@upstash/ratelimit, @upstash/redis, zod installed'
 affects:
-  - "03-02 — uses createClient(), ratelimit instances, and schema barrel in every route modification"
-  - "03-03 through 03-N — all plans building on these shared utilities"
+  - '03-02 — uses createClient(), ratelimit instances, and schema barrel in every route modification'
+  - '03-03 through 03-N — all plans building on these shared utilities'
 
 tech-stack:
   added:
-    - "@upstash/ratelimit ^2.x — sliding/fixed window rate limiting via Upstash Redis"
-    - "@upstash/redis ^1.x — Redis client for Upstash"
-    - "zod ^3.x — runtime schema validation with TypeScript inference"
+    - '@upstash/ratelimit ^2.x — sliding/fixed window rate limiting via Upstash Redis'
+    - '@upstash/redis ^1.x — Redis client for Upstash'
+    - 'zod ^3.x — runtime schema validation with TypeScript inference'
   patterns:
-    - "async createClient() pattern: await cookies() before createServerClient() for Next.js 15 async headers API"
-    - "Redis.fromEnv() for zero-config Upstash credential loading"
-    - "Schema barrel pattern: domain schemas in schemas/*.ts, re-exported from schemas/index.ts"
-    - "z.infer<typeof schema> co-export pattern: schema constant + TypeScript type from same file"
+    - 'async createClient() pattern: await cookies() before createServerClient() for Next.js 15 async headers API'
+    - 'Redis.fromEnv() for zero-config Upstash credential loading'
+    - 'Schema barrel pattern: domain schemas in schemas/*.ts, re-exported from schemas/index.ts'
+    - 'z.infer<typeof schema> co-export pattern: schema constant + TypeScript type from same file'
 
 key-files:
   created:
-    - "lib/supabase/server.ts — async Supabase server client for Route Handlers"
-    - "lib/ratelimit.ts — engineRatelimit and publicRatelimit instances"
-    - "schemas/index.ts — barrel re-exporting all domain schemas"
-    - "schemas/admin.ts — createUserSchema for /api/admin/create-user"
-    - "schemas/assignments.ts — ref assignment create/delete schemas"
-    - "schemas/conflicts.ts — resolveConflictSchema for /api/conflicts PATCH"
-    - "schemas/engines.ts — all engine trigger schemas (schedule, referee, field, weather, unified, shift-handoff)"
-    - "schemas/fields.ts — field create/update schemas"
-    - "schemas/games.ts — game create/update schemas"
-    - "schemas/incidents.ts — incident and medical incident create schemas"
-    - "schemas/payments.ts — team payment and payment entry schemas"
-    - "schemas/referees.ts — referee create/update schemas"
-    - "schemas/registration-fees.ts — registration fee create/update schemas"
-    - "schemas/rules.ts — rule update/reset, schedule rule, weekly override schemas"
-    - "schemas/volunteers.ts — volunteer create/update schemas"
-    - ".planning/phases/03-api-auth-validation/ROUTE-INVENTORY.md — 42 routes categorized"
+    - 'lib/supabase/server.ts — async Supabase server client for Route Handlers'
+    - 'lib/ratelimit.ts — engineRatelimit and publicRatelimit instances'
+    - 'schemas/index.ts — barrel re-exporting all domain schemas'
+    - 'schemas/admin.ts — createUserSchema for /api/admin/create-user'
+    - 'schemas/assignments.ts — ref assignment create/delete schemas'
+    - 'schemas/conflicts.ts — resolveConflictSchema for /api/conflicts PATCH'
+    - 'schemas/engines.ts — all engine trigger schemas (schedule, referee, field, weather, unified, shift-handoff)'
+    - 'schemas/fields.ts — field create/update schemas'
+    - 'schemas/games.ts — game create/update schemas'
+    - 'schemas/incidents.ts — incident and medical incident create schemas'
+    - 'schemas/payments.ts — team payment and payment entry schemas'
+    - 'schemas/referees.ts — referee create/update schemas'
+    - 'schemas/registration-fees.ts — registration fee create/update schemas'
+    - 'schemas/rules.ts — rule update/reset, schedule rule, weekly override schemas'
+    - 'schemas/volunteers.ts — volunteer create/update schemas'
+    - '.planning/phases/03-api-auth-validation/ROUTE-INVENTORY.md — 42 routes categorized'
   modified:
-    - "package.json — added @upstash/ratelimit, @upstash/redis, zod"
-    - ".env.example — added UPSTASH_REDIS_REST_URL, UPSTASH_REDIS_REST_TOKEN"
+    - 'package.json — added @upstash/ratelimit, @upstash/redis, zod'
+    - '.env.example — added UPSTASH_REDIS_REST_URL, UPSTASH_REDIS_REST_TOKEN'
 
 key-decisions:
-  - "lib/supabase/server.ts placed at lib/ (not src/lib/) — project has no src/ directory; consistent with existing lib/ structure"
-  - "Existing supabase/server.ts (old sync cookies API) retained — plans 03-02+ will migrate callers to lib/supabase/server.ts gradually"
-  - "schemas/ at project root — no src/ directory exists; mirrors location of lib/, types/, components/ at root level"
-  - "engine-trigger routes categorized separately from write — engines are internal-trigger not user-facing mutations, requiring different auth pattern (header secret vs session)"
-  - "Public routes (join, checkins, auth/check-email) get rate limiting not auth guards — intentionally unauthenticated by design"
+  - 'lib/supabase/server.ts placed at lib/ (not src/lib/) — project has no src/ directory; consistent with existing lib/ structure'
+  - 'Existing supabase/server.ts (old sync cookies API) retained — plans 03-02+ will migrate callers to lib/supabase/server.ts gradually'
+  - 'schemas/ at project root — no src/ directory exists; mirrors location of lib/, types/, components/ at root level'
+  - 'engine-trigger routes categorized separately from write — engines are internal-trigger not user-facing mutations, requiring different auth pattern (header secret vs session)'
+  - 'Public routes (join, checkins, auth/check-email) get rate limiting not auth guards — intentionally unauthenticated by design'
 
 patterns-established:
-  - "Auth guard pattern: await createClient() → getUser() → check null → return 401"
-  - "Zod validation pattern: schema.safeParse(body) → check success → use parsed data"
-  - "Rate limit pattern: ratelimit.limit(identifier) → check success → return 429 with Retry-After"
+  - 'Auth guard pattern: await createClient() → getUser() → check null → return 401'
+  - 'Zod validation pattern: schema.safeParse(body) → check success → use parsed data'
+  - 'Rate limit pattern: ratelimit.limit(identifier) → check success → return 429 with Retry-After'
 
 requirements-completed: [SEC-02, SEC-07, SEC-08]
 
@@ -148,5 +148,6 @@ Rate limiting will throw at runtime if these variables are missing. The ratelimi
 - Schema barrel is ready to import for Zod body validation in all write routes
 
 ---
-*Phase: 03-api-auth-validation*
-*Completed: 2026-03-23*
+
+_Phase: 03-api-auth-validation_
+_Completed: 2026-03-23_

@@ -59,19 +59,23 @@ This is a well-scoped refactoring phase with no schema changes, no new UI, and c
 ## Consensus Summary
 
 ### Agreed Strengths
+
 - Dependency-safe engine ordering (rules → referee → field → weather → eligibility → unified)
 - Clear acceptance criteria with type-check gates
 - Field-engine bug fix correctly scoped alongside the refactor
 - SEC-06 (OpenWeather key) thoroughly addressed with verification grep
 
 ### Agreed Concerns
+
 - Plan A + B wave 1 parallelism needs clarification — Tasks 1-4 of Plan B depend on Plan A
 - `unified.ts` restructuring is the most complex task and needs more detailed sub-steps
 - New API routes in Plan B Task 5 should specify error handling patterns
 
 ### Divergent Views
+
 - N/A (single reviewer — cross-AI review will be available when Gemini quota resets)
 
 ---
-*Review conducted: 2026-03-22*
-*Gemini cross-AI review pending: free tier quota exhausted — retry tomorrow*
+
+_Review conducted: 2026-03-22_
+_Gemini cross-AI review pending: free tier quota exhausted — retry tomorrow_

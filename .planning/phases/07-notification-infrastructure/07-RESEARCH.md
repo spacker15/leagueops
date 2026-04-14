@@ -7,6 +7,7 @@
 ---
 
 <user_constraints>
+
 ## User Constraints (from CONTEXT.md)
 
 ### Locked Decisions
@@ -46,20 +47,22 @@
 - Notification history page with full searchable log
 - Admin dashboard for notification delivery metrics/failures
 - Scheduled/delayed notifications (e.g., "reminder 1 hour before game")
-</user_constraints>
+  </user_constraints>
 
 ---
 
 <phase_requirements>
+
 ## Phase Requirements
 
-| ID | Description | Research Support |
-|----|-------------|------------------|
-| NOT-01 | Notification queue table receives entries from engines and workflows — processed asynchronously via Supabase Edge Function | Database schema design + Edge Function webhook pattern |
-| NOT-05 | Email delivery via Resend (3,000/month free tier) | Resend SDK v6.9.4 + react-email integration pattern |
-| NOT-06 | Browser push notifications via Web Push API (no app install required) | VAPID + service worker pattern from official Next.js PWA guide |
-| NOT-07 | Users can set notification preferences (which channels, which alert types) | `notification_preferences` table + NotificationSettingsPanel component |
-| NOT-08 | Deduplication prevents notification storms | Dedup logic in Edge Function + storm cap implementation |
+| ID     | Description                                                                                                                | Research Support                                                       |
+| ------ | -------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| NOT-01 | Notification queue table receives entries from engines and workflows — processed asynchronously via Supabase Edge Function | Database schema design + Edge Function webhook pattern                 |
+| NOT-05 | Email delivery via Resend (3,000/month free tier)                                                                          | Resend SDK v6.9.4 + react-email integration pattern                    |
+| NOT-06 | Browser push notifications via Web Push API (no app install required)                                                      | VAPID + service worker pattern from official Next.js PWA guide         |
+| NOT-07 | Users can set notification preferences (which channels, which alert types)                                                 | `notification_preferences` table + NotificationSettingsPanel component |
+| NOT-08 | Deduplication prevents notification storms                                                                                 | Dedup logic in Edge Function + storm cap implementation                |
+
 </phase_requirements>
 
 ---
@@ -80,29 +83,30 @@ The key architectural challenge is that the Edge Function must implement dedupli
 
 ### Core
 
-| Library | Version | Purpose | Why Standard |
-|---------|---------|---------|--------------|
-| `resend` | 6.9.4 (verified) | Email delivery SDK | Official Resend Node.js/Deno SDK; `react` parameter accepts React Email components directly |
-| `@react-email/components` | 1.0.10 (verified) | Email template primitives (Html, Body, Section, Button, Text, Img, Hr) | Standard react-email component library |
-| `react-email` | 5.2.10 (verified) | Local preview server + render utilities | Dev tooling; preview emails at localhost:3001 before sending |
-| `@react-email/render` | 2.0.4 (verified) | Convert React Email component to HTML string | Required when passing HTML string to Resend (not the `react:` shortcut) |
-| `web-push` | 3.6.7 (verified) | Send Web Push messages to browser subscriptions with VAPID auth | Standard Node.js web-push library; works in Deno via `npm:web-push` import |
+| Library                   | Version           | Purpose                                                                | Why Standard                                                                                |
+| ------------------------- | ----------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `resend`                  | 6.9.4 (verified)  | Email delivery SDK                                                     | Official Resend Node.js/Deno SDK; `react` parameter accepts React Email components directly |
+| `@react-email/components` | 1.0.10 (verified) | Email template primitives (Html, Body, Section, Button, Text, Img, Hr) | Standard react-email component library                                                      |
+| `react-email`             | 5.2.10 (verified) | Local preview server + render utilities                                | Dev tooling; preview emails at localhost:3001 before sending                                |
+| `@react-email/render`     | 2.0.4 (verified)  | Convert React Email component to HTML string                           | Required when passing HTML string to Resend (not the `react:` shortcut)                     |
+| `web-push`                | 3.6.7 (verified)  | Send Web Push messages to browser subscriptions with VAPID auth        | Standard Node.js web-push library; works in Deno via `npm:web-push` import                  |
 
 ### Supporting
 
-| Library | Version | Purpose | When to Use |
-|---------|---------|---------|-------------|
-| `@types/web-push` | latest | TypeScript types for web-push | Install as devDependency alongside `web-push` |
+| Library           | Version | Purpose                       | When to Use                                   |
+| ----------------- | ------- | ----------------------------- | --------------------------------------------- |
+| `@types/web-push` | latest  | TypeScript types for web-push | Install as devDependency alongside `web-push` |
 
 ### Alternatives Considered
 
-| Instead of | Could Use | Tradeoff |
-|------------|-----------|----------|
-| `web-push` npm in Edge Function | `jsr:@negrel/webpush` (Deno-native) | The Deno-native library is less battle-tested; `web-push` via `npm:` prefix works in Deno and is the ecosystem standard |
-| Single `process-notifications` function | Separate `send-email` + `send-push` functions | Single function avoids double webhook configuration, keeps dedup logic centralized, and reduces deployment overhead |
-| `@react-email/render` HTML string | Resend `react:` parameter | The `react:` shortcut is simpler but has caused compatibility issues with Next.js 14 server boundaries; use `@react-email/render` for reliability |
+| Instead of                              | Could Use                                     | Tradeoff                                                                                                                                          |
+| --------------------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `web-push` npm in Edge Function         | `jsr:@negrel/webpush` (Deno-native)           | The Deno-native library is less battle-tested; `web-push` via `npm:` prefix works in Deno and is the ecosystem standard                           |
+| Single `process-notifications` function | Separate `send-email` + `send-push` functions | Single function avoids double webhook configuration, keeps dedup logic centralized, and reduces deployment overhead                               |
+| `@react-email/render` HTML string       | Resend `react:` parameter                     | The `react:` shortcut is simpler but has caused compatibility issues with Next.js 14 server boundaries; use `@react-email/render` for reliability |
 
 **Installation (project):**
+
 ```bash
 npm install resend @react-email/components @react-email/render web-push
 npm install --save-dev @types/web-push react-email
@@ -155,7 +159,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
 Deno.serve(async (req: Request) => {
   // Database webhook payload structure for INSERT
   const payload = await req.json()
-  const record = payload.record  // The inserted notification_queue row
+  const record = payload.record // The inserted notification_queue row
 
   const supabase = createClient(
     Deno.env.get('SUPABASE_URL')!,
@@ -170,6 +174,7 @@ Deno.serve(async (req: Request) => {
 ```
 
 **Key Deno import rules:**
+
 - Use `npm:` prefix for npm packages: `import { createClient } from 'npm:@supabase/supabase-js@2'`
 - Use `npm:web-push` for the web-push library
 - Environment variables via `Deno.env.get('KEY')` (NOT `process.env`)
@@ -183,13 +188,13 @@ Deno.serve(async (req: Request) => {
 // Source: Supabase database webhooks docs + trigger.dev guide
 type InsertPayload = {
   type: 'INSERT'
-  table: string        // 'notification_queue'
-  schema: string       // 'public'
+  table: string // 'notification_queue'
+  schema: string // 'public'
   record: {
     id: number
     event_id: number
     alert_type: string
-    scope: string      // 'event' | 'team' | 'field'
+    scope: string // 'event' | 'team' | 'field'
     scope_id: number | null
     payload: Record<string, unknown>
     created_at: string
@@ -212,7 +217,7 @@ const { data: claimed, error } = await supabase
   .from('notification_queue')
   .update({ notification_sent_at: new Date().toISOString() })
   .eq('id', record.id)
-  .is('notification_sent_at', null)  // Only succeeds if not yet claimed
+  .is('notification_sent_at', null) // Only succeeds if not yet claimed
   .select()
   .single()
 
@@ -262,7 +267,7 @@ self.addEventListener('push', function (event) {
   const now = Date.now()
 
   // Collapse: 3+ pushes within 60 seconds = summary
-  recentPushTimestamps = recentPushTimestamps.filter(t => now - t < 60000)
+  recentPushTimestamps = recentPushTimestamps.filter((t) => now - t < 60000)
   recentPushTimestamps.push(now)
 
   let title, body, url
@@ -302,16 +307,21 @@ import { createClient } from '@/lib/supabase/server'
 
 export async function POST(req: Request) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
   if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
   const subscription: PushSubscription = await req.json()
-  await supabase.from('push_subscriptions').upsert({
-    user_id: user.id,
-    endpoint: subscription.endpoint,
-    p256dh: (subscription as any).keys?.p256dh,
-    auth: (subscription as any).keys?.auth,
-  }, { onConflict: 'user_id, endpoint' })
+  await supabase.from('push_subscriptions').upsert(
+    {
+      user_id: user.id,
+      endpoint: subscription.endpoint,
+      p256dh: (subscription as any).keys?.p256dh,
+      auth: (subscription as any).keys?.auth,
+    },
+    { onConflict: 'user_id, endpoint' }
+  )
 
   return Response.json({ ok: true })
 }
@@ -334,14 +344,14 @@ function urlBase64ToUint8Array(base64String: string) {
 
 async function subscribeToPush(eventName: string): Promise<void> {
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) return
-  if (Notification.permission === 'denied') return  // Don't re-prompt denied
+  if (Notification.permission === 'denied') return // Don't re-prompt denied
 
   const registration = await navigator.serviceWorker.register('/sw.js', {
     scope: '/',
     updateViaCache: 'none',
   })
   const existing = await registration.pushManager.getSubscription()
-  if (existing) return  // Already subscribed
+  if (existing) return // Already subscribed
 
   const permission = await Notification.requestPermission()
   if (permission !== 'granted') return
@@ -371,6 +381,7 @@ web-push generate-vapid-keys
 ```
 
 Store in:
+
 - `NEXT_PUBLIC_VAPID_PUBLIC_KEY` — env var (public, exposed to browser for `applicationServerKey`)
 - `VAPID_PRIVATE_KEY` — env var (private, never expose)
 - Both keys also stored as Supabase Edge Function secrets for use in `process-notifications`
@@ -462,13 +473,13 @@ export function AlertEmail({ eventName, logoUrl, alertType, summary, detail, cta
 
 ## Don't Hand-Roll
 
-| Problem | Don't Build | Use Instead | Why |
-|---------|-------------|-------------|-----|
-| Email HTML generation | Custom template strings | `@react-email/components` + `@react-email/render` | Email clients are extremely inconsistent; react-email handles table-based layouts, Outlook compatibility, and inline styles |
-| Push notification delivery | Direct HTTP to push service endpoint | `web-push` npm package | Push service communication uses HTTP Encrypted Content Encoding; rolling this manually requires crypto key exchange, VAPID JWT signing — multiple RFCs |
-| VAPID key generation | Crypto key generation from scratch | `web-push generate-vapid-keys` CLI | VAPID requires EC P-256 key pairs in URL-safe base64; use the CLI tool |
-| Deduplication atomicity | Application-level check-then-update | SQL `UPDATE ... WHERE notification_sent_at IS NULL` | Application-level read-check-write has race conditions; single-statement UPDATE is atomic at the Postgres level |
-| Push subscription storage | Local storage or in-memory | `push_subscriptions` DB table | Subscriptions must survive server restarts and be retrievable for all user devices/browsers |
+| Problem                    | Don't Build                          | Use Instead                                         | Why                                                                                                                                                    |
+| -------------------------- | ------------------------------------ | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Email HTML generation      | Custom template strings              | `@react-email/components` + `@react-email/render`   | Email clients are extremely inconsistent; react-email handles table-based layouts, Outlook compatibility, and inline styles                            |
+| Push notification delivery | Direct HTTP to push service endpoint | `web-push` npm package                              | Push service communication uses HTTP Encrypted Content Encoding; rolling this manually requires crypto key exchange, VAPID JWT signing — multiple RFCs |
+| VAPID key generation       | Crypto key generation from scratch   | `web-push generate-vapid-keys` CLI                  | VAPID requires EC P-256 key pairs in URL-safe base64; use the CLI tool                                                                                 |
+| Deduplication atomicity    | Application-level check-then-update  | SQL `UPDATE ... WHERE notification_sent_at IS NULL` | Application-level read-check-write has race conditions; single-statement UPDATE is atomic at the Postgres level                                        |
+| Push subscription storage  | Local storage or in-memory           | `push_subscriptions` DB table                       | Subscriptions must survive server restarts and be retrievable for all user devices/browsers                                                            |
 
 **Key insight:** Email rendering and push message encryption are both areas with substantial hidden complexity — protocol compliance, browser vendor differences, and cryptographic requirements make hand-rolled solutions brittle.
 
@@ -479,6 +490,7 @@ export function AlertEmail({ eventName, logoUrl, alertType, summary, detail, cta
 ### Recommended Tables (Claude's Discretion)
 
 #### `notification_queue`
+
 ```sql
 CREATE TABLE notification_queue (
   id                   BIGSERIAL PRIMARY KEY,
@@ -507,6 +519,7 @@ ALTER TABLE notification_queue ENABLE ROW LEVEL SECURITY;
 ```
 
 #### `notification_preferences`
+
 ```sql
 CREATE TABLE notification_preferences (
   id         BIGSERIAL PRIMARY KEY,
@@ -527,6 +540,7 @@ CREATE POLICY "Users manage own preferences"
 ```
 
 #### `notification_log`
+
 ```sql
 CREATE TABLE notification_log (
   id              BIGSERIAL PRIMARY KEY,
@@ -554,6 +568,7 @@ CREATE POLICY "Users read own notification log"
 ```
 
 #### `push_subscriptions`
+
 ```sql
 CREATE TABLE push_subscriptions (
   id         BIGSERIAL PRIMARY KEY,
@@ -704,7 +719,8 @@ async function resolveRecipientsForWeatherAlert(
   supabase: SupabaseClient,
   eventId: number,
   fieldId: number | null
-): Promise<string[]> {  // Returns user_id[] (UUID)
+): Promise<string[]> {
+  // Returns user_id[] (UUID)
   if (!fieldId) {
     // Broadcast: all admins + coaches for this event
     const { data: roles } = await supabase
@@ -712,7 +728,7 @@ async function resolveRecipientsForWeatherAlert(
       .select('user_id')
       .eq('event_id', eventId)
       .in('role', ['admin', 'coach'])
-    return (roles ?? []).map(r => r.user_id)
+    return (roles ?? []).map((r) => r.user_id)
   }
 
   // Targeted: find teams playing on this field, then their coaches
@@ -723,7 +739,7 @@ async function resolveRecipientsForWeatherAlert(
     .eq('field_id', fieldId)
     .in('status', ['Scheduled', 'Live'])
 
-  const teamIds = [...new Set((games ?? []).flatMap(g => [g.home_team_id, g.away_team_id]))]
+  const teamIds = [...new Set((games ?? []).flatMap((g) => [g.home_team_id, g.away_team_id]))]
 
   const { data: coaches } = await supabase
     .from('user_roles')
@@ -732,7 +748,7 @@ async function resolveRecipientsForWeatherAlert(
     .eq('role', 'coach')
     .in('team_id', teamIds)
 
-  return (coaches ?? []).map(r => r.user_id)
+  return (coaches ?? []).map((r) => r.user_id)
 }
 ```
 
@@ -743,14 +759,18 @@ async function resolveRecipientsForWeatherAlert(
 // Real-time subscription for unread count — mirrors CommandCenter ops_alerts pattern
 const channel = supabase
   .channel(`notification-log-${user.id}`)
-  .on('postgres_changes', {
-    event: 'INSERT',
-    schema: 'public',
-    table: 'notification_log',
-    filter: `user_id=eq.${user.id}`,
-  }, (payload) => {
-    setUnreadCount(prev => prev + 1)
-  })
+  .on(
+    'postgres_changes',
+    {
+      event: 'INSERT',
+      schema: 'public',
+      table: 'notification_log',
+      filter: `user_id=eq.${user.id}`,
+    },
+    (payload) => {
+      setUnreadCount((prev) => prev + 1)
+    }
+  )
   .subscribe()
 ```
 
@@ -758,13 +778,14 @@ const channel = supabase
 
 ## State of the Art
 
-| Old Approach | Current Approach | When Changed | Impact |
-|--------------|------------------|--------------|--------|
-| `import { serve } from "https://deno.land/std@0.168.0/http/server.ts"` | `Deno.serve(async (req) => {...})` | Supabase 2024 | Built-in Deno.serve is the current standard; old import pattern is deprecated |
-| FCM/APNs per-platform push | Web Push API with VAPID (cross-platform) | Safari 16.4 (March 2023) | All major browsers now support Web Push without native app; no need for Firebase |
-| `resend.emails.send({ react: Template({}) })` | `resend.emails.send({ html: await render(Template({})) })` | react-email v2+ with Next.js 14 | `react:` shortcut causes RSC boundary issues; HTML string is more reliable |
+| Old Approach                                                           | Current Approach                                           | When Changed                    | Impact                                                                           |
+| ---------------------------------------------------------------------- | ---------------------------------------------------------- | ------------------------------- | -------------------------------------------------------------------------------- |
+| `import { serve } from "https://deno.land/std@0.168.0/http/server.ts"` | `Deno.serve(async (req) => {...})`                         | Supabase 2024                   | Built-in Deno.serve is the current standard; old import pattern is deprecated    |
+| FCM/APNs per-platform push                                             | Web Push API with VAPID (cross-platform)                   | Safari 16.4 (March 2023)        | All major browsers now support Web Push without native app; no need for Firebase |
+| `resend.emails.send({ react: Template({}) })`                          | `resend.emails.send({ html: await render(Template({})) })` | react-email v2+ with Next.js 14 | `react:` shortcut causes RSC boundary issues; HTML string is more reliable       |
 
 **Deprecated/outdated:**
+
 - `https://deno.land/std@0.168.0/http/server.ts` serve import: use `Deno.serve()` built-in
 - `import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'` in Edge Functions: use `npm:@supabase/supabase-js@2`
 
@@ -791,24 +812,26 @@ const channel = supabase
 
 ## Environment Availability
 
-| Dependency | Required By | Available | Version | Fallback |
-|------------|------------|-----------|---------|----------|
-| Node.js | npm installs, local dev | Yes | v24.14.0 | — |
-| npm | Package installation | Yes | 11.9.0 | — |
-| Supabase CLI | Edge Function deployment | No | — | Deploy via Supabase Dashboard (manual copy/paste) |
-| `resend` npm package | NOT-05 email delivery | Not installed | — | Install: `npm install resend` |
-| `@react-email/components` npm | NOT-05 email templates | Not installed | — | Install: `npm install @react-email/components` |
-| `@react-email/render` npm | NOT-05 HTML rendering | Not installed | — | Install: `npm install @react-email/render` |
-| `react-email` npm | Dev email preview | Not installed | — | Install: `npm install --save-dev react-email` |
-| `web-push` npm | NOT-06 push delivery | Not installed | — | Install: `npm install web-push && npm install --save-dev @types/web-push` |
-| Resend account + verified domain | NOT-05 production email | Unknown | — | Create at resend.com; test delivery works with onboarding@resend.dev |
-| VAPID key pair | NOT-06 push VAPID auth | Not generated | — | Generate once: `npx web-push generate-vapid-keys` |
+| Dependency                       | Required By              | Available     | Version  | Fallback                                                                  |
+| -------------------------------- | ------------------------ | ------------- | -------- | ------------------------------------------------------------------------- |
+| Node.js                          | npm installs, local dev  | Yes           | v24.14.0 | —                                                                         |
+| npm                              | Package installation     | Yes           | 11.9.0   | —                                                                         |
+| Supabase CLI                     | Edge Function deployment | No            | —        | Deploy via Supabase Dashboard (manual copy/paste)                         |
+| `resend` npm package             | NOT-05 email delivery    | Not installed | —        | Install: `npm install resend`                                             |
+| `@react-email/components` npm    | NOT-05 email templates   | Not installed | —        | Install: `npm install @react-email/components`                            |
+| `@react-email/render` npm        | NOT-05 HTML rendering    | Not installed | —        | Install: `npm install @react-email/render`                                |
+| `react-email` npm                | Dev email preview        | Not installed | —        | Install: `npm install --save-dev react-email`                             |
+| `web-push` npm                   | NOT-06 push delivery     | Not installed | —        | Install: `npm install web-push && npm install --save-dev @types/web-push` |
+| Resend account + verified domain | NOT-05 production email  | Unknown       | —        | Create at resend.com; test delivery works with onboarding@resend.dev      |
+| VAPID key pair                   | NOT-06 push VAPID auth   | Not generated | —        | Generate once: `npx web-push generate-vapid-keys`                         |
 
 **Missing dependencies with no fallback:**
+
 - Resend account + verified domain (required for production email delivery to arbitrary recipients)
 - VAPID key pair (required to deploy push notifications)
 
 **Missing dependencies with fallback:**
+
 - Supabase CLI: deploy Edge Function manually via Dashboard
 
 ---
@@ -817,26 +840,26 @@ const channel = supabase
 
 ### Test Framework
 
-| Property | Value |
-|----------|-------|
-| Framework | Vitest 4.1.0 |
-| Config file | `vitest.config.ts` (exists) |
-| Quick run command | `npm run test` |
-| Full suite command | `npm run test:coverage` |
+| Property           | Value                       |
+| ------------------ | --------------------------- |
+| Framework          | Vitest 4.1.0                |
+| Config file        | `vitest.config.ts` (exists) |
+| Quick run command  | `npm run test`              |
+| Full suite command | `npm run test:coverage`     |
 
 ### Phase Requirements → Test Map
 
-| Req ID | Behavior | Test Type | Automated Command | File Exists? |
-|--------|----------|-----------|-------------------|-------------|
-| NOT-01 | `notification_queue` INSERT triggers Edge Function invocation | smoke (manual — cannot invoke Deno from Vitest) | Manual: insert row, check Edge Function logs | N/A |
-| NOT-01 | Queue row with `notification_sent_at IS NULL` is claimed atomically | unit | `npm run test -- __tests__/lib/notifications.test.ts` | No — Wave 0 |
-| NOT-05 | Resend `emails.send()` called with correct payload shape | unit (mock Resend) | `npm run test -- __tests__/lib/notifications.test.ts` | No — Wave 0 |
-| NOT-06 | `subscribeToPush()` checks `Notification.permission` before prompting | unit | `npm run test -- __tests__/components/notifications/NotificationBell.test.tsx` | No — Wave 0 |
-| NOT-06 | Service worker `push` event handler shows notification | manual (service workers not testable in jsdom) | Manual: Chrome DevTools > Application > Service Workers > Push | N/A |
-| NOT-07 | `NotificationSettingsPanel` renders role-filtered alert types for coach | unit | `npm run test -- __tests__/components/notifications/NotificationSettingsPanel.test.tsx` | No — Wave 0 |
-| NOT-07 | Preference save persists to `notification_preferences` table | unit (mock Supabase) | `npm run test -- __tests__/components/notifications/NotificationSettingsPanel.test.tsx` | No — Wave 0 |
-| NOT-08 | Dedup check suppresses second notification within 5-minute window | unit | `npm run test -- __tests__/lib/notifications.test.ts` | No — Wave 0 |
-| NOT-08 | Storm cap (50/hour) marks entries as suppressed | unit | `npm run test -- __tests__/lib/notifications.test.ts` | No — Wave 0 |
+| Req ID | Behavior                                                                | Test Type                                       | Automated Command                                                                       | File Exists? |
+| ------ | ----------------------------------------------------------------------- | ----------------------------------------------- | --------------------------------------------------------------------------------------- | ------------ |
+| NOT-01 | `notification_queue` INSERT triggers Edge Function invocation           | smoke (manual — cannot invoke Deno from Vitest) | Manual: insert row, check Edge Function logs                                            | N/A          |
+| NOT-01 | Queue row with `notification_sent_at IS NULL` is claimed atomically     | unit                                            | `npm run test -- __tests__/lib/notifications.test.ts`                                   | No — Wave 0  |
+| NOT-05 | Resend `emails.send()` called with correct payload shape                | unit (mock Resend)                              | `npm run test -- __tests__/lib/notifications.test.ts`                                   | No — Wave 0  |
+| NOT-06 | `subscribeToPush()` checks `Notification.permission` before prompting   | unit                                            | `npm run test -- __tests__/components/notifications/NotificationBell.test.tsx`          | No — Wave 0  |
+| NOT-06 | Service worker `push` event handler shows notification                  | manual (service workers not testable in jsdom)  | Manual: Chrome DevTools > Application > Service Workers > Push                          | N/A          |
+| NOT-07 | `NotificationSettingsPanel` renders role-filtered alert types for coach | unit                                            | `npm run test -- __tests__/components/notifications/NotificationSettingsPanel.test.tsx` | No — Wave 0  |
+| NOT-07 | Preference save persists to `notification_preferences` table            | unit (mock Supabase)                            | `npm run test -- __tests__/components/notifications/NotificationSettingsPanel.test.tsx` | No — Wave 0  |
+| NOT-08 | Dedup check suppresses second notification within 5-minute window       | unit                                            | `npm run test -- __tests__/lib/notifications.test.ts`                                   | No — Wave 0  |
+| NOT-08 | Storm cap (50/hour) marks entries as suppressed                         | unit                                            | `npm run test -- __tests__/lib/notifications.test.ts`                                   | No — Wave 0  |
 
 ### Sampling Rate
 
@@ -855,22 +878,22 @@ const channel = supabase
 
 ## Project Constraints (from CLAUDE.md)
 
-| Directive | Impact on Phase 7 |
-|-----------|-------------------|
-| Stack locked: Next.js 14 App Router + Supabase + Vercel | Edge Functions must be Supabase (not Vercel Functions), email via Resend |
-| Keep third-party services free/cheap | Resend 3,000/month free tier (confirmed by D-08); no paid push service (Web Push API is free) |
-| Dark theme: Barlow Condensed, navy/red palette | `NotificationBell`, `NotificationDropdown`, `NotificationSettingsPanel` must use existing tokens |
-| Every DB query scoped `.eq('event_id', eventId)` | Edge Function queries must carry `event_id` from queue record through all lookups |
-| `prefer-const` — use const unless reassigned | All Edge Function variables use `const` |
-| Hooks before guards | `NotificationBell` must call all hooks before `if (!user) return null` |
-| `Select` must use `bg-[#040e24]` | Not directly applicable (no `<Select>` in notification components) |
-| Use `try/catch` not `.catch()` | Edge Function error handling uses try/catch blocks |
-| Never hardcode event IDs | Recipient resolution always uses `event_id` from queue row |
-| Vercel enforces ESLint errors as build failures | `prefer-const`, unused variables will break deploys |
-| Server Supabase client: async `createClient()` from `@/lib/supabase/server` | API routes (`/api/push/subscribe`) use the async server client pattern |
-| Components: PascalCase; Lib: camelCase | `NotificationBell.tsx`, `notifications.ts` in lib/ |
-| Named exports preferred | Export `function NotificationBell()`, not `export default` |
-| Feedback via `toast.success()` / `toast.error()` | Preferences save: `toast.success('Preferences saved')` |
+| Directive                                                                   | Impact on Phase 7                                                                                |
+| --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| Stack locked: Next.js 14 App Router + Supabase + Vercel                     | Edge Functions must be Supabase (not Vercel Functions), email via Resend                         |
+| Keep third-party services free/cheap                                        | Resend 3,000/month free tier (confirmed by D-08); no paid push service (Web Push API is free)    |
+| Dark theme: Barlow Condensed, navy/red palette                              | `NotificationBell`, `NotificationDropdown`, `NotificationSettingsPanel` must use existing tokens |
+| Every DB query scoped `.eq('event_id', eventId)`                            | Edge Function queries must carry `event_id` from queue record through all lookups                |
+| `prefer-const` — use const unless reassigned                                | All Edge Function variables use `const`                                                          |
+| Hooks before guards                                                         | `NotificationBell` must call all hooks before `if (!user) return null`                           |
+| `Select` must use `bg-[#040e24]`                                            | Not directly applicable (no `<Select>` in notification components)                               |
+| Use `try/catch` not `.catch()`                                              | Edge Function error handling uses try/catch blocks                                               |
+| Never hardcode event IDs                                                    | Recipient resolution always uses `event_id` from queue row                                       |
+| Vercel enforces ESLint errors as build failures                             | `prefer-const`, unused variables will break deploys                                              |
+| Server Supabase client: async `createClient()` from `@/lib/supabase/server` | API routes (`/api/push/subscribe`) use the async server client pattern                           |
+| Components: PascalCase; Lib: camelCase                                      | `NotificationBell.tsx`, `notifications.ts` in lib/                                               |
+| Named exports preferred                                                     | Export `function NotificationBell()`, not `export default`                                       |
+| Feedback via `toast.success()` / `toast.error()`                            | Preferences save: `toast.success('Preferences saved')`                                           |
 
 ---
 
@@ -898,6 +921,7 @@ const channel = supabase
 ## Metadata
 
 **Confidence breakdown:**
+
 - Standard stack: HIGH — all packages verified via npm registry; Web Push API verified via official Next.js docs
 - Database schema: MEDIUM — schema design is Claude's discretion per CONTEXT.md; patterns follow project conventions but are new tables
 - Edge Function architecture: MEDIUM — Deno patterns verified via official Supabase examples; `npm:web-push` in Deno not directly confirmed in official Supabase docs (confirmed via community sources)

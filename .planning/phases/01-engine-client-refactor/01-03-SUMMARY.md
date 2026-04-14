@@ -1,6 +1,6 @@
 ---
 phase: 01-engine-client-refactor
-plan: "03"
+plan: '03'
 subsystem: api
 tags: [supabase, next.js, api-routes, engine, unified-engine]
 
@@ -22,29 +22,29 @@ affects: [02-hardcode-removal, 03-api-auth]
 tech-stack:
   added: []
   patterns:
-    - "createClient() called inside handler body (never at module level)"
-    - "Engine functions called with sb as last argument"
-    - "Error format { error: string } with 400/500 status codes across all routes"
+    - 'createClient() called inside handler body (never at module level)'
+    - 'Engine functions called with sb as last argument'
+    - 'Error format { error: string } with 400/500 status codes across all routes'
 
 key-files:
   created: []
   modified:
-    - "app/api/unified-engine/route.ts"
-    - "app/api/unified-engine/resolve/route.ts"
-    - "app/api/shift-handoff/route.ts"
+    - 'app/api/unified-engine/route.ts'
+    - 'app/api/unified-engine/resolve/route.ts'
+    - 'app/api/shift-handoff/route.ts'
 
 key-decisions:
-  - "alert_id validated as number (not string) in resolve route — matches resolveAlert(alertId: number) engine signature"
-  - "Tasks 1-4 (existing routes) were pre-completed in Plan 01-01 — no additional changes required"
+  - 'alert_id validated as number (not string) in resolve route — matches resolveAlert(alertId: number) engine signature'
+  - 'Tasks 1-4 (existing routes) were pre-completed in Plan 01-01 — no additional changes required'
 
 patterns-established:
-  - "All API routes touching engine functions use server-side createClient() injected as sb"
-  - "No route file imports from @/supabase/client"
+  - 'All API routes touching engine functions use server-side createClient() injected as sb'
+  - 'No route file imports from @/supabase/client'
 
-requirements-completed: ["SEC-03"]
+requirements-completed: ['SEC-03']
 
 duration: 2min
-completed: "2026-03-22"
+completed: '2026-03-22'
 ---
 
 # Phase 1 Plan 03: Existing API Route Updates Summary
@@ -89,6 +89,7 @@ completed: "2026-03-22"
 ### Auto-fixed Issues
 
 **1. [Rule 1 - Bug] Fixed alert_id type validation in resolve route**
+
 - **Found during:** Task 5 (Wire Plan B1 routes)
 - **Issue:** Plan B1 stub validated `alert_id` as `typeof alert_id !== 'string'` but `resolveAlert` engine signature requires `alertId: number`. Passing a string would cause a type error and incorrect behavior.
 - **Fix:** Changed validation to `typeof alert_id !== 'number'` and updated error message to say "must be a number"
@@ -116,5 +117,6 @@ None - no external service configuration required.
 - No blockers
 
 ---
-*Phase: 01-engine-client-refactor*
-*Completed: 2026-03-22*
+
+_Phase: 01-engine-client-refactor_
+_Completed: 2026-03-22_

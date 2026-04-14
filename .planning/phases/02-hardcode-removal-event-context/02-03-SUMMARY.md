@@ -9,20 +9,21 @@ dependency_graph:
   affects: [lib/store.tsx, __tests__/lib/store.test.tsx]
 tech_stack:
   added: []
-  patterns: [currentDateRef-pattern, useRef-for-stable-closure, non-null-assertion-in-guarded-callbacks]
+  patterns:
+    [currentDateRef-pattern, useRef-for-stable-closure, non-null-assertion-in-guarded-callbacks]
 key_files:
   created: []
   modified:
     - lib/store.tsx
     - __tests__/lib/store.test.tsx
 decisions:
-  - "currentDateRef pattern prevents reconnect storm -- realtime dep array is [eventId] ONLY, date read from ref"
-  - "eventId! non-null assertions in callbacks are safe -- callbacks only called when app is fully initialized"
-  - "eventId ?? 0 in context value satisfies ContextValue eventId: number interface"
-  - "const eid = eventId inside useEffect closures provides TypeScript narrowing after null guard"
+  - 'currentDateRef pattern prevents reconnect storm -- realtime dep array is [eventId] ONLY, date read from ref'
+  - 'eventId! non-null assertions in callbacks are safe -- callbacks only called when app is fully initialized'
+  - 'eventId ?? 0 in context value satisfies ContextValue eventId: number interface'
+  - 'const eid = eventId inside useEffect closures provides TypeScript narrowing after null guard'
 metrics:
-  duration: "5 min"
-  completed: "2026-03-22"
+  duration: '5 min'
+  completed: '2026-03-22'
   tasks: 2
   files: 2
 ---
@@ -33,10 +34,10 @@ Event-scoped AppProvider with correct dependency arrays, realtime filters scoped
 
 ## Tasks Completed
 
-| Task | Name | Commit | Files |
-| ---- | ---- | ------ | ----- |
-| 1 | Fix store.tsx -- remove default, dep arrays, realtime filters, currentDateRef | 5abb045, 41237be | lib/store.tsx |
-| 2 | Convert store tests from test.fails() to passing tests | d787459 | __tests__/lib/store.test.tsx |
+| Task | Name                                                                          | Commit           | Files                        |
+| ---- | ----------------------------------------------------------------------------- | ---------------- | ---------------------------- |
+| 1    | Fix store.tsx -- remove default, dep arrays, realtime filters, currentDateRef | 5abb045, 41237be | lib/store.tsx                |
+| 2    | Convert store tests from test.fails() to passing tests                        | d787459          | **tests**/lib/store.test.tsx |
 
 ## What Was Built
 
@@ -60,9 +61,10 @@ Fix 8 -- `liftLightning` useCallback full dep audit: `[currentDate, eventId, sta
 
 All realtime `postgres_changes` listeners now include `filter: event_id=eq.${eventId}`.
 
-**Task 2: __tests__/lib/store.test.tsx**
+**Task 2: **tests**/lib/store.test.tsx**
 
 Converted all 4 `test.fails()` calls to regular `test()`. All pass:
+
 - SEC-04: loadAll re-fires when eventId changes from 1 to 2
 - SEC-05: realtime subscription includes event_id=eq.1 filter
 - SEC-05: realtime channel torn down and rebuilt when eventId changes
@@ -108,10 +110,12 @@ None. All data paths are wired.
 ## Self-Check: PASSED
 
 Files confirmed:
+
 - lib/store.tsx: FOUND
-- __tests__/lib/store.test.tsx: FOUND
+- **tests**/lib/store.test.tsx: FOUND
 
 Commits confirmed:
+
 - 5abb045: FOUND (feat(02-03): fix store.tsx...)
 - 41237be: FOUND (fix(02-03): resolve TypeScript errors...)
 - d787459: FOUND (test(02-03): convert store.test.tsx...)

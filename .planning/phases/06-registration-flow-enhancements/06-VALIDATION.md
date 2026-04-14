@@ -15,13 +15,13 @@ created: 2026-03-23
 
 ## Test Infrastructure
 
-| Property | Value |
-|----------|-------|
-| **Framework** | vitest |
-| **Config file** | vitest.config.ts |
-| **Quick run command** | `npx vitest run --reporter=verbose` |
-| **Full suite command** | `npx vitest run` |
-| **Estimated runtime** | ~30 seconds |
+| Property               | Value                               |
+| ---------------------- | ----------------------------------- |
+| **Framework**          | vitest                              |
+| **Config file**        | vitest.config.ts                    |
+| **Quick run command**  | `npx vitest run --reporter=verbose` |
+| **Full suite command** | `npx vitest run`                    |
+| **Estimated runtime**  | ~30 seconds                         |
 
 ---
 
@@ -36,19 +36,19 @@ created: 2026-03-23
 
 ## Per-Task Verification Map
 
-| Task ID | Plan | Wave | Requirement | Test Type | Automated Command | Status |
-|---------|------|------|-------------|-----------|-------------------|--------|
-| 06-01-01 | 01 | 1 | REG-06, REG-07 | structural | `grep + type-check` | ⬜ pending |
-| 06-01-02 | 01 | 1 | REG-06, REG-07 | unit | `npx vitest run __tests__/lib/engines/coach-conflicts.test.ts` | ⬜ pending |
-| 06-02-01 | 02 | 2 | REG-01 | structural | `grep + type-check` | ⬜ pending |
-| 06-03-01 | 03 | 2 | REG-02, REG-03, REG-08 | structural | `grep + type-check + lint` | ⬜ pending |
-| 06-04-01 | 04 | 2 | REG-04, REG-05 | structural | `grep + type-check` | ⬜ pending |
-| 06-04-02 | 04 | 2 | REG-04, REG-05 | structural | `grep + type-check` | ⬜ pending |
-| 06-05-01 | 05 | 3 | REG-04 | structural | `grep + type-check + lint` | ⬜ pending |
-| 06-05-02 | 05 | 3 | REG-01, REG-07 | structural | `grep + type-check` | ⬜ pending |
-| 06-05-03 | 05 | 3 | REG-06 | structural | `grep + type-check` | ⬜ pending |
+| Task ID  | Plan | Wave | Requirement            | Test Type  | Automated Command                                              | Status     |
+| -------- | ---- | ---- | ---------------------- | ---------- | -------------------------------------------------------------- | ---------- |
+| 06-01-01 | 01   | 1    | REG-06, REG-07         | structural | `grep + type-check`                                            | ⬜ pending |
+| 06-01-02 | 01   | 1    | REG-06, REG-07         | unit       | `npx vitest run __tests__/lib/engines/coach-conflicts.test.ts` | ⬜ pending |
+| 06-02-01 | 02   | 2    | REG-01                 | structural | `grep + type-check`                                            | ⬜ pending |
+| 06-03-01 | 03   | 2    | REG-02, REG-03, REG-08 | structural | `grep + type-check + lint`                                     | ⬜ pending |
+| 06-04-01 | 04   | 2    | REG-04, REG-05         | structural | `grep + type-check`                                            | ⬜ pending |
+| 06-04-02 | 04   | 2    | REG-04, REG-05         | structural | `grep + type-check`                                            | ⬜ pending |
+| 06-05-01 | 05   | 3    | REG-04                 | structural | `grep + type-check + lint`                                     | ⬜ pending |
+| 06-05-02 | 05   | 3    | REG-01, REG-07         | structural | `grep + type-check`                                            | ⬜ pending |
+| 06-05-03 | 05   | 3    | REG-06                 | structural | `grep + type-check`                                            | ⬜ pending |
 
-*Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
+_Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky_
 
 ---
 
@@ -60,11 +60,11 @@ The coach-conflicts engine (06-01-02) has dedicated unit tests providing behavio
 
 ## Manual-Only Verifications
 
-| Behavior | Requirement | Why Manual | Test Instructions |
-|----------|-------------|------------|-------------------|
-| Registration wizard blocks access outside window | REG-01 | UI visual state | Navigate to /e/[slug]/register when closed, verify info page shown |
-| QR code renders correctly for coach invite | REG-05 | Visual rendering | Generate invite link, verify QR is black-on-white and scannable |
-| Coach conflict badge in Command Center | REG-06 | UI visual indicator | Add same coach to 2 teams, verify badge appears on both team rows |
+| Behavior                                         | Requirement | Why Manual          | Test Instructions                                                  |
+| ------------------------------------------------ | ----------- | ------------------- | ------------------------------------------------------------------ |
+| Registration wizard blocks access outside window | REG-01      | UI visual state     | Navigate to /e/[slug]/register when closed, verify info page shown |
+| QR code renders correctly for coach invite       | REG-05      | Visual rendering    | Generate invite link, verify QR is black-on-white and scannable    |
+| Coach conflict badge in Command Center           | REG-06      | UI visual indicator | Add same coach to 2 teams, verify badge appears on both team rows  |
 
 ---
 

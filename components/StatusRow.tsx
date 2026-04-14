@@ -41,19 +41,26 @@ export function StatusRow() {
     if (m[3].toUpperCase() === 'PM' && h !== 12) h += 12
     if (m[3].toUpperCase() === 'AM' && h === 12) h = 0
     const total = h * 60 + min
-    if (total < firstGameMin) { firstGameMin = total; firstGameTime = game.scheduled_time }
-    if (total > lastGameMin) { lastGameMin = total; lastGameTime = game.scheduled_time }
+    if (total < firstGameMin) {
+      firstGameMin = total
+      firstGameTime = game.scheduled_time
+    }
+    if (total > lastGameMin) {
+      lastGameMin = total
+      lastGameTime = game.scheduled_time
+    }
   }
 
   // Week label
   const first = state.eventDates[0]
-  const wk = first && currentDate
-    ? Math.floor(
-        (new Date(currentDate.date + 'T00:00:00').getTime() -
-          new Date(first.date + 'T00:00:00').getTime()) /
-          (7 * 24 * 60 * 60 * 1000)
-      ) + 1
-    : 1
+  const wk =
+    first && currentDate
+      ? Math.floor(
+          (new Date(currentDate.date + 'T00:00:00').getTime() -
+            new Date(first.date + 'T00:00:00').getTime()) /
+            (7 * 24 * 60 * 60 * 1000)
+        ) + 1
+      : 1
   const multiWeek =
     state.eventDates.length > 1 &&
     Math.floor(
@@ -135,7 +142,8 @@ export function StatusRow() {
             ) : currentDate ? (
               <>
                 <span className="font-cond text-[9px] font-black tracking-[.12em] text-muted uppercase">
-                  {multiWeek ? `WK ${wk} · ` : ''}{currentDate.label}
+                  {multiWeek ? `WK ${wk} · ` : ''}
+                  {currentDate.label}
                 </span>
                 <span className="font-cond text-[14px] font-black text-white tracking-wide">
                   {format(parseISO(currentDate.date), 'EEE, MMM d')}
@@ -174,17 +182,12 @@ export function StatusRow() {
             <span className="font-cond text-[9px] text-muted">
               LAST <span className="text-white font-bold">{lastGameTime}</span>
             </span>
-            <span className="font-cond text-[9px] text-muted">
-              {g.length} GAMES
-            </span>
+            <span className="font-cond text-[9px] text-muted">{g.length} GAMES</span>
           </div>
         )}
 
         {/* Pills row — scrollable on mobile */}
-        <div
-          className="flex items-stretch overflow-x-auto"
-          style={{ height: 38 }}
-        >
+        <div className="flex items-stretch overflow-x-auto" style={{ height: 38 }}>
           {PILLS.map((p) => {
             const count = counts[p.key]
             const active = count > 0
@@ -192,7 +195,10 @@ export function StatusRow() {
               <div
                 key={p.key}
                 className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 flex-shrink-0"
-                style={{ borderRight: '1px solid #1a2d50', background: active ? p.bg : 'transparent' }}
+                style={{
+                  borderRight: '1px solid #1a2d50',
+                  background: active ? p.bg : 'transparent',
+                }}
               >
                 <span
                   className="font-cond text-[18px] sm:text-[22px] font-black leading-none tabular-nums"
@@ -228,9 +234,7 @@ export function StatusRow() {
               <span className="font-cond text-[9px] font-black tracking-[.1em] text-muted">
                 LAST GAME
               </span>
-              <span className="font-cond text-[13px] font-black text-white">
-                {lastGameTime}
-              </span>
+              <span className="font-cond text-[13px] font-black text-white">{lastGameTime}</span>
             </div>
           )}
 
@@ -271,7 +275,8 @@ export function StatusRow() {
               ) : currentDate ? (
                 <>
                   <span className="font-cond text-[9px] font-black tracking-[.12em] text-muted uppercase">
-                    {multiWeek ? `WK ${wk} · ` : ''}{currentDate.label}
+                    {multiWeek ? `WK ${wk} · ` : ''}
+                    {currentDate.label}
                   </span>
                   <span className="font-cond text-[13px] font-black text-white tracking-wide">
                     {format(parseISO(currentDate.date), 'EEE, MMM d')}

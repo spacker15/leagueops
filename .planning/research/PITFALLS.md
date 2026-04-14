@@ -70,12 +70,12 @@ Do not use the service role key as a workaround in production routes. It bypasse
 
 **Categorize routes before touching any of them:**
 
-| Category | Example Routes | Auth Required |
-|---|---|---|
-| Admin-only writes | `/api/games` POST, `/api/fields` POST, `/api/lightning` | Yes — `admin` or `league_admin` role |
-| Public token-gated | `/api/join`, `/api/checkins` (QR path) | No — validate invite/QR token instead |
-| Engine triggers | `/api/referee-engine`, `/api/field-engine`, `/api/weather-engine` | Yes — authenticated operator |
-| Read-only public | `/api/weather` GET (for public results) | No, or anon-safe |
+| Category           | Example Routes                                                    | Auth Required                         |
+| ------------------ | ----------------------------------------------------------------- | ------------------------------------- |
+| Admin-only writes  | `/api/games` POST, `/api/fields` POST, `/api/lightning`           | Yes — `admin` or `league_admin` role  |
+| Public token-gated | `/api/join`, `/api/checkins` (QR path)                            | No — validate invite/QR token instead |
+| Engine triggers    | `/api/referee-engine`, `/api/field-engine`, `/api/weather-engine` | Yes — authenticated operator          |
+| Read-only public   | `/api/weather` GET (for public results)                           | No, or anon-safe                      |
 
 Add auth checks incrementally — one route group per deployment, with testing between each group. Do not batch-add auth to all 40+ routes in one commit.
 
@@ -168,6 +168,7 @@ Weather alert emails for lightning delays are safety-critical. If they land in s
 Push notifications require a Service Worker and VAPID keys (Web Push Protocol). The PWA compatibility requirement implies a service worker already exists or needs to be added. Next.js 14 App Router does not have first-class service worker support — it requires a custom `public/sw.js` and registration logic that survives Next.js's aggressive client-side routing.
 
 The specific failure modes:
+
 - iOS Safari requires iOS 16.4+ for Web Push and only works when the site is added to the Home Screen. Parents at a tournament viewing the public results site on Safari will not receive push notifications unless they have added the site to their Home Screen and are on a supported iOS version.
 - Push subscriptions expire. When a user's push subscription endpoint becomes invalid (device reset, browser reset), push sends silently fail. The notification system needs dead-subscription cleanup logic.
 - Browser push from a Next.js Vercel deployment requires the service worker file to be served from the root path. Vercel's edge caching can serve a stale service worker for hours after a deployment, causing the push registration to use the old VAPID key.
@@ -396,16 +397,16 @@ The public results site (`apps/public-results/`) is a separate Next.js app with 
 
 ## Prevention Summary
 
-| Pitfall | Single Most Important Prevention |
-|---|---|
-| P1: RLS Migration | Fix engine client imports (SEC-03) before tightening any policy — silent empty-result failures will happen otherwise |
-| P2: Auth Retrofit | Categorize every route as auth-required vs. token-gated vs. public before touching any — one broken route on tournament day causes visible failures |
-| P3: Hardcode Removal | Fix the `loadAll` dependency array bug first, or event switching will show stale data even after hardcodes are removed |
-| P4: Notification Costs | Implement deduplication with `notification_sent_at` before wiring any notification trigger — notification loops are the most expensive mistake |
-| P5: Google Maps Billing | Restrict the API key by HTTP referrer in the Google Cloud Console before the key is deployed — the $200/month free credit disappears in one leak incident |
-| P6: Rescheduling Engine | Use a database-level transaction (Supabase RPC) for slot assignment — multi-step API calls are not atomic and will cause double-bookings under concurrent use |
-| P7: QR Codes | Set `NEXT_PUBLIC_APP_URL` correctly in production Vercel environment and generate black-on-white codes only — both are easier to get right once than to fix after flyers are printed |
-| P8: Public Site | Use polling/SSE instead of per-visitor Realtime WebSockets — Supabase free tier's 200-connection limit will be hit at any real tournament |
+| Pitfall                 | Single Most Important Prevention                                                                                                                                                     |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| P1: RLS Migration       | Fix engine client imports (SEC-03) before tightening any policy — silent empty-result failures will happen otherwise                                                                 |
+| P2: Auth Retrofit       | Categorize every route as auth-required vs. token-gated vs. public before touching any — one broken route on tournament day causes visible failures                                  |
+| P3: Hardcode Removal    | Fix the `loadAll` dependency array bug first, or event switching will show stale data even after hardcodes are removed                                                               |
+| P4: Notification Costs  | Implement deduplication with `notification_sent_at` before wiring any notification trigger — notification loops are the most expensive mistake                                       |
+| P5: Google Maps Billing | Restrict the API key by HTTP referrer in the Google Cloud Console before the key is deployed — the $200/month free credit disappears in one leak incident                            |
+| P6: Rescheduling Engine | Use a database-level transaction (Supabase RPC) for slot assignment — multi-step API calls are not atomic and will cause double-bookings under concurrent use                        |
+| P7: QR Codes            | Set `NEXT_PUBLIC_APP_URL` correctly in production Vercel environment and generate black-on-white codes only — both are easier to get right once than to fix after flyers are printed |
+| P8: Public Site         | Use polling/SSE instead of per-visitor Realtime WebSockets — Supabase free tier's 200-connection limit will be hit at any real tournament                                            |
 
 ### Sequencing Dependencies
 
@@ -427,4 +428,4 @@ Any feature that writes to event-scoped data (notifications, rescheduling) that 
 
 ---
 
-*Research completed: 2026-03-22. Based on codebase analysis in `/planning/codebase/` and project requirements in `/planning/PROJECT.md`.*
+_Research completed: 2026-03-22. Based on codebase analysis in `/planning/codebase/` and project requirements in `/planning/PROJECT.md`._

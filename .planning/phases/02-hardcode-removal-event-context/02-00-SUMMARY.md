@@ -1,6 +1,6 @@
 ---
 phase: 02-hardcode-removal-event-context
-plan: "00"
+plan: '00'
 subsystem: store/testing
 tags: [testing, behavioral-scaffold, nyquist, sec-04, sec-05]
 dependency_graph:
@@ -19,7 +19,7 @@ decisions:
   - Null guard test (SEC-04) converted to test.fails() because current store defaults eventId=1 and calls getEvent even when undefined is passed
 metrics:
   duration: 2 min
-  completed: "2026-03-22T22:23:53Z"
+  completed: '2026-03-22T22:23:53Z'
   tasks_completed: 1
   files_created: 1
   files_modified: 0
@@ -31,9 +31,9 @@ Vitest behavioral scaffold for `lib/store.tsx` using `test.fails()` to document 
 
 ## Tasks Completed
 
-| Task | Name | Commit | Files |
-|------|------|--------|-------|
-| 1 | Create store behavioral test scaffold | 6285c22 | `__tests__/lib/store.test.tsx` |
+| Task | Name                                  | Commit  | Files                          |
+| ---- | ------------------------------------- | ------- | ------------------------------ |
+| 1    | Create store behavioral test scaffold | 6285c22 | `__tests__/lib/store.test.tsx` |
 
 ## What Was Built
 
@@ -45,6 +45,7 @@ Created `__tests__/lib/store.test.tsx` with 4 behavioral tests that document the
 4. **SEC-04 null guard** — documents that `loadAll` must not fire when `eventId` is undefined
 
 **Mock strategy:**
+
 - `@/lib/db` — all functions return empty arrays/null via `vi.mock`
 - `@/supabase/client` — `createClient()` returns a stub with `channel()`, `on()`, `subscribe()`, `removeChannel()` as `vi.fn()` stubs
 

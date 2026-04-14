@@ -63,6 +63,8 @@ type Action =
   | { type: 'UPDATE_TRAINER'; payload: Trainer }
   | { type: 'SET_INCIDENTS'; payload: Incident[] }
   | { type: 'ADD_INCIDENT'; payload: Incident }
+  | { type: 'UPDATE_INCIDENT'; payload: Incident }
+  | { type: 'DELETE_INCIDENT'; payload: number }
   | { type: 'SET_MEDICAL'; payload: MedicalIncident[] }
   | { type: 'ADD_MEDICAL'; payload: MedicalIncident }
   | { type: 'UPDATE_MEDICAL'; payload: MedicalIncident }
@@ -124,6 +126,13 @@ function reducer(state: State, action: Action): State {
       return { ...state, incidents: action.payload }
     case 'ADD_INCIDENT':
       return { ...state, incidents: [action.payload, ...state.incidents] }
+    case 'UPDATE_INCIDENT':
+      return {
+        ...state,
+        incidents: state.incidents.map((i) => (i.id === action.payload.id ? action.payload : i)),
+      }
+    case 'DELETE_INCIDENT':
+      return { ...state, incidents: state.incidents.filter((i) => i.id !== action.payload) }
     case 'SET_MEDICAL':
       return { ...state, medicalIncidents: action.payload }
     case 'ADD_MEDICAL':
@@ -224,6 +233,16 @@ interface ContextValue {
   logIncident: (
     incident: Omit<Incident, 'id' | 'created_at' | 'field' | 'team' | 'game'>
   ) => Promise<void>
+  updateIncident: (
+    id: number,
+    fields: Partial<
+      Pick<
+        Incident,
+        'type' | 'description' | 'person_involved' | 'field_id' | 'team_id' | 'game_id'
+      >
+    >
+  ) => Promise<void>
+  deleteIncident: (id: number) => Promise<void>
   dispatchTrainer: (incident: Omit<MedicalIncident, 'id' | 'created_at' | 'field'>) => Promise<void>
   updateMedicalStatus: (id: number, status: string) => Promise<void>
   triggerLightning: () => Promise<void>
@@ -289,11 +308,25 @@ export function AppProvider({
         db.getOpsLog(eid),
         db.getScheduleChangeRequests(eid),
       ])
+      const dates = eventDates ?? []
+
+      // Jump to today's date, or the next upcoming date, or the last date
+      const today = new Date().toISOString().split('T')[0]
+      let initialIdx = 0
+      const todayIdx = dates.findIndex((d) => d.date === today)
+      if (todayIdx >= 0) {
+        initialIdx = todayIdx
+      } else {
+        const futureIdx = dates.findIndex((d) => d.date > today)
+        initialIdx = futureIdx >= 0 ? futureIdx : Math.max(0, dates.length - 1)
+      }
+
       dispatch({
         type: 'INIT',
         payload: {
           event,
-          eventDates: eventDates ?? [],
+          eventDates: dates,
+          currentDateIdx: initialIdx,
           fields,
           teams,
           referees,
@@ -306,16 +339,6 @@ export function AppProvider({
           scheduleChangeRequests,
         },
       })
-
-      // Auto-select today's date or next upcoming date
-      const dates = eventDates ?? []
-      if (dates.length > 0) {
-        const today = new Date().toISOString().split('T')[0]
-        const todayIdx = dates.findIndex((d: EventDate) => d.date === today)
-        const upcomingIdx = dates.findIndex((d: EventDate) => d.date >= today)
-        const bestIdx = todayIdx !== -1 ? todayIdx : upcomingIdx !== -1 ? upcomingIdx : 0
-        dispatch({ type: 'SET_DATE', payload: bestIdx })
-      }
     }
     loadAll()
   }, [eventId])
@@ -348,18 +371,39 @@ export function AppProvider({
       if (checkedInRefs.length + checkedInVols.length + checkedInTrainers.length > 0) {
         Promise.all([
           checkedInRefs.length > 0
-            ? sb.from('referees').update({ checked_in: false }).eq('event_id', eventId).eq('checked_in', true)
+            ? sb
+                .from('referees')
+                .update({ checked_in: false })
+                .eq('event_id', eventId)
+                .eq('checked_in', true)
             : null,
           checkedInVols.length > 0
-            ? sb.from('volunteers').update({ checked_in: false }).eq('event_id', eventId).eq('checked_in', true)
+            ? sb
+                .from('volunteers')
+                .update({ checked_in: false })
+                .eq('event_id', eventId)
+                .eq('checked_in', true)
             : null,
           checkedInTrainers.length > 0
-            ? sb.from('trainers').update({ checked_in: false }).eq('event_id', eventId).eq('checked_in', true)
+            ? sb
+                .from('trainers')
+                .update({ checked_in: false })
+                .eq('event_id', eventId)
+                .eq('checked_in', true)
             : null,
         ]).then(() => {
-          dispatch({ type: 'SET_REFEREES', payload: state.referees.map((r) => ({ ...r, checked_in: false })) })
-          dispatch({ type: 'SET_VOLUNTEERS', payload: state.volunteers.map((v) => ({ ...v, checked_in: false })) })
-          dispatch({ type: 'SET_TRAINERS', payload: state.trainers.map((t) => ({ ...t, checked_in: false })) })
+          dispatch({
+            type: 'SET_REFEREES',
+            payload: state.referees.map((r) => ({ ...r, checked_in: false })),
+          })
+          dispatch({
+            type: 'SET_VOLUNTEERS',
+            payload: state.volunteers.map((v) => ({ ...v, checked_in: false })),
+          })
+          dispatch({
+            type: 'SET_TRAINERS',
+            payload: state.trainers.map((t) => ({ ...t, checked_in: false })),
+          })
         })
       }
     }
@@ -566,8 +610,13 @@ export function AppProvider({
           type: 'UPDATE_GAME',
           payload: { ...updated, home_score: home, away_score: away },
         })
+      const g = state.games.find((gg) => gg.id === gameId)
+      const label = g
+        ? `${g.home_team?.name ?? 'Home'} ${home}–${away} ${g.away_team?.name ?? 'Away'}`
+        : `Game #${gameId} ${home}–${away}`
+      await addLog(`Score update: ${label}`, 'info')
     },
-    [state.games]
+    [state.games, addLog]
   )
 
   const addGame = useCallback(
@@ -646,6 +695,28 @@ export function AppProvider({
     },
     [addLog]
   )
+
+  const updateIncident = useCallback(
+    async (
+      id: number,
+      fields: Partial<
+        Pick<
+          Incident,
+          'type' | 'description' | 'person_involved' | 'field_id' | 'team_id' | 'game_id'
+        >
+      >
+    ) => {
+      await db.updateIncident(id, fields)
+      const inc = state.incidents.find((i) => i.id === id)
+      if (inc) dispatch({ type: 'UPDATE_INCIDENT', payload: { ...inc, ...fields } })
+    },
+    [state.incidents]
+  )
+
+  const deleteIncident = useCallback(async (id: number) => {
+    await db.deleteIncident(id)
+    dispatch({ type: 'DELETE_INCIDENT', payload: id })
+  }, [])
 
   const dispatchTrainer = useCallback(
     async (incident: Omit<MedicalIncident, 'id' | 'created_at' | 'field'>) => {
@@ -790,6 +861,8 @@ export function AppProvider({
         toggleRefCheckin,
         toggleVolCheckin,
         logIncident,
+        updateIncident,
+        deleteIncident,
         dispatchTrainer,
         updateMedicalStatus,
         triggerLightning,

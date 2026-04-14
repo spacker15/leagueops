@@ -36,6 +36,7 @@
 ## Fonts
 
 Loaded via `next/font/google` in `app/layout.tsx`:
+
 - **Barlow** (weights 400, 500, 600) — `--font-barlow`
 - **Barlow Condensed** (weights 400, 600, 700, 800, 900) — `--font-barlow-condensed`
 - **Roboto Mono** (weights 400, 500) — `--font-roboto-mono`

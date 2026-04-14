@@ -35,7 +35,9 @@ export function ScheduleChangeRequestModal({
   const [selectedGameIds, setSelectedGameIds] = useState<Set<number>>(
     preSelectedGameId ? new Set([preSelectedGameId]) : new Set()
   )
-  const [requestType, setRequestType] = useState<'reschedule' | 'cancel' | 'change_opponent'>('reschedule')
+  const [requestType, setRequestType] = useState<'reschedule' | 'cancel' | 'change_opponent'>(
+    'reschedule'
+  )
   const [reasonCategory, setReasonCategory] = useState('')
   const [reasonDetails, setReasonDetails] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -65,7 +67,9 @@ export function ScheduleChangeRequestModal({
 
   // Filter to only future games
   const now = new Date().toISOString()
-  const futureGames = teamGames.filter((g) => g.scheduled_time > now || g.status === 'Scheduled' || g.status === 'Starting')
+  const futureGames = teamGames.filter(
+    (g) => g.scheduled_time > now || g.status === 'Scheduled' || g.status === 'Starting'
+  )
 
   function toggleGame(gameId: number) {
     setSelectedGameIds((prev) => {
@@ -140,8 +144,8 @@ export function ScheduleChangeRequestModal({
                 const isChecked = selectedGameIds.has(game.id)
                 const opponent =
                   game.home_team_id === teamId
-                    ? game.away_team?.name ?? `Team #${game.away_team_id}`
-                    : game.home_team?.name ?? `Team #${game.home_team_id}`
+                    ? (game.away_team?.name ?? `Team #${game.away_team_id}`)
+                    : (game.home_team?.name ?? `Team #${game.home_team_id}`)
 
                 return (
                   <label
@@ -162,9 +166,7 @@ export function ScheduleChangeRequestModal({
                         {game.scheduled_time}
                       </span>
                       {game.field?.name && (
-                        <span className="text-[12px] text-muted truncate">
-                          {game.field.name}
-                        </span>
+                        <span className="text-[12px] text-muted truncate">{game.field.name}</span>
                       )}
                       <span className="text-[12px] text-white font-black truncate">
                         vs {opponent}

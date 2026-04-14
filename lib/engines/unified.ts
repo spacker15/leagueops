@@ -239,7 +239,11 @@ async function applyResolutionAction(
 }
 
 // ─── Generate shift handoff ───────────────────────────────────
-export async function generateShiftHandoff(createdBy: string, eventId: number, sb: SupabaseClient): Promise<string> {
+export async function generateShiftHandoff(
+  createdBy: string,
+  eventId: number,
+  sb: SupabaseClient
+): Promise<string> {
   const now = new Date()
   const hourAgo = new Date(now.getTime() - 60 * 60 * 1000)
 

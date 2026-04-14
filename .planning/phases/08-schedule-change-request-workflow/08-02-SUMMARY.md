@@ -2,7 +2,8 @@
 phase: 08-schedule-change-request-workflow
 plan: 02
 subsystem: api
-tags: [schedule, rescheduling, slot-suggestion, conflict-detection, pure-typescript, vitest, date-fns]
+tags:
+  [schedule, rescheduling, slot-suggestion, conflict-detection, pure-typescript, vitest, date-fns]
 
 requires:
   - phase: 08-schedule-change-request-workflow
@@ -21,9 +22,9 @@ affects:
 tech-stack:
   added: []
   patterns:
-    - "Pure engine pattern: no Supabase client — accepts pre-fetched data, returns typed results"
-    - "TDD: failing test committed before implementation (RED → GREEN)"
-    - "Raw Date arithmetic for overlap math (getTime()) + date-fns for calendar-level comparisons"
+    - 'Pure engine pattern: no Supabase client — accepts pre-fetched data, returns typed results'
+    - 'TDD: failing test committed before implementation (RED → GREEN)'
+    - 'Raw Date arithmetic for overlap math (getTime()) + date-fns for calendar-level comparisons'
 
 key-files:
   created:
@@ -32,15 +33,15 @@ key-files:
   modified: []
 
 key-decisions:
-  - "overlaps() uses raw Date getTime() arithmetic per plan spec — only isSameDay/isAfter/differenceInCalendarDays use date-fns"
-  - "teamAvailability empty array means all dates available (consistent with team_registrations schema from 06-01)"
-  - "Field conflicts are hard filters (skip slot entirely); team conflicts are soft (mark availability false but include slot)"
-  - "getCandidateTimes steps 08:00–18:00 by max(gameDurationMin, 60) min to ensure ≥1hr slots"
-  - "Test fix: blocking game set needed 18:00 entry since candidate times include 18:00 and boundary check is exclusive"
+  - 'overlaps() uses raw Date getTime() arithmetic per plan spec — only isSameDay/isAfter/differenceInCalendarDays use date-fns'
+  - 'teamAvailability empty array means all dates available (consistent with team_registrations schema from 06-01)'
+  - 'Field conflicts are hard filters (skip slot entirely); team conflicts are soft (mark availability false but include slot)'
+  - 'getCandidateTimes steps 08:00–18:00 by max(gameDurationMin, 60) min to ensure ≥1hr slots'
+  - 'Test fix: blocking game set needed 18:00 entry since candidate times include 18:00 and boundary check is exclusive'
 
 patterns-established:
-  - "Engine pattern: pure function, pre-fetched inputs, no Supabase dependency"
-  - "Scoring: proximity points (100/50/25) + availability points (20 per team)"
+  - 'Engine pattern: pure function, pre-fetched inputs, no Supabase dependency'
+  - 'Scoring: proximity points (100/50/25) + availability points (20 per team)'
 
 requirements-completed: [SCR-04, SCR-05]
 
@@ -95,6 +96,7 @@ _Note: TDD tasks committed as test → feat. The test file was updated in the fe
 ### Auto-fixed Issues
 
 **1. [Rule 1 - Bug] Fixed boundary condition in field-conflict test**
+
 - **Found during:** Task 2 (GREEN phase — running tests)
 - **Issue:** Test generating blocking games only covered 08:00–17:00. `getCandidateTimes` includes 18:00 as a valid start; the 17:00 game ends at 18:00 (exclusive), so 18:00 candidate had no field conflict
 - **Fix:** Added '18:00' to the blocking games time array in the test
@@ -103,6 +105,7 @@ _Note: TDD tasks committed as test → feat. The test file was updated in the fe
 - **Committed in:** `c45f56b` (Task 2 commit)
 
 **2. [Rule 1 - Bug] Added missing `afterEach` import for vi.useRealTimers()**
+
 - **Found during:** Task 2 (type-check phase — `npx tsc --noEmit`)
 - **Issue:** `afterEach` used in test but not imported from vitest
 - **Fix:** Added `afterEach` to the vitest named import
@@ -134,5 +137,6 @@ None — no external service configuration required.
 - Type checking passes cleanly (`npx tsc --noEmit`)
 
 ---
-*Phase: 08-schedule-change-request-workflow*
-*Completed: 2026-03-24*
+
+_Phase: 08-schedule-change-request-workflow_
+_Completed: 2026-03-24_

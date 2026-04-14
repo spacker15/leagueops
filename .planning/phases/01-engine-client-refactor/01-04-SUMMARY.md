@@ -1,26 +1,26 @@
 ---
 phase: 01
 plan: 04
-title: "Client-Side Migration"
-subsystem: "components/engine"
-tags: ["client-migration", "fetch-api", "security", "engine"]
+title: 'Client-Side Migration'
+subsystem: 'components/engine'
+tags: ['client-migration', 'fetch-api', 'security', 'engine']
 dependency_graph:
-  requires: ["01-01", "01-02", "01-03"]
-  provides: ["CommandCenter uses fetch instead of direct engine imports"]
-  affects: ["components/engine/CommandCenter.tsx", "components/weather/WeatherTab.tsx"]
+  requires: ['01-01', '01-02', '01-03']
+  provides: ['CommandCenter uses fetch instead of direct engine imports']
+  affects: ['components/engine/CommandCenter.tsx', 'components/weather/WeatherTab.tsx']
 tech_stack:
   added: []
-  patterns: ["fetch() for server-side engine operations from client components"]
+  patterns: ['fetch() for server-side engine operations from client components']
 key_files:
   created: []
   modified:
-    - "components/engine/CommandCenter.tsx"
+    - 'components/engine/CommandCenter.tsx'
 decisions:
-  - "WeatherTab.tsx verified safe — pure function imports from weather engine require no changes"
-  - "handleGenerateHandoff uses handoffData.summary ?? handoffData to handle both placeholder and final string response shapes"
+  - 'WeatherTab.tsx verified safe — pure function imports from weather engine require no changes'
+  - 'handleGenerateHandoff uses handoffData.summary ?? handoffData to handle both placeholder and final string response shapes'
 metrics:
-  duration: "5 min"
-  completed: "2026-03-22T20:29:05Z"
+  duration: '5 min'
+  completed: '2026-03-22T20:29:05Z'
   tasks_completed: 2
   files_modified: 1
 ---
@@ -46,6 +46,7 @@ Three handler functions were updated:
 ### Task 2 — Verify WeatherTab.tsx pure-function imports are still valid
 
 `WeatherTab.tsx` imports only:
+
 - `conditionIcon`, `windDirection`, `evaluateAlerts`, `calcHeatIndex`, `THRESHOLDS` — all pure computation functions with no DB access
 - `type WeatherReading`, `type WeatherAlert` — type-only imports
 

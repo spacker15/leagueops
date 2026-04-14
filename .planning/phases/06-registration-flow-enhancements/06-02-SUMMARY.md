@@ -16,13 +16,13 @@ key_files:
   modified:
     - components/settings/EventSetupTab.tsx
 decisions:
-  - "registration_open: null means auto/date-based; true = manual open; false = manual closed — cycles via toggle"
-  - "toggleEventDate does insert or delete directly in Supabase event_dates, no batch save needed"
-  - "datetime-local inputs slice to 16 chars on load (yyyy-MM-ddTHH:mm) to avoid browser incompatibility"
-  - "saveRegistrationSettings is a separate save action from the main SAVE button to avoid unexpected overwrites"
+  - 'registration_open: null means auto/date-based; true = manual open; false = manual closed — cycles via toggle'
+  - 'toggleEventDate does insert or delete directly in Supabase event_dates, no batch save needed'
+  - 'datetime-local inputs slice to 16 chars on load (yyyy-MM-ddTHH:mm) to avoid browser incompatibility'
+  - 'saveRegistrationSettings is a separate save action from the main SAVE button to avoid unexpected overwrites'
 metrics:
   duration: 4 min
-  completed: "2026-03-24"
+  completed: '2026-03-24'
   tasks: 1
   files: 2
 ---
@@ -47,11 +47,13 @@ A new client component that renders a month-view calendar grid between an event'
 ### EventSetupTab General tab additions
 
 **Schedule Dates section (D-11):**
+
 - Renders MultiDatePicker between event start_date and end_date
 - Clicking a date calls `toggleEventDate(isoDate)` which INSERT or DELETEs from `event_dates` table
 - Toast on successful save; shows count of selected dates
 
 **Registration Window section (D-13, D-14, D-15):**
+
 - Two `datetime-local` inputs: `registration_opens_at` and `registration_closes_at`
 - Manual override toggle button cycling: `null` (auto) → `true` (manual open) → `false` (manual closed) → `null`
   - Auto with dates: navy "Auto"
@@ -64,6 +66,7 @@ A new client component that renders a month-view calendar grid between an event'
 ### EventSetupTab Sharing tab additions (D-17)
 
 Registration status badge shown next to REGISTRATION LINK header:
+
 - `<Pill variant="green">Registration Open</Pill>` — when `registration_open === true` OR within date window
 - `<Pill variant="red">Registration Closed</Pill>` — when `registration_open === false` OR past close date
 - `<Pill variant="gray">Registration Window Not Set</Pill>` — no dates and no manual toggle
@@ -71,6 +74,7 @@ Registration status badge shown next to REGISTRATION LINK header:
 ### EventData interface and data flow
 
 Added to EventData:
+
 - `registration_opens_at: string` (empty string = null in DB)
 - `registration_closes_at: string`
 - `registration_open: boolean | null`

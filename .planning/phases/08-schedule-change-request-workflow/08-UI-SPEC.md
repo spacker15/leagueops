@@ -15,13 +15,13 @@ created: 2026-03-24
 
 ## Design System
 
-| Property | Value |
-|----------|-------|
-| Tool | none — hand-rolled Tailwind design system |
-| Preset | not applicable |
-| Component library | Custom (`components/ui/index.tsx`: Btn, Modal, Card, FormField, Input, Select, Textarea, StatusBadge, Pill, Avatar, SectionHeader) |
-| Icon library | lucide-react (consistent sizing: `size={14}` for inline, `size={16}` for interactive, `size={20}` for feature icons) |
-| Font | Barlow Condensed (`font-cond`) for labels/headings/UI chrome; Barlow (`font-sans`) for body; Roboto Mono (`font-mono`) for counts/timestamps |
+| Property          | Value                                                                                                                                        |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Tool              | none — hand-rolled Tailwind design system                                                                                                    |
+| Preset            | not applicable                                                                                                                               |
+| Component library | Custom (`components/ui/index.tsx`: Btn, Modal, Card, FormField, Input, Select, Textarea, StatusBadge, Pill, Avatar, SectionHeader)           |
+| Icon library      | lucide-react (consistent sizing: `size={14}` for inline, `size={16}` for interactive, `size={20}` for feature icons)                         |
+| Font              | Barlow Condensed (`font-cond`) for labels/headings/UI chrome; Barlow (`font-sans`) for body; Roboto Mono (`font-mono`) for counts/timestamps |
 
 Source: CLAUDE.md Design System + `tailwind.config.js` + `components/ui/index.tsx`
 
@@ -31,17 +31,18 @@ Source: CLAUDE.md Design System + `tailwind.config.js` + `components/ui/index.ts
 
 Declared values (must be multiples of 4):
 
-| Token | Value | Usage |
-|-------|-------|-------|
-| xs | 4px | Icon gaps, inline padding (`gap-1`, `px-1`) |
-| sm | 8px | Compact element spacing (`gap-2`, `px-2`, `py-2`) |
-| md | 16px | Default element spacing (`gap-4`, `px-4`, `p-4`) |
-| lg | 24px | Section padding (`p-6`, `gap-6`) |
-| xl | 32px | Layout gaps (`p-8`) |
-| 2xl | 48px | Major section breaks |
-| 3xl | 64px | Page-level spacing |
+| Token | Value | Usage                                             |
+| ----- | ----- | ------------------------------------------------- |
+| xs    | 4px   | Icon gaps, inline padding (`gap-1`, `px-1`)       |
+| sm    | 8px   | Compact element spacing (`gap-2`, `px-2`, `py-2`) |
+| md    | 16px  | Default element spacing (`gap-4`, `px-4`, `p-4`)  |
+| lg    | 24px  | Section padding (`p-6`, `gap-6`)                  |
+| xl    | 32px  | Layout gaps (`p-8`)                               |
+| 2xl   | 48px  | Major section breaks                              |
+| 3xl   | 64px  | Page-level spacing                                |
 
 Exceptions:
+
 - "Request Change" button touch target on game cards: minimum 44px height — use `py-2` (8px padding on a 28px line-height button = ~44px) per accessibility requirement
 - Slot suggestion row interactive items: minimum 44px effective height for touch usability on field-side devices
 
@@ -51,14 +52,15 @@ Source: CLAUDE.md conventions + existing badge + button patterns in `components/
 
 ## Typography
 
-| Role | Size | Weight | Line Height | Font | Usage |
-|------|------|--------|-------------|------|-------|
-| Body | 13px | 400 (regular) | 1.5 | Barlow (`font-sans`) | Request detail text, game rows in checkbox list, reason details, admin notes |
-| Label | 10px | 900 (black) | 1.2 | Barlow Condensed (`font-cond`) | Section headers, form field labels, badge text, status labels — uppercase + tracking-widest |
-| Heading | 15px | 900 (black) | 1.2 | Barlow Condensed (`font-cond`) | Modal title, tab heading, request card team name |
-| Mono | 12px | 400 (regular) | 1.0 | Roboto Mono (`font-mono`) | Game times, submitted-at timestamps, slot suggestion times, game selection row date/time |
+| Role    | Size | Weight        | Line Height | Font                           | Usage                                                                                       |
+| ------- | ---- | ------------- | ----------- | ------------------------------ | ------------------------------------------------------------------------------------------- |
+| Body    | 13px | 400 (regular) | 1.5         | Barlow (`font-sans`)           | Request detail text, game rows in checkbox list, reason details, admin notes                |
+| Label   | 10px | 900 (black)   | 1.2         | Barlow Condensed (`font-cond`) | Section headers, form field labels, badge text, status labels — uppercase + tracking-widest |
+| Heading | 15px | 900 (black)   | 1.2         | Barlow Condensed (`font-cond`) | Modal title, tab heading, request card team name                                            |
+| Mono    | 12px | 400 (regular) | 1.0         | Roboto Mono (`font-mono`)      | Game times, submitted-at timestamps, slot suggestion times, game selection row date/time    |
 
 Notes:
+
 - All label text is uppercase with `tracking-[.12em]` — matches existing `SectionHeader` pattern
 - Button text uses `font-cond font-black tracking-wide uppercase` (weight 900) — matches existing `Btn` component
 - Game row data (date, time, field, opponent) in modal checkbox list uses `text-[12px] text-muted` for secondary info, `text-[13px] text-white` for primary team/game identifier
@@ -71,20 +73,22 @@ Source: CLAUDE.md Typography + `components/ui/index.tsx` patterns + Phase 7 UI-S
 
 ## Color
 
-| Role | Value | Usage |
-|------|-------|-------|
-| Dominant (60%) | `#020810` (`surface`) | Page background, modal overlay backdrop |
-| Secondary (30%) | `#030d20` (`surface-panel`) / `#081428` (`surface-card`) | Request cards, modal body, Requests tab content area, slot suggestion list |
-| Accent (10%) | `#0B3D91` (`navy`) | Primary action buttons (Submit request, Confirm reschedule), pending count badge background |
-| Destructive | `#D62828` (`red`) | Deny button (danger variant), cancelled game indicator |
+| Role            | Value                                                    | Usage                                                                                       |
+| --------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Dominant (60%)  | `#020810` (`surface`)                                    | Page background, modal overlay backdrop                                                     |
+| Secondary (30%) | `#030d20` (`surface-panel`) / `#081428` (`surface-card`) | Request cards, modal body, Requests tab content area, slot suggestion list                  |
+| Accent (10%)    | `#0B3D91` (`navy`)                                       | Primary action buttons (Submit request, Confirm reschedule), pending count badge background |
+| Destructive     | `#D62828` (`red`)                                        | Deny button (danger variant), cancelled game indicator                                      |
 
 Accent reserved for:
+
 - `ScheduleChangeRequestModal` primary submit button ("Submit Request")
 - `ScheduleChangeRequestsTab` inline "Confirm Reschedule" slot selection button
 - Pending request count badge on the Requests tab navigation item
 - "Under Review" status indicator accent element (navy border-left on card)
 
 Secondary semantic colors (follow existing badge/availability indicator patterns):
+
 - `#22c55e` (green-500): slot availability "available" indicator in suggestion list (both teams free)
 - `#facc15` (yellow-400): slot availability "partial conflict" indicator (one team has low-priority overlap)
 - `#f87171` (red-400 light): slot availability "conflict" indicator (hard conflict detected)
@@ -99,13 +103,14 @@ Source: CLAUDE.md Colors + `tailwind.config.js` + `app/globals.css` + CONTEXT.md
 
 New components to create for this phase:
 
-| Component | Location | Pattern Reference |
-|-----------|----------|-------------------|
-| `ScheduleChangeRequestModal` | `components/schedule/ScheduleChangeRequestModal.tsx` | `Modal` component — same open/onClose/title/children/footer props |
-| `ScheduleChangeRequestsTab` | `components/requests/ScheduleChangeRequestsTab.tsx` | Tab pattern: named export, `useApp()` + `useAuth()`, `tab-content` padding |
-| `RequestCard` | `components/requests/RequestCard.tsx` | `Card` component — inline expand pattern similar to `CommandCenter` alert cards |
+| Component                    | Location                                             | Pattern Reference                                                               |
+| ---------------------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `ScheduleChangeRequestModal` | `components/schedule/ScheduleChangeRequestModal.tsx` | `Modal` component — same open/onClose/title/children/footer props               |
+| `ScheduleChangeRequestsTab`  | `components/requests/ScheduleChangeRequestsTab.tsx`  | Tab pattern: named export, `useApp()` + `useAuth()`, `tab-content` padding      |
+| `RequestCard`                | `components/requests/RequestCard.tsx`                | `Card` component — inline expand pattern similar to `CommandCenter` alert cards |
 
 Reused existing components:
+
 - `Modal` — `ScheduleChangeRequestModal` wrapper (open, onClose, title, children, footer)
 - `Btn` — primary ("Submit Request", "Confirm Reschedule"), danger ("Deny Request"), ghost ("Discard Request"), outline ("Request Change" on game card)
 - `StatusBadge` — extended with request statuses (pending, under_review, approved, denied, rescheduled, cancelled) — see Status Badge section below
@@ -125,16 +130,16 @@ Source: CONTEXT.md D-07, D-10, D-11 + `components/ui/index.tsx` + CLAUDE.md comp
 
 The existing `StatusBadge` only accepts `GameStatus`. Phase 8 requires request-level statuses. Create request status badges as inline Tailwind spans following the same `globals.css` pill pattern.
 
-| Status | Background | Text Color | Border |
-|--------|------------|------------|--------|
-| pending | `#071830` | `#60a5fa` | `rgba(96,165,250,0.2)` |
-| under_review | `#0a1f45` | `#93c5fd` | `rgba(147,197,253,0.25)` |
-| approved | `#052e14` | `#22c55e` | `rgba(34,197,94,0.25)` |
-| denied | `#2a0808` | `#f87171` | `rgba(248,113,113,0.2)` |
-| rescheduled | `#052e14` | `#4ade80` | `rgba(74,222,128,0.2)` |
-| cancelled | `#111520` | `#64748b` | `#1e2d40` |
-| partially_complete | `#1f1800` | `#facc15` | `rgba(234,179,8,0.2)` |
-| completed | `#071830` | `#94a3b8` | `#1e2d40` |
+| Status             | Background | Text Color | Border                   |
+| ------------------ | ---------- | ---------- | ------------------------ |
+| pending            | `#071830`  | `#60a5fa`  | `rgba(96,165,250,0.2)`   |
+| under_review       | `#0a1f45`  | `#93c5fd`  | `rgba(147,197,253,0.25)` |
+| approved           | `#052e14`  | `#22c55e`  | `rgba(34,197,94,0.25)`   |
+| denied             | `#2a0808`  | `#f87171`  | `rgba(248,113,113,0.2)`  |
+| rescheduled        | `#052e14`  | `#4ade80`  | `rgba(74,222,128,0.2)`   |
+| cancelled          | `#111520`  | `#64748b`  | `#1e2d40`                |
+| partially_complete | `#1f1800`  | `#facc15`  | `rgba(234,179,8,0.2)`    |
+| completed          | `#071830`  | `#94a3b8`  | `#1e2d40`                |
 
 CSS pattern: `font-cond text-[10px] font-black tracking-[0.1em] px-2 py-0.5 rounded-full border uppercase`
 
@@ -266,56 +271,56 @@ Source: CONTEXT.md D-21, D-22, D-23 + Phase 7 UI-SPEC D-06 pattern
 
 ## Copywriting Contract
 
-| Element | Copy |
-|---------|------|
-| Primary CTA — coach submit modal | "Submit Request" |
-| Primary CTA — admin slot confirm | "Confirm Reschedule" |
-| Primary CTA — admin cancel approve | "Yes, Cancel Game" |
-| Secondary CTA — deny confirm | "Confirm Deny" |
-| Modal — secondary dismiss button | "Discard Request" |
-| Game card button | "Request Change" |
-| Modal title | "Request Schedule Change" |
-| Modal — request type label | "What do you need?" |
-| Modal — request type option A | "Reschedule" |
-| Modal — request type option B | "Cancel Game" |
-| Modal — reason label | "Reason" |
-| Modal — details label | "Additional Details (Optional)" |
-| Modal — details placeholder | "Describe the conflict or issue..." |
-| Modal — game list section header | "AFFECTED GAMES" |
-| Modal — game list empty state | "No upcoming games." |
-| Modal — submit loading | "Submitting..." |
-| Modal — submit success toast | "Request submitted." |
-| Modal — submit error toast | "Could not submit request. Try again." |
-| Requests tab label | "Requests" |
-| Tab badge format | "Requests (3)" |
-| Requests tab empty state | "No schedule change requests yet." |
-| Section header — pending | "PENDING" |
-| Section header — under review | "UNDER REVIEW" |
-| Section header — completed | "COMPLETED / DENIED" |
-| RequestCard — mark under review | "Mark Under Review" |
-| RequestCard — approve | "Approve Request" |
-| RequestCard — deny | "Deny Request" |
-| Deny notes label | "Denial reason (optional)" |
-| Deny notes placeholder | "Explain why the request was denied..." |
-| Deny inline back button | "Go Back" |
-| Cancel game confirm prompt | "Cancel this game? This cannot be undone." |
-| Cancel game confirm button | "Yes, Cancel Game" |
-| Cancel game confirm back | "Go Back" |
-| Slot panel loading | "Finding available slots..." |
-| Slot panel empty state | "No available slots found. Manual rescheduling required." |
-| Slot panel error | "Could not load slot suggestions. Try again." |
-| Slot panel back button | "Go Back" |
-| Slot availability — available | "Available" |
-| Slot availability — partial conflict | "Partial" |
-| Slot availability — conflict | "Conflict" |
-| Approve reschedule toast (coach) | "Game rescheduled. Affected teams have been notified." |
-| Approve cancel toast (coach) | "Game cancelled. Affected teams have been notified." |
-| Deny toast (requester) | "Request denied." |
-| Under review toast (requester) | "Your request is under review." |
-| Approve error toast | "Could not process this request. Try again." |
-| Game card badge — pending request | title="Change request pending" |
-| Game card button disabled tooltip | title="Request pending" |
-| Partially complete request status | "PARTIAL" |
+| Element                              | Copy                                                      |
+| ------------------------------------ | --------------------------------------------------------- |
+| Primary CTA — coach submit modal     | "Submit Request"                                          |
+| Primary CTA — admin slot confirm     | "Confirm Reschedule"                                      |
+| Primary CTA — admin cancel approve   | "Yes, Cancel Game"                                        |
+| Secondary CTA — deny confirm         | "Confirm Deny"                                            |
+| Modal — secondary dismiss button     | "Discard Request"                                         |
+| Game card button                     | "Request Change"                                          |
+| Modal title                          | "Request Schedule Change"                                 |
+| Modal — request type label           | "What do you need?"                                       |
+| Modal — request type option A        | "Reschedule"                                              |
+| Modal — request type option B        | "Cancel Game"                                             |
+| Modal — reason label                 | "Reason"                                                  |
+| Modal — details label                | "Additional Details (Optional)"                           |
+| Modal — details placeholder          | "Describe the conflict or issue..."                       |
+| Modal — game list section header     | "AFFECTED GAMES"                                          |
+| Modal — game list empty state        | "No upcoming games."                                      |
+| Modal — submit loading               | "Submitting..."                                           |
+| Modal — submit success toast         | "Request submitted."                                      |
+| Modal — submit error toast           | "Could not submit request. Try again."                    |
+| Requests tab label                   | "Requests"                                                |
+| Tab badge format                     | "Requests (3)"                                            |
+| Requests tab empty state             | "No schedule change requests yet."                        |
+| Section header — pending             | "PENDING"                                                 |
+| Section header — under review        | "UNDER REVIEW"                                            |
+| Section header — completed           | "COMPLETED / DENIED"                                      |
+| RequestCard — mark under review      | "Mark Under Review"                                       |
+| RequestCard — approve                | "Approve Request"                                         |
+| RequestCard — deny                   | "Deny Request"                                            |
+| Deny notes label                     | "Denial reason (optional)"                                |
+| Deny notes placeholder               | "Explain why the request was denied..."                   |
+| Deny inline back button              | "Go Back"                                                 |
+| Cancel game confirm prompt           | "Cancel this game? This cannot be undone."                |
+| Cancel game confirm button           | "Yes, Cancel Game"                                        |
+| Cancel game confirm back             | "Go Back"                                                 |
+| Slot panel loading                   | "Finding available slots..."                              |
+| Slot panel empty state               | "No available slots found. Manual rescheduling required." |
+| Slot panel error                     | "Could not load slot suggestions. Try again."             |
+| Slot panel back button               | "Go Back"                                                 |
+| Slot availability — available        | "Available"                                               |
+| Slot availability — partial conflict | "Partial"                                                 |
+| Slot availability — conflict         | "Conflict"                                                |
+| Approve reschedule toast (coach)     | "Game rescheduled. Affected teams have been notified."    |
+| Approve cancel toast (coach)         | "Game cancelled. Affected teams have been notified."      |
+| Deny toast (requester)               | "Request denied."                                         |
+| Under review toast (requester)       | "Your request is under review."                           |
+| Approve error toast                  | "Could not process this request. Try again."              |
+| Game card badge — pending request    | title="Change request pending"                            |
+| Game card button disabled tooltip    | title="Request pending"                                   |
+| Partially complete request status    | "PARTIAL"                                                 |
 
 Source: CONTEXT.md Decisions D-02 through D-23 + REQUIREMENTS.md SCR-01 through SCR-07 + defaults
 
@@ -323,11 +328,11 @@ Source: CONTEXT.md Decisions D-02 through D-23 + REQUIREMENTS.md SCR-01 through 
 
 ## Z-Index Scale
 
-| Layer | z-index | Usage |
-|-------|---------|-------|
-| Dropdown | 50 | TopBar dropdowns (existing) |
-| Modal | 50 | `Modal` component — `ScheduleChangeRequestModal` |
-| Toast | 60 | `react-hot-toast` (above modals) |
+| Layer    | z-index | Usage                                            |
+| -------- | ------- | ------------------------------------------------ |
+| Dropdown | 50      | TopBar dropdowns (existing)                      |
+| Modal    | 50      | `Modal` component — `ScheduleChangeRequestModal` |
+| Toast    | 60      | `react-hot-toast` (above modals)                 |
 
 No new z-index layers introduced. `ScheduleChangeRequestModal` uses the existing `Modal` component which is `z-50`.
 
@@ -337,15 +342,15 @@ Source: `components/ui/index.tsx` Modal (z-50) + Phase 7 UI-SPEC z-index scale
 
 ## Animation & Transition Contract
 
-| Interaction | Duration | Property | Easing |
-|------------|----------|----------|--------|
-| RequestCard approve expand | 150ms | max-height + opacity | ease-out |
-| RequestCard deny expand | 150ms | max-height + opacity | ease-out |
-| Slot row hover | 150ms | background-color | ease |
-| Slot row selected | 100ms | background-color + border-color | ease |
-| Cancel confirm inline expand | 150ms | opacity | ease-out |
-| Btn hover state | 150ms | background-color | ease |
-| Modal open | 150ms | opacity + scale (0.97 → 1.0) | ease-out (existing Modal pattern) |
+| Interaction                  | Duration | Property                        | Easing                            |
+| ---------------------------- | -------- | ------------------------------- | --------------------------------- |
+| RequestCard approve expand   | 150ms    | max-height + opacity            | ease-out                          |
+| RequestCard deny expand      | 150ms    | max-height + opacity            | ease-out                          |
+| Slot row hover               | 150ms    | background-color                | ease                              |
+| Slot row selected            | 100ms    | background-color + border-color | ease                              |
+| Cancel confirm inline expand | 150ms    | opacity                         | ease-out                          |
+| Btn hover state              | 150ms    | background-color                | ease                              |
+| Modal open                   | 150ms    | opacity + scale (0.97 → 1.0)    | ease-out (existing Modal pattern) |
 
 All transitions use `transition-{property} duration-150` Tailwind utilities. No motion for users with `prefers-reduced-motion` — omit animation, render final state directly.
 
@@ -371,10 +376,10 @@ Source: ui-ux-pro-max accessibility rules (color-contrast, aria-labels, keyboard
 
 ## Registry Safety
 
-| Registry | Blocks Used | Safety Gate |
-|----------|-------------|-------------|
-| shadcn official | none — shadcn not initialized | not applicable |
-| npm packages | no new packages — all capabilities in existing stack (Tailwind, lucide-react, date-fns, react-hot-toast) | npm packages — no registry vetting required |
+| Registry        | Blocks Used                                                                                              | Safety Gate                                 |
+| --------------- | -------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| shadcn official | none — shadcn not initialized                                                                            | not applicable                              |
+| npm packages    | no new packages — all capabilities in existing stack (Tailwind, lucide-react, date-fns, react-hot-toast) | npm packages — no registry vetting required |
 
 No third-party shadcn registries declared for this phase.
 

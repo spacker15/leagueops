@@ -110,6 +110,7 @@ return map[status] ?? 'text-muted'
 ### Tab Components
 
 Each tab is a named export from `components/<feature>/<FeatureName>Tab.tsx`. They:
+
 - Use `useApp()` to access state and actions from the store
 - Use `useAuth()` for role-based rendering
 - Keep local UI state (`useState`) for modal open/close, form inputs, selected items
@@ -137,20 +138,20 @@ Use the shared `Modal` component from `components/ui/index.tsx`. Props: `open`, 
 
 All shared primitives are in a single file. Components:
 
-| Component | Purpose |
-|---|---|
-| `StatusBadge` | Renders game status as a pill using CSS badge classes |
-| `Btn` | Button with `variant` (`primary`/`danger`/`success`/`ghost`/`outline`) and `size` (`sm`/`md`/`lg`) |
-| `FormField` | Label + children wrapper |
-| `Input` | Styled `<input>` with shared base class |
-| `Select` | Styled `<select>` — always use solid `bg-[#040e24]`, never transparent (see Gotcha #4 in CONTEXT.md) |
-| `Textarea` | Styled `<textarea>` |
-| `Card` | `bg-surface-card` bordered container |
-| `SectionHeader` | Uppercase condensed label with bottom border |
-| `Modal` | Backdrop modal with title bar and optional footer |
-| `CoverageBar` | Progress bar for ref/vol coverage stats |
-| `Avatar` | Initials circle with color variant |
-| `Pill` | Small colored tag |
+| Component       | Purpose                                                                                              |
+| --------------- | ---------------------------------------------------------------------------------------------------- |
+| `StatusBadge`   | Renders game status as a pill using CSS badge classes                                                |
+| `Btn`           | Button with `variant` (`primary`/`danger`/`success`/`ghost`/`outline`) and `size` (`sm`/`md`/`lg`)   |
+| `FormField`     | Label + children wrapper                                                                             |
+| `Input`         | Styled `<input>` with shared base class                                                              |
+| `Select`        | Styled `<select>` — always use solid `bg-[#040e24]`, never transparent (see Gotcha #4 in CONTEXT.md) |
+| `Textarea`      | Styled `<textarea>`                                                                                  |
+| `Card`          | `bg-surface-card` bordered container                                                                 |
+| `SectionHeader` | Uppercase condensed label with bottom border                                                         |
+| `Modal`         | Backdrop modal with title bar and optional footer                                                    |
+| `CoverageBar`   | Progress bar for ref/vol coverage stats                                                              |
+| `Avatar`        | Initials circle with color variant                                                                   |
+| `Pill`          | Small colored tag                                                                                    |
 
 ### `cn()` Utility
 
@@ -272,14 +273,14 @@ Standard section header pattern with accent bar:
 
 ### Color Palette
 
-| Token | Hex | Usage |
-|---|---|---|
-| `#020810` | surface | Page background |
-| `#081428` | card | Card/panel backgrounds |
-| `#1a2d50` | border | All borders |
-| `#5a6e9a` | muted | Secondary text, labels |
-| `#0B3D91` | navy | Primary action color |
-| `#D62828` | red | Danger/alert color |
+| Token     | Hex     | Usage                  |
+| --------- | ------- | ---------------------- |
+| `#020810` | surface | Page background        |
+| `#081428` | card    | Card/panel backgrounds |
+| `#1a2d50` | border  | All borders            |
+| `#5a6e9a` | muted   | Secondary text, labels |
+| `#0B3D91` | navy    | Primary action color   |
+| `#D62828` | red     | Danger/alert color     |
 
 ### CSS Custom Properties (`app/globals.css`)
 

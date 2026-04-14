@@ -12,10 +12,20 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import {
-  loadScheduleRules, loadWeeklyOverrides, loadTeamProgramMap, loadRuleOverrides,
-  evaluateMatchupRules, evaluateSlotRules, getEffectiveTiming,
-  getForcedMatchups, getSkippedDates,
-  type ScheduleRule, type ScheduleContext, type PlacedGame, type TeamInfo, type RuleOverride
+  loadScheduleRules,
+  loadWeeklyOverrides,
+  loadTeamProgramMap,
+  loadRuleOverrides,
+  evaluateMatchupRules,
+  evaluateSlotRules,
+  getEffectiveTiming,
+  getForcedMatchups,
+  getSkippedDates,
+  type ScheduleRule,
+  type ScheduleContext,
+  type PlacedGame,
+  type TeamInfo,
+  type RuleOverride,
 } from './schedule-rules'
 import { getConflictingTeamPairs } from './coach-conflicts'
 
@@ -156,8 +166,11 @@ export async function generateSchedule(
   for (const t of teams) {
     const prog = teamProgramMap.get(t.id)
     teamInfoMap.set(t.id, {
-      id: t.id, name: t.name, division: t.division,
-      program_id: prog?.id ?? null, program_name: prog?.name ?? null,
+      id: t.id,
+      name: t.name,
+      division: t.division,
+      program_id: prog?.id ?? null,
+      program_name: prog?.name ?? null,
     })
   }
 
@@ -253,7 +266,7 @@ export async function generateSchedule(
   const skippedDates = getSkippedDates(scheduleRules, weeklyOverrides)
 
   // Filter out skipped dates
-  const activeDates = eventDates.filter(ed => !skippedDates.has(ed.date))
+  const activeDates = eventDates.filter((ed) => !skippedDates.has(ed.date))
 
   // 5. Load season_game_days for start/end times (if available)
   const { data: gameDays } = await sb
@@ -324,16 +337,18 @@ export async function generateSchedule(
     }
   }
 
-  if (allMatchups.length === 0) throw new Error('No matchups generated — need at least 2 teams per division')
+  if (allMatchups.length === 0)
+    throw new Error('No matchups generated — need at least 2 teams per division')
 
   // Filter matchups through rule evaluator
-  const filteredMatchups = allMatchups.filter(matchup => {
+  const filteredMatchups = allMatchups.filter((matchup) => {
     const homeTeam = teamInfoMap.get(matchup.home)
     const awayTeam = teamInfoMap.get(matchup.away)
     if (!homeTeam || !awayTeam) return true
 
     const ctx: ScheduleContext = {
-      homeTeam, awayTeam,
+      homeTeam,
+      awayTeam,
       slot: { eventDateId: 0, fieldId: 0, fieldName: '', timeMinutes: 0, weekNumber: 0, date: '' },
       placedGames: [],
       teamGameCounts: new Map(),
@@ -347,10 +362,16 @@ export async function generateSchedule(
     const result = evaluateMatchupRules(scheduleRules, ctx, ruleOverrides)
     if (!result.allowed) {
       auditEntries.push({
-        event_id: eventId, run_id: runId, log_type: 'matchup_blocked', severity: 'info',
-        home_team_id: matchup.home, away_team_id: matchup.away, division: matchup.division,
-        rule_id: result.blockingRule?.id ?? null, rule_name: result.blockingRule?.rule_name ?? '',
-        message: result.evaluations.find(e => !e.passed)?.reason ?? 'Blocked by rule',
+        event_id: eventId,
+        run_id: runId,
+        log_type: 'matchup_blocked',
+        severity: 'info',
+        home_team_id: matchup.home,
+        away_team_id: matchup.away,
+        division: matchup.division,
+        rule_id: result.blockingRule?.id ?? null,
+        rule_name: result.blockingRule?.rule_name ?? '',
+        message: result.evaluations.find((e) => !e.passed)?.reason ?? 'Blocked by rule',
         metadata: {},
       })
     }
@@ -406,11 +427,12 @@ export async function generateSchedule(
     }
   }
 
-  if (slots.length === 0) throw new Error('No time slots available — check event dates and schedule settings')
+  if (slots.length === 0)
+    throw new Error('No time slots available — check event dates and schedule settings')
   if (slots.length < filteredMatchups.length) {
     throw new Error(
       `Not enough time slots (${slots.length}) for all matchups (${filteredMatchups.length}). ` +
-      `Add more event dates, fields, or adjust schedule increment.`
+        `Add more event dates, fields, or adjust schedule increment.`
     )
   }
 
@@ -450,13 +472,14 @@ export async function generateSchedule(
         // Two teams sharing a coach cannot play simultaneously in the same slot with other shared-coach teams
         if (coachConflictPairs.size > 0) {
           const gamesInThisSlot = placedGames.filter(
-            g => g.event_date_id === slot.eventDateId && g.timeMinutes === slot.timeMinutes
+            (g) => g.event_date_id === slot.eventDateId && g.timeMinutes === slot.timeMinutes
           )
-          const coachConflictInSlot = gamesInThisSlot.some(placed =>
-            teamsShareCoach(placed.home_team_id, matchup.home) ||
-            teamsShareCoach(placed.home_team_id, matchup.away) ||
-            teamsShareCoach(placed.away_team_id, matchup.home) ||
-            teamsShareCoach(placed.away_team_id, matchup.away)
+          const coachConflictInSlot = gamesInThisSlot.some(
+            (placed) =>
+              teamsShareCoach(placed.home_team_id, matchup.home) ||
+              teamsShareCoach(placed.home_team_id, matchup.away) ||
+              teamsShareCoach(placed.away_team_id, matchup.home) ||
+              teamsShareCoach(placed.away_team_id, matchup.away)
           )
           if (coachConflictInSlot) continue
         }
@@ -464,7 +487,8 @@ export async function generateSchedule(
         // Evaluate slot rules if we have team info
         if (homeTeam && awayTeam) {
           const ctx: ScheduleContext = {
-            homeTeam, awayTeam,
+            homeTeam,
+            awayTeam,
             slot: {
               eventDateId: slot.eventDateId,
               fieldId: slot.fieldId,
@@ -485,13 +509,20 @@ export async function generateSchedule(
           const slotResult = evaluateSlotRules(scheduleRules, ctx, ruleOverrides)
           if (!slotResult.allowed) {
             auditEntries.push({
-              event_id: eventId, run_id: runId, log_type: 'slot_skipped', severity: 'info',
-              home_team_id: matchup.home, away_team_id: matchup.away, division: matchup.division,
-              event_date_id: slot.eventDateId, field_id: slot.fieldId,
+              event_id: eventId,
+              run_id: runId,
+              log_type: 'slot_skipped',
+              severity: 'info',
+              home_team_id: matchup.home,
+              away_team_id: matchup.away,
+              division: matchup.division,
+              event_date_id: slot.eventDateId,
+              field_id: slot.fieldId,
               scheduled_time: minutesToDisplay(slot.timeMinutes),
               rule_id: slotResult.blockingRule?.id ?? null,
               rule_name: slotResult.blockingRule?.rule_name ?? '',
-              message: slotResult.evaluations.find(e => !e.passed)?.reason ?? 'Blocked by slot rule',
+              message:
+                slotResult.evaluations.find((e) => !e.passed)?.reason ?? 'Blocked by slot rule',
               metadata: {},
             })
             continue // Skip this slot, try the next one
@@ -518,10 +549,10 @@ export async function generateSchedule(
         })
 
         // Update tracking state for subsequent rule evaluations
-        const gameDuration = getEffectiveTiming(
-          matchup.division, scheduleRules, divTimingMap,
-          { slotDuration, buffer }
-        ).increment
+        const gameDuration = getEffectiveTiming(matchup.division, scheduleRules, divTimingMap, {
+          slotDuration,
+          buffer,
+        }).increment
         const gameEndTime = slot.timeMinutes + gameDuration
 
         teamGameCounts.set(matchup.home, (teamGameCounts.get(matchup.home) ?? 0) + 1)
@@ -558,11 +589,18 @@ export async function generateSchedule(
         })
 
         auditEntries.push({
-          event_id: eventId, run_id: runId, log_type: 'matchup_placed', severity: 'info',
-          home_team_id: matchup.home, away_team_id: matchup.away, division: matchup.division,
-          event_date_id: slot.eventDateId, field_id: slot.fieldId,
+          event_id: eventId,
+          run_id: runId,
+          log_type: 'matchup_placed',
+          severity: 'info',
+          home_team_id: matchup.home,
+          away_team_id: matchup.away,
+          division: matchup.division,
+          event_date_id: slot.eventDateId,
+          field_id: slot.fieldId,
           scheduled_time: scheduledTime,
-          rule_id: null, rule_name: '',
+          rule_id: null,
+          rule_name: '',
           message: `Placed ${homeTeam?.name ?? matchup.home} vs ${awayTeam?.name ?? matchup.away}`,
           metadata: { weekNumber: slot.weekNumber },
         })
@@ -594,11 +632,18 @@ export async function generateSchedule(
         })
 
         auditEntries.push({
-          event_id: eventId, run_id: runId, log_type: 'matchup_placed', severity: 'warn',
-          home_team_id: matchup.home, away_team_id: matchup.away, division: matchup.division,
-          event_date_id: slot.eventDateId, field_id: slot.fieldId,
+          event_id: eventId,
+          run_id: runId,
+          log_type: 'matchup_placed',
+          severity: 'warn',
+          home_team_id: matchup.home,
+          away_team_id: matchup.away,
+          division: matchup.division,
+          event_date_id: slot.eventDateId,
+          field_id: slot.fieldId,
           scheduled_time: minutesToDisplay(slot.timeMinutes),
-          rule_id: null, rule_name: '',
+          rule_id: null,
+          rule_name: '',
           message: `Force-placed (no conflict-free slot found): ${homeTeam?.name ?? matchup.home} vs ${awayTeam?.name ?? matchup.away}`,
           metadata: { forced: true, weekNumber: slot.weekNumber },
         })
@@ -741,7 +786,7 @@ export async function detectConflicts(
   // ── Check 3: Insufficient rest ─────────────────────────────
   // Check rule-based min_rest if available, otherwise use event default
   let ruleMinRest = minRest
-  const minRestRule = scheduleRules.find(r => (r.conditions as any).type === 'min_rest')
+  const minRestRule = scheduleRules.find((r) => (r.conditions as any).type === 'min_rest')
   if (minRestRule) {
     const ruleMinutes = (minRestRule.conditions as any).minutes as number | undefined
     if (ruleMinutes) ruleMinRest = ruleMinutes
@@ -771,7 +816,11 @@ export async function detectConflicts(
           severity: 'warning',
           description: `Only ${rest} min rest between Game #${a.id} (${a.scheduled_time}) and Game #${b.id} (${b.scheduled_time}) — minimum is ${ruleMinRest} min${minRestRule ? ` (rule: ${minRestRule.rule_name})` : ''}`,
           gameIds: [a.id, b.id],
-          metadata: { rest_min: rest, required_min: ruleMinRest, rule_name: minRestRule?.rule_name ?? null },
+          metadata: {
+            rest_min: rest,
+            required_min: ruleMinRest,
+            rule_name: minRestRule?.rule_name ?? null,
+          },
         })
       }
     }

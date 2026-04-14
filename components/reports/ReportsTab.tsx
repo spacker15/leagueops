@@ -8,7 +8,14 @@ import { getAllGamesByEvent } from '@/lib/db'
 import type { Game, Team, Referee, Incident, MedicalIncident } from '@/types'
 import { RulesReference } from '@/components/rules/RulesReference'
 
-type SubTab = 'results' | 'standings' | 'leaders' | 'matchups' | 'ref-schedule' | 'incidents' | 'rules'
+type SubTab =
+  | 'results'
+  | 'standings'
+  | 'leaders'
+  | 'matchups'
+  | 'ref-schedule'
+  | 'incidents'
+  | 'rules'
 
 const SUB_TABS: { id: SubTab; label: string }[] = [
   { id: 'results', label: 'RESULTS' },
@@ -516,7 +523,9 @@ function MatchupsView({
   const [loading, setLoading] = useState(true)
   const [settingsDivisions, setSettingsDivisions] = useState<string[]>([])
   const [fromIdx, setFromIdx] = useState(0)
-  const [toIdx, setToIdx] = useState(eventDatesFromState.length > 0 ? eventDatesFromState.length - 1 : 0)
+  const [toIdx, setToIdx] = useState(
+    eventDatesFromState.length > 0 ? eventDatesFromState.length - 1 : 0
+  )
 
   // Update toIdx when dates load
   useEffect(() => {
@@ -567,9 +576,7 @@ function MatchupsView({
     const fromDate = eventDatesFromState[fromIdx]
     const toDate = eventDatesFromState[toIdx]
     if (!fromDate || !toDate) return allGames
-    const validIds = new Set(
-      eventDatesFromState.slice(fromIdx, toIdx + 1).map((d) => d.id)
-    )
+    const validIds = new Set(eventDatesFromState.slice(fromIdx, toIdx + 1).map((d) => d.id))
     return allGames.filter((g) => g.event_date_id !== null && validIds.has(g.event_date_id))
   }, [allGames, fromIdx, toIdx, eventDatesFromState])
 
@@ -590,78 +597,98 @@ function MatchupsView({
   const isAllDates = fromIdx === 0 && toIdx === eventDatesFromState.length - 1
 
   // Date range slider
-  const datePicker = eventDatesFromState.length > 1 ? (
-    <div className="bg-surface-card border border-border rounded-lg p-3 mb-4">
-      <div className="flex items-center justify-between mb-2">
-        <span className="font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase">
-          Date Range
-        </span>
-        <span className="font-cond text-[12px] font-bold text-white">
-          {isAllDates ? 'All Dates' : fromIdx === toIdx ? fromLabel : `${fromLabel} → ${toLabel}`}
-        </span>
-      </div>
-      <div className="flex items-center gap-3">
-        <div className="flex-1">
-          <div className="font-cond text-[9px] text-muted mb-1">FROM</div>
-          <input
-            type="range"
-            min={0}
-            max={eventDatesFromState.length - 1}
-            value={fromIdx}
-            onChange={(e) => {
-              const v = parseInt(e.target.value)
-              setFromIdx(v)
-              if (v > toIdx) setToIdx(v)
-            }}
-            className="w-full accent-blue-500"
-          />
-          <div className="font-cond text-[10px] text-blue-300 font-bold mt-0.5">{fromLabel}</div>
-        </div>
-        <div className="flex-1">
-          <div className="font-cond text-[9px] text-muted mb-1">TO</div>
-          <input
-            type="range"
-            min={0}
-            max={eventDatesFromState.length - 1}
-            value={toIdx}
-            onChange={(e) => {
-              const v = parseInt(e.target.value)
-              setToIdx(v)
-              if (v < fromIdx) setFromIdx(v)
-            }}
-            className="w-full accent-blue-500"
-          />
-          <div className="font-cond text-[10px] text-blue-300 font-bold mt-0.5">{toLabel}</div>
-        </div>
-      </div>
-      {/* Week labels */}
-      <div className="flex justify-between mt-1">
-        {eventDatesFromState.map((d, i) => (
-          <span
-            key={d.id}
-            className={cn(
-              'font-cond text-[8px] font-bold',
-              i >= fromIdx && i <= toIdx ? 'text-blue-400' : 'text-muted/40'
-            )}
-          >
-            {d.label?.replace('Week ', 'W') ?? `D${i + 1}`}
+  const datePicker =
+    eventDatesFromState.length > 1 ? (
+      <div className="bg-surface-card border border-border rounded-lg p-3 mb-4">
+        <div className="flex items-center justify-between mb-2">
+          <span className="font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase">
+            Date Range
           </span>
-        ))}
+          <span className="font-cond text-[12px] font-bold text-white">
+            {isAllDates ? 'All Dates' : fromIdx === toIdx ? fromLabel : `${fromLabel} → ${toLabel}`}
+          </span>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="flex-1">
+            <div className="font-cond text-[9px] text-muted mb-1">FROM</div>
+            <input
+              type="range"
+              min={0}
+              max={eventDatesFromState.length - 1}
+              value={fromIdx}
+              onChange={(e) => {
+                const v = parseInt(e.target.value)
+                setFromIdx(v)
+                if (v > toIdx) setToIdx(v)
+              }}
+              className="w-full accent-blue-500"
+            />
+            <div className="font-cond text-[10px] text-blue-300 font-bold mt-0.5">{fromLabel}</div>
+          </div>
+          <div className="flex-1">
+            <div className="font-cond text-[9px] text-muted mb-1">TO</div>
+            <input
+              type="range"
+              min={0}
+              max={eventDatesFromState.length - 1}
+              value={toIdx}
+              onChange={(e) => {
+                const v = parseInt(e.target.value)
+                setToIdx(v)
+                if (v < fromIdx) setFromIdx(v)
+              }}
+              className="w-full accent-blue-500"
+            />
+            <div className="font-cond text-[10px] text-blue-300 font-bold mt-0.5">{toLabel}</div>
+          </div>
+        </div>
+        {/* Week labels */}
+        <div className="flex justify-between mt-1">
+          {eventDatesFromState.map((d, i) => (
+            <span
+              key={d.id}
+              className={cn(
+                'font-cond text-[8px] font-bold',
+                i >= fromIdx && i <= toIdx ? 'text-blue-400' : 'text-muted/40'
+              )}
+            >
+              {d.label?.replace('Week ', 'W') ?? `D${i + 1}`}
+            </span>
+          ))}
+        </div>
       </div>
-    </div>
-  ) : null
+    ) : null
 
   // When a specific division is selected, show a single matrix
   if (divFilter !== 'ALL') {
     const divGames = filteredGames.filter((g) => g.division === divFilter)
     const divTeams = teamsForDivGames(divGames)
-    if (divTeams.length === 0) return <>{datePicker}<Empty message="No teams found for this division." /></>
-    return <>{datePicker}<MatchupMatrix teams={divTeams} games={divGames} showDivisionOnRow={false} /></>
+    if (divTeams.length === 0)
+      return (
+        <>
+          {datePicker}
+          <Empty message="No teams found for this division." />
+        </>
+      )
+    return (
+      <>
+        {datePicker}
+        <MatchupMatrix teams={divTeams} games={divGames} showDivisionOnRow={false} />
+      </>
+    )
   }
 
   // "ALL" — show separate matrices per division
-  const divisionsWithGames = allDivisions.filter((div) => filteredGames.some((g) => g.division === div))
-  if (divisionsWithGames.length === 0) return <>{datePicker}<Empty message="No teams found." /></>
+  const divisionsWithGames = allDivisions.filter((div) =>
+    filteredGames.some((g) => g.division === div)
+  )
+  if (divisionsWithGames.length === 0)
+    return (
+      <>
+        {datePicker}
+        <Empty message="No teams found." />
+      </>
+    )
 
   return (
     <div className="space-y-8">
@@ -1644,11 +1671,17 @@ function IncidentsReportView({
   const fieldMap = Object.fromEntries(fields.map((f) => [f.id, f.name]))
 
   const sortedIncidents = useMemo(
-    () => [...incidents].sort((a, b) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime()),
+    () =>
+      [...incidents].sort(
+        (a, b) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime()
+      ),
     [incidents]
   )
   const sortedMedical = useMemo(
-    () => [...medicalIncidents].sort((a, b) => new Date(b.dispatched_at).getTime() - new Date(a.dispatched_at).getTime()),
+    () =>
+      [...medicalIncidents].sort(
+        (a, b) => new Date(b.dispatched_at).getTime() - new Date(a.dispatched_at).getTime()
+      ),
     [medicalIncidents]
   )
 
@@ -1666,13 +1699,14 @@ function IncidentsReportView({
         {[
           { label: 'TOTAL INCIDENTS', value: incidentCount, color: '#f59e0b' },
           { label: 'MEDICAL DISPATCHES', value: medicalCount, color: '#60a5fa' },
-          { label: 'ACTIVE MEDICAL', value: activeMedical, color: activeMedical > 0 ? '#ef4444' : '#34d399' },
+          {
+            label: 'ACTIVE MEDICAL',
+            value: activeMedical,
+            color: activeMedical > 0 ? '#ef4444' : '#34d399',
+          },
           { label: 'EJECTIONS', value: ejections, color: ejections > 0 ? '#ef4444' : '#8a9ec0' },
         ].map((s) => (
-          <div
-            key={s.label}
-            className="rounded-lg border border-border px-4 py-3 bg-surface-card"
-          >
+          <div key={s.label} className="rounded-lg border border-border px-4 py-3 bg-surface-card">
             <div className="font-cond text-[9px] font-black tracking-[.15em] text-muted uppercase">
               {s.label}
             </div>
@@ -1696,7 +1730,11 @@ function IncidentsReportView({
                 : 'bg-surface border-border text-muted hover:text-white'
             )}
           >
-            {f === 'all' ? `ALL (${incidentCount + medicalCount})` : f === 'incidents' ? `INCIDENTS (${incidentCount})` : `MEDICAL (${medicalCount})`}
+            {f === 'all'
+              ? `ALL (${incidentCount + medicalCount})`
+              : f === 'incidents'
+                ? `INCIDENTS (${incidentCount})`
+                : `MEDICAL (${medicalCount})`}
           </button>
         ))}
       </div>
@@ -1726,26 +1764,48 @@ function IncidentsReportView({
                 {sortedIncidents.map((inc, i) => {
                   const isAlert = ['Player Injury', 'Ejection'].includes(inc.type)
                   return (
-                    <tr key={inc.id} style={{ background: i % 2 === 0 ? 'var(--surface)' : 'var(--surface-card)' }}>
+                    <tr
+                      key={inc.id}
+                      style={{ background: i % 2 === 0 ? 'var(--surface)' : 'var(--surface-card)' }}
+                    >
                       <Td>
                         <span className="font-mono text-[11px] text-white">
                           {new Date(inc.occurred_at).toLocaleString('en-US', {
-                            month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+                            month: 'short',
+                            day: 'numeric',
+                            hour: 'numeric',
+                            minute: '2-digit',
                           })}
                         </span>
                       </Td>
                       <Td>
-                        <span className={cn(
-                          'font-cond text-[10px] font-bold px-2 py-0.5 rounded',
-                          isAlert ? 'bg-red-900/30 text-red-400' : 'bg-yellow-900/30 text-yellow-400'
-                        )}>
+                        <span
+                          className={cn(
+                            'font-cond text-[10px] font-bold px-2 py-0.5 rounded',
+                            isAlert
+                              ? 'bg-red-900/30 text-red-400'
+                              : 'bg-yellow-900/30 text-yellow-400'
+                          )}
+                        >
                           {inc.type.toUpperCase()}
                         </span>
                       </Td>
-                      <Td><span className="text-[11px] text-muted">{inc.field?.name ?? fieldMap[inc.field_id ?? 0] ?? '—'}</span></Td>
-                      <Td><span className="text-[11px] text-muted">{inc.team?.name ?? '—'}</span></Td>
-                      <Td><span className="text-[11px] text-white font-bold">{inc.person_involved ?? '—'}</span></Td>
-                      <Td><span className="text-[11px] text-gray-300">{inc.description}</span></Td>
+                      <Td>
+                        <span className="text-[11px] text-muted">
+                          {inc.field?.name ?? fieldMap[inc.field_id ?? 0] ?? '—'}
+                        </span>
+                      </Td>
+                      <Td>
+                        <span className="text-[11px] text-muted">{inc.team?.name ?? '—'}</span>
+                      </Td>
+                      <Td>
+                        <span className="text-[11px] text-white font-bold">
+                          {inc.person_involved ?? '—'}
+                        </span>
+                      </Td>
+                      <Td>
+                        <span className="text-[11px] text-gray-300">{inc.description}</span>
+                      </Td>
                     </tr>
                   )
                 })}
@@ -1781,30 +1841,60 @@ function IncidentsReportView({
               <tbody>
                 {sortedMedical.map((m, i) => {
                   const statusColor =
-                    m.status === 'Resolved' ? 'text-green-400 bg-green-900/30'
-                      : m.status === 'Dispatched' ? 'text-red-400 bg-red-900/30'
-                        : m.status === 'Transported' ? 'text-orange-400 bg-orange-900/30'
+                    m.status === 'Resolved'
+                      ? 'text-green-400 bg-green-900/30'
+                      : m.status === 'Dispatched'
+                        ? 'text-red-400 bg-red-900/30'
+                        : m.status === 'Transported'
+                          ? 'text-orange-400 bg-orange-900/30'
                           : 'text-blue-400 bg-blue-900/30'
                   return (
-                    <tr key={m.id} style={{ background: i % 2 === 0 ? 'var(--surface)' : 'var(--surface-card)' }}>
+                    <tr
+                      key={m.id}
+                      style={{ background: i % 2 === 0 ? 'var(--surface)' : 'var(--surface-card)' }}
+                    >
                       <Td>
                         <span className="font-mono text-[11px] text-white">
                           {new Date(m.dispatched_at).toLocaleString('en-US', {
-                            month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+                            month: 'short',
+                            day: 'numeric',
+                            hour: 'numeric',
+                            minute: '2-digit',
                           })}
                         </span>
                       </Td>
                       <Td>
-                        <span className={cn('font-cond text-[10px] font-bold px-2 py-0.5 rounded', statusColor)}>
+                        <span
+                          className={cn(
+                            'font-cond text-[10px] font-bold px-2 py-0.5 rounded',
+                            statusColor
+                          )}
+                        >
                           {m.status.toUpperCase()}
                         </span>
                       </Td>
-                      <Td><span className="text-[11px] text-white font-bold">{m.player_name || '—'}</span></Td>
-                      <Td><span className="text-[11px] text-muted">{m.team_name ?? '—'}</span></Td>
-                      <Td><span className="text-[11px] text-muted">{m.injury_type}</span></Td>
-                      <Td><span className="text-[11px] text-muted">{m.field?.name ?? fieldMap[m.field_id ?? 0] ?? '—'}</span></Td>
-                      <Td><span className="text-[11px] text-white">{m.trainer_name}</span></Td>
-                      <Td><span className="text-[11px] text-gray-300">{m.notes ?? '—'}</span></Td>
+                      <Td>
+                        <span className="text-[11px] text-white font-bold">
+                          {m.player_name || '—'}
+                        </span>
+                      </Td>
+                      <Td>
+                        <span className="text-[11px] text-muted">{m.team_name ?? '—'}</span>
+                      </Td>
+                      <Td>
+                        <span className="text-[11px] text-muted">{m.injury_type}</span>
+                      </Td>
+                      <Td>
+                        <span className="text-[11px] text-muted">
+                          {m.field?.name ?? fieldMap[m.field_id ?? 0] ?? '—'}
+                        </span>
+                      </Td>
+                      <Td>
+                        <span className="text-[11px] text-white">{m.trainer_name}</span>
+                      </Td>
+                      <Td>
+                        <span className="text-[11px] text-gray-300">{m.notes ?? '—'}</span>
+                      </Td>
                     </tr>
                   )
                 })}

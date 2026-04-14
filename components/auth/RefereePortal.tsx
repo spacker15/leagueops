@@ -198,7 +198,15 @@ export function RefereePortal() {
   const [loading, setLoading] = useState(true)
   const [checkingIn, setCheckingIn] = useState(false)
   const [todayLabel, setTodayLabel] = useState('')
-  const [activeDispatches, setActiveDispatches] = useState<{ id: number; trainer_name: string; player_name: string; status: string; field_id: number | null }[]>([])
+  const [activeDispatches, setActiveDispatches] = useState<
+    {
+      id: number
+      trainer_name: string
+      player_name: string
+      status: string
+      field_id: number | null
+    }[]
+  >([])
 
   const [allGames, setAllGames] = useState<GameSummary[]>([])
   const [fields, setFields] = useState<Field[]>([])
@@ -738,7 +746,9 @@ export function RefereePortal() {
 
   const isAssigned = selectedGame
     ? gameSlots.some((s) => s.referee_id === userRole?.referee_id) ||
-      volSlots.some((s) => s.referee_id === userRole?.referee_id || s.volunteer_id === userRole?.volunteer_id)
+      volSlots.some(
+        (s) => s.referee_id === userRole?.referee_id || s.volunteer_id === userRole?.volunteer_id
+      )
     : false
 
   return (
@@ -831,7 +841,8 @@ export function RefereePortal() {
                       TRAINER DISPATCHED
                     </span>
                     <span className="font-cond text-[11px] text-red-200">
-                      {d.trainer_name}{d.player_name ? ` · ${d.player_name}` : ''} — {d.status}
+                      {d.trainer_name}
+                      {d.player_name ? ` · ${d.player_name}` : ''} — {d.status}
                     </span>
                   </div>
                 </div>

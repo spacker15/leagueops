@@ -16,9 +16,9 @@ affects: [01-03, 01-04, commandcenter-refactor]
 tech-stack:
   added: []
   patterns:
-    - "API route shell pattern: create route with validation + placeholder, wire engine after Plan A"
-    - "Error response format: { error: string } with 400 for validation, 500 for unexpected"
-    - "createClient() always called inside handler body, never at module level"
+    - 'API route shell pattern: create route with validation + placeholder, wire engine after Plan A'
+    - 'Error response format: { error: string } with 400 for validation, 500 for unexpected'
+    - 'createClient() always called inside handler body, never at module level'
 
 key-files:
   created:
@@ -28,15 +28,15 @@ key-files:
   modified: []
 
 key-decisions:
-  - "Routes created as shells in wave 1 — engine imports commented out pending Plan A completion, placeholders documented with TODO comments"
-  - "Error format { error: string } matches all existing API routes (games, fields, referee-engine, etc.)"
-  - "createClient() inside handler body enforced — required by next/headers cookie access pattern in supabase/server.ts"
+  - 'Routes created as shells in wave 1 — engine imports commented out pending Plan A completion, placeholders documented with TODO comments'
+  - 'Error format { error: string } matches all existing API routes (games, fields, referee-engine, etc.)'
+  - 'createClient() inside handler body enforced — required by next/headers cookie access pattern in supabase/server.ts'
 
 patterns-established:
-  - "Route validation pattern: check presence and typeof, return 400 with descriptive error string"
-  - "Placeholder pattern: commented import + engine call + TODO comment for wave 2 wire-up"
+  - 'Route validation pattern: check presence and typeof, return 400 with descriptive error string'
+  - 'Placeholder pattern: commented import + engine call + TODO comment for wave 2 wire-up'
 
-requirements-completed: ["SEC-03"]
+requirements-completed: ['SEC-03']
 
 # Metrics
 duration: 3min
@@ -111,5 +111,6 @@ None — no external service configuration required.
 - Plan 03 (CommandCenter refactor) can begin reading these route paths
 
 ---
-*Phase: 01-engine-client-refactor*
-*Completed: 2026-03-22*
+
+_Phase: 01-engine-client-refactor_
+_Completed: 2026-03-22_

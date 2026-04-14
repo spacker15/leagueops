@@ -3,21 +3,22 @@ project: LeagueOps
 phases: 10
 requirements_mapped: 50
 created: 2026-03-22
+last_updated: 2026-04-12
 ---
 
 # Roadmap: LeagueOps
 
-## Overview
+## v1.0 Phases — ALL COMPLETE ✅
 
-| Phase | Name                             | Requirements | UI          | Depends On |
+| Phase | Name                             | Requirements | Status      | Completed  |
 | ----- | -------------------------------- | ------------ | ----------- | ---------- |
-| 1     | Engine Client Refactor           | 5/5          | Complete    | 2026-03-22 |
-| 2     | Hardcode Removal & Event Context | 5/5          | Complete    | 2026-03-22 |
-| 3     | API Auth & Validation            | 3/3          | Complete    | 2026-03-23 |
-| 4     | RLS & Database Security          | 1/2          | In Progress |            |
-| 5     | Event Creation Enhancements      | 5/5          | Complete    | 2026-03-24 |
-| 6     | Registration Flow Enhancements   | 5/5          | Complete    | 2026-03-24 |
-| 7     | Notification Infrastructure      | 4/4          | Complete    | 2026-03-24 |
+| 1     | Engine Client Refactor           | 5/5          | ✅ Complete | 2026-03-22 |
+| 2     | Hardcode Removal & Event Context | 5/5          | ✅ Complete | 2026-03-22 |
+| 3     | API Auth & Validation            | 3/3          | ✅ Complete | 2026-03-23 |
+| 4     | RLS & Database Security          | 2/2          | ✅ Complete | 2026-04-12 |
+| 5     | Event Creation Enhancements      | 5/5          | ✅ Complete | 2026-03-24 |
+| 6     | Registration Flow Enhancements   | 5/5          | ✅ Complete | 2026-03-24 |
+| 7     | Notification Infrastructure      | 4/4          | ✅ Complete | 2026-03-24 |
 | 8     | Schedule Change Request Workflow | 5/5          | Complete    | 2026-03-24 |
 | 9     | Public Results Site              | 6/6          | Complete    | 2026-03-25 |
 | 10    | Responsive Design                | 4/4          | Complete    | 2026-03-25 |

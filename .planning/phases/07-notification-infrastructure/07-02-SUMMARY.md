@@ -1,12 +1,12 @@
 ---
 phase: 07-notification-infrastructure
-plan: "02"
+plan: '02'
 subsystem: notifications
 tags: [deno, edge-function, supabase, resend, web-push, notifications, email, push]
 
 requires:
   - phase: 07-notification-infrastructure/07-01
-    provides: "notification_queue, notification_preferences, notification_log, push_subscriptions tables; NotificationQueueRow types; lib/notifications.ts constants"
+    provides: 'notification_queue, notification_preferences, notification_log, push_subscriptions tables; NotificationQueueRow types; lib/notifications.ts constants'
 provides:
   - supabase/functions/process-notifications/index.ts (complete Deno Edge Function for notification processing)
 affects:
@@ -31,22 +31,22 @@ key-files:
   modified: []
 
 key-decisions:
-  - "Email HTML built inline as template literal (not react-email render in Deno) — react-email components cannot be imported from Next.js app into Deno Edge Function"
-  - "resolveRecipients returns Set<string> deduplicated user IDs — handles cases where user has multiple roles"
-  - "VAPID setup at module level with null guards — if keys missing push is skipped gracefully, not a fatal error"
-  - "Resend client instantiated per-invocation from env key — null if key not set, email attempts log as failed"
-  - "anyFailed tracks whether ANY delivery attempt failed across ALL recipients — drives retry scheduling"
-  - "Return HTTP 200 even on unhandled errors (outer try/catch) — prevents Database Webhook retry storm"
+  - 'Email HTML built inline as template literal (not react-email render in Deno) — react-email components cannot be imported from Next.js app into Deno Edge Function'
+  - 'resolveRecipients returns Set<string> deduplicated user IDs — handles cases where user has multiple roles'
+  - 'VAPID setup at module level with null guards — if keys missing push is skipped gracefully, not a fatal error'
+  - 'Resend client instantiated per-invocation from env key — null if key not set, email attempts log as failed'
+  - 'anyFailed tracks whether ANY delivery attempt failed across ALL recipients — drives retry scheduling'
+  - 'Return HTTP 200 even on unhandled errors (outer try/catch) — prevents Database Webhook retry storm'
 
 patterns-established:
-  - "Pattern: Deno Edge Function entry point uses Deno.serve() not deprecated import { serve }"
+  - 'Pattern: Deno Edge Function entry point uses Deno.serve() not deprecated import { serve }'
   - "Pattern: All DB queries inside Edge Function use .eq('event_id', eventId) per CLAUDE.md event scoping mandate"
-  - "Pattern: notification_log insert batched — all logEntries collected during fan-out, single insert at end"
+  - 'Pattern: notification_log insert batched — all logEntries collected during fan-out, single insert at end'
 
 requirements-completed: [NOT-01, NOT-05, NOT-06, NOT-08]
 
 duration: 2min
-completed: "2026-03-24"
+completed: '2026-03-24'
 ---
 
 # Phase 7 Plan 02: Process-Notifications Edge Function Summary
@@ -111,6 +111,7 @@ The following environment variables must be configured as Supabase Edge Function
 - `APP_URL` — Production app URL for push notification click-through (e.g., `https://leagueops.vercel.app`)
 
 A Database Webhook must be configured in the Supabase dashboard:
+
 - Table: `notification_queue`
 - Events: `INSERT`
 - Target: `process-notifications` Edge Function URL
@@ -129,13 +130,16 @@ Deploy command: `supabase functions deploy process-notifications`
 ## Self-Check
 
 ### Files Exist
+
 - `supabase/functions/process-notifications/index.ts` — FOUND (567 lines)
 
 ### Commits Exist
+
 - `b3f68ad` — feat(07-02): add process-notifications Supabase Edge Function — FOUND
 
 ## Self-Check: PASSED
 
 ---
-*Phase: 07-notification-infrastructure*
-*Completed: 2026-03-24*
+
+_Phase: 07-notification-infrastructure_
+_Completed: 2026-03-24_

@@ -55,7 +55,10 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
         .not('status', 'in', '("Final","Cancelled")'),
       supabase.from('fields').select('*').eq('event_id', eventId),
       supabase.from('event_dates').select('*').eq('event_id', eventId).order('day_number'),
-      supabase.from('team_registrations').select('team_id, available_date_ids').eq('event_id', eventId),
+      supabase
+        .from('team_registrations')
+        .select('team_id, available_date_ids')
+        .eq('event_id', eventId),
     ])
 
     const allGames = (allGamesResult.data ?? []) as Game[]

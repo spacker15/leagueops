@@ -1,6 +1,6 @@
 ---
 phase: 01-engine-client-refactor
-plan: "01"
+plan: '01'
 subsystem: api
 tags: [supabase, engines, security, refactor, typescript]
 
@@ -21,39 +21,39 @@ affects:
 tech-stack:
   added: []
   patterns:
-    - "Engine functions accept sb: SupabaseClient as a parameter — never call createClient() internally"
-    - "createClient() from supabase/server is always called inside Route Handler function body"
-    - "Server-only env vars use plain names (OPENWEATHER_API_KEY), never NEXT_PUBLIC_ prefix"
+    - 'Engine functions accept sb: SupabaseClient as a parameter — never call createClient() internally'
+    - 'createClient() from supabase/server is always called inside Route Handler function body'
+    - 'Server-only env vars use plain names (OPENWEATHER_API_KEY), never NEXT_PUBLIC_ prefix'
     - "Sub-engine orchestration uses direct function imports, not fetch('/api/...')"
-    - "try/catch around sub-engine calls in unified engine per CLAUDE.md Gotcha #6"
+    - 'try/catch around sub-engine calls in unified engine per CLAUDE.md Gotcha #6'
 
 key-files:
   created: []
   modified:
-    - "lib/engines/rules.ts"
-    - "lib/engines/referee.ts"
-    - "lib/engines/field.ts"
-    - "lib/engines/weather.ts"
-    - "lib/engines/eligibility.ts"
-    - "lib/engines/unified.ts"
-    - "app/api/field-engine/route.ts"
-    - "app/api/weather-engine/route.ts"
-    - "app/api/eligibility/route.ts"
-    - "app/api/lightning/route.ts"
-    - "app/api/referee-engine/route.ts"
-    - "components/engine/CommandCenter.tsx"
+    - 'lib/engines/rules.ts'
+    - 'lib/engines/referee.ts'
+    - 'lib/engines/field.ts'
+    - 'lib/engines/weather.ts'
+    - 'lib/engines/eligibility.ts'
+    - 'lib/engines/unified.ts'
+    - 'app/api/field-engine/route.ts'
+    - 'app/api/weather-engine/route.ts'
+    - 'app/api/eligibility/route.ts'
+    - 'app/api/lightning/route.ts'
+    - 'app/api/referee-engine/route.ts'
+    - 'components/engine/CommandCenter.tsx'
 
 key-decisions:
-  - "Weather engine not called from runUnifiedEngine — complexId not available in unified scope. Weather runs separately per-complex from weather-engine API route."
-  - "CommandCenter.tsx (client component) passes createClient() from @/supabase/client to unified engine calls. Full server-side migration of CommandCenter deferred to Plan B2."
-  - "Rules cache (_cache) retained as-is; added comment documenting serverless isolation behavior for Phase 2 multi-event work."
-  - "API routes updated to pass sb alongside engine function signature changes — fixes all type errors caused by refactor."
+  - 'Weather engine not called from runUnifiedEngine — complexId not available in unified scope. Weather runs separately per-complex from weather-engine API route.'
+  - 'CommandCenter.tsx (client component) passes createClient() from @/supabase/client to unified engine calls. Full server-side migration of CommandCenter deferred to Plan B2.'
+  - 'Rules cache (_cache) retained as-is; added comment documenting serverless isolation behavior for Phase 2 multi-event work.'
+  - 'API routes updated to pass sb alongside engine function signature changes — fixes all type errors caused by refactor.'
 
 patterns-established:
-  - "Engine injection pattern: all engine modules receive sb: SupabaseClient as parameter, never instantiate their own client"
-  - "Route handler pattern: createClient() called at start of Route Handler function body, sb passed to all engine/db calls"
+  - 'Engine injection pattern: all engine modules receive sb: SupabaseClient as parameter, never instantiate their own client'
+  - 'Route handler pattern: createClient() called at start of Route Handler function body, sb passed to all engine/db calls'
 
-requirements-completed: ["SEC-03", "SEC-06"]
+requirements-completed: ['SEC-03', 'SEC-06']
 
 # Metrics
 duration: 19min
@@ -146,5 +146,6 @@ None — all engine refactors are complete wiring changes with no placeholder da
 - No blockers for Phase 2 or Phase 3 work.
 
 ---
-*Phase: 01-engine-client-refactor*
-*Completed: 2026-03-22*
+
+_Phase: 01-engine-client-refactor_
+_Completed: 2026-03-22_

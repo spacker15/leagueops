@@ -15,6 +15,7 @@ import {
   ChevronDown,
   Zap,
   Building2,
+  FileText,
 } from 'lucide-react'
 import type {
   RegistrationFee,
@@ -23,6 +24,7 @@ import type {
   PaymentMethod,
   PaymentStatus,
 } from '@/types'
+import { InvoiceModal, type InvoiceData } from './InvoiceModal'
 
 const inp =
   'bg-[#081428] border border-[#1a2d50] text-white px-2.5 py-1.5 rounded text-[12px] outline-none focus:border-blue-400 transition-colors w-full'
@@ -565,6 +567,7 @@ export function PaymentsTab() {
   const [savingFee, setSavingFee] = useState<string | null>(null)
   const [generating, setGenerating] = useState(false)
   const [expandedProgram, setExpandedProgram] = useState<string | null>(null)
+  const [invoiceTarget, setInvoiceTarget] = useState<InvoiceData | null>(null)
   const [programPayTarget, setProgramPayTarget] = useState<{
     programName: string
     teams: TeamPayment[]
@@ -1031,53 +1034,87 @@ export function PaymentsTab() {
                     className="bg-[#081428] border border-[#1a2d50] rounded-xl overflow-hidden"
                   >
                     {/* Program header row */}
-                    <button
-                      onClick={() => setExpandedProgram(isExpanded ? null : pg.programName)}
-                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/[0.02] transition-colors"
-                    >
-                      <ChevronDown
-                        size={14}
-                        className={cn(
-                          'text-muted transition-transform',
-                          isExpanded && 'rotate-180'
-                        )}
-                      />
-                      {programLogos[pg.programName] ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={programLogos[pg.programName]!}
-                          alt=""
-                          className="w-6 h-6 rounded object-cover flex-shrink-0"
-                        />
-                      ) : (
-                        <Building2 size={16} className="text-muted flex-shrink-0" />
-                      )}
-                      <span className="font-cond font-black text-[14px] text-white flex-1 text-left">
-                        {pg.programName}
-                      </span>
-                      <span className="font-cond text-[11px] text-muted">{pg.teamCount} teams</span>
-                      <span className="font-cond text-[11px] text-white">{fmt(pg.totalDue)}</span>
-                      {pgExtra > 0 && (
-                        <span className="font-cond text-[11px] text-orange-400">
-                          +{fmt(pgExtra)} extra
-                        </span>
-                      )}
-                      <span className="font-cond text-[11px] text-green-400">
-                        {fmt(pg.totalPaid)} paid
-                      </span>
-                      <span
-                        className={cn(
-                          'font-cond text-[10px] font-black tracking-wide px-2 py-0.5 rounded uppercase',
-                          allPaid
-                            ? 'bg-green-900/40 text-green-400'
-                            : pg.totalPaid > 0
-                              ? 'bg-blue-900/40 text-blue-300'
-                              : 'bg-yellow-900/40 text-yellow-400'
-                        )}
+                    <div className="flex items-center">
+                      <button
+                        onClick={() => setExpandedProgram(isExpanded ? null : pg.programName)}
+                        className="flex-1 flex items-center gap-3 px-4 py-3 hover:bg-white/[0.02] transition-colors min-w-0"
                       >
-                        {allPaid ? 'PAID' : pg.totalPaid > 0 ? 'PARTIAL' : 'PENDING'}
-                      </span>
-                    </button>
+                        <ChevronDown
+                          size={14}
+                          className={cn(
+                            'text-muted transition-transform flex-shrink-0',
+                            isExpanded && 'rotate-180'
+                          )}
+                        />
+                        {programLogos[pg.programName] ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={programLogos[pg.programName]!}
+                            alt=""
+                            className="w-6 h-6 rounded object-cover flex-shrink-0"
+                          />
+                        ) : (
+                          <Building2 size={16} className="text-muted flex-shrink-0" />
+                        )}
+                        <span className="font-cond font-black text-[14px] text-white flex-1 text-left truncate">
+                          {pg.programName}
+                        </span>
+                        <span className="font-cond text-[11px] text-muted flex-shrink-0">
+                          {pg.teamCount} teams
+                        </span>
+                        <span className="font-cond text-[11px] text-white flex-shrink-0">
+                          {fmt(pg.totalDue)}
+                        </span>
+                        {pgExtra > 0 && (
+                          <span className="font-cond text-[11px] text-orange-400 flex-shrink-0">
+                            +{fmt(pgExtra)} extra
+                          </span>
+                        )}
+                        <span className="font-cond text-[11px] text-green-400 flex-shrink-0">
+                          {fmt(pg.totalPaid)} paid
+                        </span>
+                        <span
+                          className={cn(
+                            'font-cond text-[10px] font-black tracking-wide px-2 py-0.5 rounded uppercase flex-shrink-0',
+                            allPaid
+                              ? 'bg-green-900/40 text-green-400'
+                              : pg.totalPaid > 0
+                                ? 'bg-blue-900/40 text-blue-300'
+                                : 'bg-yellow-900/40 text-yellow-400'
+                          )}
+                        >
+                          {allPaid ? 'PAID' : pg.totalPaid > 0 ? 'PARTIAL' : 'PENDING'}
+                        </span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          const programData = Object.values(
+                            (async () => {})() // placeholder to get program contact info
+                          )
+                          setInvoiceTarget({
+                            event: {
+                              name: state.event?.name ?? '',
+                              logo_url: state.event?.logo_url,
+                              location: state.event?.location,
+                              start_date: state.event?.start_date,
+                              end_date: state.event?.end_date,
+                            },
+                            program: {
+                              name: pg.programName,
+                              logo_url: programLogos[pg.programName] ?? null,
+                            },
+                            payments: pg.teams,
+                            fees,
+                            gameCounts: teamGameCounts,
+                          })
+                        }}
+                        className="flex items-center gap-1 px-3 py-1.5 mr-3 rounded text-[11px] font-cond font-bold text-[#5a6e9a] hover:text-white hover:bg-white/10 transition-colors flex-shrink-0"
+                        title="View Invoice"
+                      >
+                        <FileText size={12} />
+                        Invoice
+                      </button>
+                    </div>
 
                     {/* Expanded: Division > Team breakdown */}
                     {isExpanded && (
@@ -1722,6 +1759,9 @@ export function PaymentsTab() {
           onClose={() => setProgramPayTarget(null)}
           onSaved={load}
         />
+      )}
+      {invoiceTarget && (
+        <InvoiceModal data={invoiceTarget} onClose={() => setInvoiceTarget(null)} />
       )}
     </div>
   )

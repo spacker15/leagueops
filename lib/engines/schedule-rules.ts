@@ -34,7 +34,12 @@ export interface WeeklyOverride {
   id: number
   event_id: number
   event_date_id: number | null
-  override_type: 'skip_date' | 'force_matchup' | 'remove_matchup' | 'team_unavailable' | 'special_event'
+  override_type:
+    | 'skip_date'
+    | 'force_matchup'
+    | 'remove_matchup'
+    | 'team_unavailable'
+    | 'special_event'
   team_id: number | null
   home_team_id: number | null
   away_team_id: number | null
@@ -103,11 +108,11 @@ export interface ScheduleContext {
   awayTeam: TeamInfo
   slot: SlotInfo
   placedGames: PlacedGame[]
-  teamGameCounts: Map<number, number>         // teamId -> total games placed
-  teamDayGameCounts: Map<string, number>      // "teamId-dateId" -> games that day
-  teamLastGameEnd: Map<string, number>        // "teamId-dateId" -> last game end time in minutes
-  matchupHistory: Map<string, number[]>       // "min(teamA,teamB)-max(teamA,teamB)" -> weekNumbers
-  skippedDates: Set<number>                   // event_date_ids to skip
+  teamGameCounts: Map<number, number> // teamId -> total games placed
+  teamDayGameCounts: Map<string, number> // "teamId-dateId" -> games that day
+  teamLastGameEnd: Map<string, number> // "teamId-dateId" -> last game end time in minutes
+  matchupHistory: Map<string, number[]> // "min(teamA,teamB)-max(teamA,teamB)" -> weekNumbers
+  skippedDates: Set<number> // event_date_ids to skip
   teamProgramMap: Map<number, { id: number; name: string }>
 }
 
@@ -124,7 +129,10 @@ export function invalidateScheduleRulesCache(eventId: number) {
 
 // ─── Load Functions ───────────────────────────────────────────
 
-export async function loadScheduleRules(eventId: number, sb: SupabaseClient): Promise<ScheduleRule[]> {
+export async function loadScheduleRules(
+  eventId: number,
+  sb: SupabaseClient
+): Promise<ScheduleRule[]> {
   const now = Date.now()
   const cached = _ruleCache.get(eventId)
   if (cached && now - cached.time < CACHE_TTL_MS) return cached.rules
@@ -142,7 +150,10 @@ export async function loadScheduleRules(eventId: number, sb: SupabaseClient): Pr
   return rules
 }
 
-export async function loadWeeklyOverrides(eventId: number, sb: SupabaseClient): Promise<WeeklyOverride[]> {
+export async function loadWeeklyOverrides(
+  eventId: number,
+  sb: SupabaseClient
+): Promise<WeeklyOverride[]> {
   const now = Date.now()
   const cached = _overrideCache.get(eventId)
   if (cached && now - cached.time < CACHE_TTL_MS) return cached.overrides
@@ -159,7 +170,10 @@ export async function loadWeeklyOverrides(eventId: number, sb: SupabaseClient): 
   return overrides
 }
 
-export async function loadTeamProgramMap(eventId: number, sb: SupabaseClient): Promise<Map<number, { id: number; name: string }>> {
+export async function loadTeamProgramMap(
+  eventId: number,
+  sb: SupabaseClient
+): Promise<Map<number, { id: number; name: string }>> {
   const { data } = await sb
     .from('teams')
     .select('id, program_id, programs(name)')
@@ -177,7 +191,10 @@ export async function loadTeamProgramMap(eventId: number, sb: SupabaseClient): P
 
 // ─── Load Rule Overrides ──────────────────────────────────────
 
-export async function loadRuleOverrides(eventId: number, sb: SupabaseClient): Promise<RuleOverride[]> {
+export async function loadRuleOverrides(
+  eventId: number,
+  sb: SupabaseClient
+): Promise<RuleOverride[]> {
   const { data } = await sb
     .from('schedule_rule_overrides')
     .select('*')
@@ -196,12 +213,14 @@ function ruleAppliesToMatchup(rule: ScheduleRule, ctx: ScheduleContext): boolean
   if (rule.scope_program_id) {
     const homeProgram = ctx.teamProgramMap.get(ctx.homeTeam.id)
     const awayProgram = ctx.teamProgramMap.get(ctx.awayTeam.id)
-    if (homeProgram?.id !== rule.scope_program_id && awayProgram?.id !== rule.scope_program_id) return false
+    if (homeProgram?.id !== rule.scope_program_id && awayProgram?.id !== rule.scope_program_id)
+      return false
   }
 
   // Team scope
   if (rule.scope_team_id) {
-    if (ctx.homeTeam.id !== rule.scope_team_id && ctx.awayTeam.id !== rule.scope_team_id) return false
+    if (ctx.homeTeam.id !== rule.scope_team_id && ctx.awayTeam.id !== rule.scope_team_id)
+      return false
   }
 
   // Week scope
@@ -219,14 +238,20 @@ function ruleAppliesToMatchup(rule: ScheduleRule, ctx: ScheduleContext): boolean
 
 // ─── Condition Evaluators ─────────────────────────────────────
 
-function evaluateCondition(rule: ScheduleRule, ctx: ScheduleContext): { passed: boolean; reason: string } {
+function evaluateCondition(
+  rule: ScheduleRule,
+  ctx: ScheduleContext
+): { passed: boolean; reason: string } {
   const cond = rule.conditions as Record<string, any>
   const type = cond.type as string
 
   switch (type) {
     case 'same_division_only': {
       if (ctx.homeTeam.division !== ctx.awayTeam.division) {
-        return { passed: false, reason: `${ctx.homeTeam.name} (${ctx.homeTeam.division}) vs ${ctx.awayTeam.name} (${ctx.awayTeam.division}) — different divisions` }
+        return {
+          passed: false,
+          reason: `${ctx.homeTeam.name} (${ctx.homeTeam.division}) vs ${ctx.awayTeam.name} (${ctx.awayTeam.division}) — different divisions`,
+        }
       }
       return { passed: true, reason: 'Same division' }
     }
@@ -238,9 +263,13 @@ function evaluateCondition(rule: ScheduleRule, ctx: ScheduleContext): { passed: 
         // Check if there's a program-specific name in conditions
         const programName = cond.program_name as string | undefined
         if (programName) {
-          if (homeProgram.name !== programName) return { passed: true, reason: 'Different program from rule target' }
+          if (homeProgram.name !== programName)
+            return { passed: true, reason: 'Different program from rule target' }
         }
-        return { passed: false, reason: `${ctx.homeTeam.name} and ${ctx.awayTeam.name} are both in program "${homeProgram.name}"` }
+        return {
+          passed: false,
+          reason: `${ctx.homeTeam.name} and ${ctx.awayTeam.name} are both in program "${homeProgram.name}"`,
+        }
       }
       return { passed: true, reason: 'Different programs' }
     }
@@ -253,7 +282,10 @@ function evaluateCondition(rule: ScheduleRule, ctx: ScheduleContext): { passed: 
       const awayLastEnd = ctx.teamLastGameEnd.get(awayKey)
 
       if (homeLastEnd !== undefined && ctx.slot.timeMinutes === homeLastEnd) {
-        return { passed: false, reason: `${ctx.homeTeam.name} has back-to-back games (ends at ${homeLastEnd}, next starts at ${ctx.slot.timeMinutes})` }
+        return {
+          passed: false,
+          reason: `${ctx.homeTeam.name} has back-to-back games (ends at ${homeLastEnd}, next starts at ${ctx.slot.timeMinutes})`,
+        }
       }
       if (awayLastEnd !== undefined && ctx.slot.timeMinutes === awayLastEnd) {
         return { passed: false, reason: `${ctx.awayTeam.name} has back-to-back games` }
@@ -272,13 +304,19 @@ function evaluateCondition(rule: ScheduleRule, ctx: ScheduleContext): { passed: 
       if (homeLastEnd !== undefined) {
         const rest = ctx.slot.timeMinutes - homeLastEnd
         if (rest >= 0 && rest < minRest) {
-          return { passed: false, reason: `${ctx.homeTeam.name} only has ${rest}min rest (need ${minRest}min)` }
+          return {
+            passed: false,
+            reason: `${ctx.homeTeam.name} only has ${rest}min rest (need ${minRest}min)`,
+          }
         }
       }
       if (awayLastEnd !== undefined) {
         const rest = ctx.slot.timeMinutes - awayLastEnd
         if (rest >= 0 && rest < minRest) {
-          return { passed: false, reason: `${ctx.awayTeam.name} only has ${rest}min rest (need ${minRest}min)` }
+          return {
+            passed: false,
+            reason: `${ctx.awayTeam.name} only has ${rest}min rest (need ${minRest}min)`,
+          }
         }
       }
       return { passed: true, reason: 'Sufficient rest' }
@@ -298,7 +336,10 @@ function evaluateCondition(rule: ScheduleRule, ctx: ScheduleContext): { passed: 
             return { passed: false, reason: `Double-header gap ${gap}min exceeds max ${max}min` }
           }
           if (gap > preferred) {
-            return { passed: true, reason: `Double-header gap ${gap}min exceeds preferred ${preferred}min (but within max)` }
+            return {
+              passed: true,
+              reason: `Double-header gap ${gap}min exceeds preferred ${preferred}min (but within max)`,
+            }
           }
         }
       }
@@ -313,7 +354,10 @@ function evaluateCondition(rule: ScheduleRule, ctx: ScheduleContext): { passed: 
         const lastWeek = Math.max(...prevWeeks)
         const gap = ctx.slot.weekNumber - lastWeek
         if (gap < minWeeks) {
-          return { passed: false, reason: `Rematch too soon: played week ${lastWeek}, now week ${ctx.slot.weekNumber} (need ${minWeeks} week gap)` }
+          return {
+            passed: false,
+            reason: `Rematch too soon: played week ${lastWeek}, now week ${ctx.slot.weekNumber} (need ${minWeeks} week gap)`,
+          }
         }
       }
       return { passed: true, reason: 'Rematch spacing OK' }
@@ -333,7 +377,7 @@ function evaluateCondition(rule: ScheduleRule, ctx: ScheduleContext): { passed: 
       if (programName) {
         const homeProgram = ctx.teamProgramMap.get(ctx.homeTeam.id)
         const awayProgram = ctx.teamProgramMap.get(ctx.awayTeam.id)
-        const applies = (homeProgram?.name === programName || awayProgram?.name === programName)
+        const applies = homeProgram?.name === programName || awayProgram?.name === programName
         if (!applies) return { passed: true, reason: `Teams not in program ${programName}` }
       }
 
@@ -357,12 +401,15 @@ function evaluateCondition(rule: ScheduleRule, ctx: ScheduleContext): { passed: 
       if (programName) {
         const homeProgram = ctx.teamProgramMap.get(ctx.homeTeam.id)
         const awayProgram = ctx.teamProgramMap.get(ctx.awayTeam.id)
-        const applies = (homeProgram?.name === programName || awayProgram?.name === programName)
+        const applies = homeProgram?.name === programName || awayProgram?.name === programName
         if (!applies) return { passed: true, reason: `Teams not in program ${programName}` }
       }
 
       if (availableDates.length > 0 && !availableDates.includes(ctx.slot.date)) {
-        return { passed: false, reason: `${programName ?? 'Team'} not available on ${ctx.slot.date}` }
+        return {
+          passed: false,
+          reason: `${programName ?? 'Team'} not available on ${ctx.slot.date}`,
+        }
       }
       return { passed: true, reason: 'Team available on this date' }
     }
@@ -381,23 +428,29 @@ function evaluateCondition(rule: ScheduleRule, ctx: ScheduleContext): { passed: 
       if (teamName) {
         if (ctx.homeTeam.name.includes(teamName)) targetTeamIds.push(ctx.homeTeam.id)
         if (ctx.awayTeam.name.includes(teamName)) targetTeamIds.push(ctx.awayTeam.id)
-        if (targetTeamIds.length === 0) return { passed: true, reason: `No matching team for ${teamName}` }
+        if (targetTeamIds.length === 0)
+          return { passed: true, reason: `No matching team for ${teamName}` }
       } else if (programName) {
         const homeProgram = ctx.teamProgramMap.get(ctx.homeTeam.id)
         const awayProgram = ctx.teamProgramMap.get(ctx.awayTeam.id)
         if (division) {
-          if (homeProgram?.name === programName && ctx.homeTeam.division.includes(division)) targetTeamIds.push(ctx.homeTeam.id)
-          if (awayProgram?.name === programName && ctx.awayTeam.division.includes(division)) targetTeamIds.push(ctx.awayTeam.id)
+          if (homeProgram?.name === programName && ctx.homeTeam.division.includes(division))
+            targetTeamIds.push(ctx.homeTeam.id)
+          if (awayProgram?.name === programName && ctx.awayTeam.division.includes(division))
+            targetTeamIds.push(ctx.awayTeam.id)
         } else {
           if (homeProgram?.name === programName) targetTeamIds.push(ctx.homeTeam.id)
           if (awayProgram?.name === programName) targetTeamIds.push(ctx.awayTeam.id)
         }
-        if (targetTeamIds.length === 0) return { passed: true, reason: `No matching team for ${programName}` }
+        if (targetTeamIds.length === 0)
+          return { passed: true, reason: `No matching team for ${programName}` }
       }
 
       // Check week constraints
-      if (week !== undefined && ctx.slot.weekNumber !== week) return { passed: true, reason: `Not week ${week}` }
-      if (afterWeek !== undefined && ctx.slot.weekNumber <= afterWeek) return { passed: true, reason: `Not after week ${afterWeek}` }
+      if (week !== undefined && ctx.slot.weekNumber !== week)
+        return { passed: true, reason: `Not week ${week}` }
+      if (afterWeek !== undefined && ctx.slot.weekNumber <= afterWeek)
+        return { passed: true, reason: `Not after week ${afterWeek}` }
 
       for (const teamId of targetTeamIds) {
         const dayKey = `${teamId}-${ctx.slot.eventDateId}`
@@ -446,18 +499,23 @@ function evaluateCondition(rule: ScheduleRule, ctx: ScheduleContext): { passed: 
 
 // ─── Override Matching ────────────────────────────────────────
 
-function findApplicableOverride(overrides: RuleOverride[], rule: ScheduleRule, ctx: ScheduleContext): RuleOverride | undefined {
-  return overrides.find(ov => {
+function findApplicableOverride(
+  overrides: RuleOverride[],
+  rule: ScheduleRule,
+  ctx: ScheduleContext
+): RuleOverride | undefined {
+  return overrides.find((ov) => {
     if (ov.rule_id !== rule.id) return false
     if (ov.override_action !== 'allow') return false
     // Check scope
     if (ov.scope_type === 'global') return true
     if (ov.scope_type === 'matchup') {
-      const matchesHome = (ov.home_team_id === ctx.homeTeam.id && ov.away_team_id === ctx.awayTeam.id)
-      const matchesAway = (ov.home_team_id === ctx.awayTeam.id && ov.away_team_id === ctx.homeTeam.id)
+      const matchesHome = ov.home_team_id === ctx.homeTeam.id && ov.away_team_id === ctx.awayTeam.id
+      const matchesAway = ov.home_team_id === ctx.awayTeam.id && ov.away_team_id === ctx.homeTeam.id
       return matchesHome || matchesAway
     }
-    if (ov.scope_type === 'team') return ov.scope_team_id === ctx.homeTeam.id || ov.scope_team_id === ctx.awayTeam.id
+    if (ov.scope_type === 'team')
+      return ov.scope_team_id === ctx.homeTeam.id || ov.scope_team_id === ctx.awayTeam.id
     if (ov.scope_type === 'week') return ov.scope_event_date_id === ctx.slot.eventDateId
     return false
   })
@@ -469,7 +527,11 @@ function findApplicableOverride(overrides: RuleOverride[], rule: ScheduleRule, c
  * Evaluate all rules against a candidate matchup.
  * Used during matchup generation to filter invalid pairings.
  */
-export function evaluateMatchupRules(rules: ScheduleRule[], ctx: ScheduleContext, overrides: RuleOverride[] = []): EvalResult {
+export function evaluateMatchupRules(
+  rules: ScheduleRule[],
+  ctx: ScheduleContext,
+  overrides: RuleOverride[] = []
+): EvalResult {
   const evaluations: RuleEvaluation[] = []
   let penalties = 0
   let blockingRule: ScheduleRule | null = null
@@ -481,7 +543,12 @@ export function evaluateMatchupRules(rules: ScheduleRule[], ctx: ScheduleContext
 
     // Skip non-matchup rules (slot placement, timing overrides, etc.)
     const condType = (rule.conditions as any).type
-    if (['set_timing', 'skip_date', 'season_dates', 'special_event', 'forced_doubleheader'].includes(condType)) continue
+    if (
+      ['set_timing', 'skip_date', 'season_dates', 'special_event', 'forced_doubleheader'].includes(
+        condType
+      )
+    )
+      continue
 
     const result = evaluateCondition(rule, ctx)
 
@@ -519,7 +586,11 @@ export function evaluateMatchupRules(rules: ScheduleRule[], ctx: ScheduleContext
  * Evaluate slot-specific rules against a candidate placement.
  * Used during slot assignment to check time restrictions, rest, etc.
  */
-export function evaluateSlotRules(rules: ScheduleRule[], ctx: ScheduleContext, overrides: RuleOverride[] = []): EvalResult {
+export function evaluateSlotRules(
+  rules: ScheduleRule[],
+  ctx: ScheduleContext,
+  overrides: RuleOverride[] = []
+): EvalResult {
   const evaluations: RuleEvaluation[] = []
   let penalties = 0
   let blockingRule: ScheduleRule | null = null
@@ -530,7 +601,17 @@ export function evaluateSlotRules(rules: ScheduleRule[], ctx: ScheduleContext, o
 
     const condType = (rule.conditions as any).type
     // Only evaluate slot-relevant rules
-    if (!['no_back_to_back', 'min_rest', 'doubleheader_spacing', 'time_restriction', 'team_availability', 'max_games_per_day'].includes(condType)) continue
+    if (
+      ![
+        'no_back_to_back',
+        'min_rest',
+        'doubleheader_spacing',
+        'time_restriction',
+        'team_availability',
+        'max_games_per_day',
+      ].includes(condType)
+    )
+      continue
 
     const result = evaluateCondition(rule, ctx)
 
@@ -628,25 +709,86 @@ export async function seedDefaultRules(eventId: number, sb: SupabaseClient): Pro
   if (existing && existing.length > 0) return // Already has rules
 
   const defaults = [
-    { rule_name: 'Same division only', rule_type: 'constraint', category: 'global', conditions: { type: 'same_division_only' }, action: 'block', action_params: { reason: 'Teams must be in the same division' }, priority: 1000, enforcement: 'hard' },
-    { rule_name: 'No same-program matchups', rule_type: 'constraint', category: 'global', conditions: { type: 'same_program_block' }, action: 'block', action_params: { reason: 'Teams from same program cannot play each other' }, priority: 900, enforcement: 'hard' },
-    { rule_name: 'No back-to-back games', rule_type: 'constraint', category: 'global', conditions: { type: 'no_back_to_back' }, action: 'block', action_params: { reason: 'Team cannot play consecutive time slots' }, priority: 800, enforcement: 'hard' },
-    { rule_name: 'Minimum rest 60 minutes', rule_type: 'constraint', category: 'global', conditions: { type: 'min_rest', minutes: 60 }, action: 'block', action_params: { reason: 'Insufficient rest between games' }, priority: 700, enforcement: 'hard' },
-    { rule_name: 'Double-header spacing', rule_type: 'preference', category: 'global', conditions: { type: 'doubleheader_spacing', preferred_hours: 2, max_hours: 3 }, action: 'warn', action_params: {}, priority: 600, enforcement: 'soft' },
-    { rule_name: 'Rematch spacing 3 weeks', rule_type: 'preference', category: 'global', conditions: { type: 'rematch_spacing', min_weeks: 3 }, action: 'warn', action_params: { reason: 'Teams should not rematch within 3 weeks' }, priority: 500, enforcement: 'soft' },
-    { rule_name: 'Field-division restriction', rule_type: 'constraint', category: 'global', conditions: { type: 'field_division_check' }, action: 'block', action_params: { reason: 'Field not assigned to this division' }, priority: 1100, enforcement: 'hard' },
+    {
+      rule_name: 'Same division only',
+      rule_type: 'constraint',
+      category: 'global',
+      conditions: { type: 'same_division_only' },
+      action: 'block',
+      action_params: { reason: 'Teams must be in the same division' },
+      priority: 1000,
+      enforcement: 'hard',
+    },
+    {
+      rule_name: 'No same-program matchups',
+      rule_type: 'constraint',
+      category: 'global',
+      conditions: { type: 'same_program_block' },
+      action: 'block',
+      action_params: { reason: 'Teams from same program cannot play each other' },
+      priority: 900,
+      enforcement: 'hard',
+    },
+    {
+      rule_name: 'No back-to-back games',
+      rule_type: 'constraint',
+      category: 'global',
+      conditions: { type: 'no_back_to_back' },
+      action: 'block',
+      action_params: { reason: 'Team cannot play consecutive time slots' },
+      priority: 800,
+      enforcement: 'hard',
+    },
+    {
+      rule_name: 'Minimum rest 60 minutes',
+      rule_type: 'constraint',
+      category: 'global',
+      conditions: { type: 'min_rest', minutes: 60 },
+      action: 'block',
+      action_params: { reason: 'Insufficient rest between games' },
+      priority: 700,
+      enforcement: 'hard',
+    },
+    {
+      rule_name: 'Double-header spacing',
+      rule_type: 'preference',
+      category: 'global',
+      conditions: { type: 'doubleheader_spacing', preferred_hours: 2, max_hours: 3 },
+      action: 'warn',
+      action_params: {},
+      priority: 600,
+      enforcement: 'soft',
+    },
+    {
+      rule_name: 'Rematch spacing 3 weeks',
+      rule_type: 'preference',
+      category: 'global',
+      conditions: { type: 'rematch_spacing', min_weeks: 3 },
+      action: 'warn',
+      action_params: { reason: 'Teams should not rematch within 3 weeks' },
+      priority: 500,
+      enforcement: 'soft',
+    },
+    {
+      rule_name: 'Field-division restriction',
+      rule_type: 'constraint',
+      category: 'global',
+      conditions: { type: 'field_division_check' },
+      action: 'block',
+      action_params: { reason: 'Field not assigned to this division' },
+      priority: 1100,
+      enforcement: 'hard',
+    },
   ]
 
-  await sb.from('schedule_rules').insert(
-    defaults.map(r => ({ event_id: eventId, ...r }))
-  )
+  await sb.from('schedule_rules').insert(defaults.map((r) => ({ event_id: eventId, ...r })))
 }
 
 /**
  * Get forced matchups from rules (action='force').
  */
 export function getForcedMatchups(rules: ScheduleRule[]): ScheduleRule[] {
-  return rules.filter(r => r.rule_type === 'forced_matchup' && r.action === 'force')
+  return rules.filter((r) => r.rule_type === 'forced_matchup' && r.action === 'force')
 }
 
 /**

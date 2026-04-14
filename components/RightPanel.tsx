@@ -35,15 +35,24 @@ export function RightPanel({ onNavigate }: Props) {
   gameTimes.sort((a, b) => a.minutes - b.minutes)
   const firstGame = gameTimes[0] ?? null
   const lastGame = gameTimes[gameTimes.length - 1] ?? null
-  const gamesRemaining = state.games.filter((g) => g.status === 'Scheduled' || g.status === 'Starting').length
+  const gamesRemaining = state.games.filter(
+    (g) => g.status === 'Scheduled' || g.status === 'Starting'
+  ).length
   const gamesLive = state.games.filter((g) => g.status === 'Live' || g.status === 'Halftime').length
   const gamesFinal = state.games.filter((g) => g.status === 'Final').length
 
   return (
-    <aside className="w-72 bg-surface-panel border-l border-border overflow-y-auto flex-shrink-0" style={{ maxHeight: 'calc(100vh - 48px)' }}>
+    <aside
+      className="w-72 bg-surface-panel border-l border-border overflow-y-auto flex-shrink-0"
+      style={{ maxHeight: 'calc(100vh - 48px)' }}
+    >
       {/* Today's Schedule quick view */}
       {state.games.length > 0 && (
-        <Section title={currentDate?.label ? `${currentDate.label.toUpperCase()} SCHEDULE` : "TODAY'S SCHEDULE"}>
+        <Section
+          title={
+            currentDate?.label ? `${currentDate.label.toUpperCase()} SCHEDULE` : "TODAY'S SCHEDULE"
+          }
+        >
           <div className="space-y-1.5">
             <div className="flex justify-between text-[11px]">
               <span className="text-muted font-cond">First Game</span>
@@ -65,7 +74,11 @@ export function RightPanel({ onNavigate }: Props) {
             )}
             <div className="flex justify-between text-[11px]">
               <span className="text-muted font-cond">Remaining</span>
-              <span className={cn('font-mono', gamesRemaining > 0 ? 'text-blue-300' : 'text-muted')}>{gamesRemaining}</span>
+              <span
+                className={cn('font-mono', gamesRemaining > 0 ? 'text-blue-300' : 'text-muted')}
+              >
+                {gamesRemaining}
+              </span>
             </div>
             <div className="flex justify-between text-[11px]">
               <span className="text-muted font-cond">Final</span>
@@ -90,14 +103,12 @@ export function RightPanel({ onNavigate }: Props) {
       {/* Incident Monitor */}
       {(() => {
         const today = new Date().toISOString().split('T')[0]
-        const todayIncidents = state.incidents.filter((inc) =>
-          inc.occurred_at?.startsWith(today) || inc.created_at?.startsWith(today)
+        const todayIncidents = state.incidents.filter(
+          (inc) => inc.occurred_at?.startsWith(today) || inc.created_at?.startsWith(today)
         )
-        const todayMedical = state.medicalIncidents.filter((m) =>
-          m.status !== 'Resolved' || m.dispatched_at?.startsWith(today)
-        ).filter((m) =>
-          m.dispatched_at?.startsWith(today)
-        )
+        const todayMedical = state.medicalIncidents
+          .filter((m) => m.status !== 'Resolved' || m.dispatched_at?.startsWith(today))
+          .filter((m) => m.dispatched_at?.startsWith(today))
         const totalToday = todayIncidents.length + todayMedical.length
 
         return (
@@ -123,14 +134,18 @@ export function RightPanel({ onNavigate }: Props) {
                           MEDICAL — {m.injury_type.toUpperCase()}
                         </span>
                         <span className="font-mono text-[9px] text-muted">
-                          {new Date(m.dispatched_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                          {new Date(m.dispatched_at).toLocaleTimeString('en-US', {
+                            hour: 'numeric',
+                            minute: '2-digit',
+                          })}
                         </span>
                       </div>
                       <div className="text-muted mt-0.5">
                         {m.field?.name ?? '—'} · {m.player_name || '—'}
                       </div>
                       <div className="text-muted">
-                        Trainer: {m.trainer_name} · <span className="text-blue-300">{m.status}</span>
+                        Trainer: {m.trainer_name} ·{' '}
+                        <span className="text-blue-300">{m.status}</span>
                       </div>
                     </div>
                   ))}
@@ -147,7 +162,10 @@ export function RightPanel({ onNavigate }: Props) {
                           RESOLVED — {m.injury_type.toUpperCase()}
                         </span>
                         <span className="font-mono text-[9px] text-muted">
-                          {new Date(m.dispatched_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                          {new Date(m.dispatched_at).toLocaleTimeString('en-US', {
+                            hour: 'numeric',
+                            minute: '2-digit',
+                          })}
                         </span>
                       </div>
                       <div className="text-muted mt-0.5">
@@ -170,13 +188,18 @@ export function RightPanel({ onNavigate }: Props) {
                       <span
                         className={cn(
                           'font-cond text-[11px] font-black tracking-wide',
-                          ['Player Injury', 'Ejection'].includes(inc.type) ? 'text-red-400' : 'text-yellow-400'
+                          ['Player Injury', 'Ejection'].includes(inc.type)
+                            ? 'text-red-400'
+                            : 'text-yellow-400'
                         )}
                       >
                         {inc.type.toUpperCase()}
                       </span>
                       <span className="font-mono text-[9px] text-muted">
-                        {new Date(inc.occurred_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                        {new Date(inc.occurred_at).toLocaleTimeString('en-US', {
+                          hour: 'numeric',
+                          minute: '2-digit',
+                        })}
                       </span>
                     </div>
                     <div className="text-muted mt-0.5">
@@ -309,16 +332,20 @@ function TrainerOnDutyPanel({ fields }: { fields: { id: number; name: string }[]
         </div>
       )}
       {/* Active dispatches */}
-      {state.medicalIncidents.filter((m) => m.status !== 'Resolved' && m.status !== 'Released').length > 0 && (
+      {state.medicalIncidents.filter((m) => m.status !== 'Resolved' && m.status !== 'Released')
+        .length > 0 && (
         <div className="mt-2 pt-1.5 border-t border-red-800/30">
-          <div className="font-cond text-[9px] text-red-400 tracking-wider font-bold mb-1">ACTIVE DISPATCHES</div>
+          <div className="font-cond text-[9px] text-red-400 tracking-wider font-bold mb-1">
+            ACTIVE DISPATCHES
+          </div>
           {state.medicalIncidents
             .filter((m) => m.status !== 'Resolved' && m.status !== 'Released')
             .map((m) => (
               <div key={m.id} className="flex items-center justify-between mb-1">
                 <div className="min-w-0">
                   <div className="font-cond text-[10px] text-red-200 truncate">
-                    {m.trainer_name}{m.player_name ? ` · ${m.player_name}` : ''}
+                    {m.trainer_name}
+                    {m.player_name ? ` · ${m.player_name}` : ''}
                   </div>
                   <div className="font-cond text-[9px] text-red-400/70">{m.status}</div>
                 </div>

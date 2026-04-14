@@ -35,6 +35,7 @@ render consistently in Outlook/Gmail. Not strictly required — plain HTML
 strings work fine — but makes maintaining templates much easier.
 
 **What NOT to use**:
+
 - **SendGrid** — 100 email/day free limit (too low), heavyweight SDK, poor
   DX compared to Resend.
 - **Nodemailer** — requires an SMTP server (no free option on Vercel
@@ -57,6 +58,7 @@ needed. Both expose a simple POST endpoint. Keep the call inside a Supabase
 Edge Function to protect credentials.
 
 **Telnyx API** (production path):
+
 ```
 POST https://api.telnyx.com/v2/messages
 Authorization: Bearer {TELNYX_API_KEY}
@@ -64,6 +66,7 @@ Authorization: Bearer {TELNYX_API_KEY}
 ```
 
 **What NOT to use**:
+
 - **Vonage/Nexmo free tier** — removed their free SMS tier in 2024.
 - **TextBelt free tier** (`textbelt.com`) — 1 SMS/day global, unusable.
 - **AWS SNS** — adds AWS account complexity; no meaningful cost advantage at
@@ -98,6 +101,7 @@ API directly — no library needed on the client. Create
 env vars (`VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`).
 
 **What NOT to use**:
+
 - **Firebase Cloud Messaging (FCM)** — adds a Google dependency, requires
   registering a Firebase project, and the SDK is heavier than needed for a
   web-only push use case. FCM is the right answer for React Native; overkill
@@ -107,6 +111,7 @@ env vars (`VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`).
 - **Pusher Beams** — paid-only beyond a trivial limit.
 
 **Schema addition needed**:
+
 ```sql
 CREATE TABLE push_subscriptions (
   id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -134,6 +139,7 @@ Functions**, not from Next.js API routes. Reasons:
 3. Avoids Vercel function cold-start latency on notification paths.
 
 Create one Edge Function per notification type:
+
 - `supabase/functions/notify-weather-alert/index.ts`
 - `supabase/functions/notify-schedule-change/index.ts`
 - `supabase/functions/notify-admin-alert/index.ts`
@@ -154,6 +160,7 @@ This is the official Google Maps Platform React wrapper (successor to
 with Google's backing.
 
 **What it provides**:
+
 - `<APIProvider apiKey={...}>` wrapper
 - `<Map>`, `<Marker>`, `<AdvancedMarker>` components
 - `useMapsLibrary('places')` hook for Places API access
@@ -172,6 +179,7 @@ const places = useMapsLibrary('places')
 ```
 
 On selection, save to the `complexes` table:
+
 ```
 complexes.lat         = place.geometry.location.lat()
 complexes.lng         = place.geometry.location.lng()
@@ -190,6 +198,7 @@ usage (Google's monthly free credit). For a tournament management tool with
 one venue lookup per event, this is effectively free indefinitely.
 
 **What NOT to use**:
+
 - **`@react-google-maps/api`** — older community wrapper, less maintained
   since vis.gl took over.
 - **`google-maps-react`** — unmaintained since 2022.
@@ -222,6 +231,7 @@ anonymous visitors efficiently?
 `event_id=eq.{slug}`) to receive live score updates without polling.
 
 This is the right tradeoff:
+
 - Parents who load the page get a fast first paint (ISR).
 - Live scores update within seconds without page refresh (Realtime WS).
 - No custom WebSocket server needed.
@@ -255,6 +265,7 @@ is 40-60 lines of JSX with flexbox. Avoids a library that is not actively
 maintained.
 
 **What NOT to use**:
+
 - **`@g-loot/react-tournament-brackets`** — abandoned in 2023.
 - **D3** — massive bundle weight for a simple bracket; overkill.
 - **chart.js** — wrong tool for bracket trees.
@@ -270,7 +281,7 @@ lightweight (7 KB gzipped).
 
 ```tsx
 import { QRCodeSVG } from 'qrcode.react'
-<QRCodeSVG value={`https://leagueops.vercel.app/results/e/${slug}?team=${teamId}`} size={200} />
+;<QRCodeSVG value={`https://leagueops.vercel.app/results/e/${slug}?team=${teamId}`} size={200} />
 ```
 
 The main admin app already uses QR tokens for player check-in. Reuse the same
@@ -299,13 +310,17 @@ The two routes that already check auth provide the pattern to replicate:
 ```typescript
 // Standard auth guard — add to top of every route handler
 const supabase = createClient() // supabase/server.ts
-const { data: { user }, error } = await supabase.auth.getUser()
+const {
+  data: { user },
+  error,
+} = await supabase.auth.getUser()
 if (!user) {
   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 }
 ```
 
 For admin-only routes, additionally check the user's role:
+
 ```typescript
 const { data: role } = await supabase
   .from('user_roles')
@@ -347,6 +362,7 @@ writing to arbitrary events) and eliminates the `as any` casts caused by
 untyped request bodies.
 
 **What NOT to use**:
+
 - **Joi** — CommonJS-only, worse TypeScript inference than Zod.
 - **Yup** — async-only validation model is awkward in Route Handlers.
 - **Manual validation** — 40+ routes means manual checks will be
@@ -445,6 +461,7 @@ Target routes: `weather-engine`, `referee-engine`, `field-engine`,
 `auth/check-email`, `join`.
 
 **What NOT to use**:
+
 - **Vercel KV** — same Upstash under the hood, but accessed through Vercel's
   abstraction. Using `@upstash/ratelimit` directly gives more control and
   avoids Vercel vendor lock-in on the data layer.
@@ -463,6 +480,7 @@ sufficient for responsive design. The work is applying responsive prefixes
 narrow viewports.
 
 **Tailwind breakpoints** (already configured):
+
 - `sm` = 640px (large phone landscape)
 - `md` = 768px (tablet portrait)
 - `lg` = 1024px (tablet landscape / laptop)
@@ -490,6 +508,7 @@ mouse events. Extend with `onTouchStart`/`onTouchMove`/`onTouchEnd` handlers
 touch via its `TouchSensor`.
 
 **What NOT to add**:
+
 - **Headless UI / Radix UI** — useful if building a component library from
   scratch, but LeagueOps has its own design system in `components/ui/`. Adding
   Radix now would create two parallel component systems. If a specific
@@ -515,6 +534,7 @@ The SCH-01 through SCH-06 workflow is a state machine over a new
 `schedule_change_requests` table. No new packages required.
 
 **Suggested schema**:
+
 ```sql
 CREATE TABLE schedule_change_requests (
   id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -554,6 +574,7 @@ the same token pattern already used for referee self-registration
 (`registration_invites` table, `app/join/[token]/page.tsx`). Extend it:
 
 **New table** (or extend `registration_invites`):
+
 ```sql
 CREATE TABLE coach_invite_tokens (
   id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -579,39 +600,39 @@ leader dashboard. Install once, use in both places.
 
 ## Recommendations Summary
 
-| Feature Area | Add | Version | Why |
-|---|---|---|---|
-| Email notifications | `resend` | `^3.5.0` | Best DX, generous free tier, native Vercel integration |
-| Email templates | `@react-email/components`, `react-email` | `^0.0.x`, `^3.x` | Maintainable HTML email templates as React components |
-| SMS notifications | Telnyx REST API (no SDK) | — | Cheapest US SMS (~$0.004/SMS), simple REST call |
-| Browser push | `web-push` (Edge Function only) | `^3.6.x` | Native Web Push protocol, no third-party dependency |
-| Google Maps venue lookup | `@vis.gl/react-google-maps` | `^1.4.0` | Official Google-backed React wrapper, Places Autocomplete support |
-| Input validation | `zod` | `^3.23.x` | Schema-first validation, TypeScript inference, composable |
-| Rate limiting | `@upstash/ratelimit`, `@upstash/redis` | `^2.x`, `^1.x` | 10k req/day free, Vercel one-click integration |
-| QR codes (results + coach invite) | `qrcode.react` | `^3.x` | Lightweight SVG QR output, already-familiar pattern |
-| Bracket visualization | Custom Tailwind CSS | — | 8-16 team bracket is 60 lines of JSX; no abandoned library dependency |
-| Responsive layout | Tailwind responsive prefixes | (existing 3.4.4) | No new library needed; Tailwind + existing `@dnd-kit` covers it |
-| Public results real-time | Supabase Realtime (existing SDK) | (existing ^2.99.2) | Already used in main app; free, no new library |
-| RLS policies | SQL migrations | — | No library; pure PostgreSQL policy definitions |
-| API auth guard | `@supabase/ssr` (existing) | (existing ^0.9.0) | `auth.getUser()` already available; missing calls, not missing library |
-| Engine client fix | Refactor (no new library) | — | Pass server client as parameter; removes browser client from server context |
+| Feature Area                      | Add                                      | Version            | Why                                                                         |
+| --------------------------------- | ---------------------------------------- | ------------------ | --------------------------------------------------------------------------- |
+| Email notifications               | `resend`                                 | `^3.5.0`           | Best DX, generous free tier, native Vercel integration                      |
+| Email templates                   | `@react-email/components`, `react-email` | `^0.0.x`, `^3.x`   | Maintainable HTML email templates as React components                       |
+| SMS notifications                 | Telnyx REST API (no SDK)                 | —                  | Cheapest US SMS (~$0.004/SMS), simple REST call                             |
+| Browser push                      | `web-push` (Edge Function only)          | `^3.6.x`           | Native Web Push protocol, no third-party dependency                         |
+| Google Maps venue lookup          | `@vis.gl/react-google-maps`              | `^1.4.0`           | Official Google-backed React wrapper, Places Autocomplete support           |
+| Input validation                  | `zod`                                    | `^3.23.x`          | Schema-first validation, TypeScript inference, composable                   |
+| Rate limiting                     | `@upstash/ratelimit`, `@upstash/redis`   | `^2.x`, `^1.x`     | 10k req/day free, Vercel one-click integration                              |
+| QR codes (results + coach invite) | `qrcode.react`                           | `^3.x`             | Lightweight SVG QR output, already-familiar pattern                         |
+| Bracket visualization             | Custom Tailwind CSS                      | —                  | 8-16 team bracket is 60 lines of JSX; no abandoned library dependency       |
+| Responsive layout                 | Tailwind responsive prefixes             | (existing 3.4.4)   | No new library needed; Tailwind + existing `@dnd-kit` covers it             |
+| Public results real-time          | Supabase Realtime (existing SDK)         | (existing ^2.99.2) | Already used in main app; free, no new library                              |
+| RLS policies                      | SQL migrations                           | —                  | No library; pure PostgreSQL policy definitions                              |
+| API auth guard                    | `@supabase/ssr` (existing)               | (existing ^0.9.0)  | `auth.getUser()` already available; missing calls, not missing library      |
+| Engine client fix                 | Refactor (no new library)                | —                  | Pass server client as parameter; removes browser client from server context |
 
 ### What to NOT Add
 
-| Candidate | Reason to Skip |
-|---|---|
-| SendGrid | 100 email/day free limit; worse DX than Resend |
-| Twilio (production) | 2x price of Telnyx for US SMS |
-| Firebase Cloud Messaging | Google dependency, SDK overhead — overkill for web push |
-| OneSignal | Third-party data sharing; unnecessary with native Web Push |
-| Mapbox | Not free at scale; wrong tool for single venue lookup |
-| Leaflet + Nominatim | Geocoding reliability insufficient for venue search |
-| Radix UI / Headless UI | Creates parallel component system alongside existing `components/ui/` |
-| Framer Motion | 60 KB for animations achievable in 4 lines of Tailwind |
-| react-brackets library | Abandoned; simple bracket is faster to write in Tailwind |
-| Turborepo / Nx | Monorepo tooling overhead not justified for 2 Next.js apps |
-| Stripe | Explicitly out of scope |
-| Joi / Yup | Worse TypeScript ergonomics than Zod |
+| Candidate                | Reason to Skip                                                        |
+| ------------------------ | --------------------------------------------------------------------- |
+| SendGrid                 | 100 email/day free limit; worse DX than Resend                        |
+| Twilio (production)      | 2x price of Telnyx for US SMS                                         |
+| Firebase Cloud Messaging | Google dependency, SDK overhead — overkill for web push               |
+| OneSignal                | Third-party data sharing; unnecessary with native Web Push            |
+| Mapbox                   | Not free at scale; wrong tool for single venue lookup                 |
+| Leaflet + Nominatim      | Geocoding reliability insufficient for venue search                   |
+| Radix UI / Headless UI   | Creates parallel component system alongside existing `components/ui/` |
+| Framer Motion            | 60 KB for animations achievable in 4 lines of Tailwind                |
+| react-brackets library   | Abandoned; simple bracket is faster to write in Tailwind              |
+| Turborepo / Nx           | Monorepo tooling overhead not justified for 2 Next.js apps            |
+| Stripe                   | Explicitly out of scope                                               |
+| Joi / Yup                | Worse TypeScript ergonomics than Zod                                  |
 
 ### Delivery Order (Priority-Aligned)
 
@@ -631,21 +652,22 @@ leader dashboard. Install once, use in both places.
 8. **Public results real-time + `qrcode.react`**: Upgrade sub-app Supabase
    version, add Realtime subscription, add QR output.
 9. **Schedule change request + coach self-registration**: SQL + API routes
-   + UI; no new packages beyond what's already installed.
+   - UI; no new packages beyond what's already installed.
 
 ### Environment Variables to Add
 
-| Variable | Where | Purpose |
-|---|---|---|
-| `RESEND_API_KEY` | Supabase secrets + Vercel | Resend email sending |
-| `TELNYX_API_KEY` | Supabase secrets | SMS sending |
-| `VAPID_PUBLIC_KEY` | Vercel + Supabase secrets | Web Push public key |
-| `VAPID_PRIVATE_KEY` | Supabase secrets only | Web Push private key |
-| `VAPID_SUBJECT` | Supabase secrets | Web Push contact mailto |
-| `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` | Vercel | Maps JS + Places API (referrer-restricted) |
-| `UPSTASH_REDIS_REST_URL` | Vercel (auto via integration) | Rate limit Redis |
-| `UPSTASH_REDIS_REST_TOKEN` | Vercel (auto via integration) | Rate limit Redis auth |
-| `OPENWEATHER_API_KEY` | Vercel (rename from NEXT_PUBLIC_) | Weather engine — server only |
+| Variable                          | Where                             | Purpose                                    |
+| --------------------------------- | --------------------------------- | ------------------------------------------ |
+| `RESEND_API_KEY`                  | Supabase secrets + Vercel         | Resend email sending                       |
+| `TELNYX_API_KEY`                  | Supabase secrets                  | SMS sending                                |
+| `VAPID_PUBLIC_KEY`                | Vercel + Supabase secrets         | Web Push public key                        |
+| `VAPID_PRIVATE_KEY`               | Supabase secrets only             | Web Push private key                       |
+| `VAPID_SUBJECT`                   | Supabase secrets                  | Web Push contact mailto                    |
+| `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` | Vercel                            | Maps JS + Places API (referrer-restricted) |
+| `UPSTASH_REDIS_REST_URL`          | Vercel (auto via integration)     | Rate limit Redis                           |
+| `UPSTASH_REDIS_REST_TOKEN`        | Vercel (auto via integration)     | Rate limit Redis auth                      |
+| `OPENWEATHER_API_KEY`             | Vercel (rename from NEXT*PUBLIC*) | Weather engine — server only               |
 
 ---
-*Generated 2026-03-22*
+
+_Generated 2026-03-22_

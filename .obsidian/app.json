@@ -1,0 +1,25 @@
+{
+  "userIgnoreFilters": [
+    "node_modules",
+    ".next",
+    ".vercel",
+    ".git",
+    "out",
+    "apps/public-results/node_modules",
+    "apps/public-results/.next",
+    "components",
+    "app",
+    "lib",
+    "types",
+    "public",
+    "supabase",
+    "apps/public-results/src",
+    "__tests__",
+    "coverage"
+  ],
+  "newFileLocation": "folder",
+  "newFileFolderPath": ".planning",
+  "attachmentFolderPath": ".planning/assets",
+  "showUnsupportedFiles": false,
+  "defaultViewMode": "preview"
+}

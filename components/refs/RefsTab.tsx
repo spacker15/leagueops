@@ -432,7 +432,10 @@ export function RefsTab() {
     const { data: avail } = await sb
       .from('trainer_availability')
       .select('trainer_id')
-      .in('trainer_id', trainers.map((t) => t.id))
+      .in(
+        'trainer_id',
+        trainers.map((t) => t.id)
+      )
     const counts: Record<number, number> = {}
     for (const row of avail ?? []) {
       counts[row.trainer_id] = (counts[row.trainer_id] ?? 0) + 1

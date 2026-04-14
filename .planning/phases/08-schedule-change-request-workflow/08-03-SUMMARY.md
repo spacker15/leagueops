@@ -23,11 +23,11 @@ affects: [08-04, frontend components consuming state.scheduleChangeRequests]
 tech-stack:
   added: []
   patterns:
-    - "LEGAL_TRANSITIONS Record enforces state machine — illegal transitions return 400 with descriptive error"
-    - "Admin-only routes use maybeSingle() user_roles check — 403 if not admin"
-    - "Parallel Promise.all for slots route data fetching (games, fields, event_dates, team_registrations)"
-    - "RPC-first atomic reschedule — client never performs multi-step update directly"
-    - "Notifications fire at 3 trigger points: new request (admin/event scope), cancel/reschedule (both teams), deny (requester team)"
+    - 'LEGAL_TRANSITIONS Record enforces state machine — illegal transitions return 400 with descriptive error'
+    - 'Admin-only routes use maybeSingle() user_roles check — 403 if not admin'
+    - 'Parallel Promise.all for slots route data fetching (games, fields, event_dates, team_registrations)'
+    - 'RPC-first atomic reschedule — client never performs multi-step update directly'
+    - 'Notifications fire at 3 trigger points: new request (admin/event scope), cancel/reschedule (both teams), deny (requester team)'
 
 key-files:
   created:
@@ -41,7 +41,7 @@ key-files:
 key-decisions:
   - "Approved cancel requests immediately transition to 'completed' after updating all game statuses — no separate step needed"
   - "Reschedule route sets status to 'partially_complete' if some junction games still pending, 'completed' only when all resolved"
-  - "slots route is admin-only (same role check as PATCH) — coaches use the request form, not direct slot browsing"
+  - 'slots route is admin-only (same role check as PATCH) — coaches use the request form, not direct slot browsing'
   - "Store uses a separate Supabase channel ('schedule_change_requests') rather than adding to existing leagueops-realtime channel"
 
 patterns-established:
@@ -112,5 +112,6 @@ None - no external service configuration required.
 - Notifications fire at all workflow transition points per D-21
 
 ---
-*Phase: 08-schedule-change-request-workflow*
-*Completed: 2026-03-24*
+
+_Phase: 08-schedule-change-request-workflow_
+_Completed: 2026-03-24_

@@ -564,7 +564,11 @@ export async function applyResolution(
 }
 
 // ─── Run both engines together ────────────────────────────────
-export async function runFullConflictScan(eventDateId: number, eventId: number, sb: SupabaseClient) {
+export async function runFullConflictScan(
+  eventDateId: number,
+  eventId: number,
+  sb: SupabaseClient
+) {
   const [fieldResult] = await Promise.all([runFieldConflictEngine(eventDateId, eventId, sb)])
 
   await sb.from('conflict_engine_runs').insert({

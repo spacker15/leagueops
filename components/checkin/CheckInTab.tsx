@@ -152,7 +152,10 @@ export function CheckInTab() {
     if (!players.length) return players
 
     // Auto-generate tokens for any missing ones
-    const tokenMap = await ensureTokens(players.map((p) => p.id), eventId)
+    const tokenMap = await ensureTokens(
+      players.map((p) => p.id),
+      eventId
+    )
     return players.map((p) => ({ ...p, token: tokenMap[p.id] }))
   }
 

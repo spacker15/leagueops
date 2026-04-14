@@ -7,24 +7,24 @@ tags: [registration, coaches, availability, supabase, react, forms]
 # Dependency graph
 requires:
   - phase: 06-registration-flow-enhancements
-    provides: "06-01 built schema tables (coaches, coach_teams, coach_conflicts, event_dates, available_date_ids column) and detectCoachConflicts engine"
+    provides: '06-01 built schema tables (coaches, coach_teams, coach_conflicts, event_dates, available_date_ids column) and detectCoachConflicts engine'
 provides:
-  - "Extended RegisterPage Step 3 with additional coaches section (collapsible, add/delete rows)"
-  - "Date availability checkboxes with Available All Dates toggle per team"
-  - "Team count indicator (Team N of M) in each team card header"
-  - "Copy from Team 1 button for teams at index 1+"
-  - "Form submission saves head/assistant coaches to coaches + coach_teams tables"
-  - "Form submission saves available_date_ids to team_registrations"
-  - "Coach conflict detection runs after all coach inserts on submission"
+  - 'Extended RegisterPage Step 3 with additional coaches section (collapsible, add/delete rows)'
+  - 'Date availability checkboxes with Available All Dates toggle per team'
+  - 'Team count indicator (Team N of M) in each team card header'
+  - 'Copy from Team 1 button for teams at index 1+'
+  - 'Form submission saves head/assistant coaches to coaches + coach_teams tables'
+  - 'Form submission saves available_date_ids to team_registrations'
+  - 'Coach conflict detection runs after all coach inserts on submission'
 affects: [06-registration-flow-enhancements, admin-programs-tab]
 
 # Tech tracking
 tech-stack:
   added: []
   patterns:
-    - "Collapsible section pattern with per-index expanded state map (Record<number, boolean>)"
-    - "Toggle switch with role=switch aria-checked for accessibility"
-    - "Deep copy array pattern for copyFromTeam1 (spread objects in .map)"
+    - 'Collapsible section pattern with per-index expanded state map (Record<number, boolean>)'
+    - 'Toggle switch with role=switch aria-checked for accessibility'
+    - 'Deep copy array pattern for copyFromTeam1 (spread objects in .map)'
 
 key-files:
   created: []
@@ -32,14 +32,14 @@ key-files:
     - components/auth/RegisterPage.tsx
 
 key-decisions:
-  - "detectCoachConflicts wrapped in try/catch — non-fatal, conflict detection failure must not block registration submission"
-  - "Available All Dates = true stores empty array (available_date_ids: []) to team_registrations — semantics: empty = all dates"
-  - "Additional Coaches section collapsed by default — expands on toggle icon or ADD COACH click when list is empty"
-  - "Copy from Team 1 only available for teams at index 1+ — replaces head coach, additional coaches, and availability state"
+  - 'detectCoachConflicts wrapped in try/catch — non-fatal, conflict detection failure must not block registration submission'
+  - 'Available All Dates = true stores empty array (available_date_ids: []) to team_registrations — semantics: empty = all dates'
+  - 'Additional Coaches section collapsed by default — expands on toggle icon or ADD COACH click when list is empty'
+  - 'Copy from Team 1 only available for teams at index 1+ — replaces head coach, additional coaches, and availability state'
 
 patterns-established:
-  - "coachSectionExpanded: Record<number, boolean> — per-team-index toggle map pattern for Step 3 expandable sections"
-  - "formatEventDate uses toLocaleDateString with Intl options — avoids date-fns dependency in client components"
+  - 'coachSectionExpanded: Record<number, boolean> — per-team-index toggle map pattern for Step 3 expandable sections'
+  - 'formatEventDate uses toLocaleDateString with Intl options — avoids date-fns dependency in client components'
 
 requirements-completed: [REG-02, REG-03, REG-08]
 

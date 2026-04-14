@@ -4,7 +4,9 @@ import { createClient } from '@/supabase/server'
 // POST /api/coach-invite — generate or regenerate coach invite link for a program+event
 export async function POST(req: NextRequest) {
   const sb = createClient()
-  const { data: { user } } = await sb.auth.getUser()
+  const {
+    data: { user },
+  } = await sb.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { programId, eventId } = await req.json()
@@ -22,7 +24,10 @@ export async function POST(req: NextRequest) {
     .maybeSingle()
 
   if (!role) {
-    return NextResponse.json({ error: 'Forbidden — not a program leader for this program' }, { status: 403 })
+    return NextResponse.json(
+      { error: 'Forbidden — not a program leader for this program' },
+      { status: 403 }
+    )
   }
 
   // Fetch event's registration_closes_at for setting expires_at
@@ -61,7 +66,9 @@ export async function POST(req: NextRequest) {
 // DELETE /api/coach-invite — revoke coach invite link for a program+event
 export async function DELETE(req: NextRequest) {
   const sb = createClient()
-  const { data: { user } } = await sb.auth.getUser()
+  const {
+    data: { user },
+  } = await sb.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { programId, eventId } = await req.json()
@@ -79,7 +86,10 @@ export async function DELETE(req: NextRequest) {
     .maybeSingle()
 
   if (!role) {
-    return NextResponse.json({ error: 'Forbidden — not a program leader for this program' }, { status: 403 })
+    return NextResponse.json(
+      { error: 'Forbidden — not a program leader for this program' },
+      { status: 403 }
+    )
   }
 
   const { error } = await sb

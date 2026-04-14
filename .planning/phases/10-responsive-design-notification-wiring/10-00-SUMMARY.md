@@ -1,6 +1,6 @@
 ---
 phase: 10-responsive-design-notification-wiring
-plan: "00"
+plan: '00'
 subsystem: testing
 tags: [vitest, notifications, tdd, wave-0, not-02, not-03, not-04]
 
@@ -18,7 +18,7 @@ affects: [10-03-notification-wiring-implementation]
 tech-stack:
   added: []
   patterns:
-    - "vi.resetModules() + vi.doMock() per test for isolated dynamic imports of route handlers"
+    - 'vi.resetModules() + vi.doMock() per test for isolated dynamic imports of route handlers'
     - "Red-phase TDD stubs: tests assert insertNotification was called but route doesn't call it yet"
 
 key-files:
@@ -29,12 +29,12 @@ key-files:
   modified: []
 
 key-decisions:
-  - "vi.resetModules() used per test (not beforeEach) to allow vi.doMock() to take effect for dynamic route imports"
-  - "weather-engine route mocks @/supabase/server (no lib/ prefix); games route mocks @/lib/supabase/server — paths differ per existing route implementations"
-  - "One test passes (does not throw) confirming non-fatal notification requirement; 5 tests fail confirming insertNotification not yet wired"
+  - 'vi.resetModules() used per test (not beforeEach) to allow vi.doMock() to take effect for dynamic route imports'
+  - 'weather-engine route mocks @/supabase/server (no lib/ prefix); games route mocks @/lib/supabase/server — paths differ per existing route implementations'
+  - 'One test passes (does not throw) confirming non-fatal notification requirement; 5 tests fail confirming insertNotification not yet wired'
 
 patterns-established:
-  - "Wave 0 test stubs: use vi.resetModules()+vi.doMock() inside each it() for fresh module state with dynamic imports"
+  - 'Wave 0 test stubs: use vi.resetModules()+vi.doMock() inside each it() for fresh module state with dynamic imports'
 
 requirements-completed: [NOT-02, NOT-03, NOT-04]
 
@@ -87,6 +87,7 @@ Tests       5 failed | 1 passed (6)
 ## Key Implementation Notes for Plan 10-03
 
 **Weather engine route** (`app/api/weather-engine/route.ts`):
+
 - After `runWeatherEngine()` returns results, iterate `result.alerts`
 - Call `insertNotification(eventId, 'weather_alert', scope, scopeId, payload)` per alert
 - Lightning/severe alerts → scope: `'event'`, scopeId: `null`
@@ -94,6 +95,7 @@ Tests       5 failed | 1 passed (6)
 - Wrap in try/catch — notification failures must not affect 200 response
 
 **Games PATCH route** (`app/api/games/[id]/route.ts`):
+
 - After successful game update, check updated game status
 - If status === `'Live'`: query `game_referees` table — if empty, fire admin_alert
 - Check event's `registration_closes_at`: if within 48h and open registrations exist, fire admin_alert

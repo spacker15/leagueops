@@ -186,7 +186,10 @@ export function IncidentsTab() {
   )
 
   return (
-    <div className="grid grid-cols-2 gap-6 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 140px)' }}>
+    <div
+      className="grid grid-cols-2 gap-6 overflow-y-auto"
+      style={{ maxHeight: 'calc(100vh - 140px)' }}
+    >
       {/* LEFT: Forms */}
       <div>
         {/* ── Incident Form ── */}

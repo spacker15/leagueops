@@ -81,6 +81,7 @@ Each task was committed atomically:
 2. **Task 2: Human verification** - approved by user (no code commit)
 
 **Bug fixes during UAT:**
+
 - `3449138` - fix(rls): add owner_id fallback to events SELECT/UPDATE policies
 - `047c6b1` - fix(rls): allow authenticated users to insert new events
 - `d1aed26` - fix(sharing): fallback to window.location.origin when PUBLIC_RESULTS_URL unset
@@ -108,6 +109,7 @@ Each task was committed atomically:
 ### Auto-fixed Issues
 
 **1. [Rule 2 - Missing Critical] RLS policy owner_id fallback for events SELECT/UPDATE**
+
 - **Found during:** Task 2 (UAT — event loading failed for event owner)
 - **Issue:** Events SELECT/UPDATE policies did not fall back to `owner_id` field — event owner could not load their own event if `user_roles` row was missing
 - **Fix:** Added `OR owner_id = auth.uid()` clause to events SELECT and UPDATE RLS policies
@@ -115,6 +117,7 @@ Each task was committed atomically:
 - **Commit:** 3449138
 
 **2. [Rule 1 - Bug] event_admins INSERT order caused FK violation**
+
 - **Found during:** Task 2 (UAT — event creation failed with FK error)
 - **Issue:** `createEvent()` inserted into `event_admins` before `user_roles`, violating FK constraint on `event_admins.user_role_id`
 - **Fix:** Swapped insert order so `user_roles` is inserted first, then `event_admins`
@@ -122,6 +125,7 @@ Each task was committed atomically:
 - **Commit:** 97558b3
 
 **3. [Rule 2 - Missing Critical] Registration URL fallback for local dev**
+
 - **Found during:** Task 2 (UAT — registration URL was empty string when env var unset)
 - **Issue:** When `NEXT_PUBLIC_PUBLIC_RESULTS_URL` is not set, `registrationUrl` was empty, breaking the entire Sharing tab display
 - **Fix:** Added `|| (typeof window !== 'undefined' ? window.location.origin : '')` fallback
@@ -129,6 +133,7 @@ Each task was committed atomically:
 - **Commit:** d1aed26
 
 **4. [Rule 3 - Blocking] /e/[slug]/register route missing from main app**
+
 - **Found during:** Task 2 (UAT — visiting /e/[slug]/register returned 404 in main app)
 - **Issue:** The route only existed in `apps/public-results`; navigating to registration URL from the sharing tab in the main app returned 404
 - **Fix:** Added `app/e/[slug]/register/page.tsx` route to the main leagueops app
@@ -136,6 +141,7 @@ Each task was committed atomically:
 - **Commit:** d6f92d6
 
 **5. [Rule 1 - Bug] single() crash on duplicate slugs**
+
 - **Found during:** Task 2 (UAT — registration page crashed with "multiple rows returned" error)
 - **Issue:** `single()` throws when multiple rows match; test data had duplicate slugs
 - **Fix:** Replaced `single()` with `maybeSingle()` in slug lookup query
@@ -143,6 +149,7 @@ Each task was committed atomically:
 - **Commit:** 4f022e4
 
 **6. [Rule 2 - Missing Critical] Unique slug enforcement in createEvent()**
+
 - **Found during:** Task 2 (UAT — slugs were not guaranteed unique, causing downstream 500s)
 - **Issue:** Slug generation used `nanoid()` with no collision check; duplicate slugs caused data integrity issues
 - **Fix:** Added slug uniqueness check with up to 5 retry attempts using different nanoid values
@@ -183,5 +190,6 @@ None — registration URL uses real slug from database, QR renders real URL, all
 ## Self-Check: PASSED
 
 ---
-*Phase: 05-event-creation-enhancements*
-*Completed: 2026-03-23*
+
+_Phase: 05-event-creation-enhancements_
+_Completed: 2026-03-23_
