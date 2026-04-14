@@ -77,7 +77,12 @@ export function EventTabContent({
       )}
       {activeTab === 'results' && <ResultsSection games={finalGames} hideScores={hideScores} />}
       {activeTab === 'live' && (
-        <LiveSectionEnhanced games={liveGames} allGames={games} flashingIds={flashingIds} />
+        <LiveSectionEnhanced
+          games={liveGames}
+          allGames={games}
+          flashingIds={flashingIds}
+          hideScores={hideScores}
+        />
       )}
       {activeTab === 'bracket' && bracket.format && (
         <BracketTab
@@ -214,10 +219,12 @@ function LiveSectionEnhanced({
   games,
   allGames,
   flashingIds,
+  hideScores,
 }: {
   games: PublicGame[]
   allGames: PublicGame[]
   flashingIds: Set<number>
+  hideScores: boolean
 }) {
   if (games.length === 0) {
     const nextGame = allGames
