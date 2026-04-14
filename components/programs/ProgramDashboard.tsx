@@ -20,9 +20,12 @@ import {
   ChevronRight,
   Mail,
   Phone,
+  FileText,
 } from 'lucide-react'
 import { ScheduleChangeRequestModal } from '@/components/schedule/ScheduleChangeRequestModal'
 import { EventDatePicker, type PickerDate } from '@/components/ui/EventDatePicker'
+import { InvoiceModal, loadInvoiceData } from '@/components/payments/InvoiceModal'
+import type { InvoiceData } from '@/components/payments/InvoiceModal'
 import type { Game } from '@/types'
 
 // Divisions are derived dynamically from event data (registration_fees + existing teams)
@@ -86,6 +89,10 @@ export function ProgramDashboard({ onSwitchToAdmin }: { onSwitchToAdmin?: () => 
   const [programPayments, setProgramPayments] = useState<any[]>([])
   const [programGameCounts, setProgramGameCounts] = useState<Record<number, number>>({})
   const [availableDivisions, setAvailableDivisions] = useState<string[]>([])
+
+  // Invoice
+  const [invoiceData, setInvoiceData] = useState<InvoiceData | null>(null)
+  const [loadingInvoice, setLoadingInvoice] = useState(false)
 
   // Matchup data — all teams + games in same divisions as this program's teams
   const [matchupDivTeams, setMatchupDivTeams] = useState<
@@ -275,6 +282,26 @@ export function ProgramDashboard({ onSwitchToAdmin }: { onSwitchToAdmin?: () => 
       console.error('ProgramDashboard loadData error:', err)
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function openInvoice() {
+    if (!portalEventId || !program) return
+    setLoadingInvoice(true)
+    try {
+      const gameCounts: Record<number, number> = programGameCounts
+      const data = await loadInvoiceData(
+        portalEventId,
+        program.name,
+        programPayments,
+        programFees,
+        gameCounts
+      )
+      setInvoiceData(data)
+    } catch {
+      toast.error('Failed to load invoice data')
+    } finally {
+      setLoadingInvoice(false)
     }
   }
 
@@ -806,9 +833,16 @@ export function ProgramDashboard({ onSwitchToAdmin }: { onSwitchToAdmin?: () => 
               <div className="bg-surface-card border border-border rounded-xl overflow-hidden mt-5">
                 <div className="px-4 py-3 border-b border-border flex items-center gap-2">
                   <DollarSign size={13} className="text-muted" />
-                  <span className="font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase">
+                  <span className="font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase flex-1">
                     Fees & Payments
                   </span>
+                  <button
+                    onClick={openInvoice}
+                    disabled={loadingInvoice}
+                    className="flex items-center gap-1 font-cond text-[9px] font-black tracking-wider px-2.5 py-1 rounded bg-[#1a2d50] hover:bg-navy text-blue-300 hover:text-white transition-colors disabled:opacity-50"
+                  >
+                    <FileText size={11} /> {loadingInvoice ? 'LOADING…' : 'INVOICE'}
+                  </button>
                 </div>
                 <table className="w-full">
                   <thead>
@@ -1478,6 +1512,9 @@ export function ProgramDashboard({ onSwitchToAdmin }: { onSwitchToAdmin?: () => 
           eventId={portalEventId!}
         />
       )}
+
+      {/* Invoice modal */}
+      {invoiceData && <InvoiceModal data={invoiceData} onClose={() => setInvoiceData(null)} />}
     </div>
   )
 }
