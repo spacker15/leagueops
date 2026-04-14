@@ -8,10 +8,10 @@ import {
   getPublicBracket,
   getPublicStandings,
   getPublicWeatherAlerts,
-} from '@/lib/data'
+} from '@/lib/public-results/data'
 import { LiveScoresClient } from './LiveScoresClient'
 import { EventTabContent } from './EventTabContent'
-import { EventQRCode } from '@/components/EventQRCode'
+import { EventQRCode } from '@/components/public-results/EventQRCode'
 
 export const revalidate = 30
 
@@ -42,15 +42,12 @@ export default async function EventPage({ params, searchParams }: Props) {
   // Default to the current or next upcoming event day; fall back to day 1
   const defaultDay = (() => {
     if (!eventDates.length) return 1
-    const today = new Date().toISOString().slice(0, 10) // YYYY-MM-DD
+    const today = new Date().toISOString().slice(0, 10)
     const sorted = [...eventDates].sort((a, b) => a.day_number - b.day_number)
-    // Prefer today's date if it matches
     const todayMatch = sorted.find((d) => d.date === today)
     if (todayMatch) return todayMatch.day_number
-    // Otherwise pick the next upcoming date
     const upcoming = sorted.find((d) => d.date > today)
     if (upcoming) return upcoming.day_number
-    // All dates are in the past — show the last day
     return sorted[sorted.length - 1].day_number
   })()
 
@@ -64,7 +61,6 @@ export default async function EventPage({ params, searchParams }: Props) {
   const showStandings = event.public_standings !== false
   const showResults = event.public_results !== false
 
-  // Deduplicate alerts by type
   const uniqueAlerts = weatherAlerts.filter(
     (a, idx, arr) => arr.findIndex((x) => x.alert_type === a.alert_type) === idx
   )
@@ -83,7 +79,7 @@ export default async function EventPage({ params, searchParams }: Props) {
     <div className="space-y-5">
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-[#5a6e9a] font-cond text-[10px] font-bold tracking-[.1em] uppercase">
-        <Link href="/" className="hover:text-white transition-colors">
+        <Link href="/results" className="hover:text-white transition-colors">
           All Events
         </Link>
         <span>/</span>
@@ -174,7 +170,7 @@ export default async function EventPage({ params, searchParams }: Props) {
         {tabs.map((tab) => (
           <Link
             key={tab.id}
-            href={`/e/${params.slug}?tab=${tab.id}`}
+            href={`/results/e/${params.slug}?tab=${tab.id}`}
             className={`relative px-4 py-3 font-cond text-[10px] font-bold tracking-[.1em] uppercase transition-colors ${
               activeTab === tab.id ? 'text-white' : 'text-[#5a6e9a] hover:text-white'
             } ${tab.highlight ? 'text-green-400' : ''}`}
@@ -191,7 +187,7 @@ export default async function EventPage({ params, searchParams }: Props) {
             {divisions.map((d) => (
               <Link
                 key={d}
-                href={`/e/${params.slug}?tab=${activeTab}&div=${d}`}
+                href={`/results/e/${params.slug}?tab=${activeTab}&div=${d}`}
                 className={`px-2.5 py-1 rounded font-cond text-[10px] font-bold tracking-[.1em] uppercase transition-colors ${
                   divFilter === d ? 'bg-[#0B3D91] text-white' : 'text-[#5a6e9a] hover:text-white'
                 }`}
@@ -203,7 +199,7 @@ export default async function EventPage({ params, searchParams }: Props) {
         )}
       </div>
 
-      {/* Content wrapped in LiveScoresClient provider */}
+      {/* Content */}
       <LiveScoresClient initialGames={liveGames} eventId={event.id}>
         <EventTabContent
           activeTab={activeTab}

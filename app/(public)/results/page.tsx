@@ -1,10 +1,10 @@
-import { getPublicEvents } from '@/lib/data'
-import type { PublicEvent } from '@/lib/data'
-import { EventSearchFilter } from '@/components/EventSearchFilter'
+import { getPublicEvents } from '@/lib/public-results/data'
+import type { PublicEvent } from '@/lib/public-results/data'
+import { EventSearchFilter } from '@/components/public-results/EventSearchFilter'
 
-export const revalidate = 60 // ISR — revalidate every 60 seconds
+export const revalidate = 60
 
-export default async function HomePage() {
+export default async function ResultsHomePage() {
   let events: PublicEvent[] = []
   try {
     events = await getPublicEvents()

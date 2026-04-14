@@ -3662,7 +3662,7 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                 <Card title="Public Results Site" icon={<Globe size={14} />}>
                   <ShareLinkSection
                     label=""
-                    url={`${process.env.NEXT_PUBLIC_PUBLIC_RESULTS_URL ?? 'https://public-results-gamma.vercel.app'}/e/${event.slug}`}
+                    url={`${typeof window !== 'undefined' ? window.location.origin : ''}/results/e/${event.slug}`}
                   />
                 </Card>
 
