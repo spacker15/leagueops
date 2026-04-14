@@ -20,11 +20,9 @@ import {
   ChevronRight,
   Mail,
   Phone,
-  FileText,
 } from 'lucide-react'
 import { ScheduleChangeRequestModal } from '@/components/schedule/ScheduleChangeRequestModal'
 import { EventDatePicker, type PickerDate } from '@/components/ui/EventDatePicker'
-import { InvoiceModal, type InvoiceData } from '@/components/payments/InvoiceModal'
 import type { Game } from '@/types'
 
 // Divisions are derived dynamically from event data (registration_fees + existing teams)
@@ -87,14 +85,6 @@ export function ProgramDashboard({ onSwitchToAdmin }: { onSwitchToAdmin?: () => 
   const [programFees, setProgramFees] = useState<any[]>([])
   const [programPayments, setProgramPayments] = useState<any[]>([])
   const [programGameCounts, setProgramGameCounts] = useState<Record<number, number>>({})
-  const [showInvoice, setShowInvoice] = useState(false)
-  const [eventInfo, setEventInfo] = useState<{
-    name: string
-    logo_url?: string | null
-    location?: string | null
-    start_date?: string | null
-    end_date?: string | null
-  } | null>(null)
   const [availableDivisions, setAvailableDivisions] = useState<string[]>([])
 
   // Matchup data — all teams + games in same divisions as this program's teams
@@ -262,31 +252,17 @@ export function ProgramDashboard({ onSwitchToAdmin }: { onSwitchToAdmin?: () => 
       setProgramUsers((usersData as { display_name: string; role: string }[]) ?? [])
       setWeatherAlerts((alertsData as any[]) ?? [])
 
-      // Load fees, payment records, and event info
-      const [{ data: feesData }, { data: paymentsData }, { data: eventData }] = await Promise.all([
+      // Load fees and payment records for this program's teams
+      const [{ data: feesData }, { data: paymentsData }] = await Promise.all([
         sb.from('registration_fees').select('*').eq('event_id', portalEventId!),
         sb
           .from('team_payments')
           .select('*')
           .eq('event_id', portalEventId!)
           .eq('program_name', prog?.name || ''),
-        sb
-          .from('events')
-          .select('id, name, location, start_date, end_date, logo_url')
-          .eq('id', portalEventId!)
-          .single(),
       ])
       setProgramFees(feesData ?? [])
       setProgramPayments(paymentsData ?? [])
-      if (eventData) {
-        setEventInfo({
-          name: eventData.name,
-          logo_url: (eventData as any).logo_url ?? null,
-          location: eventData.location ?? null,
-          start_date: eventData.start_date ?? null,
-          end_date: eventData.end_date ?? null,
-        })
-      }
       // Derive available divisions from fee config + existing team registrations
       const feeDivs = (feesData ?? []).map((f: any) => f.division as string)
       const regDivs = ((regs as TeamReg[]) ?? []).map((r) => r.division)
@@ -830,16 +806,9 @@ export function ProgramDashboard({ onSwitchToAdmin }: { onSwitchToAdmin?: () => 
               <div className="bg-surface-card border border-border rounded-xl overflow-hidden mt-5">
                 <div className="px-4 py-3 border-b border-border flex items-center gap-2">
                   <DollarSign size={13} className="text-muted" />
-                  <span className="font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase flex-1">
+                  <span className="font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase">
                     Fees & Payments
                   </span>
-                  <button
-                    onClick={() => setShowInvoice(true)}
-                    className="flex items-center gap-1 px-2.5 py-1 rounded text-[10px] font-cond font-bold text-[#5a6e9a] hover:text-white hover:bg-white/10 transition-colors"
-                  >
-                    <FileText size={11} />
-                    Invoice
-                  </button>
                 </div>
                 <table className="w-full">
                   <thead>
@@ -1507,26 +1476,6 @@ export function ProgramDashboard({ onSwitchToAdmin }: { onSwitchToAdmin?: () => 
             (g) => g.home_team_id === scrTeamId || g.away_team_id === scrTeamId
           )}
           eventId={portalEventId!}
-        />
-      )}
-
-      {/* Invoice modal */}
-      {showInvoice && eventInfo && program && (
-        <InvoiceModal
-          data={{
-            event: eventInfo,
-            program: {
-              name: program.name,
-              contact_name: program.contact_name ?? null,
-              contact_email: program.contact_email ?? null,
-              contact_phone: program.contact_phone ?? null,
-              logo_url: program.logo_url ?? null,
-            },
-            payments: programPayments,
-            fees: programFees,
-            gameCounts: programGameCounts,
-          }}
-          onClose={() => setShowInvoice(false)}
         />
       )}
     </div>
