@@ -8,7 +8,6 @@ import {
   DollarSign,
   Plus,
   CheckCircle,
-  Clock,
   AlertCircle,
   TrendingUp,
   X,
@@ -17,6 +16,8 @@ import {
   Building2,
   FileText,
 } from 'lucide-react'
+import { InvoiceModal, loadInvoiceData } from './InvoiceModal'
+import type { InvoiceData } from './InvoiceModal'
 import type {
   RegistrationFee,
   TeamPayment,
@@ -24,7 +25,6 @@ import type {
   PaymentMethod,
   PaymentStatus,
 } from '@/types'
-import { InvoiceModal, type InvoiceData } from './InvoiceModal'
 
 const inp =
   'bg-[#081428] border border-[#1a2d50] text-white px-2.5 py-1.5 rounded text-[12px] outline-none focus:border-blue-400 transition-colors w-full'
@@ -567,12 +567,13 @@ export function PaymentsTab() {
   const [savingFee, setSavingFee] = useState<string | null>(null)
   const [generating, setGenerating] = useState(false)
   const [expandedProgram, setExpandedProgram] = useState<string | null>(null)
-  const [invoiceTarget, setInvoiceTarget] = useState<InvoiceData | null>(null)
   const [programPayTarget, setProgramPayTarget] = useState<{
     programName: string
     teams: TeamPayment[]
     totalOwed: number
   } | null>(null)
+  const [invoiceTarget, setInvoiceTarget] = useState<InvoiceData | null>(null)
+  const [loadingInvoice, setLoadingInvoice] = useState(false)
 
   // Game counts per team for extra game fee calculation
   const [teamGameCounts, setTeamGameCounts] = useState<Record<number, number>>({})
@@ -641,6 +642,19 @@ export function PaymentsTab() {
       setTeamHistory((h) => ({ ...h, [tpId]: entries }))
     }
     setExpandedHistory(tpId)
+  }
+
+  // Open invoice for a program
+  async function openInvoice(programName: string, pgTeams: TeamPayment[]) {
+    setLoadingInvoice(true)
+    try {
+      const data = await loadInvoiceData(eventId!, programName, pgTeams, fees, teamGameCounts)
+      setInvoiceTarget(data)
+    } catch {
+      toast.error('Failed to load invoice data')
+    } finally {
+      setLoadingInvoice(false)
+    }
   }
 
   // Save a single fee config row
@@ -1034,10 +1048,10 @@ export function PaymentsTab() {
                     className="bg-[#081428] border border-[#1a2d50] rounded-xl overflow-hidden"
                   >
                     {/* Program header row */}
-                    <div className="flex items-center">
+                    <div className="flex items-center gap-3 px-4 py-3">
                       <button
                         onClick={() => setExpandedProgram(isExpanded ? null : pg.programName)}
-                        className="flex-1 flex items-center gap-3 px-4 py-3 hover:bg-white/[0.02] transition-colors min-w-0"
+                        className="flex items-center gap-3 flex-1 hover:opacity-80 transition-opacity text-left"
                       >
                         <ChevronDown
                           size={14}
@@ -1056,26 +1070,24 @@ export function PaymentsTab() {
                         ) : (
                           <Building2 size={16} className="text-muted flex-shrink-0" />
                         )}
-                        <span className="font-cond font-black text-[14px] text-white flex-1 text-left truncate">
+                        <span className="font-cond font-black text-[14px] text-white flex-1">
                           {pg.programName}
                         </span>
-                        <span className="font-cond text-[11px] text-muted flex-shrink-0">
+                        <span className="font-cond text-[11px] text-muted">
                           {pg.teamCount} teams
                         </span>
-                        <span className="font-cond text-[11px] text-white flex-shrink-0">
-                          {fmt(pg.totalDue)}
-                        </span>
+                        <span className="font-cond text-[11px] text-white">{fmt(pg.totalDue)}</span>
                         {pgExtra > 0 && (
-                          <span className="font-cond text-[11px] text-orange-400 flex-shrink-0">
+                          <span className="font-cond text-[11px] text-orange-400">
                             +{fmt(pgExtra)} extra
                           </span>
                         )}
-                        <span className="font-cond text-[11px] text-green-400 flex-shrink-0">
+                        <span className="font-cond text-[11px] text-green-400">
                           {fmt(pg.totalPaid)} paid
                         </span>
                         <span
                           className={cn(
-                            'font-cond text-[10px] font-black tracking-wide px-2 py-0.5 rounded uppercase flex-shrink-0',
+                            'font-cond text-[10px] font-black tracking-wide px-2 py-0.5 rounded uppercase',
                             allPaid
                               ? 'bg-green-900/40 text-green-400'
                               : pg.totalPaid > 0
@@ -1087,32 +1099,12 @@ export function PaymentsTab() {
                         </span>
                       </button>
                       <button
-                        onClick={() => {
-                          const programData = Object.values(
-                            (async () => {})() // placeholder to get program contact info
-                          )
-                          setInvoiceTarget({
-                            event: {
-                              name: state.event?.name ?? '',
-                              logo_url: state.event?.logo_url,
-                              location: state.event?.location,
-                              start_date: state.event?.start_date,
-                              end_date: state.event?.end_date,
-                            },
-                            program: {
-                              name: pg.programName,
-                              logo_url: programLogos[pg.programName] ?? null,
-                            },
-                            payments: pg.teams,
-                            fees,
-                            gameCounts: teamGameCounts,
-                          })
-                        }}
-                        className="flex items-center gap-1 px-3 py-1.5 mr-3 rounded text-[11px] font-cond font-bold text-[#5a6e9a] hover:text-white hover:bg-white/10 transition-colors flex-shrink-0"
-                        title="View Invoice"
+                        onClick={() => openInvoice(pg.programName, pg.teams)}
+                        disabled={loadingInvoice}
+                        className="flex items-center gap-1 font-cond text-[9px] font-black tracking-wider px-2 py-1 rounded bg-[#1a2d50] hover:bg-navy text-blue-300 hover:text-white transition-colors disabled:opacity-50 flex-shrink-0"
+                        title="View / Print Invoice"
                       >
-                        <FileText size={12} />
-                        Invoice
+                        <FileText size={11} /> INVOICE
                       </button>
                     </div>
 

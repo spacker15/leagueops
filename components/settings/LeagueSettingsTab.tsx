@@ -6,7 +6,7 @@ import { useApp } from '@/lib/store'
 import { cn } from '@/lib/utils'
 import { SectionHeader } from '@/components/ui'
 import toast from 'react-hot-toast'
-import { Upload, X, Save, RefreshCw, Globe, Calendar, MapPin, Palette } from 'lucide-react'
+import { Upload, X, Save, RefreshCw, Globe, Calendar, Palette, FileText } from 'lucide-react'
 
 interface EventSettings {
   id: number
@@ -17,6 +17,8 @@ interface EventSettings {
   logo_url: string | null
   primary_color: string
   secondary_color: string
+  invoice_payable_to: string | null
+  invoice_mail_address: string | null
 }
 
 const inp =
@@ -41,6 +43,8 @@ export function LeagueSettingsTab() {
   const [logoUrl, setLogoUrl] = useState<string | null>(null)
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
   const [logoFile, setLogoFile] = useState<File | null>(null)
+  const [invoicePayableTo, setInvoicePayableTo] = useState('')
+  const [invoiceMailAddress, setInvoiceMailAddress] = useState('')
 
   useEffect(() => {
     load()
@@ -61,6 +65,8 @@ export function LeagueSettingsTab() {
       setSecondaryColor(ev.secondary_color ?? '#D62828')
       setLogoUrl(ev.logo_url ?? null)
       setLogoPreview(ev.logo_url ?? null)
+      setInvoicePayableTo(ev.invoice_payable_to ?? '')
+      setInvoiceMailAddress(ev.invoice_mail_address ?? '')
     }
     setLoading(false)
   }
@@ -128,6 +134,8 @@ export function LeagueSettingsTab() {
         logo_url: finalLogoUrl,
         primary_color: primaryColor,
         secondary_color: secondaryColor,
+        invoice_payable_to: invoicePayableTo.trim() || null,
+        invoice_mail_address: invoiceMailAddress.trim() || null,
         updated_at: new Date().toISOString(),
       })
       .eq('id', 1)
@@ -364,6 +372,38 @@ export function LeagueSettingsTab() {
           </div>
           <div className="font-cond text-[10px] text-muted mt-2">
             Color customization will apply to printed materials and player cards.
+          </div>
+        </div>
+
+        {/* ── Invoice Settings ── */}
+        <div className="bg-surface-card border border-border rounded-xl p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <FileText size={15} className="text-muted" />
+            <div className="font-cond font-black text-[13px] tracking-wide">INVOICE SETTINGS</div>
+          </div>
+          <div className="space-y-4">
+            <div>
+              <label className={lbl}>Make Check Payable To</label>
+              <input
+                className={inp}
+                value={invoicePayableTo}
+                onChange={(e) => setInvoicePayableTo(e.target.value)}
+                placeholder="e.g. NFYLL Lacrosse Inc."
+              />
+            </div>
+            <div>
+              <label className={lbl}>Mail Check To (Address)</label>
+              <textarea
+                className={cn(inp, 'resize-none')}
+                rows={3}
+                value={invoiceMailAddress}
+                onChange={(e) => setInvoiceMailAddress(e.target.value)}
+                placeholder={'e.g. 123 Main Street\nJacksonville, FL 32099'}
+              />
+              <div className="font-cond text-[10px] text-muted mt-1">
+                Appears on invoices sent to program leaders and coaches.
+              </div>
+            </div>
           </div>
         </div>
 
