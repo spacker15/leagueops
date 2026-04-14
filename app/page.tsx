@@ -14,14 +14,12 @@ import { PendingApprovalScreen } from '@/components/programs/PendingApprovalScre
 import { EventPicker } from '@/components/events/EventPicker'
 
 export default function Home() {
-  const { user, userRole, loading } = useAuth()
-  const [selectedEventId, setSelectedEventId] = useState<number | null>(() => {
-    if (typeof window === 'undefined') return null
-    const saved = localStorage.getItem('leagueops_event_id')
-    return saved ? parseInt(saved) : null
-  })
+  const { user, userRole, userRoles, loading } = useAuth()
+  const [selectedEventId, setSelectedEventId] = useState<number | null>(null)
   const [isNewEvent, setIsNewEvent] = useState(false)
   const [deepLinkTab, setDeepLinkTab] = useState<TabName | undefined>(undefined)
+  // For multi-role users (admin + program_leader), allow switching views
+  const [viewMode, setViewMode] = useState<'admin' | 'program'>('admin')
 
   // Read ?tab= query param for deep links (e.g. from notifications: ?tab=requests)
   useEffect(() => {
@@ -62,13 +60,21 @@ export default function Home() {
   if (userRole?.role === 'volunteer') return <VolunteerPortal />
   if (userRole?.role === 'trainer') return <TrainerPortal />
 
+  if (userRole?.role === 'coach' || userRole?.role === 'assistant_coach')
+    return <ProgramDashboard />
+
   if (userRole?.role === 'program_leader') {
     if (!userRole.is_active) return <PendingApprovalScreen />
     return <ProgramDashboard />
   }
 
-  // Admin / League Admin — need to pick an event first
-  if (!user) return <PendingApprovalScreen />
+  // Admin / League Admin
+  // Check if this admin also has a program_leader role — allow view switching
+  const programLeaderRole = userRoles.find((r) => r.role === 'program_leader' && r.is_active)
+
+  if (programLeaderRole && viewMode === 'program') {
+    return <ProgramDashboard onSwitchToAdmin={() => setViewMode('admin')} />
+  }
 
   if (!selectedEventId) {
     return (
@@ -76,8 +82,9 @@ export default function Home() {
         onSelectEvent={(id, isNew) => {
           setSelectedEventId(id)
           setIsNewEvent(isNew ?? false)
-          localStorage.setItem('leagueops_event_id', String(id))
         }}
+        programLeaderRole={programLeaderRole}
+        onSwitchToProgram={programLeaderRole ? () => setViewMode('program') : undefined}
       />
     )
   }
@@ -89,9 +96,10 @@ export default function Home() {
         onChangeEvent={() => {
           setSelectedEventId(null)
           setIsNewEvent(false)
-          localStorage.removeItem('leagueops_event_id')
         }}
         initialTab={deepLinkTab ?? (isNewEvent ? 'settings' : 'dashboard')}
+        programLeaderRole={programLeaderRole}
+        onSwitchToProgram={programLeaderRole ? () => setViewMode('program') : undefined}
       />
     </AppProvider>
   )

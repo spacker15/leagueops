@@ -5,9 +5,17 @@ import { useApp } from '@/lib/store'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/supabase/client'
 import { getAllGamesByEvent } from '@/lib/db'
-import type { Game, Team, Referee } from '@/types'
+import type { Game, Team, Referee, Incident, MedicalIncident } from '@/types'
+import { RulesReference } from '@/components/rules/RulesReference'
 
-type SubTab = 'results' | 'standings' | 'leaders' | 'matchups' | 'ref-schedule'
+type SubTab =
+  | 'results'
+  | 'standings'
+  | 'leaders'
+  | 'matchups'
+  | 'ref-schedule'
+  | 'incidents'
+  | 'rules'
 
 const SUB_TABS: { id: SubTab; label: string }[] = [
   { id: 'results', label: 'RESULTS' },
@@ -15,10 +23,22 @@ const SUB_TABS: { id: SubTab; label: string }[] = [
   { id: 'leaders', label: 'STAT LEADERS' },
   { id: 'matchups', label: 'MATCHUPS' },
   { id: 'ref-schedule', label: 'REF SCHEDULE' },
+  { id: 'incidents', label: 'INCIDENTS' },
+  { id: 'rules', label: 'RULES' },
 ]
 
+function timeToMin(t: string): number {
+  const m = t.match(/(\d+):(\d+)\s*(AM|PM)/i)
+  if (!m) return 0
+  let h = parseInt(m[1])
+  const min = parseInt(m[2])
+  if (m[3].toUpperCase() === 'PM' && h !== 12) h += 12
+  if (m[3].toUpperCase() === 'AM' && h === 12) h = 0
+  return h * 60 + min
+}
+
 export function ReportsTab() {
-  const { state } = useApp()
+  const { state, currentDate, changeDate } = useApp()
   const [sub, setSub] = useState<SubTab>('results')
   const [allGames, setAllGames] = useState<Game[]>([])
 
@@ -119,7 +139,22 @@ export function ReportsTab() {
         <LeadersView games={finalGames} teams={state.teams} divFilter={divFilter} />
       )}
       {sub === 'matchups' && (
-        <MatchupsView teams={state.teams} eventId={state.event?.id ?? null} divFilter={divFilter} />
+        <MatchupsView
+          teams={state.teams}
+          eventId={state.event?.id ?? null}
+          divFilter={divFilter}
+          globalDateId={currentDate?.id ?? null}
+          globalDateIdx={state.currentDateIdx}
+          eventDatesFromState={state.eventDates}
+          onDateChange={(dateId) => {
+            if (dateId === null) {
+              changeDate(-1)
+            } else {
+              const idx = state.eventDates.findIndex((d) => d.id === dateId)
+              if (idx !== -1) changeDate(idx)
+            }
+          }}
+        />
       )}
       {sub === 'ref-schedule' && (
         <RefScheduleView
@@ -128,7 +163,37 @@ export function ReportsTab() {
           referees={state.referees}
           eventId={state.event?.id ?? null}
           divFilter={divFilter}
+          globalDateId={currentDate?.id ?? null}
+          globalDateIdx={state.currentDateIdx}
+          eventDatesFromState={state.eventDates}
+          onDateChange={(dateId) => {
+            if (dateId === null) {
+              changeDate(-1)
+            } else {
+              const idx = state.eventDates.findIndex((d) => d.id === dateId)
+              if (idx !== -1) changeDate(idx)
+            }
+          }}
         />
+      )}
+      {sub === 'incidents' && (
+        <IncidentsReportView
+          incidents={state.incidents}
+          medicalIncidents={state.medicalIncidents}
+          eventDates={state.eventDates}
+          fields={state.fields}
+        />
+      )}
+      {sub === 'rules' && (
+        <div>
+          <div className="flex items-center gap-2 mb-4">
+            <div className="w-1 h-5 rounded-sm bg-red" />
+            <span className="font-cond text-[13px] font-black tracking-[.15em] text-white uppercase">
+              2026 USA Lacrosse Boys Youth Rules
+            </span>
+          </div>
+          <RulesReference selectedDivision={divFilter !== 'ALL' ? divFilter : undefined} />
+        </div>
       )}
     </div>
   )
@@ -437,20 +502,37 @@ interface AllGame {
   home_team_id: number
   away_team_id: number
   division: string
+  event_date_id: number | null
 }
 
 function MatchupsView({
   teams,
   eventId,
   divFilter,
+  eventDatesFromState,
 }: {
   teams: Team[]
   eventId: number | null
   divFilter: string
+  globalDateId?: number | null
+  globalDateIdx?: number
+  eventDatesFromState: { id: number; date: string; label: string }[]
+  onDateChange?: (dateId: number | null) => void
 }) {
   const [allGames, setAllGames] = useState<AllGame[]>([])
   const [loading, setLoading] = useState(true)
   const [settingsDivisions, setSettingsDivisions] = useState<string[]>([])
+  const [fromIdx, setFromIdx] = useState(0)
+  const [toIdx, setToIdx] = useState(
+    eventDatesFromState.length > 0 ? eventDatesFromState.length - 1 : 0
+  )
+
+  // Update toIdx when dates load
+  useEffect(() => {
+    if (eventDatesFromState.length > 0) {
+      setToIdx(eventDatesFromState.length - 1)
+    }
+  }, [eventDatesFromState.length])
 
   useEffect(() => {
     if (!eventId) {
@@ -459,7 +541,7 @@ function MatchupsView({
     }
     const sb = createClient()
     sb.from('games')
-      .select('id, home_team_id, away_team_id, division')
+      .select('id, home_team_id, away_team_id, division, event_date_id')
       .eq('event_id', eventId)
       .then(({ data, error }) => {
         if (error) console.error('MatchupsView: failed to load games', error)
@@ -488,10 +570,19 @@ function MatchupsView({
     return [...new Set([...settingsDivisions, ...gameDivs])].sort()
   }, [allGames, settingsDivisions])
 
+  // Filter by date range
+  const filteredGames = useMemo(() => {
+    if (eventDatesFromState.length === 0) return allGames
+    const fromDate = eventDatesFromState[fromIdx]
+    const toDate = eventDatesFromState[toIdx]
+    if (!fromDate || !toDate) return allGames
+    const validIds = new Set(eventDatesFromState.slice(fromIdx, toIdx + 1).map((d) => d.id))
+    return allGames.filter((g) => g.event_date_id !== null && validIds.has(g.event_date_id))
+  }, [allGames, fromIdx, toIdx, eventDatesFromState])
+
   if (loading) return <Empty message="Loading matchup data..." />
 
   // Helper: find teams that participate in games for a given division
-  // (uses game division, NOT team.division — teams can play across divisions)
   function teamsForDivGames(divGames: AllGame[]): Team[] {
     const teamIds = new Set<number>()
     for (const g of divGames) {
@@ -501,31 +592,118 @@ function MatchupsView({
     return teams.filter((t) => teamIds.has(t.id)).sort((a, b) => a.name.localeCompare(b.name))
   }
 
+  const fromLabel = eventDatesFromState[fromIdx]?.label ?? ''
+  const toLabel = eventDatesFromState[toIdx]?.label ?? ''
+  const isAllDates = fromIdx === 0 && toIdx === eventDatesFromState.length - 1
+
+  // Date range slider
+  const datePicker =
+    eventDatesFromState.length > 1 ? (
+      <div className="bg-surface-card border border-border rounded-lg p-3 mb-4">
+        <div className="flex items-center justify-between mb-2">
+          <span className="font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase">
+            Date Range
+          </span>
+          <span className="font-cond text-[12px] font-bold text-white">
+            {isAllDates ? 'All Dates' : fromIdx === toIdx ? fromLabel : `${fromLabel} → ${toLabel}`}
+          </span>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="flex-1">
+            <div className="font-cond text-[9px] text-muted mb-1">FROM</div>
+            <input
+              type="range"
+              min={0}
+              max={eventDatesFromState.length - 1}
+              value={fromIdx}
+              onChange={(e) => {
+                const v = parseInt(e.target.value)
+                setFromIdx(v)
+                if (v > toIdx) setToIdx(v)
+              }}
+              className="w-full accent-blue-500"
+            />
+            <div className="font-cond text-[10px] text-blue-300 font-bold mt-0.5">{fromLabel}</div>
+          </div>
+          <div className="flex-1">
+            <div className="font-cond text-[9px] text-muted mb-1">TO</div>
+            <input
+              type="range"
+              min={0}
+              max={eventDatesFromState.length - 1}
+              value={toIdx}
+              onChange={(e) => {
+                const v = parseInt(e.target.value)
+                setToIdx(v)
+                if (v < fromIdx) setFromIdx(v)
+              }}
+              className="w-full accent-blue-500"
+            />
+            <div className="font-cond text-[10px] text-blue-300 font-bold mt-0.5">{toLabel}</div>
+          </div>
+        </div>
+        {/* Week labels */}
+        <div className="flex justify-between mt-1">
+          {eventDatesFromState.map((d, i) => (
+            <span
+              key={d.id}
+              className={cn(
+                'font-cond text-[8px] font-bold',
+                i >= fromIdx && i <= toIdx ? 'text-blue-400' : 'text-muted/40'
+              )}
+            >
+              {d.label?.replace('Week ', 'W') ?? `D${i + 1}`}
+            </span>
+          ))}
+        </div>
+      </div>
+    ) : null
+
   // When a specific division is selected, show a single matrix
   if (divFilter !== 'ALL') {
-    const divGames = allGames.filter((g) => g.division === divFilter)
+    const divGames = filteredGames.filter((g) => g.division === divFilter)
     const divTeams = teamsForDivGames(divGames)
-    if (divTeams.length === 0) return <Empty message="No teams found for this division." />
-    return <MatchupMatrix teams={divTeams} games={divGames} showDivisionOnRow={false} />
+    if (divTeams.length === 0)
+      return (
+        <>
+          {datePicker}
+          <Empty message="No teams found for this division." />
+        </>
+      )
+    return (
+      <>
+        {datePicker}
+        <MatchupMatrix teams={divTeams} games={divGames} showDivisionOnRow={false} />
+      </>
+    )
   }
 
   // "ALL" — show separate matrices per division
-  const divisionsWithGames = allDivisions.filter((div) => allGames.some((g) => g.division === div))
-  if (divisionsWithGames.length === 0) return <Empty message="No teams found." />
+  const divisionsWithGames = allDivisions.filter((div) =>
+    filteredGames.some((g) => g.division === div)
+  )
+  if (divisionsWithGames.length === 0)
+    return (
+      <>
+        {datePicker}
+        <Empty message="No teams found." />
+      </>
+    )
 
   return (
     <div className="space-y-8">
+      {datePicker}
       {divisionsWithGames.map((div) => {
-        const divGames = allGames.filter((g) => g.division === div)
+        const divGames = filteredGames.filter((g) => g.division === div)
         const divTeams = teamsForDivGames(divGames)
         return (
           <div key={div}>
             <div className="flex items-center gap-2 mb-3">
-              <div className="w-1 h-4 rounded-sm bg-navy" />
-              <span className="font-cond text-[11px] font-black tracking-[.12em] text-blue-300 uppercase">
+              <div className="w-1 h-5 rounded-sm bg-navy" />
+              <span className="font-cond text-[14px] font-black tracking-[.12em] text-blue-300 uppercase">
                 {div}
               </span>
-              <span className="font-cond text-[9px] text-muted ml-1">
+              <span className="font-cond text-[11px] text-muted ml-1">
                 {divTeams.length} teams · {divGames.length} games
               </span>
             </div>
@@ -539,7 +717,7 @@ function MatchupsView({
 
 /** Renders a single matchup matrix table for a set of teams and games */
 function MatchupMatrix({
-  teams: matrixTeams,
+  teams: rawTeams,
   games,
   showDivisionOnRow,
 }: {
@@ -547,6 +725,10 @@ function MatchupMatrix({
   games: AllGame[]
   showDivisionOnRow: boolean
 }) {
+  const matrixTeams = useMemo(
+    () => [...rawTeams].sort((a, b) => a.name.localeCompare(b.name)),
+    [rawTeams]
+  )
   // Build matrix: matrix[rowTeamId][colTeamId] = count
   const matrix = useMemo(() => {
     const m: Record<number, Record<number, number>> = {}
@@ -651,10 +833,22 @@ function MatchupMatrix({
                       ) : (
                         <div
                           className="w-8 h-6 mx-auto rounded flex items-center justify-center"
-                          style={{
-                            background: `rgba(214,40,40,${0.15 + intensity * 0.7})`,
-                            border: `1px solid rgba(214,40,40,${0.3 + intensity * 0.5})`,
-                          }}
+                          style={
+                            (count ?? 0) >= 3
+                              ? {
+                                  background: 'rgba(214,40,40,0.55)',
+                                  border: '1px solid rgba(214,40,40,0.8)',
+                                }
+                              : (count ?? 0) === 2
+                                ? {
+                                    background: 'rgba(251,191,36,0.4)',
+                                    border: '1px solid rgba(251,191,36,0.7)',
+                                  }
+                                : {
+                                    background: 'rgba(34,197,94,0.35)',
+                                    border: '1px solid rgba(34,197,94,0.6)',
+                                  }
+                          }
                         >
                           <span className="font-mono text-[13px] font-bold text-white">
                             {count}
@@ -669,20 +863,41 @@ function MatchupMatrix({
           </tbody>
         </table>
       </div>
-      <div className="flex items-center gap-4 mt-2">
+      <div className="flex items-center gap-4 mt-2 flex-wrap">
         <span className="font-cond text-[9px] text-muted tracking-wide">
           Cell = number of times teams have faced each other (home + away combined)
         </span>
-        <div className="flex items-center gap-1.5 ml-auto">
-          <span className="font-cond text-[9px] text-muted">0</span>
-          {[0.2, 0.5, 0.8, 1.0].map((v) => (
+        <div className="flex items-center gap-3 ml-auto">
+          <div className="flex items-center gap-1.5">
             <div
-              key={v}
-              className="w-4 h-4 rounded"
-              style={{ background: `rgba(214,40,40,${0.15 + v * 0.7})` }}
+              className="w-4 h-3 rounded"
+              style={{
+                background: 'rgba(34,197,94,0.35)',
+                border: '1px solid rgba(34,197,94,0.6)',
+              }}
             />
-          ))}
-          <span className="font-cond text-[9px] text-muted">{maxCount}</span>
+            <span className="font-cond text-[9px] text-muted">1</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div
+              className="w-4 h-3 rounded"
+              style={{
+                background: 'rgba(251,191,36,0.4)',
+                border: '1px solid rgba(251,191,36,0.7)',
+              }}
+            />
+            <span className="font-cond text-[9px] text-muted">2</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div
+              className="w-4 h-3 rounded"
+              style={{
+                background: 'rgba(214,40,40,0.55)',
+                border: '1px solid rgba(214,40,40,0.8)',
+              }}
+            />
+            <span className="font-cond text-[9px] text-muted">3+</span>
+          </div>
         </div>
       </div>
     </div>
@@ -706,11 +921,7 @@ function getExpected(division: string, rules: RefRules): { adult: number; youth:
 }
 
 function isYouthRef(gradeLevel: string): boolean {
-  // Grade 8 = Youth entry-level; Grade 7 and below = Adult
-  const lvl = gradeLevel?.toLowerCase() ?? ''
-  if (lvl.includes('youth')) return true
-  const num = parseInt(gradeLevel.replace(/\D/g, ''))
-  return !isNaN(num) && num >= 8
+  return (gradeLevel?.toLowerCase() ?? '') === 'youth'
 }
 
 function RefScheduleView({
@@ -719,12 +930,20 @@ function RefScheduleView({
   referees,
   eventId,
   divFilter,
+  globalDateId,
+  globalDateIdx,
+  eventDatesFromState,
+  onDateChange,
 }: {
   games: Game[]
   fields: { id: number; name: string }[]
   referees: Referee[]
   eventId: number | null
   divFilter: string
+  globalDateId: number | null
+  globalDateIdx: number
+  eventDatesFromState: { id: number; date: string; label: string | null }[]
+  onDateChange: (dateId: number | null) => void
 }) {
   const [assignments, setAssignments] = useState<RefAssignmentRow[]>([])
   const [refRules, setRefRules] = useState<RefRules>({
@@ -733,10 +952,23 @@ function RefScheduleView({
     default: { adult: 2, youth: 0 },
   })
   const [loading, setLoading] = useState(true)
-  const [eventDates, setEventDates] = useState<
-    { id: number; date: string; label: string | null }[]
-  >([])
-  const [selectedDateId, setSelectedDateId] = useState<string>('all')
+
+  // Local date state, synced with global picker
+  const [selectedDateId, setSelectedDateId] = useState<string>(() =>
+    globalDateIdx === -1 ? 'all' : String(globalDateId ?? 'all')
+  )
+
+  // Sync local → global when dropdown changes
+  function handleDateChange(val: string) {
+    setSelectedDateId(val)
+    onDateChange(val === 'all' ? null : parseInt(val))
+  }
+
+  // Sync global → local when global picker changes
+  useEffect(() => {
+    const derived = globalDateIdx === -1 ? 'all' : String(globalDateId ?? 'all')
+    setSelectedDateId(derived)
+  }, [globalDateIdx, globalDateId])
 
   useEffect(() => {
     if (!eventId) {
@@ -744,18 +976,6 @@ function RefScheduleView({
       return
     }
     const sb = createClient()
-    // Fetch event_dates for the date filter
-    sb.from('event_dates')
-      .select('id, date, label')
-      .eq('event_id', eventId)
-      .order('date', { ascending: true })
-      .then(({ data }) => {
-        const dates = data ?? []
-        setEventDates(dates)
-        if (dates.length > 0) {
-          setSelectedDateId(String(dates[0].id))
-        }
-      })
     // Fetch ref_requirements from event config
     sb.from('events')
       .select('ref_requirements')
@@ -781,16 +1001,6 @@ function RefScheduleView({
   }, [eventId, games])
 
   // Filter games by selected date and division
-  const toMin = (t: string) => {
-    const m = t.match(/(\d+):(\d+)\s*(AM|PM)/i)
-    if (!m) return 0
-    let h = parseInt(m[1])
-    const min = parseInt(m[2])
-    if (m[3].toUpperCase() === 'PM' && h !== 12) h += 12
-    if (m[3].toUpperCase() === 'AM' && h === 12) h = 0
-    return h * 60 + min
-  }
-
   const filteredGames = useMemo(() => {
     let filtered = games
     if (selectedDateId !== 'all') {
@@ -845,7 +1055,7 @@ function RefScheduleView({
     for (const g of filteredGames) {
       if (g.scheduled_time) times.add(g.scheduled_time)
     }
-    return [...times].sort((a, b) => toMin(a) - toMin(b))
+    return [...times].sort((a, b) => timeToMin(a) - timeToMin(b))
   }, [filteredGames])
 
   // Fields that have at least one game
@@ -879,40 +1089,22 @@ function RefScheduleView({
   return (
     <div className="space-y-5">
       {/* Date filter */}
-      {eventDates.length > 0 && (
+      {eventDatesFromState.length > 0 && (
         <div className="flex items-center gap-3">
           <label className="font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase">
             Game Date
           </label>
           <select
             value={selectedDateId}
-            onChange={(e) => setSelectedDateId(e.target.value)}
+            onChange={(e) => handleDateChange(e.target.value)}
             className="bg-[#040e24] border border-[#1a2d50] rounded px-3 py-1.5 text-sm text-white font-cond focus:outline-none focus:ring-1 focus:ring-[#0B3D91]"
           >
             <option value="all">All Dates</option>
-            {eventDates.map((d) => {
-              const [, m, day] = d.date.split('-')
-              const months = [
-                'Jan',
-                'Feb',
-                'Mar',
-                'Apr',
-                'May',
-                'Jun',
-                'Jul',
-                'Aug',
-                'Sep',
-                'Oct',
-                'Nov',
-                'Dec',
-              ]
-              const dateFmt = `${months[parseInt(m) - 1]} ${parseInt(day)}`
-              return (
-                <option key={d.id} value={String(d.id)}>
-                  {d.label ? `${d.label} · ${dateFmt}` : dateFmt}
-                </option>
-              )
-            })}
+            {eventDatesFromState.map((d) => (
+              <option key={d.id} value={String(d.id)}>
+                {d.label || d.date}
+              </option>
+            ))}
           </select>
         </div>
       )}
@@ -939,48 +1131,60 @@ function RefScheduleView({
         ))}
       </div>
 
-      {/* ── Ref Demand Summary by Hour/Division ── */}
+      {/* ── Ref Demand Summary: Time (rows) × Division (columns) ── */}
       {(() => {
-        // Build rows: group by time + division, sum refs needed
-        type DemandRow = {
-          time: string
-          division: string
-          games: number
-          adultNeed: number
-          youthNeed: number
-          totalNeed: number
-        }
-        const demandMap = new Map<string, DemandRow>()
+        type DemandCell = { games: number; adultNeed: number; youthNeed: number }
+        const demandMap = new Map<string, DemandCell>()
+        const divSet = new Set<string>()
+        const timeSet = new Set<string>()
+
         for (const g of filteredGames) {
           const timeKey = g.scheduled_time ?? ''
           const key = `${timeKey}|${g.division}`
-          const existing = demandMap.get(key)
+          divSet.add(g.division)
+          timeSet.add(timeKey)
           const exp = getExpected(g.division, refRules)
+          const existing = demandMap.get(key)
           if (existing) {
             existing.games += 1
             existing.adultNeed += exp.adult
             existing.youthNeed += exp.youth
-            existing.totalNeed += exp.adult + exp.youth
           } else {
-            demandMap.set(key, {
-              time: timeKey,
-              division: g.division,
-              games: 1,
-              adultNeed: exp.adult,
-              youthNeed: exp.youth,
-              totalNeed: exp.adult + exp.youth,
-            })
+            demandMap.set(key, { games: 1, adultNeed: exp.adult, youthNeed: exp.youth })
           }
         }
-        const demandRows = [...demandMap.values()].sort(
-          (a, b) => toMin(a.time) - toMin(b.time) || a.division.localeCompare(b.division)
-        )
-        const totGames = demandRows.reduce((s, r) => s + r.games, 0)
-        const totAdult = demandRows.reduce((s, r) => s + r.adultNeed, 0)
-        const totYouth = demandRows.reduce((s, r) => s + r.youthNeed, 0)
-        const totRefs = demandRows.reduce((s, r) => s + r.totalNeed, 0)
 
-        if (demandRows.length === 0) return null
+        const demandTimes = [...timeSet].sort((a, b) => timeToMin(a) - timeToMin(b))
+        const demandDivs = [...divSet].sort()
+
+        if (demandTimes.length === 0) return null
+
+        // Column totals
+        const divTotals = Object.fromEntries(
+          demandDivs.map((d) => {
+            let adult = 0,
+              youth = 0,
+              games = 0
+            for (const t of demandTimes) {
+              const cell = demandMap.get(`${t}|${d}`)
+              if (cell) {
+                adult += cell.adultNeed
+                youth += cell.youthNeed
+                games += cell.games
+              }
+            }
+            return [d, { adult, youth, games }]
+          })
+        )
+        const grandTotal = demandDivs.reduce(
+          (acc, d) => ({
+            adult: acc.adult + divTotals[d].adult,
+            youth: acc.youth + divTotals[d].youth,
+            games: acc.games + divTotals[d].games,
+          }),
+          { adult: 0, youth: 0, games: 0 }
+        )
+
         return (
           <div>
             <div className="flex items-center gap-2 mb-2">
@@ -989,58 +1193,113 @@ function RefScheduleView({
                 Referee Demand Summary
               </span>
             </div>
-            <div className="rounded-lg overflow-hidden border border-[#1a2d50]">
-              <table className="w-full">
+            <div className="rounded-lg overflow-auto border border-[#1a2d50]">
+              <table className="w-full border-collapse" style={{ minWidth: 'max-content' }}>
                 <thead>
                   <tr style={{ background: '#081428' }}>
                     <Th>Time</Th>
-                    <Th>Division</Th>
-                    <Th align="center">Games</Th>
-                    <Th align="center">
-                      <span style={{ color: '#60a5fa' }}>Adult Refs</span>
-                    </Th>
-                    <Th align="center">
-                      <span style={{ color: '#34d399' }}>Youth Refs</span>
-                    </Th>
-                    <Th align="center">Total Refs</Th>
+                    {demandDivs.map((div) => (
+                      <th key={div} className="px-3 py-2 border-b border-[#1a2d50] text-center">
+                        <span className="font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase">
+                          {div}
+                        </span>
+                      </th>
+                    ))}
+                    <th className="px-3 py-2 border-b border-[#1a2d50] text-center border-l border-[#1a2d50]">
+                      <span className="font-cond text-[10px] font-black tracking-[.12em] text-white uppercase">
+                        Total
+                      </span>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {demandRows.map((row, i) => (
-                    <tr
-                      key={`${row.time}-${row.division}`}
-                      style={{ background: i % 2 === 0 ? '#050f20' : '#030c1a' }}
-                    >
-                      <Td>
-                        <span className="font-mono text-[12px] font-bold text-white">
-                          {formatTime(row.time)}
-                        </span>
-                      </Td>
-                      <Td>
-                        <span className="font-cond text-[11px] font-bold text-white">
-                          {row.division}
-                        </span>
-                      </Td>
-                      <Td align="center">
-                        <span className="font-mono text-[12px] text-[#8a9ec0]">{row.games}</span>
-                      </Td>
-                      <Td align="center">
-                        <span className="font-mono text-[12px] text-[#60a5fa]">
-                          {row.adultNeed}
-                        </span>
-                      </Td>
-                      <Td align="center">
-                        <span className="font-mono text-[12px] text-[#34d399]">
-                          {row.youthNeed}
-                        </span>
-                      </Td>
-                      <Td align="center">
-                        <span className="font-mono text-[13px] font-bold text-white">
-                          {row.totalNeed}
-                        </span>
-                      </Td>
-                    </tr>
-                  ))}
+                  {demandTimes.map((timeStr, i) => {
+                    const rowTotal = demandDivs.reduce(
+                      (acc, d) => {
+                        const cell = demandMap.get(`${timeStr}|${d}`)
+                        return {
+                          adult: acc.adult + (cell?.adultNeed ?? 0),
+                          youth: acc.youth + (cell?.youthNeed ?? 0),
+                          games: acc.games + (cell?.games ?? 0),
+                        }
+                      },
+                      { adult: 0, youth: 0, games: 0 }
+                    )
+                    return (
+                      <tr key={timeStr} style={{ background: i % 2 === 0 ? '#050f20' : '#030c1a' }}>
+                        <Td>
+                          <span className="font-mono text-[12px] font-bold text-white">
+                            {formatTime(timeStr)}
+                          </span>
+                        </Td>
+                        {demandDivs.map((div) => {
+                          const cell = demandMap.get(`${timeStr}|${div}`)
+                          if (!cell) {
+                            return (
+                              <td
+                                key={div}
+                                className="px-2 py-2 text-center border-l border-[#0d1e3a]"
+                              >
+                                <span className="font-mono text-[10px] text-[#1a2d50]">—</span>
+                              </td>
+                            )
+                          }
+                          return (
+                            <td
+                              key={div}
+                              className="px-2 py-1.5 text-center border-l border-[#0d1e3a]"
+                            >
+                              <div className="flex items-center justify-center gap-2">
+                                <span
+                                  className="font-mono text-[12px] font-bold text-[#60a5fa]"
+                                  title={`Adult refs needed`}
+                                >
+                                  {cell.adultNeed}
+                                  <span className="font-cond text-[8px] ml-0.5 text-[#60a5fa]/50">
+                                    A
+                                  </span>
+                                </span>
+                                <span
+                                  className="font-mono text-[12px] font-bold text-[#34d399]"
+                                  title={`Youth refs needed`}
+                                >
+                                  {cell.youthNeed}
+                                  <span className="font-cond text-[8px] ml-0.5 text-[#34d399]/50">
+                                    Y
+                                  </span>
+                                </span>
+                              </div>
+                              <div className="font-cond text-[8px] text-muted mt-0.5">
+                                {cell.games}g
+                              </div>
+                            </td>
+                          )
+                        })}
+                        <td
+                          className="px-2 py-1.5 text-center border-l border-[#1a2d50]"
+                          style={{ background: 'rgba(11,61,145,0.15)' }}
+                        >
+                          <div className="flex items-center justify-center gap-2">
+                            <span className="font-mono text-[12px] font-bold text-[#60a5fa]">
+                              {rowTotal.adult}
+                              <span className="font-cond text-[8px] ml-0.5 text-[#60a5fa]/50">
+                                A
+                              </span>
+                            </span>
+                            <span className="font-mono text-[12px] font-bold text-[#34d399]">
+                              {rowTotal.youth}
+                              <span className="font-cond text-[8px] ml-0.5 text-[#34d399]/50">
+                                Y
+                              </span>
+                            </span>
+                          </div>
+                          <div className="font-cond text-[8px] text-muted mt-0.5">
+                            {rowTotal.games}g
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
                   {/* Totals row */}
                   <tr style={{ background: '#081428', borderTop: '2px solid #1a2d50' }}>
                     <Td>
@@ -1048,23 +1307,41 @@ function RefScheduleView({
                         Total
                       </span>
                     </Td>
-                    <Td />
-                    <Td align="center">
-                      <span className="font-mono text-[13px] font-bold text-white">{totGames}</span>
-                    </Td>
-                    <Td align="center">
-                      <span className="font-mono text-[13px] font-bold text-[#60a5fa]">
-                        {totAdult}
-                      </span>
-                    </Td>
-                    <Td align="center">
-                      <span className="font-mono text-[13px] font-bold text-[#34d399]">
-                        {totYouth}
-                      </span>
-                    </Td>
-                    <Td align="center">
-                      <span className="font-mono text-[14px] font-bold text-white">{totRefs}</span>
-                    </Td>
+                    {demandDivs.map((div) => (
+                      <td key={div} className="px-2 py-1.5 text-center border-l border-[#0d1e3a]">
+                        <div className="flex items-center justify-center gap-2">
+                          <span className="font-mono text-[12px] font-bold text-[#60a5fa]">
+                            {divTotals[div].adult}
+                            <span className="font-cond text-[8px] ml-0.5 text-[#60a5fa]/50">A</span>
+                          </span>
+                          <span className="font-mono text-[12px] font-bold text-[#34d399]">
+                            {divTotals[div].youth}
+                            <span className="font-cond text-[8px] ml-0.5 text-[#34d399]/50">Y</span>
+                          </span>
+                        </div>
+                        <div className="font-cond text-[8px] text-muted mt-0.5">
+                          {divTotals[div].games}g
+                        </div>
+                      </td>
+                    ))}
+                    <td
+                      className="px-2 py-1.5 text-center border-l border-[#1a2d50]"
+                      style={{ background: 'rgba(11,61,145,0.2)' }}
+                    >
+                      <div className="flex items-center justify-center gap-2">
+                        <span className="font-mono text-[13px] font-bold text-[#60a5fa]">
+                          {grandTotal.adult}
+                          <span className="font-cond text-[8px] ml-0.5 text-[#60a5fa]/50">A</span>
+                        </span>
+                        <span className="font-mono text-[13px] font-bold text-[#34d399]">
+                          {grandTotal.youth}
+                          <span className="font-cond text-[8px] ml-0.5 text-[#34d399]/50">Y</span>
+                        </span>
+                      </div>
+                      <div className="font-cond text-[8px] text-muted mt-0.5">
+                        {grandTotal.games}g
+                      </div>
+                    </td>
                   </tr>
                 </tbody>
               </table>
@@ -1373,6 +1650,264 @@ function TeamName({ name, win }: { name: string; win: boolean }) {
       )}
       {name}
     </span>
+  )
+}
+
+// ── Incidents Report ────────────────────────────────────────────────────────
+
+function IncidentsReportView({
+  incidents,
+  medicalIncidents,
+  eventDates,
+  fields,
+}: {
+  incidents: Incident[]
+  medicalIncidents: MedicalIncident[]
+  eventDates: { id: number; date: string; label: string }[]
+  fields: { id: number; name: string }[]
+}) {
+  const [filter, setFilter] = useState<'all' | 'incidents' | 'medical'>('all')
+
+  const fieldMap = Object.fromEntries(fields.map((f) => [f.id, f.name]))
+
+  const sortedIncidents = useMemo(
+    () =>
+      [...incidents].sort(
+        (a, b) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime()
+      ),
+    [incidents]
+  )
+  const sortedMedical = useMemo(
+    () =>
+      [...medicalIncidents].sort(
+        (a, b) => new Date(b.dispatched_at).getTime() - new Date(a.dispatched_at).getTime()
+      ),
+    [medicalIncidents]
+  )
+
+  const incidentCount = incidents.length
+  const medicalCount = medicalIncidents.length
+  const resolvedMedical = medicalIncidents.filter((m) => m.status === 'Resolved').length
+  const activeMedical = medicalCount - resolvedMedical
+  const injuryIncidents = incidents.filter((i) => i.type === 'Player Injury').length
+  const ejections = incidents.filter((i) => i.type === 'Ejection').length
+
+  return (
+    <div className="space-y-5">
+      {/* Summary cards */}
+      <div className="grid grid-cols-4 gap-3">
+        {[
+          { label: 'TOTAL INCIDENTS', value: incidentCount, color: '#f59e0b' },
+          { label: 'MEDICAL DISPATCHES', value: medicalCount, color: '#60a5fa' },
+          {
+            label: 'ACTIVE MEDICAL',
+            value: activeMedical,
+            color: activeMedical > 0 ? '#ef4444' : '#34d399',
+          },
+          { label: 'EJECTIONS', value: ejections, color: ejections > 0 ? '#ef4444' : '#8a9ec0' },
+        ].map((s) => (
+          <div key={s.label} className="rounded-lg border border-border px-4 py-3 bg-surface-card">
+            <div className="font-cond text-[9px] font-black tracking-[.15em] text-muted uppercase">
+              {s.label}
+            </div>
+            <div className="font-mono text-[28px] font-bold mt-0.5" style={{ color: s.color }}>
+              {s.value}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Filter */}
+      <div className="flex gap-2">
+        {(['all', 'incidents', 'medical'] as const).map((f) => (
+          <button
+            key={f}
+            onClick={() => setFilter(f)}
+            className={cn(
+              'font-cond text-[11px] font-bold tracking-wider px-3 py-1.5 rounded border transition-colors',
+              filter === f
+                ? 'bg-navy border-blue-500 text-white'
+                : 'bg-surface border-border text-muted hover:text-white'
+            )}
+          >
+            {f === 'all'
+              ? `ALL (${incidentCount + medicalCount})`
+              : f === 'incidents'
+                ? `INCIDENTS (${incidentCount})`
+                : `MEDICAL (${medicalCount})`}
+          </button>
+        ))}
+      </div>
+
+      {/* Incidents list */}
+      {(filter === 'all' || filter === 'incidents') && sortedIncidents.length > 0 && (
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            <div className="w-1 h-4 rounded-sm bg-yellow-500" />
+            <span className="font-cond text-[11px] font-black tracking-[.12em] text-white uppercase">
+              Incidents ({incidentCount})
+            </span>
+          </div>
+          <div className="rounded-lg overflow-hidden border border-border">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="bg-surface-card">
+                  <Th>Time</Th>
+                  <Th>Type</Th>
+                  <Th>Field</Th>
+                  <Th>Team</Th>
+                  <Th>Person</Th>
+                  <Th>Description</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedIncidents.map((inc, i) => {
+                  const isAlert = ['Player Injury', 'Ejection'].includes(inc.type)
+                  return (
+                    <tr
+                      key={inc.id}
+                      style={{ background: i % 2 === 0 ? 'var(--surface)' : 'var(--surface-card)' }}
+                    >
+                      <Td>
+                        <span className="font-mono text-[11px] text-white">
+                          {new Date(inc.occurred_at).toLocaleString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            hour: 'numeric',
+                            minute: '2-digit',
+                          })}
+                        </span>
+                      </Td>
+                      <Td>
+                        <span
+                          className={cn(
+                            'font-cond text-[10px] font-bold px-2 py-0.5 rounded',
+                            isAlert
+                              ? 'bg-red-900/30 text-red-400'
+                              : 'bg-yellow-900/30 text-yellow-400'
+                          )}
+                        >
+                          {inc.type.toUpperCase()}
+                        </span>
+                      </Td>
+                      <Td>
+                        <span className="text-[11px] text-muted">
+                          {inc.field?.name ?? fieldMap[inc.field_id ?? 0] ?? '—'}
+                        </span>
+                      </Td>
+                      <Td>
+                        <span className="text-[11px] text-muted">{inc.team?.name ?? '—'}</span>
+                      </Td>
+                      <Td>
+                        <span className="text-[11px] text-white font-bold">
+                          {inc.person_involved ?? '—'}
+                        </span>
+                      </Td>
+                      <Td>
+                        <span className="text-[11px] text-gray-300">{inc.description}</span>
+                      </Td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Medical dispatches list */}
+      {(filter === 'all' || filter === 'medical') && sortedMedical.length > 0 && (
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            <div className="w-1 h-4 rounded-sm bg-blue-500" />
+            <span className="font-cond text-[11px] font-black tracking-[.12em] text-white uppercase">
+              Medical Dispatches ({medicalCount})
+            </span>
+          </div>
+          <div className="rounded-lg overflow-hidden border border-border">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="bg-surface-card">
+                  <Th>Time</Th>
+                  <Th>Status</Th>
+                  <Th>Player</Th>
+                  <Th>Team</Th>
+                  <Th>Injury</Th>
+                  <Th>Field</Th>
+                  <Th>Trainer</Th>
+                  <Th>Notes</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedMedical.map((m, i) => {
+                  const statusColor =
+                    m.status === 'Resolved'
+                      ? 'text-green-400 bg-green-900/30'
+                      : m.status === 'Dispatched'
+                        ? 'text-red-400 bg-red-900/30'
+                        : m.status === 'Transported'
+                          ? 'text-orange-400 bg-orange-900/30'
+                          : 'text-blue-400 bg-blue-900/30'
+                  return (
+                    <tr
+                      key={m.id}
+                      style={{ background: i % 2 === 0 ? 'var(--surface)' : 'var(--surface-card)' }}
+                    >
+                      <Td>
+                        <span className="font-mono text-[11px] text-white">
+                          {new Date(m.dispatched_at).toLocaleString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            hour: 'numeric',
+                            minute: '2-digit',
+                          })}
+                        </span>
+                      </Td>
+                      <Td>
+                        <span
+                          className={cn(
+                            'font-cond text-[10px] font-bold px-2 py-0.5 rounded',
+                            statusColor
+                          )}
+                        >
+                          {m.status.toUpperCase()}
+                        </span>
+                      </Td>
+                      <Td>
+                        <span className="text-[11px] text-white font-bold">
+                          {m.player_name || '—'}
+                        </span>
+                      </Td>
+                      <Td>
+                        <span className="text-[11px] text-muted">{m.team_name ?? '—'}</span>
+                      </Td>
+                      <Td>
+                        <span className="text-[11px] text-muted">{m.injury_type}</span>
+                      </Td>
+                      <Td>
+                        <span className="text-[11px] text-muted">
+                          {m.field?.name ?? fieldMap[m.field_id ?? 0] ?? '—'}
+                        </span>
+                      </Td>
+                      <Td>
+                        <span className="text-[11px] text-white">{m.trainer_name}</span>
+                      </Td>
+                      <Td>
+                        <span className="text-[11px] text-gray-300">{m.notes ?? '—'}</span>
+                      </Td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {incidentCount + medicalCount === 0 && (
+        <Empty message="No incidents or medical dispatches logged." />
+      )}
+    </div>
   )
 }
 
