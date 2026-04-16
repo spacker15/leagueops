@@ -3598,6 +3598,7 @@ function ScheduleBoardView({
                     onRequestChange={onRequestChange}
                     onUnschedule={onUnschedule}
                     onDelete={onDelete}
+                    onEditGame={onEditGame}
                     selectionMode={selectionMode}
                     isSelected={selectedGameIds.has(game.id)}
                     onToggleSelect={onToggleSelect}
@@ -3668,6 +3669,7 @@ function GameCard({
   onRequestChange,
   onUnschedule,
   onDelete,
+  onEditGame,
   selectionMode,
   isSelected,
   onToggleSelect,
@@ -3685,6 +3687,7 @@ function GameCard({
   onRequestChange: (gameId: number) => void
   onUnschedule?: (gameId: number) => void
   onDelete?: (gameId: number) => void
+  onEditGame?: (game: any) => void
   selectionMode: boolean
   isSelected: boolean
   onToggleSelect: (gameId: number) => void
