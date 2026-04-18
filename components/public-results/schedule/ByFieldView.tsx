@@ -36,7 +36,11 @@ export function ByFieldView({ games, hideScores = false }: Props) {
   }
 
   const byField = groupBy(games, (g) => g.field?.name ?? 'Unassigned')
-  const fieldNames = Object.keys(byField).sort()
+  const fieldNames = Object.keys(byField).sort((a, b) => {
+    const numA = Number(games.find((g) => (g.field?.name ?? 'Unassigned') === a)?.field?.number ?? 9999)
+    const numB = Number(games.find((g) => (g.field?.name ?? 'Unassigned') === b)?.field?.number ?? 9999)
+    return numA - numB
+  })
 
   return (
     <div className="space-y-4">

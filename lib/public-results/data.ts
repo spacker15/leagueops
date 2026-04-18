@@ -34,7 +34,7 @@ export interface PublicGame {
     logo_url?: string | null
     programs?: { logo_url?: string | null } | null
   } | null
-  field: { name: string } | null
+  field: { name: string; number: string } | null
   event_date: { date: string; day_number: number } | null
 }
 
@@ -93,7 +93,7 @@ export async function getPublicGames(eventId: number): Promise<PublicGame[]> {
       id, division, scheduled_time, status, home_score, away_score,
       home_team:teams!games_home_team_id_fkey(id, name, logo_url, programs(logo_url)),
       away_team:teams!games_away_team_id_fkey(id, name, logo_url, programs(logo_url)),
-      field:fields(name),
+      field:fields(name, number),
       event_date:event_dates(date, day_number)
     `
     )
