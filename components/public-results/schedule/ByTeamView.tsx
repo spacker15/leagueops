@@ -3,6 +3,7 @@ import Link from 'next/link'
 import type { PublicGame, PublicTeam } from '@/lib/public-results/data'
 import { TeamSearchInput } from './TeamSearchInput'
 import { timeToMinutes } from '@/lib/public-results/utils'
+import { AddToCalendarBtn } from '@/components/public-results/AddToCalendarBtn'
 
 function teamLogo(
   team: { logo_url?: string | null; programs?: unknown } | null | undefined
@@ -127,7 +128,8 @@ export function ByTeamView({
               // eslint-disable-next-line @next/next/no-img-element
               <img src={teamLogo(team)!} alt="" className="w-7 h-7 rounded object-cover" />
             )}
-            <div className="font-cond text-[14px] font-bold text-white">{team.name}</div>
+            <div className="font-cond text-[14px] font-bold text-white flex-1">{team.name}</div>
+            <AddToCalendarBtn slug={slug} teamId={teamId} />
           </div>
         )}
 

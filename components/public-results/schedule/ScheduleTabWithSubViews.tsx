@@ -5,6 +5,7 @@ import { ByTeamView } from './ByTeamView'
 import { ByFieldView } from './ByFieldView'
 import { ByTimeView } from './ByTimeView'
 import { ByProgramView } from './ByProgramView'
+import { AddToCalendarBtn } from '@/components/public-results/AddToCalendarBtn'
 
 interface Props {
   games: PublicGame[]
@@ -60,6 +61,9 @@ export function ScheduleTabWithSubViews({
             {sv.label}
           </Link>
         ))}
+        <div className="ml-auto">
+          <AddToCalendarBtn slug={slug} label="All Games" />
+        </div>
       </div>
 
       {/* Day navigation row */}
