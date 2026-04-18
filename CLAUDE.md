@@ -35,12 +35,6 @@ npm run test:coverage    # Vitest with coverage
 npm run db:seed          # Seed Supabase via npx tsx supabase/seed.ts
 ```
 
-**Public results sub-app** (separate Next.js app):
-
-```bash
-cd apps/public-results && npm run dev   # Port 3001
-```
-
 **Pre-commit hook** (Husky + lint-staged): auto-runs Prettier on staged files.
 
 **Common build failures on Vercel:**
@@ -48,7 +42,6 @@ cd apps/public-results && npm run dev   # Port 3001
 - `prefer-const` lint errors — use `const` unless reassigned
 - `StatusBadge` only accepts `status` prop (no `size`)
 - Hooks must be called before any early returns (`if (!x) return null` goes AFTER all hooks)
-- Root `tsconfig.json` excludes `apps/` — the sub-app has its own tsconfig
 
 ## Tech Stack
 
@@ -156,6 +149,8 @@ Client-side tab routing in AppShell — no Next.js page files per tab. Key tabs:
 
 Token-gated public pages: `/join/[token]` (ref/vol registration), `/checkin/[token]` (player check-in), `/register` (program registration)
 
+Public results pages (same deployment, no auth): `/results/e/[slug]` — live scores, schedule, standings. Components in `components/public-results/`. **Not a separate app** — served from the main leagueops Vercel deployment at `leagueops.vercel.app`.
+
 ## Conventions
 
 ### File Naming
@@ -256,6 +251,7 @@ NEXT_PUBLIC_SUPABASE_URL        # Supabase project URL
 NEXT_PUBLIC_SUPABASE_ANON_KEY   # Supabase anon/publishable key
 SUPABASE_SERVICE_ROLE_KEY       # Server-side only
 NEXT_PUBLIC_APP_URL             # http://localhost:3000 (dev)
+NEXT_PUBLIC_PUBLIC_RESULTS_URL  # Same as main site — https://leagueops.vercel.app (NOT a separate deployment)
 OPENWEATHER_API_KEY             # Weather engine
 GOOGLE_MAPS_API_KEY             # Venue search (server-side proxy)
 ```

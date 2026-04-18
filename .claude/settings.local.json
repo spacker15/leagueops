@@ -73,7 +73,11 @@
       "Bash(grep -n \"medical_incidents_status_check\\\\|status_check\\\\|CHECK.*status\" /d/Claude/leagueops/supabase/*.sql)",
       "Bash(grep -n \"role.*coach\\\\|assistant_coach\\\\|program_invite\\\\|registration_invites\" /d/Claude/leagueops/supabase/*.sql)",
       "mcp__92e521f4-caee-4127-95dd-72a06d7106ab__get_logs",
-      "mcp__Supabase__apply_migration"
+      "mcp__Supabase__apply_migration",
+      "mcp__Vercel__list_teams",
+      "mcp__Vercel__list_projects",
+      "mcp__Vercel__list_deployments",
+      "mcp__Vercel__get_project"
     ]
   }
 }

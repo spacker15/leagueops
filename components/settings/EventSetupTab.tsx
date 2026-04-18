@@ -165,6 +165,9 @@ interface EventData {
   park_name: string
   primary_color: string
   secondary_color: string
+  // Invoice
+  invoice_payable_to: string
+  invoice_mail_address: string
   // Venue (Phase 5)
   venue_address: string
   venue_lat: number | null
@@ -244,6 +247,8 @@ const DEFAULT_EVENT: Omit<EventData, 'id'> = {
   park_name: '',
   primary_color: '#0B3D91',
   secondary_color: '#D62828',
+  invoice_payable_to: '',
+  invoice_mail_address: '',
   venue_address: '',
   venue_lat: null,
   venue_lng: null,
@@ -824,6 +829,8 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
         park_name: d.park_name ?? '',
         primary_color: d.primary_color ?? '#0B3D91',
         secondary_color: d.secondary_color ?? '#D62828',
+        invoice_payable_to: d.invoice_payable_to ?? '',
+        invoice_mail_address: d.invoice_mail_address ?? '',
         venue_address: d.venue_address ?? '',
         venue_lat: d.venue_lat ?? null,
         venue_lng: d.venue_lng ?? null,
@@ -1221,6 +1228,8 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
         primary_color: event.primary_color,
         secondary_color: event.secondary_color,
         logo_url: finalLogoUrl,
+        invoice_payable_to: event.invoice_payable_to.trim() || null,
+        invoice_mail_address: event.invoice_mail_address.trim() || null,
         venue_address: event.venue_address || null,
         venue_lat: event.venue_lat,
         venue_lng: event.venue_lng,
@@ -3231,6 +3240,33 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                   if (f) handleLogoFile(f)
                 }}
               />
+            </Card>
+
+            <Card title="Invoice Settings" icon={<FileText size={14} />}>
+              <div className="space-y-4">
+                <div>
+                  <label className={lbl}>Make Check Payable To</label>
+                  <input
+                    className={inp}
+                    value={event.invoice_payable_to}
+                    onChange={(e) => set('invoice_payable_to', e.target.value)}
+                    placeholder="e.g. NFYLL Lacrosse Inc."
+                  />
+                </div>
+                <div>
+                  <label className={lbl}>Mail Check To (Address)</label>
+                  <textarea
+                    className={cn(inp, 'resize-none')}
+                    rows={3}
+                    value={event.invoice_mail_address}
+                    onChange={(e) => set('invoice_mail_address', e.target.value)}
+                    placeholder={'e.g. 123 Main Street\nJacksonville, FL 32099'}
+                  />
+                  <div className="font-cond text-[10px] text-muted mt-1">
+                    Printed on invoices sent to program leaders and coaches.
+                  </div>
+                </div>
+              </div>
             </Card>
 
             <Card title="Brand Colors">

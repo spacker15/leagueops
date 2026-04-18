@@ -193,24 +193,22 @@ export function ByProgramView({
   return (
     <ProgramList
       sortedPrograms={sortedPrograms}
-      slug={slug}
-      activeDay={activeDay}
-      divFilter={divFilter}
+      games={games}
+      hideScores={hideScores}
     />
   )
 }
 
 function ProgramList({
   sortedPrograms,
-  slug,
-  activeDay,
-  divFilter,
+  games,
+  hideScores,
 }: {
   sortedPrograms: [string, { logo: string | null; divisions: Map<string, PublicTeam[]> }][]
-  slug: string
-  activeDay: number
-  divFilter: string
+  games: PublicGame[]
+  hideScores: boolean
 }) {
+  // Start with all programs expanded (empty set = nothing collapsed)
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
 
   function toggle(name: string) {
@@ -223,7 +221,7 @@ function ProgramList({
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-4">
       {sortedPrograms.map(([programName, { logo, divisions }]) => {
         const isCollapsed = collapsed.has(programName)
         const sortedDivisions = [...divisions.entries()].sort(([a], [b]) => a.localeCompare(b))
@@ -237,7 +235,7 @@ function ProgramList({
             {/* Clickable program header */}
             <button
               onClick={() => toggle(programName)}
-              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[#0d1f3c] transition-colors"
+              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[#0d1f3c] transition-colors border-b border-[#1a2d50]"
             >
               {logo && (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -252,37 +250,60 @@ function ProgramList({
               <span className="text-[#5a6e9a] text-[12px]">{isCollapsed ? '▶' : '▼'}</span>
             </button>
 
-            {/* Expandable divisions + teams */}
-            {!isCollapsed && (
-              <div className="px-4 pb-3 space-y-4 border-t border-[#1a2d50]">
-                {sortedDivisions.map(([divisionName, divTeams]) => (
-                  <div key={divisionName} className="pt-3">
-                    <div className="font-cond text-[10px] font-bold tracking-[.15em] text-[#5a6e9a] uppercase mb-1">
-                      {divisionName}
-                    </div>
-                    <div className="space-y-1">
-                      {divTeams.map((team) => (
-                        <Link
-                          key={team.id}
-                          href={`/results/e/${slug}?tab=schedule&view=program&team=${team.id}&day=${activeDay}&div=${divFilter}`}
-                          className="border border-[#1a2d50] rounded-lg px-3 py-2.5 font-cond text-[13px] font-bold text-white hover:border-[#0B3D91] hover:bg-[#0d1f3c] transition-colors flex items-center gap-2"
-                        >
-                          {teamLogo(team) && (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              src={teamLogo(team)!}
-                              alt=""
-                              className="w-5 h-5 rounded object-cover shrink-0"
-                            />
-                          )}
-                          {team.name}
-                        </Link>
-                      ))}
-                    </div>
+            {/* Divisions + teams + games (hidden when program collapsed) */}
+            {!isCollapsed && <div className="px-4 pb-4 space-y-5">
+              {sortedDivisions.map(([divisionName, divTeams]) => (
+                <div key={divisionName} className="pt-4">
+                  <div className="font-cond text-[10px] font-bold tracking-[.15em] text-[#5a6e9a] uppercase mb-3">
+                    {divisionName}
                   </div>
-                ))}
-              </div>
-            )}
+                  <div className="space-y-4">
+                    {divTeams.map((team) => {
+                      const teamGames = games
+                        .filter(
+                          (g) => g.home_team?.id === team.id || g.away_team?.id === team.id
+                        )
+                        .sort(
+                          (a, b) =>
+                            timeToMinutes(a.scheduled_time) - timeToMinutes(b.scheduled_time)
+                        )
+
+                      return (
+                        <div key={team.id}>
+                          <div className="flex items-center gap-2 mb-2">
+                            {teamLogo(team) && (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={teamLogo(team)!}
+                                alt=""
+                                className="w-5 h-5 rounded object-cover shrink-0"
+                              />
+                            )}
+                            <span className="font-cond text-[13px] font-bold text-white">
+                              {team.name}
+                            </span>
+                            <span className="font-cond text-[10px] text-[#5a6e9a]">
+                              {teamGames.length} game{teamGames.length !== 1 ? 's' : ''}
+                            </span>
+                          </div>
+                          {teamGames.length === 0 ? (
+                            <div className="font-cond text-[11px] text-[#5a6e9a] pl-1">
+                              No games scheduled
+                            </div>
+                          ) : (
+                            <div className="space-y-1.5">
+                              {teamGames.map((game) => (
+                                <GameRow key={game.id} game={game} hideScores={hideScores} />
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>}
           </div>
         )
       })}

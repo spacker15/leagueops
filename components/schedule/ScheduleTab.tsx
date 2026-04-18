@@ -37,6 +37,7 @@ import {
   CheckSquare,
   Square,
   GitCompareArrows,
+  Pencil,
 } from 'lucide-react'
 
 type ViewMode = 'table' | 'board'
@@ -158,6 +159,7 @@ export function ScheduleTab() {
   const [divFilter, setDivFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [addOpen, setAddOpen] = useState(false)
+  const [editTarget, setEditTarget] = useState<any>(null)
   const [conflicts, setConflicts] = useState<FieldConflict[]>([])
   const [running, setRunning] = useState(false)
   const [engineResult, setEngineResult] = useState<string | null>(null)
@@ -1909,6 +1911,15 @@ export function ScheduleTab() {
                             {nextStatusLabel(game.status)}
                           </button>
                         )}
+                        {userRole?.role === 'admin' && (
+                          <button
+                            onClick={() => setEditTarget(game)}
+                            className="font-cond text-[10px] font-bold px-2 py-0.5 rounded bg-surface-card border border-border text-muted hover:text-white hover:border-blue-400 transition-colors"
+                            title="Edit game"
+                          >
+                            <Pencil size={10} />
+                          </button>
+                        )}
                         <QuickRescheduleBtn game={game} onRescheduled={loadConflicts} />
                         {(userRole?.role === 'coach' || userRole?.role === 'program_leader') &&
                           game.status !== 'Cancelled' && (
@@ -1988,6 +1999,7 @@ export function ScheduleTab() {
           unscheduledGames={unscheduledGames}
           onUnschedule={userRole?.role === 'admin' ? handleUnschedule : undefined}
           onDelete={userRole?.role === 'admin' ? handleDeleteGame : undefined}
+          onEditGame={userRole?.role === 'admin' ? setEditTarget : undefined}
           selectionMode={selectionMode}
           selectedGameIds={selectedGameIds}
           onToggleSelect={toggleGameSelection}
@@ -2124,6 +2136,22 @@ export function ScheduleTab() {
           </FormField>
         </div>
       </Modal>
+
+      {/* Edit game modal */}
+      {editTarget && (
+        <EditGameModal
+          game={editTarget}
+          fields={state.fields}
+          teams={state.teams}
+          eventDates={state.eventDates}
+          onClose={() => setEditTarget(null)}
+          onSaved={async () => {
+            setEditTarget(null)
+            await refreshGames()
+            loadConflicts()
+          }}
+        />
+      )}
 
       {/* Generate schedule confirmation modal */}
       <Modal
@@ -3024,6 +3052,243 @@ function QuickRescheduleBtn({ game, onRescheduled }: { game: any; onRescheduled:
   )
 }
 
+// ─── Edit Game Modal ────────────────────────────────────────
+interface EditGameModalProps {
+  game: any
+  fields: { id: number; name: string; division?: string }[]
+  teams: { id: number; name: string; division: string }[]
+  eventDates: { id: number; date: string; label: string }[]
+  onClose: () => void
+  onSaved: () => void
+}
+function EditGameModal({ game, fields, teams, eventDates, onClose, onSaved }: EditGameModalProps) {
+  const { addLog } = useApp()
+  const divisions = [...new Set(teams.map((t) => t.division))].sort()
+
+  function parseTimeTo24(t: string): string {
+    const m = t.match(/(\d+):(\d+)\s*(AM|PM)/i)
+    if (!m) return '08:00'
+    let h = parseInt(m[1])
+    if (m[3].toUpperCase() === 'PM' && h !== 12) h += 12
+    if (m[3].toUpperCase() === 'AM' && h === 12) h = 0
+    return `${String(h).padStart(2, '0')}:${m[2]}`
+  }
+
+  const [division, setDivision] = useState(game.division || '')
+  const [fieldId, setFieldId] = useState(String(game.field_id || ''))
+  const [homeTeamId, setHomeTeamId] = useState(String(game.home_team_id || ''))
+  const [awayTeamId, setAwayTeamId] = useState(String(game.away_team_id || ''))
+  const [time, setTime] = useState(parseTimeTo24(game.scheduled_time || ''))
+  const [eventDateId, setEventDateId] = useState(String(game.event_date_id || ''))
+  const [status, setStatus] = useState<string>(game.status || 'Scheduled')
+  const [saving, setSaving] = useState(false)
+
+  const sel = 'bg-[#040e24] border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400 w-full'
+
+  async function save() {
+    if (!homeTeamId || !awayTeamId || homeTeamId === awayTeamId) {
+      toast.error('Home and away teams must be different')
+      return
+    }
+    setSaving(true)
+    const sb = createClient()
+
+    const [h, m] = time.split(':').map(Number)
+    const ampm = h >= 12 ? 'PM' : 'AM'
+    const dh = h > 12 ? h - 12 : h === 0 ? 12 : h
+    const scheduledTime = `${dh}:${m.toString().padStart(2, '0')} ${ampm}`
+    const sortOrder = h * 60 + m
+
+    const { error } = await sb
+      .from('games')
+      .update({
+        division,
+        field_id: Number(fieldId),
+        home_team_id: Number(homeTeamId),
+        away_team_id: Number(awayTeamId),
+        scheduled_time: scheduledTime,
+        sort_order: sortOrder,
+        event_date_id: Number(eventDateId),
+        status,
+      })
+      .eq('id', game.id)
+
+    if (error) {
+      toast.error(error.message)
+      setSaving(false)
+      return
+    }
+
+    const home = teams.find((t) => t.id === Number(homeTeamId))?.name ?? homeTeamId
+    const away = teams.find((t) => t.id === Number(awayTeamId))?.name ?? awayTeamId
+    await addLog(`Edited game #${game.id}: ${home} vs ${away} — ${scheduledTime}, ${division}`, 'info')
+
+    toast.success('Game updated')
+    setSaving(false)
+    onSaved()
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+      <div
+        className="w-[480px] rounded-xl shadow-2xl border border-[#1a2d50]"
+        style={{ background: '#061428' }}
+      >
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[#1a2d50]">
+          <div>
+            <div className="font-cond text-[13px] font-black tracking-wider text-white">
+              EDIT GAME #{game.id}
+            </div>
+            <div className="font-cond text-[11px] text-muted">
+              {game.home_team?.name ?? '?'} vs {game.away_team?.name ?? '?'}
+            </div>
+          </div>
+          <button onClick={onClose} className="text-muted hover:text-white transition-colors">
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="p-5 space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="font-cond text-[10px] font-bold tracking-widest text-muted uppercase block mb-1">
+                Division
+              </label>
+              <select
+                className={sel}
+                value={division}
+                onChange={(e) => {
+                  setDivision(e.target.value)
+                  setHomeTeamId('')
+                  setAwayTeamId('')
+                }}
+              >
+                <option value="">Select…</option>
+                {divisions.map((d) => (
+                  <option key={d} value={d}>{d}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="font-cond text-[10px] font-bold tracking-widest text-muted uppercase block mb-1">
+                Field
+              </label>
+              <select
+                className={sel}
+                value={fieldId}
+                onChange={(e) => setFieldId(e.target.value)}
+              >
+                <option value="">Select…</option>
+                {fields
+                  .filter((f) => !division || !f.division || f.division === division)
+                  .map((f) => (
+                    <option key={f.id} value={f.id}>
+                      {f.name}{f.division ? ` (${f.division})` : ''}
+                    </option>
+                  ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="font-cond text-[10px] font-bold tracking-widest text-muted uppercase block mb-1">
+                Time
+              </label>
+              <input
+                type="time"
+                className={sel}
+                value={time}
+                onChange={(e) => setTime(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="font-cond text-[10px] font-bold tracking-widest text-muted uppercase block mb-1">
+                Game Day
+              </label>
+              <select
+                className={sel}
+                value={eventDateId}
+                onChange={(e) => setEventDateId(e.target.value)}
+              >
+                {eventDates.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.label} ({d.date})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="font-cond text-[10px] font-bold tracking-widest text-muted uppercase block mb-1">
+                Home Team
+              </label>
+              <select
+                className={sel}
+                value={homeTeamId}
+                onChange={(e) => setHomeTeamId(e.target.value)}
+              >
+                <option value="">Select…</option>
+                {teams
+                  .filter((t) => !division || t.division === division)
+                  .map((t) => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+              </select>
+            </div>
+            <div>
+              <label className="font-cond text-[10px] font-bold tracking-widest text-muted uppercase block mb-1">
+                Away Team
+              </label>
+              <select
+                className={sel}
+                value={awayTeamId}
+                onChange={(e) => setAwayTeamId(e.target.value)}
+              >
+                <option value="">Select…</option>
+                {teams
+                  .filter((t) => (!division || t.division === division) && String(t.id) !== homeTeamId)
+                  .map((t) => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="font-cond text-[10px] font-bold tracking-widest text-muted uppercase block mb-1">
+              Status
+            </label>
+            <select className={sel} value={status} onChange={(e) => setStatus(e.target.value)}>
+              {['Scheduled', 'Starting', 'Live', 'Halftime', 'Final', 'Delayed', 'Cancelled', 'No Show'].map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2 px-5 pb-5">
+          <button
+            onClick={onClose}
+            className="font-cond text-[11px] font-black tracking-wider px-4 py-2 rounded-lg border border-[#1a2d50] text-muted hover:text-white transition-colors"
+          >
+            CANCEL
+          </button>
+          <button
+            onClick={save}
+            disabled={saving}
+            className="font-cond text-[11px] font-black tracking-wider px-4 py-2 rounded-lg bg-navy hover:bg-navy/80 text-white transition-colors disabled:opacity-50"
+          >
+            {saving ? 'SAVING…' : 'SAVE CHANGES'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── No Show button ──────────────────────────────────────────
 function NoShowBtn({ game }: { game: any }) {
   const [open, setOpen] = useState(false)
@@ -3205,6 +3470,7 @@ function ScheduleBoardView({
   unscheduledGames,
   onUnschedule,
   onDelete,
+  onEditGame,
   selectionMode,
   selectedGameIds,
   onToggleSelect,
@@ -3223,6 +3489,7 @@ function ScheduleBoardView({
   unscheduledGames: any[]
   onUnschedule?: (gameId: number) => void
   onDelete?: (gameId: number) => void
+  onEditGame?: (game: any) => void
   selectionMode: boolean
   selectedGameIds: Set<number>
   onToggleSelect: (gameId: number) => void
@@ -3331,6 +3598,7 @@ function ScheduleBoardView({
                     onRequestChange={onRequestChange}
                     onUnschedule={onUnschedule}
                     onDelete={onDelete}
+                    onEditGame={onEditGame}
                     selectionMode={selectionMode}
                     isSelected={selectedGameIds.has(game.id)}
                     onToggleSelect={onToggleSelect}
@@ -3401,6 +3669,7 @@ function GameCard({
   onRequestChange,
   onUnschedule,
   onDelete,
+  onEditGame,
   selectionMode,
   isSelected,
   onToggleSelect,
@@ -3418,6 +3687,7 @@ function GameCard({
   onRequestChange: (gameId: number) => void
   onUnschedule?: (gameId: number) => void
   onDelete?: (gameId: number) => void
+  onEditGame?: (game: any) => void
   selectionMode: boolean
   isSelected: boolean
   onToggleSelect: (gameId: number) => void
@@ -3702,6 +3972,15 @@ function GameCard({
             >
               {nextStatusLabel(game.status)}
             </button>
+            {onEditGame && (
+              <button
+                onClick={() => onEditGame(game)}
+                className="px-2 py-1 bg-surface-card hover:bg-blue-900/30 text-muted hover:text-blue-300 border border-border rounded transition-colors"
+                title="Edit game"
+              >
+                <Pencil size={10} />
+              </button>
+            )}
             <QuickRescheduleBtn game={game} onRescheduled={onRescheduled} />
             <NoShowBtn game={game} />
             {onUnschedule && (
