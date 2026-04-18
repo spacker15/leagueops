@@ -43,7 +43,7 @@ export async function getEventDates(eventId: number): Promise<EventDate[]> {
 export async function getFields(eventId: number): Promise<Field[]> {
   const sb = createClient()
   const { data } = await sb.from('fields').select('*').eq('event_id', eventId).order('id')
-  return data ?? []
+  return (data ?? []).sort((a, b) => Number(a.number) - Number(b.number))
 }
 
 export async function updateFieldMap(fieldId: number, x: number, y: number): Promise<void> {
