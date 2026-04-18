@@ -1502,7 +1502,7 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
   // ── SHARING TAB HELPERS ─────────────────────────────────────
   // Public results routes live in the same Next.js deployment — always use current origin.
   const publicResultsUrl = typeof window !== 'undefined' ? window.location.origin : ''
-  const registrationUrl = event.slug ? `${publicResultsUrl}/e/${event.slug}/register` : ''
+  const registrationUrl = event.slug ? `${publicResultsUrl}/results/e/${event.slug}/register` : ''
 
   function copyRegistrationLink() {
     if (!registrationUrl) return
