@@ -3,6 +3,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import type { PublicGame, PublicTeam } from '@/lib/public-results/data'
 import { timeToMinutes } from '@/lib/public-results/utils'
+import { AddToCalendarBtn } from '@/components/public-results/AddToCalendarBtn'
 
 function teamLogo(
   team: { logo_url?: string | null; programs?: unknown } | null | undefined
@@ -195,6 +196,7 @@ export function ByProgramView({
       sortedPrograms={sortedPrograms}
       games={games}
       hideScores={hideScores}
+      slug={slug}
     />
   )
 }
@@ -203,10 +205,12 @@ function ProgramList({
   sortedPrograms,
   games,
   hideScores,
+  slug,
 }: {
   sortedPrograms: [string, { logo: string | null; divisions: Map<string, PublicTeam[]> }][]
   games: PublicGame[]
   hideScores: boolean
+  slug: string
 }) {
   // Start with all programs expanded (empty set = nothing collapsed)
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
@@ -232,23 +236,26 @@ function ProgramList({
             key={programName}
             className="bg-[#081428] border border-[#1a2d50] rounded-xl overflow-hidden"
           >
-            {/* Clickable program header */}
-            <button
-              onClick={() => toggle(programName)}
-              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[#0d1f3c] transition-colors border-b border-[#1a2d50]"
-            >
+            {/* Program header */}
+            <div className="flex items-center gap-3 px-4 py-3 border-b border-[#1a2d50]">
               {logo && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={logo} alt="" className="w-8 h-8 rounded object-cover shrink-0" />
               )}
-              <span className="font-cond text-[15px] font-bold text-white flex-1 text-left">
-                {programName}
-              </span>
-              <span className="font-cond text-[10px] text-[#5a6e9a] mr-2">
-                {teamCount} team{teamCount !== 1 ? 's' : ''}
-              </span>
-              <span className="text-[#5a6e9a] text-[12px]">{isCollapsed ? '▶' : '▼'}</span>
-            </button>
+              <button
+                onClick={() => toggle(programName)}
+                className="flex items-center gap-2 flex-1 text-left min-w-0"
+              >
+                <span className="font-cond text-[15px] font-bold text-white flex-1 truncate">
+                  {programName}
+                </span>
+                <span className="font-cond text-[10px] text-[#5a6e9a] shrink-0">
+                  {teamCount} team{teamCount !== 1 ? 's' : ''}
+                </span>
+                <span className="text-[#5a6e9a] text-[12px] shrink-0">{isCollapsed ? '▶' : '▼'}</span>
+              </button>
+              <AddToCalendarBtn slug={slug} program={programName} />
+            </div>
 
             {/* Divisions + teams + games (hidden when program collapsed) */}
             {!isCollapsed && <div className="px-4 pb-4 space-y-5">
