@@ -122,7 +122,7 @@ export function AppShell({
 
   if (state.loading) {
     return (
-      <div className="h-screen flex items-center justify-center bg-surface">
+      <div className="h-[100dvh] flex items-center justify-center bg-surface">
         <div className="text-center">
           <div className="font-cond text-4xl font-black text-white mb-2 tracking-widest">
             LEAGUEOPS
@@ -145,7 +145,7 @@ export function AppShell({
   }
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden">
+    <div className="h-[100dvh] flex flex-col overflow-hidden">
       <TopBar
         tabs={TABS}
         activeTab={activeTab}

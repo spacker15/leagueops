@@ -1719,7 +1719,7 @@ export function ScheduleTab() {
 
       {/* ── TABLE VIEW ── */}
       {viewMode === 'table' && (
-        <div className="overflow-x-auto -mx-4 px-4">
+        <div className="overflow-x-auto overscroll-x-contain -mx-4 px-4">
           <table className="w-full border-collapse text-[12px]">
             <thead>
               <tr className="bg-navy">
@@ -3496,7 +3496,7 @@ function ScheduleBoardView({
   teamLogoMap: Record<number, string | null>
 }) {
   return (
-    <div className="overflow-x-auto pb-3">
+    <div className="overflow-x-auto overscroll-x-contain pb-4">
       <div
         className="flex gap-3"
         style={{ minWidth: `${Math.max(fieldColumns.length * 230, 600)}px` }}
