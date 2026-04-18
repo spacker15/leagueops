@@ -238,7 +238,7 @@ body {
 }
 
 .tab-content {
-  padding: 12px 14px;
+  padding: 12px 14px 64px;
 }
 
 /* Ensure dropdown options have solid dark background (browser default is white) */
