@@ -1500,12 +1500,8 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
   const registrationStatus = getRegistrationStatus(event)
 
   // ── SHARING TAB HELPERS ─────────────────────────────────────
-  // Registration URL uses public-results domain (separate Vercel deployment).
-  // CRITICAL: Do NOT use window.location.origin -- the /e/[slug]/register route
-  // lives in apps/public-results which is deployed at a different domain.
-  const publicResultsUrl =
-    process.env.NEXT_PUBLIC_PUBLIC_RESULTS_URL ||
-    (typeof window !== 'undefined' ? window.location.origin : '')
+  // Public results routes live in the same Next.js deployment — always use current origin.
+  const publicResultsUrl = typeof window !== 'undefined' ? window.location.origin : ''
   const registrationUrl = event.slug ? `${publicResultsUrl}/e/${event.slug}/register` : ''
 
   function copyRegistrationLink() {
