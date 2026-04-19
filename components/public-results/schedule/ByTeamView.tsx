@@ -32,13 +32,13 @@ function GameRow({ game, hideScores = false }: { game: PublicGame; hideScores?: 
 
   return (
     <div
-      className={`bg-[#081428] border rounded-xl px-4 py-3 flex items-center gap-4 ${
-        isLive ? 'border-green-400/30' : 'border-[#1a2d50]'
+      className={`bg-[#0e2040] border rounded-xl px-4 py-3 flex items-center gap-4 ${
+        isLive ? 'border-green-400/30' : 'border-[#253f6e]'
       }`}
     >
       <div className="w-14 shrink-0 text-center">
         <div className="font-mono text-[12px] text-white">{game.scheduled_time ?? '—'}</div>
-        <div className="font-cond text-[10px] text-[#5a6e9a] uppercase">
+        <div className="font-cond text-[10px] text-[#8aa4cc] uppercase">
           {game.field?.name ?? ''}
         </div>
       </div>
@@ -83,12 +83,12 @@ function GameRow({ game, hideScores = false }: { game: PublicGame; hideScores?: 
       <div className="shrink-0 text-right">
         <div
           className={`font-cond text-[10px] font-bold tracking-[.1em] uppercase ${
-            isLive ? 'text-green-400' : isFinal ? 'text-[#5a6e9a]' : 'text-blue-400'
+            isLive ? 'text-green-400' : isFinal ? 'text-slate-500' : 'text-slate-200'
           }`}
         >
           {game.status}
         </div>
-        <div className="font-cond text-[10px] text-[#5a6e9a] uppercase">{game.division}</div>
+        <div className="font-cond text-[10px] text-[#8aa4cc] uppercase">{game.division}</div>
       </div>
     </div>
   )
@@ -116,7 +116,7 @@ export function ByTeamView({
         {/* Back link */}
         <Link
           href={`/results/e/${slug}?tab=schedule&view=team&day=${activeDay}&div=${divFilter}`}
-          className="font-cond text-[12px] font-bold text-[#5a6e9a] hover:text-white transition-colors mb-3 inline-block"
+          className="font-cond text-[12px] font-bold text-[#8aa4cc] hover:text-white transition-colors mb-3 inline-block"
         >
           ← All Teams
         </Link>
@@ -135,8 +135,8 @@ export function ByTeamView({
 
         {/* Games */}
         {sorted.length === 0 ? (
-          <div className="text-center py-20 border border-[#1a2d50] rounded-xl bg-[#081428]">
-            <div className="font-cond text-[11px] font-bold tracking-[.18em] text-[#5a6e9a] uppercase">
+          <div className="text-center py-20 border border-[#253f6e] rounded-xl bg-[#0e2040]">
+            <div className="font-cond text-[11px] font-bold tracking-[.18em] text-[#8aa4cc] uppercase">
               No games scheduled for this selection.
             </div>
           </div>

@@ -31,15 +31,15 @@ function formatTime(time: string): string {
 
 function statusColor(status: string): string {
   if (status === 'Live' || status === 'Halftime') return 'text-green-400'
-  if (status === 'Final') return 'text-[#5a6e9a]'
-  return 'text-blue-400'
+  if (status === 'Final') return 'text-slate-500'
+  return 'text-slate-200'
 }
 
 export function ByTimeView({ games, hideScores = false }: Props) {
   if (games.length === 0) {
     return (
-      <div className="text-center py-20 border border-[#1a2d50] rounded-xl bg-[#081428]">
-        <div className="font-cond text-[11px] font-bold tracking-[.18em] text-[#5a6e9a] uppercase">
+      <div className="text-center py-20 border border-[#253f6e] rounded-xl bg-[#0e2040]">
+        <div className="font-cond text-[11px] font-bold tracking-[.18em] text-[#8aa4cc] uppercase">
           No games scheduled for this selection.
         </div>
       </div>
@@ -60,7 +60,7 @@ export function ByTimeView({ games, hideScores = false }: Props) {
         return (
           <div key={timeSlot}>
             {/* Time group heading */}
-            <div className="font-cond text-[12px] font-bold tracking-[.12em] text-[#5a6e9a] uppercase mb-2">
+            <div className="font-cond text-[12px] font-bold tracking-[.12em] text-[#8aa4cc] uppercase mb-2">
               {formatTime(timeSlot)}
             </div>
 
@@ -74,8 +74,8 @@ export function ByTimeView({ games, hideScores = false }: Props) {
                 return (
                   <div
                     key={game.id}
-                    className={`bg-[#081428] border rounded-xl px-4 py-3 flex items-center gap-3 ${
-                      isLive ? 'border-green-400/30' : 'border-[#1a2d50]'
+                    className={`bg-[#0e2040] border rounded-xl px-4 py-3 flex items-center gap-3 ${
+                      isLive ? 'border-green-400/30' : 'border-[#253f6e]'
                     }`}
                   >
                     {/* Teams + scores (two-line layout) */}
@@ -122,10 +122,10 @@ export function ByTimeView({ games, hideScores = false }: Props) {
                       </div>
                       {/* Field + division */}
                       <div className="flex items-center gap-2 mt-1">
-                        <span className="font-cond text-[10px] text-[#5a6e9a]">
+                        <span className="font-cond text-[10px] text-[#8aa4cc]">
                           {game.field?.name ?? '—'}
                         </span>
-                        <span className="font-cond text-[10px] text-[#5a6e9a] uppercase">
+                        <span className="font-cond text-[10px] text-[#8aa4cc] uppercase">
                           {game.division}
                         </span>
                       </div>

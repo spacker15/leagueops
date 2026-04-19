@@ -20,15 +20,15 @@ interface Props {
 
 function statusColor(status: string): string {
   if (status === 'Live' || status === 'Halftime') return 'text-green-400'
-  if (status === 'Final') return 'text-[#5a6e9a]'
-  return 'text-blue-400'
+  if (status === 'Final') return 'text-slate-500'
+  return 'text-slate-200'
 }
 
 export function ByFieldView({ games, hideScores = false }: Props) {
   if (games.length === 0) {
     return (
-      <div className="text-center py-20 border border-[#1a2d50] rounded-xl bg-[#081428]">
-        <div className="font-cond text-[11px] font-bold tracking-[.18em] text-[#5a6e9a] uppercase">
+      <div className="text-center py-20 border border-[#253f6e] rounded-xl bg-[#0e2040]">
+        <div className="font-cond text-[11px] font-bold tracking-[.18em] text-[#8aa4cc] uppercase">
           No games scheduled on this date.
         </div>
       </div>
@@ -58,27 +58,27 @@ export function ByFieldView({ games, hideScores = false }: Props) {
         return (
           <div
             key={fieldName}
-            className={`bg-[#081428] border rounded-xl p-4 ${
-              isLiveField ? 'border-green-400/30' : 'border-[#1a2d50]'
+            className={`bg-[#0e2040] border rounded-xl p-4 ${
+              isLiveField ? 'border-green-400/40' : 'border-[#253f6e]'
             }`}
           >
             {/* Field header */}
             <div className="flex items-center justify-between mb-3">
-              <div className="font-cond text-[12px] font-bold text-white">
+              <div className="font-cond text-[13px] font-bold text-white">
                 {fieldName}{' '}
-                <span className="text-[#5a6e9a] ml-2 font-normal">
+                <span className="text-[#8aa4cc] ml-2 font-normal">
                   {fieldGames.length} {fieldGames.length === 1 ? 'game' : 'games'}
                 </span>
               </div>
               {nextGame && (
-                <div className="font-cond text-[10px] text-blue-300">
+                <div className="font-cond text-[10px] font-bold text-slate-300">
                   NEXT: {nextGame.scheduled_time}
                 </div>
               )}
             </div>
 
             {/* Games list */}
-            <div className="divide-y divide-[#1a2d50]/40">
+            <div className="divide-y divide-[#253f6e]/60">
               {fieldGames.map((game) => {
                 const showScore =
                   !hideScores &&
@@ -107,12 +107,12 @@ export function ByFieldView({ games, hideScores = false }: Props) {
                               className="w-4 h-4 rounded object-cover shrink-0"
                             />
                           )}
-                          <span className="font-cond font-bold text-[12px] text-white truncate">
+                          <span className="font-cond font-bold text-[13px] text-white truncate">
                             {game.home_team?.name ?? 'TBD'}
                           </span>
                         </div>
                         {showScore && (
-                          <span className="font-mono font-bold text-[12px] text-white tabular-nums ml-2 shrink-0">
+                          <span className="font-mono font-bold text-[13px] text-white tabular-nums ml-2 shrink-0">
                             {game.home_score}
                           </span>
                         )}
@@ -127,12 +127,12 @@ export function ByFieldView({ games, hideScores = false }: Props) {
                               className="w-4 h-4 rounded object-cover shrink-0"
                             />
                           )}
-                          <span className="font-cond font-bold text-[12px] text-white truncate">
+                          <span className="font-cond font-bold text-[13px] text-white truncate">
                             {game.away_team?.name ?? 'TBD'}
                           </span>
                         </div>
                         {showScore && (
-                          <span className="font-mono font-bold text-[12px] text-white tabular-nums ml-2 shrink-0">
+                          <span className="font-mono font-bold text-[13px] text-white tabular-nums ml-2 shrink-0">
                             {game.away_score}
                           </span>
                         )}
@@ -146,7 +146,7 @@ export function ByFieldView({ games, hideScores = false }: Props) {
                       >
                         {game.status}
                       </div>
-                      <div className="font-cond text-[10px] text-[#5a6e9a] uppercase">
+                      <div className="font-cond text-[10px] text-[#8aa4cc] uppercase">
                         {game.division}
                       </div>
                     </div>
