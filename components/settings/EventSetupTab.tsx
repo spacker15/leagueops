@@ -1501,7 +1501,9 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
 
   // ── SHARING TAB HELPERS ─────────────────────────────────────
   // Public results routes live in the same Next.js deployment — always use current origin.
-  const publicResultsUrl = typeof window !== 'undefined' ? window.location.origin : ''
+  const publicResultsUrl =
+    process.env.NEXT_PUBLIC_PUBLIC_RESULTS_URL ??
+    (typeof window !== 'undefined' ? window.location.origin : '')
   const registrationUrl = event.slug ? `${publicResultsUrl}/results/e/${event.slug}/register` : ''
 
   function copyRegistrationLink() {
@@ -3704,7 +3706,7 @@ export function EventSetupTab({ eventId }: { eventId: number }) {
                 <Card title="Public Results Site" icon={<Globe size={14} />}>
                   <ShareLinkSection
                     label=""
-                    url={`${typeof window !== 'undefined' ? window.location.origin : ''}/results/e/${event.slug}`}
+                    url={`${process.env.NEXT_PUBLIC_PUBLIC_RESULTS_URL ?? (typeof window !== 'undefined' ? window.location.origin : '')}/results/e/${event.slug}`}
                   />
                 </Card>
 
