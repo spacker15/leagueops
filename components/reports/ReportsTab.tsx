@@ -791,6 +791,21 @@ function MatchupMatrix({
                   </div>
                 </th>
               ))}
+              <th
+                className="px-2 py-2 border-b border-l border-[#1a2d50]"
+                style={{ minWidth: 52 }}
+              >
+                <div
+                  className="font-cond text-[10px] font-black text-white whitespace-nowrap"
+                  style={{
+                    writingMode: 'vertical-rl',
+                    transform: 'rotate(180deg)',
+                    maxHeight: 100,
+                  }}
+                >
+                  Total
+                </div>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -858,6 +873,14 @@ function MatchupMatrix({
                     </td>
                   )
                 })}
+                {/* Total games column */}
+                <td
+                  className="text-center px-2 py-1.5 border-l border-[#1a2d50]"
+                >
+                  <span className="font-mono text-[13px] font-bold text-white">
+                    {Object.values(matrix[row.id] ?? {}).reduce((sum, n) => sum + n, 0)}
+                  </span>
+                </td>
               </tr>
             ))}
           </tbody>
