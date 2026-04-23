@@ -342,15 +342,20 @@ export function ScheduleTab() {
     }
   }
 
-  // Time-to-minutes helper for proper chronological sort
+  // Time-to-minutes helper for proper chronological sort — handles "9:00 AM" and "09:00:00"
   function timeToMin(t: string): number {
-    const m = t.match(/(\d+):(\d+)\s*(AM|PM)/i)
-    if (!m) return 0
-    let h = parseInt(m[1])
-    const min = parseInt(m[2])
-    if (m[3].toUpperCase() === 'PM' && h !== 12) h += 12
-    if (m[3].toUpperCase() === 'AM' && h === 12) h = 0
-    return h * 60 + min
+    if (!t) return 0
+    const m12 = t.match(/(\d+):(\d+)\s*(AM|PM)/i)
+    if (m12) {
+      let h = parseInt(m12[1])
+      const min = parseInt(m12[2])
+      if (m12[3].toUpperCase() === 'PM' && h !== 12) h += 12
+      if (m12[3].toUpperCase() === 'AM' && h === 12) h = 0
+      return h * 60 + min
+    }
+    const m24 = t.match(/^(\d{1,2}):(\d{2})/)
+    if (m24) return parseInt(m24[1]) * 60 + parseInt(m24[2])
+    return 0
   }
 
   // Filter games — sort by TIME first (earliest → latest), then FIELD
@@ -3067,12 +3072,14 @@ function EditGameModal({ game, fields, teams, eventDates, onClose, onSaved }: Ed
   const divisions = [...new Set(teams.map((t) => t.division))].sort()
 
   function parseTimeTo24(t: string): string {
-    const m = t.match(/(\d+):(\d+)\s*(AM|PM)/i)
-    if (!m) return '08:00'
-    let h = parseInt(m[1])
-    if (m[3].toUpperCase() === 'PM' && h !== 12) h += 12
-    if (m[3].toUpperCase() === 'AM' && h === 12) h = 0
-    return `${String(h).padStart(2, '0')}:${m[2]}`
+    const m24 = t.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/)
+    if (m24) return `${m24[1].padStart(2, '0')}:${m24[2]}`
+    const m12 = t.match(/(\d+):(\d+)\s*(AM|PM)/i)
+    if (!m12) return '08:00'
+    let h = parseInt(m12[1])
+    if (m12[3].toUpperCase() === 'PM' && h !== 12) h += 12
+    if (m12[3].toUpperCase() === 'AM' && h === 12) h = 0
+    return `${String(h).padStart(2, '0')}:${m12[2]}`
   }
 
   const [division, setDivision] = useState(game.division || '')

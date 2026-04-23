@@ -38,7 +38,7 @@ function statusColor(status: string): string {
 export function ByTimeView({ games, hideScores = false }: Props) {
   if (games.length === 0) {
     return (
-      <div className="text-center py-20 border border-[#253f6e] rounded-xl bg-[#0e2040]">
+      <div className="text-center py-20 border border-[#2e5090] rounded-xl bg-[#1a3566]">
         <div className="font-cond text-[11px] font-bold tracking-[.18em] text-[#8aa4cc] uppercase">
           No games scheduled for this selection.
         </div>
@@ -74,8 +74,8 @@ export function ByTimeView({ games, hideScores = false }: Props) {
                 return (
                   <div
                     key={game.id}
-                    className={`bg-[#0e2040] border rounded-xl px-4 py-3 flex items-center gap-3 ${
-                      isLive ? 'border-green-400/30' : 'border-[#253f6e]'
+                    className={`bg-[#1a3566] border rounded-xl px-4 py-3 flex items-center gap-3 ${
+                      isLive ? 'border-green-400/30' : 'border-[#2e5090]'
                     }`}
                   >
                     {/* Teams + scores (two-line layout) */}

@@ -42,8 +42,8 @@ function GameRow({ game, hideScores = false }: { game: PublicGame; hideScores?: 
 
   return (
     <div
-      className={`bg-[#0e2040] border rounded-xl px-4 py-3 flex items-center gap-4 ${
-        isLive ? 'border-green-400/30' : 'border-[#253f6e]'
+      className={`bg-[#1a3566] border rounded-xl px-4 py-3 flex items-center gap-4 ${
+        isLive ? 'border-green-400/30' : 'border-[#2e5090]'
       }`}
     >
       <div className="w-14 shrink-0 text-center">
@@ -145,7 +145,7 @@ export function ByProgramView({
         )}
 
         {sorted.length === 0 ? (
-          <div className="text-center py-20 border border-[#253f6e] rounded-xl bg-[#0e2040]">
+          <div className="text-center py-20 border border-[#2e5090] rounded-xl bg-[#1a3566]">
             <div className="font-cond text-[11px] font-bold tracking-[.18em] text-[#8aa4cc] uppercase">
               No games scheduled for this selection.
             </div>
@@ -183,7 +183,7 @@ export function ByProgramView({
 
   if (sortedPrograms.length === 0) {
     return (
-      <div className="text-center py-20 border border-[#253f6e] rounded-xl bg-[#0e2040]">
+      <div className="text-center py-20 border border-[#2e5090] rounded-xl bg-[#1a3566]">
         <div className="font-cond text-[11px] font-bold tracking-[.18em] text-[#8aa4cc] uppercase">
           No teams found.
         </div>
@@ -234,10 +234,10 @@ function ProgramList({
         return (
           <div
             key={programName}
-            className="bg-[#0e2040] border border-[#253f6e] rounded-xl overflow-hidden"
+            className="bg-[#1a3566] border border-[#2e5090] rounded-xl overflow-hidden"
           >
             {/* Program header */}
-            <div className="flex items-center gap-3 px-4 py-3 border-b border-[#253f6e]">
+            <div className="flex items-center gap-3 px-4 py-3 border-b border-[#2e5090]">
               {logo && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={logo} alt="" className="w-8 h-8 rounded object-cover shrink-0" />
