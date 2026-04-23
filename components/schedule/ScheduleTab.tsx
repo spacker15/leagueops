@@ -959,12 +959,13 @@ export function ScheduleTab() {
       'home_score',
       'away_score',
     ]
+    const dateById = new Map(state.eventDates.map((d) => [d.id, d.date]))
     const csvRows = [headers.join(',')]
     for (const g of filtered) {
       const homeName = g.home_team?.name ?? ''
       const awayName = g.away_team?.name ?? ''
       const fieldName = g.field?.name ?? ''
-      const dateStr = currentDate?.date ?? state.eventDates.find((ed) => ed.id === g.event_date_id)?.date ?? ''
+      const dateStr = dateById.get(g.event_date_id) ?? currentDate?.date ?? ''
       csvRows.push(
         [
           `"${dateStr}"`,
@@ -3090,7 +3091,8 @@ function EditGameModal({ game, fields, teams, eventDates, onClose, onSaved }: Ed
   const [status, setStatus] = useState<string>(game.status || 'Scheduled')
   const [saving, setSaving] = useState(false)
 
-  const sel = 'bg-[#040e24] border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400 w-full'
+  const sel =
+    'bg-[#040e24] border border-border text-white px-2.5 py-1.5 rounded text-[13px] outline-none focus:border-blue-400 w-full'
 
   async function save() {
     if (!homeTeamId || !awayTeamId || homeTeamId === awayTeamId) {
@@ -3128,7 +3130,10 @@ function EditGameModal({ game, fields, teams, eventDates, onClose, onSaved }: Ed
 
     const home = teams.find((t) => t.id === Number(homeTeamId))?.name ?? homeTeamId
     const away = teams.find((t) => t.id === Number(awayTeamId))?.name ?? awayTeamId
-    await addLog(`Edited game #${game.id}: ${home} vs ${away} — ${scheduledTime}, ${division}`, 'info')
+    await addLog(
+      `Edited game #${game.id}: ${home} vs ${away} — ${scheduledTime}, ${division}`,
+      'info'
+    )
 
     toast.success('Game updated')
     setSaving(false)
@@ -3172,7 +3177,9 @@ function EditGameModal({ game, fields, teams, eventDates, onClose, onSaved }: Ed
               >
                 <option value="">Select…</option>
                 {divisions.map((d) => (
-                  <option key={d} value={d}>{d}</option>
+                  <option key={d} value={d}>
+                    {d}
+                  </option>
                 ))}
               </select>
             </div>
@@ -3180,17 +3187,14 @@ function EditGameModal({ game, fields, teams, eventDates, onClose, onSaved }: Ed
               <label className="font-cond text-[10px] font-bold tracking-widest text-muted uppercase block mb-1">
                 Field
               </label>
-              <select
-                className={sel}
-                value={fieldId}
-                onChange={(e) => setFieldId(e.target.value)}
-              >
+              <select className={sel} value={fieldId} onChange={(e) => setFieldId(e.target.value)}>
                 <option value="">Select…</option>
                 {fields
                   .filter((f) => !division || !f.division || f.division === division)
                   .map((f) => (
                     <option key={f.id} value={f.id}>
-                      {f.name}{f.division ? ` (${f.division})` : ''}
+                      {f.name}
+                      {f.division ? ` (${f.division})` : ''}
                     </option>
                   ))}
               </select>
@@ -3241,7 +3245,9 @@ function EditGameModal({ game, fields, teams, eventDates, onClose, onSaved }: Ed
                 {teams
                   .filter((t) => !division || t.division === division)
                   .map((t) => (
-                    <option key={t.id} value={t.id}>{t.name}</option>
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
                   ))}
               </select>
             </div>
@@ -3256,9 +3262,13 @@ function EditGameModal({ game, fields, teams, eventDates, onClose, onSaved }: Ed
               >
                 <option value="">Select…</option>
                 {teams
-                  .filter((t) => (!division || t.division === division) && String(t.id) !== homeTeamId)
+                  .filter(
+                    (t) => (!division || t.division === division) && String(t.id) !== homeTeamId
+                  )
                   .map((t) => (
-                    <option key={t.id} value={t.id}>{t.name}</option>
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
                   ))}
               </select>
             </div>
@@ -3269,8 +3279,19 @@ function EditGameModal({ game, fields, teams, eventDates, onClose, onSaved }: Ed
               Status
             </label>
             <select className={sel} value={status} onChange={(e) => setStatus(e.target.value)}>
-              {['Scheduled', 'Starting', 'Live', 'Halftime', 'Final', 'Delayed', 'Cancelled', 'No Show'].map((s) => (
-                <option key={s} value={s}>{s}</option>
+              {[
+                'Scheduled',
+                'Starting',
+                'Live',
+                'Halftime',
+                'Final',
+                'Delayed',
+                'Cancelled',
+                'No Show',
+              ].map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
               ))}
             </select>
           </div>
