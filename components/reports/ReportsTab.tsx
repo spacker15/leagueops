@@ -7,6 +7,7 @@ import { createClient } from '@/supabase/client'
 import { getAllGamesByEvent } from '@/lib/db'
 import type { Game, Team, Referee, Incident, MedicalIncident } from '@/types'
 import { RulesReference } from '@/components/rules/RulesReference'
+import { MultiSelectChips } from '@/components/ui'
 
 type SubTab =
   | 'results'
@@ -67,15 +68,11 @@ export function ReportsTab() {
   // Event-scoped divisions: only from registration_divisions for this event
   // If no registration_divisions exist, fall back to divisions found in THIS event's games only
   const divisions = useMemo(() => {
-    if (settingsDivisions.length > 0) {
-      return ['ALL', ...settingsDivisions]
-    }
-    // Fallback: divisions from this event's games only (already scoped by getAllGamesByEvent)
-    const gameDivs = [...new Set(allGames.map((g) => g.division))].sort()
-    return ['ALL', ...gameDivs]
+    if (settingsDivisions.length > 0) return settingsDivisions
+    return [...new Set(allGames.map((g) => g.division))].sort()
   }, [allGames, settingsDivisions])
 
-  const [divFilter, setDivFilter] = useState('ALL')
+  const [divFilters, setDivFilters] = useState<string[]>([])
 
   const showDivFilter = true // show division filter on all tabs including ref-schedule
 
@@ -114,35 +111,31 @@ export function ReportsTab() {
             <span className="font-cond text-[10px] font-black tracking-[.12em] text-muted uppercase">
               Division
             </span>
-            <select
-              value={divFilter}
-              onChange={(e) => setDivFilter(e.target.value)}
-              className="bg-[#081428] border border-[#1a2d50] text-white px-2 py-1 rounded text-[11px] font-cond font-bold outline-none focus:border-blue-400"
-            >
-              {divisions.map((d) => (
-                <option key={d} value={d}>
-                  {d}
-                </option>
-              ))}
-            </select>
+            <MultiSelectChips
+              allLabel="All"
+              size="sm"
+              options={divisions.map((d) => ({ value: d }))}
+              selected={divFilters}
+              onChange={setDivFilters}
+            />
           </div>
         )}
       </div>
 
       {sub === 'results' && (
-        <ResultsView games={finalGames} teams={state.teams} divFilter={divFilter} />
+        <ResultsView games={finalGames} teams={state.teams} divFilters={divFilters} />
       )}
       {sub === 'standings' && (
-        <StandingsView games={finalGames} teams={state.teams} divFilter={divFilter} />
+        <StandingsView games={finalGames} teams={state.teams} divFilters={divFilters} />
       )}
       {sub === 'leaders' && (
-        <LeadersView games={finalGames} teams={state.teams} divFilter={divFilter} />
+        <LeadersView games={finalGames} teams={state.teams} divFilters={divFilters} />
       )}
       {sub === 'matchups' && (
         <MatchupsView
           teams={state.teams}
           eventId={state.event?.id ?? null}
-          divFilter={divFilter}
+          divFilters={divFilters}
           globalDateId={currentDate?.id ?? null}
           globalDateIdx={state.currentDateIdx}
           eventDatesFromState={state.eventDates}
@@ -162,7 +155,7 @@ export function ReportsTab() {
           fields={state.fields}
           referees={state.referees}
           eventId={state.event?.id ?? null}
-          divFilter={divFilter}
+          divFilters={divFilters}
           globalDateId={currentDate?.id ?? null}
           globalDateIdx={state.currentDateIdx}
           eventDatesFromState={state.eventDates}
@@ -192,7 +185,7 @@ export function ReportsTab() {
               2026 USA Lacrosse Boys Youth Rules
             </span>
           </div>
-          <RulesReference selectedDivision={divFilter !== 'ALL' ? divFilter : undefined} />
+          <RulesReference selectedDivision={divFilters.length === 1 ? divFilters[0] : undefined} />
         </div>
       )}
     </div>
@@ -204,13 +197,14 @@ export function ReportsTab() {
 function ResultsView({
   games,
   teams,
-  divFilter,
+  divFilters,
 }: {
   games: Game[]
   teams: Team[]
-  divFilter: string
+  divFilters: string[]
 }) {
-  const filtered = divFilter === 'ALL' ? games : games.filter((g) => g.division === divFilter)
+  const filtered =
+    divFilters.length === 0 ? games : games.filter((g) => divFilters.includes(g.division))
 
   if (filtered.length === 0) {
     return <Empty message="No final games yet." />
@@ -292,14 +286,15 @@ interface TeamRecord {
 function StandingsView({
   games,
   teams,
-  divFilter,
+  divFilters,
 }: {
   games: Game[]
   teams: Team[]
-  divFilter: string
+  divFilters: string[]
 }) {
   const allGames = games
-  const filtered = divFilter === 'ALL' ? allGames : allGames.filter((g) => g.division === divFilter)
+  const filtered =
+    divFilters.length === 0 ? allGames : allGames.filter((g) => divFilters.includes(g.division))
 
   const records = buildRecords(filtered, teams)
   const byDiv = groupBy(Object.values(records), (r) => {
@@ -386,13 +381,14 @@ function StandingsView({
 function LeadersView({
   games,
   teams,
-  divFilter,
+  divFilters,
 }: {
   games: Game[]
   teams: Team[]
-  divFilter: string
+  divFilters: string[]
 }) {
-  const filtered = divFilter === 'ALL' ? games : games.filter((g) => g.division === divFilter)
+  const filtered =
+    divFilters.length === 0 ? games : games.filter((g) => divFilters.includes(g.division))
   const records = buildRecords(filtered, teams)
   const rows = Object.values(records)
 
@@ -508,12 +504,12 @@ interface AllGame {
 function MatchupsView({
   teams,
   eventId,
-  divFilter,
+  divFilters,
   eventDatesFromState,
 }: {
   teams: Team[]
   eventId: number | null
-  divFilter: string
+  divFilters: string[]
   globalDateId?: number | null
   globalDateIdx?: number
   eventDatesFromState: { id: number; date: string; label: string }[]
@@ -659,29 +655,10 @@ function MatchupsView({
       </div>
     ) : null
 
-  // When a specific division is selected, show a single matrix
-  if (divFilter !== 'ALL') {
-    const divGames = filteredGames.filter((g) => g.division === divFilter)
-    const divTeams = teamsForDivGames(divGames)
-    if (divTeams.length === 0)
-      return (
-        <>
-          {datePicker}
-          <Empty message="No teams found for this division." />
-        </>
-      )
-    return (
-      <>
-        {datePicker}
-        <MatchupMatrix teams={divTeams} games={divGames} showDivisionOnRow={false} />
-      </>
-    )
-  }
-
-  // "ALL" — show separate matrices per division
-  const divisionsWithGames = allDivisions.filter((div) =>
-    filteredGames.some((g) => g.division === div)
-  )
+  // Always render per-division matrices for the selected divisions (or all if none).
+  const divisionsWithGames = allDivisions
+    .filter((div) => divFilters.length === 0 || divFilters.includes(div))
+    .filter((div) => filteredGames.some((g) => g.division === div))
   if (divisionsWithGames.length === 0)
     return (
       <>
@@ -950,7 +927,7 @@ function RefScheduleView({
   fields,
   referees,
   eventId,
-  divFilter,
+  divFilters,
   globalDateId,
   globalDateIdx,
   eventDatesFromState,
@@ -960,7 +937,7 @@ function RefScheduleView({
   fields: { id: number; name: string }[]
   referees: Referee[]
   eventId: number | null
-  divFilter: string
+  divFilters: string[]
   globalDateId: number | null
   globalDateIdx: number
   eventDatesFromState: { id: number; date: string; label: string | null }[]
@@ -1021,18 +998,18 @@ function RefScheduleView({
       })
   }, [eventId, games])
 
-  // Filter games by selected date and division
+  // Filter games by selected date and division(s)
   const filteredGames = useMemo(() => {
     let filtered = games
     if (selectedDateId !== 'all') {
       const dateId = parseInt(selectedDateId)
       filtered = filtered.filter((g) => g.event_date_id === dateId)
     }
-    if (divFilter !== 'ALL') {
-      filtered = filtered.filter((g) => g.division === divFilter)
+    if (divFilters.length > 0) {
+      filtered = filtered.filter((g) => divFilters.includes(g.division))
     }
     return filtered
-  }, [games, selectedDateId, divFilter])
+  }, [games, selectedDateId, divFilters])
 
   // Build: fieldId → timeStr → { adult: RefAssignmentRow[], youth: RefAssignmentRow[], divisions: string[] }
   const schedule = useMemo(() => {

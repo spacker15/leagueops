@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { useApp } from '@/lib/store'
-import { SectionHeader, Btn } from '@/components/ui'
+import { SectionHeader, Btn, MultiSelectChips } from '@/components/ui'
 import * as db from '@/lib/db'
 import toast from 'react-hot-toast'
 import type { RosterRow } from '@/types'
@@ -43,15 +43,14 @@ export function RostersTab() {
   const [teamPlayers, setTeamPlayers] = useState<any[]>([])
   const [loadingTeam, setLoadingTeam] = useState(false)
   const [committed, setCommitted] = useState(false)
-  const [divFilter, setDivFilter] = useState('')
+  const [divFilters, setDivFilters] = useState<string[]>([])
 
   // Derive unique divisions from teams, sorted
   const divisions = [...new Set(state.teams.map((t) => t.division))].filter(Boolean).sort()
 
-  // Teams filtered by selected division
-  const filteredTeams = divFilter
-    ? state.teams.filter((t) => t.division === divFilter)
-    : state.teams
+  // Teams filtered by selected divisions (empty = all)
+  const filteredTeams =
+    divFilters.length > 0 ? state.teams.filter((t) => divFilters.includes(t.division)) : state.teams
 
   // Group filtered teams by division for the selector
   const teamsByDivision = filteredTeams.reduce<Record<string, typeof state.teams>>((acc, t) => {
@@ -423,22 +422,21 @@ export function RostersTab() {
           </div>
 
           {/* Division filter */}
-          <select
-            className="w-full bg-surface-card border border-border text-white px-3 py-2 rounded font-cond text-[11px] font-bold outline-none focus:border-blue-400 mb-2"
-            value={divFilter}
-            onChange={(e) => {
-              setDivFilter(e.target.value)
-              setTeamId(null)
-              setTeamPlayers([])
-            }}
-          >
-            <option value="">All Divisions ({state.teams.length} teams)</option>
-            {divisions.map((d) => (
-              <option key={d} value={d}>
-                {d} ({state.teams.filter((t) => t.division === d).length} teams)
-              </option>
-            ))}
-          </select>
+          <div className="mb-2">
+            <MultiSelectChips
+              allLabel={`All (${state.teams.length})`}
+              options={divisions.map((d) => ({
+                value: d,
+                count: state.teams.filter((t) => t.division === d).length,
+              }))}
+              selected={divFilters}
+              onChange={(next) => {
+                setDivFilters(next)
+                setTeamId(null)
+                setTeamPlayers([])
+              }}
+            />
+          </div>
 
           {/* Team selector grouped by division */}
           <select
