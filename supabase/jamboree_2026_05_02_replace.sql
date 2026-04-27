@@ -15,8 +15,9 @@
 --   - Fields are identified by their `number` column ('1','5','6').
 --     If your fields use name='Field 1' instead, swap the join to
 --     `f.name = src.field_name`.
---   - 3 matchups without a division prefix are assumed 14U based on
---     neighboring rows — flagged with `-- ASSUMED 14U` below.
+--   - The 14U schedule below contains 3 field/time conflicts with
+--     existing 12U games (12:00 F5, 13:00 F6, 14:00 F5) — flagged
+--     with `-- ⚠ FIELD CONFLICT` below. Resolve before COMMIT.
 -- ============================================================
 
 \set event_id 1  -- <<< EDIT: set to the correct event_id
@@ -50,33 +51,31 @@ WHERE event_id = :event_id
 WITH src(scheduled_time, field_num, home_name, away_name, division) AS (
   VALUES
     -- 9:00 AM
-    ('09:00', '1', 'Riptide White',      'Bold City Eagles', '14U'),
-    ('09:00', '5', 'Creeks Green',       'Jax Lax',          '14U'),
-    ('09:00', '6', 'Riptide Blue',       'Hammerhead',       '14U'),
+    ('09:00', '5', 'Creeks Blue',        'Bold City Eagles', '14U'),
+    ('09:00', '6', 'Riptide White',      'Creeks Green',     '14U'),
     -- 10:00 AM
-    ('10:00', '1', 'Riptide White',      'Creeks Blue',      '14U'),
-    ('10:00', '5', 'Riptide Black',      'Fleming Island',   '14U'),
-    ('10:00', '6', 'Bold City Eagles',   'Jax Lax',          '14U'),  -- ASSUMED 14U
+    ('10:00', '5', 'Bold City Eagles',   'Riptide Blue',     '14U'),
     -- 11:00 AM
     ('11:00', '1', 'Riptide Gray',       'Hammerhead',       '12U'),
-    ('11:00', '5', 'Fleming Island',     'Jax Lax',          '14U'),  -- ASSUMED 14U
-    ('11:00', '6', 'Creeks Green',       'Hammerhead',       '14U'),  -- ASSUMED 14U
+    ('11:00', '6', 'Creeks Green',       'Jax Lax',          '14U'),
     -- 12:00 PM
     ('12:00', '1', 'Riptide Navy',       'Bold City Eagles', '12U'),
-    ('12:00', '5', 'Riptide White',      'Creeks Blue',      '12U'),
-    ('12:00', '6', 'Riptide Blue',       'Fleming Island',   '14U'),
+    ('12:00', '5', 'Hammerhead',         'Riptide White',    '14U'),
+    ('12:00', '5', 'Riptide White',      'Creeks Blue',      '12U'),  -- ⚠ FIELD CONFLICT with 14U above
+    ('12:00', '6', 'Riptide Black',      'Creeks Blue',      '14U'),
     -- 1:00 PM
     ('13:00', '1', 'Riptide Black',      'Creeks Green',     '12U'),
-    ('13:00', '5', 'Riptide Black',      'Creeks Blue',      '14U'),
-    ('13:00', '6', 'Riptide Gray',       'Jax Lax',          '12U'),
+    ('13:00', '6', 'Fleming Island',     'Riptide Blue',     '14U'),
+    ('13:00', '6', 'Riptide Gray',       'Jax Lax',          '12U'),  -- ⚠ FIELD CONFLICT with 14U above
     -- 2:00 PM
     ('14:00', '1', 'Riptide Blue',       'Hammerhead',       '12U'),
-    ('14:00', '5', 'Riptide White',      'Fleming Island',   '12U'),
+    ('14:00', '5', 'Jax Lax',            'Riptide Black',    '14U'),
+    ('14:00', '5', 'Riptide White',      'Fleming Island',   '12U'),  -- ⚠ FIELD CONFLICT with 14U above
     ('14:00', '6', 'Riptide Black',      'Creeks Blue',      '12U'),
     -- 3:00 PM
     ('15:00', '1', 'Riptide Blue',       'Bold City Eagles', '12U'),
-    ('15:00', '5', 'Riptide Navy',       'Creeks Green',     '12U')
-    -- Field 6 at 3:00 PM — no game (—)
+    ('15:00', '5', 'Riptide Navy',       'Creeks Green',     '12U'),
+    ('15:00', '6', 'Fleming Island',     'Hammerhead',       '14U')
 ),
 norm AS (
   SELECT
@@ -120,7 +119,7 @@ FROM resolved;
 -- dropped. Roll back and fix names before committing.
 DO $$
 DECLARE
-  expected INT := 20;  -- count of rows in VALUES above (not counting Field 6 @ 3 PM)
+  expected INT := 19;  -- count of rows in VALUES above (10 12U + 9 14U)
   actual INT;
 BEGIN
   SELECT COUNT(*) INTO actual
