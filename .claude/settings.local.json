@@ -1,4 +1,5 @@
 {
+  "enabledMcpjsonServers": ["Supabase"],
   "permissions": {
     "allow": [
       "Skill(gsd:plan-phase)",
