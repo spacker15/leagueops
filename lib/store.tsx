@@ -226,6 +226,7 @@ interface ContextValue {
   refreshGames: () => Promise<void>
   updateGameStatus: (gameId: number, status: GameStatus) => Promise<void>
   updateGameScore: (gameId: number, home: number, away: number) => Promise<void>
+  updateGameSlot: (gameId: number, fieldId: number, scheduledTime: string) => Promise<void>
   addGame: (game: Parameters<typeof db.insertGame>[0]) => Promise<void>
   deleteGame: (gameId: number) => Promise<void>
   toggleRefCheckin: (refId: number) => Promise<void>
@@ -619,6 +620,32 @@ export function AppProvider({
     [state.games, addLog]
   )
 
+  const updateGameSlot = useCallback(
+    async (gameId: number, fieldId: number, scheduledTime: string) => {
+      const existing = state.games.find((g) => g.id === gameId)
+      if (existing) {
+        const fieldObj = state.fields.find((f) => f.id === fieldId) ?? existing.field
+        dispatch({
+          type: 'UPDATE_GAME',
+          payload: {
+            ...existing,
+            field_id: fieldId,
+            scheduled_time: scheduledTime,
+            field: fieldObj,
+          },
+        })
+      }
+      try {
+        await db.updateGameSlot(gameId, fieldId, scheduledTime)
+        await addLog(`Game #${gameId} moved to ${scheduledTime}`, 'info')
+      } catch (e) {
+        if (existing) dispatch({ type: 'UPDATE_GAME', payload: existing })
+        throw e
+      }
+    },
+    [state.games, state.fields, addLog]
+  )
+
   const addGame = useCallback(
     async (game: Parameters<typeof db.insertGame>[0]) => {
       const created = await db.insertGame(game)
@@ -856,6 +883,7 @@ export function AppProvider({
         refreshGames,
         updateGameStatus,
         updateGameScore,
+        updateGameSlot,
         addGame,
         deleteGame,
         toggleRefCheckin,

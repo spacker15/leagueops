@@ -1,6 +1,17 @@
 'use client'
 
 import { useState, useMemo, useCallback, useEffect } from 'react'
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  useDraggable,
+  useDroppable,
+  type DragEndEvent,
+  type DragStartEvent,
+} from '@dnd-kit/core'
 import { useApp } from '@/lib/store'
 import { useAuth } from '@/lib/auth'
 import { StatusBadge, Modal, Btn, FormField, SectionHeader } from '@/components/ui'
@@ -15,7 +26,7 @@ import {
   type FuzzyResult,
 } from '@/lib/utils'
 import toast from 'react-hot-toast'
-import type { GameStatus, OperationalConflict, ScheduleChangeRequest } from '@/types'
+import type { Field, GameStatus, OperationalConflict, ScheduleChangeRequest } from '@/types'
 import { createClient } from '@/supabase/client'
 import { useRef } from 'react'
 import {
@@ -42,6 +53,61 @@ import {
 
 type ViewMode = 'table' | 'board'
 type TeamFilter = 'all' | 'my-teams'
+
+function fieldDivisionsArray(f: Field): string[] {
+  if (f.divisions && f.divisions.length > 0) return f.divisions
+  return (f.division ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+}
+
+function fieldMatchesDivision(f: Field, division: string | undefined | null): boolean {
+  if (!division) return true
+  const divs = fieldDivisionsArray(f)
+  if (divs.length === 0) return true
+  return divs.includes(division)
+}
+
+function fieldDivisionLabel(f: Field): string {
+  return fieldDivisionsArray(f).join(', ')
+}
+
+const SLOT_MIN = 15
+
+function parseTimeToMin(t: string | null | undefined): number {
+  if (!t) return 0
+  const m12 = t.match(/(\d+):(\d+)\s*(AM|PM)/i)
+  if (m12) {
+    let h = parseInt(m12[1])
+    const min = parseInt(m12[2])
+    if (m12[3].toUpperCase() === 'PM' && h !== 12) h += 12
+    if (m12[3].toUpperCase() === 'AM' && h === 12) h = 0
+    return h * 60 + min
+  }
+  const m24 = t.match(/^(\d{1,2}):(\d{2})/)
+  if (m24) return parseInt(m24[1]) * 60 + parseInt(m24[2])
+  return 0
+}
+
+function snapToSlot(min: number): number {
+  return Math.round(min / SLOT_MIN) * SLOT_MIN
+}
+
+function minToTime12(min: number): string {
+  const h24 = Math.floor(min / 60) % 24
+  const m = ((min % 60) + 60) % 60
+  const ampm = h24 >= 12 ? 'PM' : 'AM'
+  const h = h24 > 12 ? h24 - 12 : h24 === 0 ? 12 : h24
+  return `${h}:${m.toString().padStart(2, '0')} ${ampm}`
+}
+
+function minToShortLabel(min: number): string {
+  const h24 = Math.floor(min / 60) % 24
+  const m = ((min % 60) + 60) % 60
+  const h = h24 > 12 ? h24 - 12 : h24 === 0 ? 12 : h24
+  return `${h}:${m.toString().padStart(2, '0')}`
+}
 
 // Enhanced resolver types for schedule CSV import
 type ResolverAction = 'create' | 'map' | 'skip' | null
@@ -146,8 +212,16 @@ interface FieldConflict extends OperationalConflict {
 }
 
 export function ScheduleTab() {
-  const { state, updateGameStatus, addGame, deleteGame, refreshGames, currentDate, eventId } =
-    useApp()
+  const {
+    state,
+    updateGameStatus,
+    updateGameSlot,
+    addGame,
+    deleteGame,
+    refreshGames,
+    currentDate,
+    eventId,
+  } = useApp()
 
   // Logo lookup from state.teams (always current, even after uploads)
   const teamLogoMap = Object.fromEntries(
@@ -2006,6 +2080,19 @@ export function ScheduleTab() {
           onUnschedule={userRole?.role === 'admin' ? handleUnschedule : undefined}
           onDelete={userRole?.role === 'admin' ? handleDeleteGame : undefined}
           onEditGame={userRole?.role === 'admin' ? setEditTarget : undefined}
+          onMoveGame={
+            userRole?.role === 'admin'
+              ? async (gameId, fieldId, scheduledTime) => {
+                  try {
+                    await updateGameSlot(gameId, fieldId, scheduledTime)
+                    toast.success(`Moved to ${scheduledTime}`)
+                    loadConflicts()
+                  } catch (e) {
+                    toast.error('Move failed')
+                  }
+                }
+              : undefined
+          }
           selectionMode={selectionMode}
           selectedGameIds={selectedGameIds}
           onToggleSelect={toggleGameSelection}
@@ -2057,11 +2144,11 @@ export function ScheduleTab() {
             >
               <option value="">Select field…</option>
               {state.fields
-                .filter((f) => !agDiv || !f.division || f.division === agDiv)
+                .filter((f) => fieldMatchesDivision(f, agDiv))
                 .map((f) => (
                   <option key={f.id} value={f.id}>
                     {f.name}
-                    {f.division ? ` (${f.division})` : ''}
+                    {fieldDivisionLabel(f) ? ` (${fieldDivisionLabel(f)})` : ''}
                   </option>
                 ))}
             </select>
@@ -3061,7 +3148,7 @@ function QuickRescheduleBtn({ game, onRescheduled }: { game: any; onRescheduled:
 // ─── Edit Game Modal ────────────────────────────────────────
 interface EditGameModalProps {
   game: any
-  fields: { id: number; name: string; division?: string }[]
+  fields: Field[]
   teams: { id: number; name: string; division: string }[]
   eventDates: { id: number; date: string; label: string }[]
   onClose: () => void
@@ -3190,11 +3277,11 @@ function EditGameModal({ game, fields, teams, eventDates, onClose, onSaved }: Ed
               <select className={sel} value={fieldId} onChange={(e) => setFieldId(e.target.value)}>
                 <option value="">Select…</option>
                 {fields
-                  .filter((f) => !division || !f.division || f.division === division)
+                  .filter((f) => fieldMatchesDivision(f, division))
                   .map((f) => (
                     <option key={f.id} value={f.id}>
                       {f.name}
-                      {f.division ? ` (${f.division})` : ''}
+                      {fieldDivisionLabel(f) ? ` (${fieldDivisionLabel(f)})` : ''}
                     </option>
                   ))}
               </select>
@@ -3499,6 +3586,7 @@ function ScheduleBoardView({
   onUnschedule,
   onDelete,
   onEditGame,
+  onMoveGame,
   selectionMode,
   selectedGameIds,
   onToggleSelect,
@@ -3518,12 +3606,62 @@ function ScheduleBoardView({
   onUnschedule?: (gameId: number) => void
   onDelete?: (gameId: number) => void
   onEditGame?: (game: any) => void
+  onMoveGame?: (gameId: number, fieldId: number, scheduledTime: string) => Promise<void> | void
   selectionMode: boolean
   selectedGameIds: Set<number>
   onToggleSelect: (gameId: number) => void
   teamLogoMap: Record<number, string | null>
 }) {
-  return (
+  const dndEnabled = !!onMoveGame && !selectionMode
+
+  const slots = useMemo(() => {
+    const allTimes = fieldColumns.flatMap(({ games }) =>
+      games.map((g) => parseTimeToMin(g.scheduled_time))
+    )
+    if (allTimes.length === 0) return [] as number[]
+    const min = snapToSlot(Math.min(...allTimes))
+    const max = snapToSlot(Math.max(...allTimes)) + 60
+    const out: number[] = []
+    for (let m = min; m <= max; m += SLOT_MIN) out.push(m)
+    return out
+  }, [fieldColumns])
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
+  const [activeGame, setActiveGame] = useState<any | null>(null)
+
+  function findGameById(id: number): any | null {
+    for (const { games } of fieldColumns) {
+      const g = games.find((x) => x.id === id)
+      if (g) return g
+    }
+    return unscheduledGames.find((x) => x.id === id) ?? null
+  }
+
+  function handleDragStart(e: DragStartEvent) {
+    const id = String(e.active.id)
+    if (!id.startsWith('game:')) return
+    const gameId = Number(id.slice('game:'.length))
+    setActiveGame(findGameById(gameId))
+  }
+
+  async function handleDragEnd(e: DragEndEvent) {
+    setActiveGame(null)
+    if (!onMoveGame) return
+    const activeId = String(e.active.id)
+    const overId = e.over ? String(e.over.id) : ''
+    if (!activeId.startsWith('game:') || !overId.startsWith('slot:')) return
+    const gameId = Number(activeId.slice('game:'.length))
+    const [, fieldIdStr, slotMinStr] = overId.split(':')
+    const fieldId = Number(fieldIdStr)
+    const slotMin = Number(slotMinStr)
+    const game = findGameById(gameId)
+    if (!game) return
+    const currentSlot = snapToSlot(parseTimeToMin(game.scheduled_time))
+    if (game.field_id === fieldId && currentSlot === slotMin) return
+    await onMoveGame(gameId, fieldId, minToTime12(slotMin))
+  }
+
+  const board = (
     <div className="overflow-x-auto overscroll-x-contain pb-4">
       <div
         className="flex gap-3"
@@ -3536,6 +3674,14 @@ function ScheduleBoardView({
           const delayedCount = games.filter((g) => g.status === 'Delayed').length
           const finalCount = games.filter((g) => g.status === 'Final').length
           const conflictCount = games.filter((g) => conflictGameIds.has(g.id)).length
+
+          const gamesBySlot = new Map<number, any[]>()
+          for (const g of games) {
+            const slot = snapToSlot(parseTimeToMin(g.scheduled_time))
+            const arr = gamesBySlot.get(slot) ?? []
+            arr.push(g)
+            gamesBySlot.set(slot, arr)
+          }
 
           return (
             <div key={field.id} className="flex-shrink-0" style={{ width: 220 }}>
@@ -3609,30 +3755,70 @@ function ScheduleBoardView({
                 </div>
               </div>
 
-              {/* Game cards */}
-              <div className="space-y-2">
-                {games.map((game) => (
-                  <GameCard
-                    key={game.id}
-                    game={game}
-                    hasConflict={conflictGameIds.has(game.id)}
-                    conflict={conflicts.find((c) => c.impacted_game_ids?.includes(game.id))}
-                    onCycleStatus={onCycleStatus}
-                    onRescheduled={onRescheduled}
-                    followedSet={followedSet}
-                    pendingRequestGameIds={pendingRequestGameIds}
-                    scheduleChangeRequests={scheduleChangeRequests}
-                    userRole={userRole}
-                    onRequestChange={onRequestChange}
-                    onUnschedule={onUnschedule}
-                    onDelete={onDelete}
-                    onEditGame={onEditGame}
-                    selectionMode={selectionMode}
-                    isSelected={selectedGameIds.has(game.id)}
-                    onToggleSelect={onToggleSelect}
-                    teamLogoMap={teamLogoMap}
-                  />
-                ))}
+              {/* Time-slot grid */}
+              <div className="space-y-1">
+                {slots.length === 0
+                  ? games.map((game) => (
+                      <DraggableGameCard
+                        key={game.id}
+                        enabled={dndEnabled}
+                        game={game}
+                        hasConflict={conflictGameIds.has(game.id)}
+                        conflict={conflicts.find((c) => c.impacted_game_ids?.includes(game.id))}
+                        onCycleStatus={onCycleStatus}
+                        onRescheduled={onRescheduled}
+                        followedSet={followedSet}
+                        pendingRequestGameIds={pendingRequestGameIds}
+                        scheduleChangeRequests={scheduleChangeRequests}
+                        userRole={userRole}
+                        onRequestChange={onRequestChange}
+                        onUnschedule={onUnschedule}
+                        onDelete={onDelete}
+                        onEditGame={onEditGame}
+                        selectionMode={selectionMode}
+                        isSelected={selectedGameIds.has(game.id)}
+                        onToggleSelect={onToggleSelect}
+                        teamLogoMap={teamLogoMap}
+                      />
+                    ))
+                  : slots.map((slotMin) => {
+                      const slotGames = gamesBySlot.get(slotMin) ?? []
+                      return (
+                        <SlotDropzone
+                          key={slotMin}
+                          fieldId={field.id}
+                          slotMin={slotMin}
+                          enabled={dndEnabled}
+                          empty={slotGames.length === 0}
+                        >
+                          {slotGames.map((game) => (
+                            <DraggableGameCard
+                              key={game.id}
+                              enabled={dndEnabled}
+                              game={game}
+                              hasConflict={conflictGameIds.has(game.id)}
+                              conflict={conflicts.find((c) =>
+                                c.impacted_game_ids?.includes(game.id)
+                              )}
+                              onCycleStatus={onCycleStatus}
+                              onRescheduled={onRescheduled}
+                              followedSet={followedSet}
+                              pendingRequestGameIds={pendingRequestGameIds}
+                              scheduleChangeRequests={scheduleChangeRequests}
+                              userRole={userRole}
+                              onRequestChange={onRequestChange}
+                              onUnschedule={onUnschedule}
+                              onDelete={onDelete}
+                              onEditGame={onEditGame}
+                              selectionMode={selectionMode}
+                              isSelected={selectedGameIds.has(game.id)}
+                              onToggleSelect={onToggleSelect}
+                              teamLogoMap={teamLogoMap}
+                            />
+                          ))}
+                        </SlotDropzone>
+                      )
+                    })}
               </div>
             </div>
           )
@@ -3655,8 +3841,9 @@ function ScheduleBoardView({
             </div>
             <div className="space-y-2">
               {unscheduledGames.map((game) => (
-                <GameCard
+                <DraggableGameCard
                   key={game.id}
+                  enabled={dndEnabled}
                   game={game}
                   hasConflict={false}
                   conflict={undefined}
@@ -3679,6 +3866,100 @@ function ScheduleBoardView({
           </div>
         )}
       </div>
+    </div>
+  )
+
+  if (!dndEnabled) return board
+
+  return (
+    <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+      {board}
+      <DragOverlay>
+        {activeGame ? (
+          <div className="rounded-lg border border-blue-400 bg-surface-card px-3 py-2 shadow-lg opacity-90">
+            <div className="font-cond font-bold text-[12px] text-white">
+              {activeGame.home_team?.name ?? 'TBD'} vs {activeGame.away_team?.name ?? 'TBD'}
+            </div>
+            <div className="font-mono text-[10px] text-muted">{activeGame.scheduled_time}</div>
+          </div>
+        ) : null}
+      </DragOverlay>
+    </DndContext>
+  )
+}
+
+function SlotDropzone({
+  fieldId,
+  slotMin,
+  enabled,
+  empty,
+  children,
+}: {
+  fieldId: number
+  slotMin: number
+  enabled: boolean
+  empty: boolean
+  children: React.ReactNode
+}) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: `slot:${fieldId}:${slotMin}`,
+    disabled: !enabled,
+    data: { fieldId, slotMin },
+  })
+  return (
+    <div
+      ref={setNodeRef}
+      className={cn(
+        'rounded transition-colors',
+        empty && 'min-h-[18px] border border-dashed border-border/30 px-2 py-0.5',
+        isOver && 'ring-2 ring-blue-400 bg-blue-500/10'
+      )}
+    >
+      {empty ? (
+        <span className="font-mono text-[9px] text-muted/40">{minToShortLabel(slotMin)}</span>
+      ) : (
+        children
+      )}
+    </div>
+  )
+}
+
+function DraggableGameCard({
+  enabled,
+  ...props
+}: {
+  enabled: boolean
+  game: any
+  hasConflict: boolean
+  conflict: any
+  onCycleStatus: (id: number, status: GameStatus) => void
+  onRescheduled: () => void
+  followedSet: Set<number>
+  pendingRequestGameIds: Set<number>
+  scheduleChangeRequests: ScheduleChangeRequest[]
+  userRole: import('@/lib/auth').UserRole | null
+  onRequestChange: (gameId: number) => void
+  onUnschedule?: (gameId: number) => void
+  onDelete?: (gameId: number) => void
+  onEditGame?: (game: any) => void
+  selectionMode: boolean
+  isSelected: boolean
+  onToggleSelect: (gameId: number) => void
+  teamLogoMap: Record<number, string | null>
+}) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: `game:${props.game.id}`,
+    disabled: !enabled,
+  })
+  if (!enabled) return <GameCard {...props} />
+  return (
+    <div
+      ref={setNodeRef}
+      {...attributes}
+      {...listeners}
+      className={cn('cursor-grab active:cursor-grabbing', isDragging && 'opacity-30')}
+    >
+      <GameCard {...props} />
     </div>
   )
 }

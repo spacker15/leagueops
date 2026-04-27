@@ -42,8 +42,25 @@ export async function getEventDates(eventId: number): Promise<EventDate[]> {
 // ---- Fields ----
 export async function getFields(eventId: number): Promise<Field[]> {
   const sb = createClient()
-  const { data } = await sb.from('fields').select('*').eq('event_id', eventId).order('id')
-  return (data ?? []).sort((a, b) => Number(a.number) - Number(b.number))
+  const [fieldsRes, fdRes] = await Promise.all([
+    sb.from('fields').select('*').eq('event_id', eventId).order('id'),
+    sb.from('field_divisions').select('field_id, division_name').eq('event_id', eventId),
+  ])
+  const fdMap: Record<number, string[]> = {}
+  for (const row of (fdRes.data ?? []) as { field_id: number; division_name: string }[]) {
+    if (!fdMap[row.field_id]) fdMap[row.field_id] = []
+    fdMap[row.field_id].push(row.division_name)
+  }
+  const fields = ((fieldsRes.data ?? []) as Field[]).map((f) => {
+    const joined = fdMap[f.id] ?? []
+    const legacy = (f.division ?? '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
+    const merged = [...new Set([...joined, ...legacy])]
+    return { ...f, divisions: merged }
+  })
+  return fields.sort((a, b) => Number(a.number) - Number(b.number))
 }
 
 export async function updateFieldMap(fieldId: number, x: number, y: number): Promise<void> {
@@ -272,6 +289,18 @@ export async function updateGameScore(
 export async function updateGameField(gameId: number, fieldId: number): Promise<void> {
   const sb = createClient()
   await sb.from('games').update({ field_id: fieldId }).eq('id', gameId)
+}
+
+export async function updateGameSlot(
+  gameId: number,
+  fieldId: number,
+  scheduledTime: string
+): Promise<void> {
+  const sb = createClient()
+  await sb
+    .from('games')
+    .update({ field_id: fieldId, scheduled_time: scheduledTime })
+    .eq('id', gameId)
 }
 
 export async function deleteGame(gameId: number): Promise<void> {
