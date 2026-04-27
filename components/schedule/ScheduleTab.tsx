@@ -14,7 +14,14 @@ import {
 } from '@dnd-kit/core'
 import { useApp } from '@/lib/store'
 import { useAuth } from '@/lib/auth'
-import { StatusBadge, Modal, Btn, FormField, SectionHeader } from '@/components/ui'
+import {
+  StatusBadge,
+  Modal,
+  Btn,
+  FormField,
+  SectionHeader,
+  MultiSelectChips,
+} from '@/components/ui'
 import { ScheduleChangeRequestModal } from '@/components/schedule/ScheduleChangeRequestModal'
 import {
   cn,
@@ -230,7 +237,7 @@ export function ScheduleTab() {
   const { userRole } = useAuth()
   const [viewMode, setViewMode] = useState<ViewMode>('board')
   const [fieldFilter, setFieldFilter] = useState('')
-  const [divFilter, setDivFilter] = useState('')
+  const [divFilters, setDivFilters] = useState<string[]>([])
   const [statusFilter, setStatusFilter] = useState('')
   const [addOpen, setAddOpen] = useState(false)
   const [editTarget, setEditTarget] = useState<any>(null)
@@ -441,13 +448,13 @@ export function ScheduleTab() {
           timeToMin(a.scheduled_time) - timeToMin(b.scheduled_time) || a.field_id - b.field_id
       )
     if (fieldFilter) g = g.filter((x) => String(x.field_id) === fieldFilter)
-    if (divFilter) g = g.filter((x) => x.division.startsWith(divFilter))
+    if (divFilters.length > 0) g = g.filter((x) => divFilters.includes(x.division))
     if (statusFilter) g = g.filter((x) => x.status === statusFilter)
     if (teamFilter === 'my-teams' && followedTeams.length > 0) {
       g = g.filter((x) => followedSet.has(x.home_team_id) || followedSet.has(x.away_team_id))
     }
     return g
-  }, [state.games, fieldFilter, divFilter, statusFilter, teamFilter, followedTeams, followedSet])
+  }, [state.games, fieldFilter, divFilters, statusFilter, teamFilter, followedTeams, followedSet])
 
   async function cycleStatus(gameId: number, current: GameStatus) {
     const next = nextGameStatus(current)
@@ -1515,18 +1522,12 @@ export function ScheduleTab() {
           ))}
         </select>
 
-        <select
-          className="bg-surface-card border border-border text-white px-2 py-1.5 rounded font-cond text-[11px] font-bold"
-          value={divFilter}
-          onChange={(e) => setDivFilter(e.target.value)}
-        >
-          <option value="">All Divisions</option>
-          {divisions.map((d) => (
-            <option key={d} value={d}>
-              {d}
-            </option>
-          ))}
-        </select>
+        <MultiSelectChips
+          allLabel="All Divisions"
+          options={divisions.map((d) => ({ value: d }))}
+          selected={divFilters}
+          onChange={setDivFilters}
+        />
 
         <select
           className="bg-surface-card border border-border text-white px-2 py-1.5 rounded font-cond text-[11px] font-bold"

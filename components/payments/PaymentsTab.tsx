@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useApp } from '@/lib/store'
 import { cn } from '@/lib/utils'
+import { MultiSelectChips } from '@/components/ui'
 import toast from 'react-hot-toast'
 import {
   DollarSign,
@@ -552,7 +553,7 @@ export function PaymentsTab() {
     (PaymentEntry & { team_name?: string; team_payment?: TeamPayment })[]
   >([])
   const [loading, setLoading] = useState(true)
-  const [filterDiv, setFilterDiv] = useState('')
+  const [filterDivs, setFilterDivs] = useState<string[]>([])
   const [filterStatus, setFilterStatus] = useState<PaymentStatus | ''>('')
   const [recordTarget, setRecordTarget] = useState<TeamPayment | null>(null)
   const [showAddTeam, setShowAddTeam] = useState(false)
@@ -822,7 +823,7 @@ export function PaymentsTab() {
   ).sort() as string[]
 
   const filteredPayments = payments.filter((p) => {
-    if (filterDiv && p.division !== filterDiv) return false
+    if (filterDivs.length > 0 && !filterDivs.includes(p.division)) return false
     if (filterStatus && p.status !== filterStatus) return false
     return true
   })
@@ -1337,18 +1338,13 @@ export function PaymentsTab() {
         <div className="space-y-4">
           {/* Filters */}
           <div className="flex gap-3 items-center">
-            <select
-              className={cn(inp, 'w-40')}
-              value={filterDiv}
-              onChange={(e) => setFilterDiv(e.target.value)}
-            >
-              <option value="">All Divisions</option>
-              {divisions.map((d) => (
-                <option key={d} value={d}>
-                  {d}
-                </option>
-              ))}
-            </select>
+            <MultiSelectChips
+              allLabel="All Divisions"
+              size="sm"
+              options={divisions.map((d) => ({ value: d }))}
+              selected={filterDivs}
+              onChange={setFilterDivs}
+            />
             <select
               className={cn(inp, 'w-40')}
               value={filterStatus}

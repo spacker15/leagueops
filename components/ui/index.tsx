@@ -242,3 +242,72 @@ export function Pill({
     </span>
   )
 }
+
+// ─── Multi-Select Chip Group ──────────────────────────────────
+// Toggleable chip row for selecting any subset of options.
+// `selected = []` means "All" (no filter applied).
+export function MultiSelectChips({
+  options,
+  selected,
+  onChange,
+  allLabel = 'All',
+  className,
+  size = 'md',
+}: {
+  options: { value: string; label?: string; count?: number }[]
+  selected: string[]
+  onChange: (next: string[]) => void
+  allLabel?: string
+  className?: string
+  size?: 'sm' | 'md'
+}) {
+  const allSelected = selected.length === 0
+  const padCls = size === 'sm' ? 'px-2 py-0.5' : 'px-2.5 py-1'
+  const textCls = size === 'sm' ? 'text-[10px]' : 'text-[11px]'
+  const baseCls = cn(
+    'rounded font-cond font-bold tracking-wide uppercase border transition-colors whitespace-nowrap',
+    padCls,
+    textCls
+  )
+  function toggle(value: string) {
+    if (selected.includes(value)) onChange(selected.filter((x) => x !== value))
+    else onChange([...selected, value])
+  }
+  return (
+    <div className={cn('inline-flex flex-wrap gap-1 items-center', className)}>
+      <button
+        type="button"
+        onClick={() => onChange([])}
+        className={cn(
+          baseCls,
+          allSelected
+            ? 'bg-navy border-navy text-white'
+            : 'bg-transparent border-border text-muted hover:text-white hover:border-muted'
+        )}
+      >
+        {allLabel}
+      </button>
+      {options.map((opt) => {
+        const on = selected.includes(opt.value)
+        return (
+          <button
+            key={opt.value}
+            type="button"
+            onClick={() => toggle(opt.value)}
+            className={cn(
+              baseCls,
+              on
+                ? 'bg-navy border-navy text-white'
+                : 'bg-transparent border-border text-muted hover:text-white hover:border-muted'
+            )}
+          >
+            {opt.label ?? opt.value}
+            {typeof opt.count === 'number' && (
+              <span className="ml-1 opacity-60">({opt.count})</span>
+            )}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
